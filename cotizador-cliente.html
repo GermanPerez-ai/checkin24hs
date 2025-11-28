@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cotizador - Checkin24hs</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            max-width: 600px;
+            width: 100%;
+            padding: 30px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 0.95rem;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .form-row-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+            text-align: center;
+            display: none;
+        }
+
+        .success-message.show {
+            display: block;
+        }
+
+        .required {
+            color: #dc3545;
+        }
+
+        @media (max-width: 600px) {
+            .form-row, .form-row-3 {
+                grid-template-columns: 1fr;
+            }
+
+            .container {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📋 Solicitar Cotización</h1>
+            <p>Completa el formulario y te enviaremos tu cotización personalizada</p>
+            <p style="font-size: 0.85rem; color: #666; margin-top: 5px;">
+                💡 Tus datos se autocompletarán si los tienes guardados en tu navegador
+            </p>
+        </div>
+
+        <form id="quoteForm" onsubmit="submitQuote(event)" autocomplete="on">
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Nombre <span class="required">*</span></label>
+                    <input type="text" id="clientName" name="given-name" class="form-input" required 
+                           placeholder="Tu nombre" autocomplete="given-name">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Apellido <span class="required">*</span></label>
+                    <input type="text" id="clientLastName" name="family-name" class="form-input" required 
+                           placeholder="Tu apellido" autocomplete="family-name">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Email <span class="required">*</span></label>
+                <input type="email" id="clientEmail" name="email" class="form-input" required 
+                       placeholder="tu@email.com" autocomplete="email">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Teléfono <span class="required">*</span></label>
+                <input type="tel" id="clientPhone" name="tel" class="form-input" required 
+                       placeholder="+54912345678" autocomplete="tel">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Hotel <span class="required">*</span></label>
+                <select id="hotel" name="organization" class="form-input" required autocomplete="organization">
+                    <option value="">Seleccionar hotel</option>
+                </select>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Check-in <span class="required">*</span></label>
+                    <input type="date" id="checkIn" name="bday" class="form-input" required 
+                           onchange="calculateCheckOut()" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Cantidad de Noches <span class="required">*</span></label>
+                    <input type="number" id="nights" name="nights" class="form-input" min="1" value="1" required 
+                           onchange="calculateCheckOut()" autocomplete="off">
+                </div>
+            </div>
+
+            <div id="checkOutDisplay" style="padding: 10px; background: #e3f2fd; border-radius: 5px; margin-bottom: 15px; display: none; text-align: center;">
+                <strong>Check-out: <span id="checkOutDate">-</span></strong>
+            </div>
+
+            <div class="form-row-3">
+                <div class="form-group">
+                    <label class="form-label">Adultos (+12 años) <span class="required">*</span></label>
+                    <input type="number" id="adults" name="adults" class="form-input" min="1" value="1" required autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Niños (5-11 años)</label>
+                    <input type="number" id="children" name="children" class="form-input" min="0" value="0" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Infantes (0-4 años)</label>
+                    <input type="number" id="infants" name="infants" class="form-input" min="0" value="0" autocomplete="off">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Promoción (Opcional)</label>
+                <select id="promotion" name="promotion" class="form-input" autocomplete="off">
+                    <option value="">Sin promoción</option>
+                </select>
+                <small style="color: #666; margin-top: 5px; display: block;">
+                    Las promociones se cargan según el hotel seleccionado
+                </small>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Mensaje o consulta adicional (opcional)</label>
+                <textarea id="notes" name="notes" class="form-input" rows="3" 
+                          placeholder="Cuéntanos sobre tus necesidades especiales..." autocomplete="off"></textarea>
+            </div>
+
+            <button type="submit" class="btn">
+                <span class="material-icons" style="vertical-align: middle; margin-right: 5px;">send</span>
+                Enviar Solicitud de Cotización
+            </button>
+        </form>
+
+        <div id="successMessage" class="success-message">
+            <h2 style="margin-bottom: 10px;">✅ ¡Cotización Enviada!</h2>
+            <p>Tu solicitud ha sido recibida. Te contactaremos pronto con tu cotización personalizada.</p>
+        </div>
+    </div>
+
+    <script>
+        // Cargar hoteles desde localStorage del dashboard
+        function loadHotels() {
+            try {
+                const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                const select = document.getElementById('hotel');
+                
+                hotels.forEach(hotel => {
+                    const option = document.createElement('option');
+                    option.value = hotel.id || hotel.name;
+                    option.textContent = hotel.name || 'Hotel sin nombre';
+                    select.appendChild(option);
+                });
+                
+                // Agregar evento para cargar promociones cuando se seleccione un hotel
+                select.addEventListener('change', loadPromotionsForHotel);
+            } catch (error) {
+                console.error('Error cargando hoteles:', error);
+            }
+        }
+
+        // Cargar promociones vigentes para el hotel seleccionado
+        function loadPromotionsForHotel() {
+            const hotelId = document.getElementById('hotel').value;
+            const promotionSelect = document.getElementById('promotion');
+            
+            // Limpiar opciones existentes (excepto la primera)
+            promotionSelect.innerHTML = '<option value="">Sin promoción</option>';
+            
+            if (!hotelId) {
+                return;
+            }
+            
+            try {
+                // Cargar promociones del hotel desde localStorage
+                const hotelPromotions = JSON.parse(localStorage.getItem(`promotions_${hotelId}`) || '[]');
+                
+                // Filtrar solo promociones activas/vigentes
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                const activePromotions = hotelPromotions.filter(promo => {
+                    if (promo.status !== 'active') return false;
+                    
+                    // Verificar si la promoción está vigente
+                    const startDate = promo.startDate ? new Date(promo.startDate) : null;
+                    const endDate = promo.endDate ? new Date(promo.endDate) : null;
+                    
+                    if (startDate) startDate.setHours(0, 0, 0, 0);
+                    if (endDate) endDate.setHours(23, 59, 59, 999);
+                    
+                    if (startDate && today < startDate) return false;
+                    if (endDate && today > endDate) return false;
+                    
+                    return true;
+                });
+                
+                if (activePromotions.length === 0) {
+                    return;
+                }
+                
+                // Agregar promociones al selector
+                activePromotions.forEach(promo => {
+                    const option = document.createElement('option');
+                    option.value = promo.id || promo.title;
+                    option.textContent = `${promo.title || 'Promoción'}${promo.discount ? ` - ${promo.discount}% desc.` : ''}`;
+                    option.setAttribute('data-promo', JSON.stringify(promo));
+                    promotionSelect.appendChild(option);
+                });
+                
+                console.log(`✅ ${activePromotions.length} promociones cargadas para el hotel`);
+            } catch (error) {
+                console.error('Error cargando promociones:', error);
+            }
+        }
+
+        // Calcular fecha de check-out basado en check-in y noches
+        function calculateCheckOut() {
+            const checkIn = document.getElementById('checkIn').value;
+            const nights = parseInt(document.getElementById('nights').value) || 1;
+            const display = document.getElementById('checkOutDisplay');
+            const checkOutSpan = document.getElementById('checkOutDate');
+            
+            if (!checkIn || nights < 1) {
+                display.style.display = 'none';
+                return;
+            }
+            
+            const checkInDate = new Date(checkIn);
+            const checkOutDate = new Date(checkInDate);
+            checkOutDate.setDate(checkOutDate.getDate() + nights);
+            
+            // Formatear fecha
+            const formattedDate = checkOutDate.toLocaleDateString('es-ES', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            
+            checkOutSpan.textContent = formattedDate;
+            display.style.display = 'block';
+        }
+
+        // Enviar cotización
+        function submitQuote(event) {
+            event.preventDefault();
+            
+            // Obtener valores
+            const clientName = document.getElementById('clientName').value.trim();
+            const clientLastName = document.getElementById('clientLastName').value.trim();
+            const clientFullName = `${clientName} ${clientLastName}`.trim();
+            const clientEmail = document.getElementById('clientEmail').value.trim();
+            const clientPhone = document.getElementById('clientPhone').value.trim();
+            const hotelId = document.getElementById('hotel').value;
+            const hotelName = document.getElementById('hotel').selectedOptions[0].text;
+            const checkIn = document.getElementById('checkIn').value;
+            const nights = parseInt(document.getElementById('nights').value) || 1;
+            const adults = parseInt(document.getElementById('adults').value) || 1;
+            const children = parseInt(document.getElementById('children').value) || 0;
+            const infants = parseInt(document.getElementById('infants').value) || 0;
+            const promotionId = document.getElementById('promotion').value;
+            const promotionData = document.getElementById('promotion').selectedOptions[0]?.getAttribute('data-promo');
+            const notes = document.getElementById('notes').value.trim();
+            
+            // Calcular check-out
+            const checkInDate = new Date(checkIn);
+            const checkOutDate = new Date(checkInDate);
+            checkOutDate.setDate(checkOutDate.getDate() + nights);
+            const checkOut = checkOutDate.toISOString().split('T')[0];
+            
+            // Formatear fechas
+            const checkInFormatted = new Date(checkIn).toLocaleDateString('es-ES', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            const checkOutFormatted = checkOutDate.toLocaleDateString('es-ES', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            
+            // Formatear descripción de huéspedes
+            let travelersDesc = `${adults} adulto${adults > 1 ? 's' : ''} (+12 años)`;
+            if (children > 0) travelersDesc += `, ${children} niño${children > 1 ? 's' : ''} (5-11 años)`;
+            if (infants > 0) travelersDesc += `, ${infants} infante${infants > 1 ? 's' : ''} (0-4 años)`;
+            
+            // Obtener datos de la promoción si fue seleccionada
+            let promotionInfo = null;
+            if (promotionData) {
+                try {
+                    promotionInfo = JSON.parse(promotionData);
+                } catch (e) {
+                    console.error('Error parseando promoción:', e);
+                }
+            }
+            
+            // Crear objeto de cotización
+            const quote = {
+                id: 'COT-' + Date.now(),
+                hotel: hotelName,
+                hotelId: hotelId,
+                checkIn: checkIn,
+                checkOut: checkOut,
+                dateRange: `${checkInFormatted} - ${checkOutFormatted}`,
+                nights: nights,
+                adults: adults,
+                children: children,
+                infants: infants,
+                travelers: travelersDesc,
+                promotion: promotionInfo ? {
+                    id: promotionInfo.id,
+                    title: promotionInfo.title,
+                    discount: promotionInfo.discount
+                } : null,
+                tariff: 0, // Pendiente de asignar
+                discount: 0,
+                finalTariff: 0, // Pendiente de asignar
+                clientName: clientFullName,
+                clientFirstName: clientName,
+                clientLastName: clientLastName,
+                clientEmail: clientEmail,
+                clientPhone: clientPhone,
+                notes: notes,
+                status: 'pending',
+                timestamp: new Date().toISOString(),
+                source: 'cliente'
+            };
+            
+            // Guardar en localStorage (compartido con dashboard)
+            const quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
+            quotes.push(quote);
+            localStorage.setItem('quotesDB', JSON.stringify(quotes));
+            
+            console.log('✅ Cotización guardada:', quote);
+            
+            // Mostrar mensaje de éxito
+            document.getElementById('successMessage').classList.add('show');
+            document.getElementById('quoteForm').style.display = 'none';
+            
+            // Scroll al mensaje
+            document.getElementById('successMessage').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Inicializar
+        window.addEventListener('DOMContentLoaded', function() {
+            loadHotels();
+            
+            // Establecer fecha mínima (hoy)
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('checkIn').setAttribute('min', today);
+            
+            // Calcular check-out inicial si hay valores
+            calculateCheckOut();
+        });
+    </script>
+</body>
+</html>
+

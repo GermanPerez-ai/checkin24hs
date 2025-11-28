@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flor - Asistente Virtual Checkin24hs</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            background: transparent;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .chatbot-container {
+            width: 100%;
+            height: 100%;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chatbot-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .chatbot-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .chatbot-header-info h2 {
+            font-size: 1.2rem;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .chatbot-header-info p {
+            font-size: 0.85rem;
+            opacity: 0.9;
+        }
+
+        .chatbot-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #4caf50;
+            margin-left: auto;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .chatbot-messages {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 16px 20px;
+            background: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .message {
+            max-width: 75%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            word-wrap: break-word;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.bot {
+            background: white;
+            color: #1f2937;
+            border-bottom-left-radius: 4px;
+            align-self: flex-start;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+            border: 1px solid #e5e7eb;
+            line-height: 1.6;
+        }
+        
+        /* Estilos para Markdown en mensajes del bot */
+        .message.bot strong {
+            font-weight: 600;
+            color: #1976d2;
+            display: inline-block;
+        }
+        
+        .message.bot em {
+            font-style: italic;
+            color: #666;
+        }
+        
+        .message.bot ul {
+            margin: 8px 0;
+            padding-left: 20px;
+            list-style-type: none;
+        }
+        
+        .message.bot li {
+            margin: 6px 0;
+            padding-left: 8px;
+            position: relative;
+        }
+        
+        .message.bot li:before {
+            content: '•';
+            position: absolute;
+            left: -12px;
+            color: #1976d2;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        
+        .message.bot p {
+            margin: 8px 0;
+        }
+        
+        .message.bot p:first-child {
+            margin-top: 0;
+        }
+        
+        .message.bot p:last-child {
+            margin-bottom: 0;
+        }
+
+        .message.user {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+            align-self: flex-end;
+            box-shadow: 0 1px 3px rgba(102, 126, 234, 0.3);
+            line-height: 1.5;
+        }
+
+        .message.escalate {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            color: #856404;
+            align-self: flex-start;
+        }
+
+        .typing-indicator {
+            display: none;
+            align-self: flex-start;
+            padding: 12px 16px;
+            background: white;
+            border-radius: 18px;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .typing-indicator.active {
+            display: flex;
+            gap: 4px;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #999;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-10px); }
+        }
+
+        .chatbot-input-container {
+            padding: 12px 16px;
+            background: white;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            gap: 8px;
+            align-items: flex-end;
+            flex-shrink: 0;
+        }
+
+        .chatbot-media-buttons {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+
+        .chatbot-media-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #f3f4f6;
+            color: #667eea;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+
+        .chatbot-media-btn:hover {
+            background: #e5e7eb;
+            transform: scale(1.05);
+        }
+
+        .chatbot-media-btn input[type="file"] {
+            display: none;
+        }
+
+        .message.media {
+            max-width: 75%;
+            padding: 8px;
+            border-radius: 12px;
+            margin: 4px 0;
+        }
+
+        .message.media img {
+            max-width: 100%;
+            border-radius: 8px;
+            display: block;
+        }
+
+        .message.media audio {
+            width: 100%;
+            max-width: 300px;
+        }
+
+        .message.media-label {
+            font-size: 0.75rem;
+            opacity: 0.7;
+            margin-top: 4px;
+        }
+
+        .chatbot-input {
+            flex: 1;
+            padding: 10px 16px;
+            border: 1px solid #e5e7eb;
+            border-radius: 24px;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s;
+            font-family: inherit;
+            resize: none;
+            max-height: 120px;
+            line-height: 1.5;
+        }
+
+        .chatbot-input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .chatbot-input::placeholder {
+            color: #9ca3af;
+        }
+
+        .chatbot-send-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .chatbot-send-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .chatbot-send-btn:active {
+            transform: scale(0.95);
+        }
+
+        .chatbot-send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Scrollbar personalizado */
+        .chatbot-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        /* Mejoras de scrollbar (estilo Chatwoot) */
+        .chatbot-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chatbot-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .chatbot-messages::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+
+        .chatbot-messages::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        /* Ocultar header cuando está dentro del widget (el widget tiene su propio header) */
+        body.inside-widget .chatbot-header {
+            display: none;
+        }
+
+        /* Botón para integrar en otras páginas */
+        .flor-widget-button {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 1000;
+            transition: transform 0.3s;
+        }
+
+        .flor-widget-button:hover {
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="chatbot-container">
+        <div class="chatbot-header">
+            <div class="chatbot-avatar">🌸</div>
+            <div class="chatbot-header-info">
+                <h2>Flor</h2>
+                <p>Asistente Virtual</p>
+            </div>
+            <div class="chatbot-status" title="En línea"></div>
+        </div>
+
+        <div class="chatbot-messages" id="chatbotMessages">
+            <!-- Los mensajes se agregarán aquí dinámicamente -->
+        </div>
+
+        <div class="typing-indicator" id="typingIndicator">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+        </div>
+
+        <div class="chatbot-input-container">
+            <div class="chatbot-media-buttons">
+                <label class="chatbot-media-btn" for="audioInput" title="Enviar audio">
+                    <span class="material-icons">mic</span>
+                    <input type="file" id="audioInput" accept="audio/*" />
+                </label>
+                <label class="chatbot-media-btn" for="imageInput" title="Enviar imagen">
+                    <span class="material-icons">image</span>
+                    <input type="file" id="imageInput" accept="image/*" />
+                </label>
+            </div>
+            <input 
+                type="text" 
+                class="chatbot-input" 
+                id="chatbotInput" 
+                placeholder="Escribe tu mensaje..."
+                autocomplete="off"
+            >
+            <button class="chatbot-send-btn" id="chatbotSendBtn">
+                <span class="material-icons">send</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="flor-knowledge-base.js"></script>
+    <script src="flor-ai-service.js"></script>
+    <script src="flor-multimodal-service.js"></script>
+    <script src="flor-learning-system.js"></script>
+    <script src="flor-agent.js"></script>
+    <script>
+        // Inicializar el chatbot
+        const agent = new FlorAgent();
+        const messagesContainer = document.getElementById('chatbotMessages');
+        const input = document.getElementById('chatbotInput');
+        const sendBtn = document.getElementById('chatbotSendBtn');
+        const typingIndicator = document.getElementById('typingIndicator');
+
+        // Cargar configuración de IA y habilitarla si está configurada
+        if (typeof florAIService !== 'undefined' && florAIService.isAvailable()) {
+            agent.setUseAI(true);
+            console.log('[Chatbot] 🤖 IA habilitada');
+        }
+
+        // Mostrar mensaje de bienvenida al cargar
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                addBotMessage(agent.knowledgeBase.agent.greeting);
+            }, 500);
+        });
+
+        // Función para convertir Markdown simple a HTML
+        function markdownToHTML(text) {
+            if (!text) return '';
+            
+            // Asegurarse de que text sea un string
+            if (typeof text !== 'string') {
+                // Si es un objeto, intentar extraer el texto
+                if (typeof text === 'object') {
+                    text = text.text || text.message || text.content || String(text);
+                } else {
+                    text = String(text);
+                }
+            }
+            
+            let html = text;
+            
+            // Primero, proteger los bloques de código si existen
+            // Luego convertir **texto** a <strong>texto</strong>
+            html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            
+            // Convertir *texto* (que no sea **) a <em>texto</em>
+            html = html.replace(/(?<!\*)\*(?!\*)(.+?)\*(?!\*)/g, '<em>$1</em>');
+            
+            // Convertir listas con • o - a <ul><li>
+            // Primero identificar bloques de listas
+            const lines = html.split('\n');
+            let inList = false;
+            let result = [];
+            let currentList = [];
+            
+            for (let line of lines) {
+                const trimmed = line.trim();
+                const isListItem = /^[-•]\s+(.+)$/.test(trimmed);
+                
+                if (isListItem) {
+                    const content = trimmed.replace(/^[-•]\s+/, '');
+                    if (!inList) {
+                        inList = true;
+                        currentList = [];
+                    }
+                    currentList.push(`<li>${content}</li>`);
+                } else {
+                    if (inList) {
+                        result.push(`<ul>${currentList.join('')}</ul>`);
+                        currentList = [];
+                        inList = false;
+                    }
+                    if (trimmed) {
+                        result.push(trimmed);
+                    }
+                }
+            }
+            
+            if (inList) {
+                result.push(`<ul>${currentList.join('')}</ul>`);
+            }
+            
+            html = result.join('\n');
+            
+            // Convertir saltos de línea dobles a párrafos (solo si no es una lista)
+            html = html.split('\n\n').map(para => {
+                para = para.trim();
+                if (!para) return '';
+                // Si ya tiene formato HTML (ul, li, etc.), no envolver en <p>
+                if (para.startsWith('<ul>') || para.startsWith('<li>') || para.match(/^<[^>]+>/)) {
+                    return para;
+                }
+                // Si es un título con **, mantenerlo sin <p>
+                if (para.match(/^\*\*.*\*\*$/)) {
+                    return `<p>${para}</p>`;
+                }
+                return `<p>${para}</p>`;
+            }).join('');
+            
+            // Convertir saltos de línea simples restantes a <br>
+            html = html.replace(/\n/g, '<br>');
+            
+            return html;
+        }
+
+        // Función para agregar mensaje del bot
+        function addBotMessage(message, isEscalation = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message bot${isEscalation ? ' escalate' : ''}`;
+            
+            // Extraer el texto del mensaje si es un objeto
+            let messageText = message;
+            if (typeof message === 'object' && message !== null) {
+                messageText = message.text || message.message || message.content || JSON.stringify(message);
+            } else if (typeof message !== 'string') {
+                messageText = String(message);
+            }
+            
+            // Convertir Markdown a HTML y renderizar
+            const htmlContent = markdownToHTML(messageText);
+            messageDiv.innerHTML = htmlContent;
+            
+            messagesContainer.appendChild(messageDiv);
+            scrollToBottom();
+
+            // Si es escalación, mostrar opción adicional
+            if (isEscalation) {
+                setTimeout(() => {
+                    const escalateMsg = document.createElement('div');
+                    escalateMsg.className = 'message bot escalate';
+                    escalateMsg.textContent = '🔔 Un agente se comunicará contigo en breve. ¿Hay algo más en lo que pueda ayudarte mientras tanto?';
+                    messagesContainer.appendChild(escalateMsg);
+                    scrollToBottom();
+                }, 1500);
+            }
+        }
+
+        // Función para agregar mensaje del usuario
+        function addUserMessage(message, mediaType = null, mediaUrl = null) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message user';
+            
+            if (mediaType === 'image' && mediaUrl) {
+                const img = document.createElement('img');
+                img.src = mediaUrl;
+                img.style.maxWidth = '200px';
+                img.style.borderRadius = '8px';
+                messageDiv.appendChild(img);
+                if (message) {
+                    const textDiv = document.createElement('div');
+                    textDiv.textContent = message;
+                    textDiv.style.marginTop = '8px';
+                    messageDiv.appendChild(textDiv);
+                }
+            } else if (mediaType === 'audio' && mediaUrl) {
+                const audio = document.createElement('audio');
+                audio.controls = true;
+                audio.src = mediaUrl;
+                messageDiv.appendChild(audio);
+                if (message) {
+                    const textDiv = document.createElement('div');
+                    textDiv.textContent = message;
+                    textDiv.style.marginTop = '8px';
+                    messageDiv.appendChild(textDiv);
+                }
+            } else {
+                messageDiv.textContent = message;
+            }
+            
+            messagesContainer.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        // Función para agregar imagen del bot
+        function addBotImage(imageUrl, caption = '') {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message bot media';
+            
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.alt = caption;
+            img.style.cursor = 'pointer';
+            img.onclick = () => window.open(imageUrl, '_blank');
+            messageDiv.appendChild(img);
+            
+            if (caption) {
+                const captionDiv = document.createElement('div');
+                captionDiv.className = 'message.media-label';
+                captionDiv.textContent = caption;
+                messageDiv.appendChild(captionDiv);
+            }
+            
+            messagesContainer.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        // Función para mostrar indicador de escritura
+        function showTyping() {
+            typingIndicator.classList.add('active');
+            messagesContainer.appendChild(typingIndicator);
+            scrollToBottom();
+        }
+
+        // Función para ocultar indicador de escritura
+        function hideTyping() {
+            typingIndicator.classList.remove('active');
+            if (typingIndicator.parentNode) {
+                typingIndicator.parentNode.removeChild(typingIndicator);
+            }
+        }
+
+        // Función para procesar mensaje
+        async function processMessage(mediaType = null, mediaFile = null) {
+            const message = input.value.trim();
+            if (!message && !mediaFile) return;
+
+            // Si hay un archivo multimedia, mostrar preview
+            let mediaUrl = null;
+            if (mediaFile) {
+                mediaUrl = URL.createObjectURL(mediaFile);
+                if (mediaType === 'image') {
+                    addUserMessage(message || '📸 Imagen enviada', 'image', mediaUrl);
+                } else if (mediaType === 'audio') {
+                    addUserMessage(message || '🎤 Audio enviado', 'audio', mediaUrl);
+                }
+            } else {
+                addUserMessage(message);
+            }
+
+            input.value = '';
+            sendBtn.disabled = true;
+
+            // Limpiar inputs de archivos
+            if (document.getElementById('audioInput')) document.getElementById('audioInput').value = '';
+            if (document.getElementById('imageInput')) document.getElementById('imageInput').value = '';
+
+            // Mostrar indicador de escritura
+            showTyping();
+
+            // Procesar con el agente (ahora async para soportar IA y multimedia)
+            try {
+                // Mostrar indicador mientras procesa (puede tardar más con IA o multimedia)
+                const response = await agent.processMessage(message, mediaType, mediaFile);
+                
+                hideTyping();
+                
+                // Verificar si es escalación
+                if (typeof response === 'object' && response.escalate) {
+                    addBotMessage(response.message, true);
+                } else if (typeof response === 'object' && response.sendImage) {
+                    // Si la respuesta incluye una imagen para enviar
+                    const messageText = response.text || response.message || response.content || 'Aquí tienes la información que solicitaste.';
+                    addBotMessage(messageText);
+                    
+                    // Obtener y mostrar la imagen del hotel
+                    const imageUrl = await agent.getHotelImageUrl(
+                        response.sendImage.hotelId,
+                        response.sendImage.hotelName,
+                        response.sendImage.type
+                    );
+                    
+                    if (imageUrl) {
+                        setTimeout(() => {
+                            addBotImage(imageUrl, `Foto de ${response.sendImage.hotelName}`);
+                        }, 500);
+                    }
+                } else if (typeof response === 'string') {
+                    addBotMessage(response);
+                } else if (typeof response === 'object' && response !== null) {
+                    // Si es un objeto, extraer el texto correctamente
+                    const messageText = response.text || response.message || response.content || JSON.stringify(response);
+                    addBotMessage(messageText, response.escalate);
+                } else {
+                    addBotMessage(String(response || 'Lo siento, no pude procesar tu mensaje.'), response?.escalate);
+                }
+            } catch (error) {
+                hideTyping();
+                console.error('[Chatbot] ❌ Error al procesar mensaje:', error);
+                console.error('[Chatbot] 📋 Detalles del error:', {
+                    message: error.message,
+                    stack: error.stack,
+                    name: error.name,
+                    userMessage: message,
+                    mediaType: mediaType
+                });
+                
+                // Mensaje de error más informativo
+                let errorMessage = 'Disculpa, hubo un error al procesar tu mensaje. Por favor, intenta de nuevo.';
+                
+                // Si es un error de red o API, mostrar mensaje más específico
+                if (error.message && (error.message.includes('fetch') || error.message.includes('network') || error.message.includes('Failed to fetch'))) {
+                    errorMessage = 'Disculpa, parece que hay un problema de conexión. Por favor, verifica tu conexión a internet e intenta de nuevo.';
+                } else if (error.message && error.message.includes('API')) {
+                    errorMessage = 'Disculpa, hay un problema con el servicio de inteligencia artificial. Por favor, intenta de nuevo en un momento.';
+                }
+                
+                addBotMessage(errorMessage);
+            } finally {
+                sendBtn.disabled = false;
+                input.focus();
+                
+                // Limpiar URL del objeto si existe
+                if (mediaUrl) {
+                    URL.revokeObjectURL(mediaUrl);
+                }
+            }
+        }
+
+        // Event listeners
+        sendBtn.addEventListener('click', () => processMessage());
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                processMessage();
+            }
+        });
+
+        // Event listeners para archivos multimedia
+        const audioInput = document.getElementById('audioInput');
+        const imageInput = document.getElementById('imageInput');
+
+        if (audioInput) {
+            audioInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    processMessage('audio', file);
+                }
+            });
+        }
+
+        if (imageInput) {
+            imageInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    processMessage('image', file);
+                }
+            });
+        }
+
+        // Detectar si está dentro de un widget (iframe)
+        if (window.self !== window.top) {
+            document.body.classList.add('inside-widget');
+        }
+
+        // Auto-enfocar input al cargar
+        input.focus();
+
+        // Función para hacer scroll al final
+        function scrollToBottom() {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Permitir scroll suave
+        messagesContainer.addEventListener('scroll', () => {
+            // Opcional: agregar lógica adicional si es necesario
+        });
+    </script>
+</body>
+</html>
+
