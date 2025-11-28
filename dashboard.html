@@ -7562,11 +7562,27 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         }
 
         // Event listener para cuando el DOM esté listo
+        // IMPORTANTE: Este código se ejecuta DESPUÉS de la verificación de autenticación
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 Dashboard inicializando...');
+            console.log('🚀 Dashboard DOMContentLoaded ejecutado');
             
-            // Verificar autenticación PRIMERO - esto es crítico
-            const isAuthenticated = checkAuthStatus();
+            // Verificar si hay sesión válida
+            const authSession = localStorage.getItem('dashboard_auth_session');
+            let isAuthenticated = false;
+            
+            if (authSession) {
+                try {
+                    const session = JSON.parse(authSession);
+                    const now = Date.now();
+                    if (session.expiresAt && now < session.expiresAt) {
+                        isAuthenticated = true;
+                    } else {
+                        localStorage.removeItem('dashboard_auth_session');
+                    }
+                } catch (e) {
+                    localStorage.removeItem('dashboard_auth_session');
+                }
+            }
             
             // Solo inicializar el dashboard si el usuario está autenticado
             if (isAuthenticated) {
@@ -7583,7 +7599,12 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 
                 console.log('✅ Dashboard inicializado correctamente');
             } else {
-                console.log('🔒 Usuario no autenticado, mostrando login');
+                console.log('🔒 Usuario no autenticado, NO inicializando dashboard');
+                // Asegurar que el dashboard esté oculto
+                const dashboardContent = document.getElementById('dashboardContent');
+                const loginContainer = document.getElementById('loginContainer');
+                if (dashboardContent) dashboardContent.classList.remove('authenticated');
+                if (loginContainer) loginContainer.classList.remove('hidden');
             }
         });
 
