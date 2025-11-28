@@ -1,0 +1,47 @@
+<svg width="150" height="150" viewBox="0 0 150 150" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="oliveGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#556B2F;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6B8E23;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Círculo exterior con doble borde -->
+  <circle cx="75" cy="75" r="70" fill="white" stroke="#556B2F" stroke-width="2"/>
+  <circle cx="75" cy="75" r="67" fill="white" stroke="#556B2F" stroke-width="1"/>
+  
+  <!-- Timbre de servicio simplificado -->
+  <g transform="translate(75, 50)">
+    <!-- Cuerpo del timbre -->
+    <ellipse cx="0" cy="0" rx="8" ry="10" fill="#556B2F"/>
+    
+    <!-- Interior del timbre -->
+    <ellipse cx="0" cy="0" rx="5" ry="7" fill="white" opacity="0.9"/>
+    
+    <!-- Badajo del timbre -->
+    <circle cx="0" cy="3" r="1.5" fill="#556B2F"/>
+    <rect x="-0.3" y="3" width="0.6" height="4" fill="#556B2F"/>
+    <circle cx="0" cy="7" r="1" fill="#556B2F"/>
+    
+    <!-- Soporte del timbre -->
+    <rect x="-1.5" y="-6" width="3" height="4" fill="#556B2F"/>
+    <rect x="-2" y="-7" width="4" height="2" rx="1" fill="#556B2F"/>
+    
+    <!-- Ondas de sonido -->
+    <path d="M -10,0 Q -13,-3 -16,0 Q -13,3 -10,0" fill="none" stroke="#556B2F" stroke-width="1"/>
+    <path d="M 10,0 Q 13,-3 16,0 Q 13,3 10,0" fill="none" stroke="#556B2F" stroke-width="1"/>
+  </g>
+  
+  <!-- Texto "CHECKIN" -->
+  <text x="75" y="85" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#556B2F">
+    CHECKIN
+  </text>
+  
+  <!-- Texto "CALL CENTER 24hs" -->
+  <text x="75" y="100" font-family="Arial, sans-serif" font-size="9" font-weight="normal" text-anchor="middle" fill="#556B2F">
+    CALL CENTER 24hs
+  </text>
+  
+  <!-- Línea bajo "CALL CENTER" -->
+  <line x1="55" y1="103" x2="95" y2="103" stroke="#556B2F" stroke-width="0.8"/>
+</svg> 

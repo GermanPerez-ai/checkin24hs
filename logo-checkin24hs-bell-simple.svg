@@ -1,0 +1,54 @@
+<svg width="180" height="60" viewBox="0 0 180 60" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="oliveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#556B2F;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#6B8E23;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="yellowOrangeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#FF8C00;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FFA500;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Timbre simplificado -->
+  <g transform="translate(15, 10)">
+    <!-- Cuerpo del timbre -->
+    <ellipse cx="15" cy="18" rx="12" ry="15" fill="url(#yellowOrangeGradient)"/>
+    
+    <!-- Interior del timbre -->
+    <ellipse cx="15" cy="18" rx="9" ry="12" fill="white" opacity="0.9"/>
+    
+    <!-- Badajo del timbre -->
+    <circle cx="15" cy="22" r="2" fill="url(#oliveGradient)"/>
+    <rect x="14.5" y="22" width="1" height="5" fill="url(#oliveGradient)"/>
+    <circle cx="15" cy="27" r="1.5" fill="url(#oliveGradient)"/>
+    
+    <!-- Soporte del timbre -->
+    <rect x="13" y="3" width="4" height="6" fill="url(#oliveGradient)"/>
+    <rect x="11" y="1" width="8" height="3" rx="1.5" fill="url(#oliveGradient)"/>
+  </g>
+  
+  <!-- Reloj 24 horas simplificado -->
+  <g transform="translate(45, 10)">
+    <circle cx="12" cy="12" r="12" fill="url(#oliveGradient)"/>
+    <circle cx="12" cy="12" r="10" fill="white" opacity="0.9"/>
+    <circle cx="12" cy="12" r="8" fill="url(#oliveGradient)"/>
+    
+    <!-- Manecillas -->
+    <line x1="12" y1="12" x2="12" y2="6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+    <line x1="12" y1="12" x2="16" y2="12" stroke="white" stroke-width="2" stroke-linecap="round"/>
+    
+    <!-- Centro -->
+    <circle cx="12" cy="12" r="1.5" fill="white"/>
+  </g>
+  
+  <!-- Texto -->
+  <g transform="translate(75, 15)">
+    <text x="0" y="0" font-family="'Segoe UI', Arial, sans-serif" font-size="20" font-weight="600" fill="url(#oliveGradient)">
+      Checkin
+    </text>
+    <text x="0" y="25" font-family="'Segoe UI', Arial, sans-serif" font-size="18" font-weight="600" fill="url(#yellowOrangeGradient)">
+      24hs
+    </text>
+  </g>
+</svg> 
