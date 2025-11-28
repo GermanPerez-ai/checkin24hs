@@ -19,6 +19,9 @@
             font-family: 'Roboto', sans-serif;
             background-color: #f5f5f5;
             color: #333;
+        }
+
+        body.authenticated {
             display: flex;
         }
 
@@ -1166,6 +1169,158 @@
             color: #ffc107;
             font-size: 16px;
         }
+
+        /* Estilos para pantalla de login */
+        .login-container {
+            display: flex;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .login-container.hidden {
+            display: none;
+        }
+
+        .login-card {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .login-header h1 {
+            font-size: 2rem;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .login-header p {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .form-input-group {
+            position: relative;
+        }
+
+        .form-input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .form-input-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s;
+            box-sizing: border-box;
+        }
+
+        .form-input-group input:focus {
+            outline: none;
+            border-color: #1976d2;
+            box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.1);
+        }
+
+        .form-input-group .input-icon {
+            position: absolute;
+            right: 16px;
+            top: 42px;
+            color: #666;
+            cursor: pointer;
+        }
+
+        .login-error {
+            background-color: #fee;
+            color: #c33;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            display: none;
+            border: 1px solid #fcc;
+        }
+
+        .login-error.show {
+            display: block;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background-color: #1976d2;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 8px;
+        }
+
+        .btn-login:hover {
+            background-color: #1565c0;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(25, 118, 210, 0.3);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .btn-login:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .login-logo {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .login-logo img {
+            max-width: 120px;
+            height: auto;
+        }
+
+        .dashboard-content {
+            display: none;
+        }
+
+        .dashboard-content.authenticated {
+            display: flex;
+            width: 100%;
+        }
+
+        body.authenticated .dashboard-content {
+            display: flex;
+        }
     </style>
     <!-- SheetJS library for Excel import/export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1173,6 +1328,54 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
+    <!-- Pantalla de Login -->
+    <div class="login-container" id="loginContainer">
+        <div class="login-card">
+            <div class="login-logo">
+                <img src="logo-checkin24hs-circular-olive.svg" alt="Checkin24hs" onerror="this.style.display='none'">
+            </div>
+            <div class="login-header">
+                <h1>Panel de Administración</h1>
+                <p>Ingresa tus credenciales para continuar</p>
+            </div>
+            
+            <div class="login-error" id="loginError"></div>
+            
+            <form class="login-form" id="loginForm" onsubmit="handleLogin(event)">
+                <div class="form-input-group">
+                    <label for="loginUsername">Usuario</label>
+                    <input 
+                        type="text" 
+                        id="loginUsername" 
+                        name="username" 
+                        placeholder="Ingresa tu usuario" 
+                        required 
+                        autocomplete="username"
+                    >
+                </div>
+                
+                <div class="form-input-group">
+                    <label for="loginPassword">Contraseña</label>
+                    <input 
+                        type="password" 
+                        id="loginPassword" 
+                        name="password" 
+                        placeholder="Ingresa tu contraseña" 
+                        required 
+                        autocomplete="current-password"
+                    >
+                    <span class="material-icons input-icon" onclick="togglePasswordVisibility()" style="pointer-events: all;">visibility</span>
+                </div>
+                
+                <button type="submit" class="btn-login" id="loginButton">
+                    Iniciar Sesión
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Contenido del Dashboard (oculto hasta autenticación) -->
+    <div class="dashboard-content" id="dashboardContent">
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
@@ -2847,8 +3050,273 @@
             </form>
         </div>
     </div>
+    </div>
+    <!-- Fin del contenido del Dashboard -->
 
     <script>
+        // ============================================
+        // SISTEMA DE AUTENTICACIÓN
+        // ============================================
+        
+        // IMPORTANTE: Ocultar dashboard y mostrar login por defecto
+        (function() {
+            // Ejecutar inmediatamente cuando el script se carga
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    const dashboardContent = document.getElementById('dashboardContent');
+                    const loginContainer = document.getElementById('loginContainer');
+                    if (dashboardContent) dashboardContent.classList.remove('authenticated');
+                    if (loginContainer) loginContainer.classList.remove('hidden');
+                });
+            } else {
+                const dashboardContent = document.getElementById('dashboardContent');
+                const loginContainer = document.getElementById('loginContainer');
+                if (dashboardContent) dashboardContent.classList.remove('authenticated');
+                if (loginContainer) loginContainer.classList.remove('hidden');
+            }
+        })();
+        
+        // Usuarios administradores (se pueden agregar más)
+        const ADMIN_USERS = [
+            {
+                username: 'admin',
+                password: 'admin123',
+                name: 'Administrador',
+                role: 'admin'
+            },
+            {
+                username: 'german',
+                password: 'Checkin24hs2025',
+                name: 'German Perez',
+                role: 'admin'
+            }
+        ];
+
+        // Verificar si hay sesión activa al cargar la página
+        function checkAuthStatus() {
+            console.log('🔐 Verificando autenticación...');
+            
+            // Primero, asegurar que el dashboard esté oculto y el login visible
+            const dashboardContent = document.getElementById('dashboardContent');
+            const loginContainer = document.getElementById('loginContainer');
+            
+            if (!dashboardContent || !loginContainer) {
+                console.error('❌ Elementos de autenticación no encontrados');
+                return false;
+            }
+            
+            const authSession = localStorage.getItem('dashboard_auth_session');
+            if (authSession) {
+                try {
+                    const session = JSON.parse(authSession);
+                    // Verificar si la sesión no ha expirado (24 horas)
+                    const now = Date.now();
+                    if (session.expiresAt && now < session.expiresAt) {
+                        console.log('✅ Sesión válida encontrada para:', session.username);
+                        showDashboard();
+                        return true;
+                    } else {
+                        // Sesión expirada
+                        console.log('⏰ Sesión expirada, eliminando...');
+                        localStorage.removeItem('dashboard_auth_session');
+                    }
+                } catch (e) {
+                    console.error('❌ Error al verificar sesión:', e);
+                    localStorage.removeItem('dashboard_auth_session');
+                }
+            } else {
+                console.log('🔓 No hay sesión activa');
+            }
+            
+            // No hay sesión válida, mostrar login
+            showLogin();
+            return false;
+        }
+
+        // Mostrar pantalla de login
+        function showLogin() {
+            const loginContainer = document.getElementById('loginContainer');
+            const dashboardContent = document.getElementById('dashboardContent');
+            const body = document.body;
+            
+            if (loginContainer) {
+                loginContainer.classList.remove('hidden');
+            }
+            if (dashboardContent) {
+                dashboardContent.classList.remove('authenticated');
+            }
+            if (body) {
+                body.classList.remove('authenticated');
+            }
+        }
+
+        // Mostrar dashboard
+        function showDashboard() {
+            const loginContainer = document.getElementById('loginContainer');
+            const dashboardContent = document.getElementById('dashboardContent');
+            const body = document.body;
+            
+            if (loginContainer) {
+                loginContainer.classList.add('hidden');
+            }
+            if (dashboardContent) {
+                dashboardContent.classList.add('authenticated');
+            }
+            if (body) {
+                body.classList.add('authenticated');
+            }
+        }
+
+        // Manejar el login
+        function handleLogin(event) {
+            if (event) {
+                event.preventDefault();
+            }
+            
+            console.log('🔐 Intentando iniciar sesión...');
+            
+            const usernameInput = document.getElementById('loginUsername');
+            const passwordInput = document.getElementById('loginPassword');
+            const errorDiv = document.getElementById('loginError');
+            const loginButton = document.getElementById('loginButton');
+            
+            if (!usernameInput || !passwordInput || !errorDiv || !loginButton) {
+                console.error('❌ Elementos del formulario no encontrados');
+                return;
+            }
+            
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value;
+            
+            // Limpiar error anterior
+            errorDiv.classList.remove('show');
+            errorDiv.textContent = '';
+            
+            // Validar que los campos no estén vacíos
+            if (!username || !password) {
+                showError('Por favor, completa todos los campos');
+                return;
+            }
+            
+            // Deshabilitar botón mientras se procesa
+            loginButton.disabled = true;
+            loginButton.textContent = 'Iniciando sesión...';
+            
+            // Simular delay de autenticación (para mejor UX)
+            setTimeout(() => {
+                // Buscar usuario
+                const user = ADMIN_USERS.find(u => 
+                    u.username.toLowerCase() === username.toLowerCase() && 
+                    u.password === password
+                );
+                
+                if (user) {
+                    // Login exitoso
+                    const session = {
+                        username: user.username,
+                        name: user.name,
+                        role: user.role,
+                        loginTime: Date.now(),
+                        expiresAt: Date.now() + (24 * 60 * 60 * 1000) // 24 horas
+                    };
+                    
+                    localStorage.setItem('dashboard_auth_session', JSON.stringify(session));
+                    
+                    // Limpiar formulario
+                    const loginForm = document.getElementById('loginForm');
+                    if (loginForm) {
+                        loginForm.reset();
+                    }
+                    
+                    // Mostrar dashboard
+                    showDashboard();
+                    
+                    // Actualizar nombre de usuario en el dropdown
+                    updateUserMenu(user.name);
+                    
+                    // Inicializar dashboard si no está inicializado
+                    if (typeof initializeDashboard === 'function') {
+                        initializeDashboard();
+                    }
+                    if (typeof setupAutoSync === 'function') {
+                        setupAutoSync();
+                    }
+                    
+                    console.log('✅ Login exitoso:', user.username);
+                } else {
+                    // Credenciales incorrectas
+                    console.log('❌ Credenciales incorrectas');
+                    showError('Usuario o contraseña incorrectos');
+                    passwordInput.value = '';
+                    passwordInput.focus();
+                }
+                
+                // Rehabilitar botón
+                loginButton.disabled = false;
+                loginButton.textContent = 'Iniciar Sesión';
+            }, 500);
+        }
+
+        // Mostrar error de login
+        function showError(message) {
+            const errorDiv = document.getElementById('loginError');
+            errorDiv.textContent = message;
+            errorDiv.classList.add('show');
+        }
+
+        // Toggle visibilidad de contraseña
+        function togglePasswordVisibility(event) {
+            const passwordInput = document.getElementById('loginPassword');
+            if (!passwordInput) return;
+            
+            const icon = event ? event.target : document.querySelector('#loginPassword + .input-icon');
+            if (!icon) return;
+            
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                icon.textContent = 'visibility_off';
+            } else {
+                passwordInput.type = 'password';
+                icon.textContent = 'visibility';
+            }
+        }
+
+        // Actualizar menú de usuario
+        function updateUserMenu(userName) {
+            const userNameElement = document.querySelector('.user-dropdown .dropdown-item:first-child');
+            if (userNameElement) {
+                userNameElement.innerHTML = `<span class="material-icons">person</span>${userName}`;
+            }
+        }
+
+        // Función de logout mejorada
+        function logout() {
+            if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
+                localStorage.removeItem('dashboard_auth_session');
+                
+                // Limpiar formulario
+                const loginForm = document.getElementById('loginForm');
+                if (loginForm) {
+                    loginForm.reset();
+                }
+                
+                // Ocultar dropdown de usuario
+                const dropdown = document.getElementById('userDropdown');
+                if (dropdown) {
+                    dropdown.classList.remove('show');
+                }
+                
+                // Mostrar login y ocultar dashboard
+                showLogin();
+                
+                console.log('👋 Sesión cerrada');
+            }
+        }
+
+        // ============================================
+        // FIN SISTEMA DE AUTENTICACIÓN
+        // ============================================
+
         // Variables globales
         let currentSection = 'dashboard';
         let expensesCharts = {
@@ -2983,15 +3451,7 @@
             }
         }
 
-        // Función de logout
-        function logout() {
-            if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
-                // Aquí puedes agregar lógica de logout
-                alert('Sesión cerrada');
-                // Redirigir a login si es necesario
-                // window.location.href = 'login.html';
-            }
-        }
+        // Función de logout (reemplazada por la nueva implementación arriba)
 
         // Cerrar dropdown cuando se hace clic fuera
         document.addEventListener('click', function(event) {
@@ -7048,13 +7508,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             return true;
         }
 
-        // Función de logout
-        function logout() {
-            if (confirm('¿Estás seguro de que quieres cerrar sesión?')) {
-                // Implementar logout
-                console.log('Cerrando sesión...');
-            }
-        }
+        // Función de logout (reemplazada por la nueva implementación arriba)
 
         // Función para actualizar dashboard para usuario logueado
         function updateDashboardForLoggedInUser() {
@@ -7102,13 +7556,26 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Dashboard inicializando...');
             
-            // Inicializar dashboard
-            initializeDashboard();
+            // Verificar autenticación PRIMERO - esto es crítico
+            const isAuthenticated = checkAuthStatus();
             
-            // Configurar sincronización automática
-            setupAutoSync();
-            
-            console.log('✅ Dashboard inicializado correctamente');
+            // Solo inicializar el dashboard si el usuario está autenticado
+            if (isAuthenticated) {
+                console.log('✅ Usuario autenticado, inicializando dashboard...');
+                // Inicializar dashboard
+                if (typeof initializeDashboard === 'function') {
+                    initializeDashboard();
+                }
+                
+                // Configurar sincronización automática
+                if (typeof setupAutoSync === 'function') {
+                    setupAutoSync();
+                }
+                
+                console.log('✅ Dashboard inicializado correctamente');
+            } else {
+                console.log('🔒 Usuario no autenticado, mostrando login');
+            }
         });
 
         // Función para configurar sincronización automática
@@ -11972,11 +12439,70 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             alert('✅ Gastos actualizados');
         }
 
-        // Inicializar al cargar la página
-        initExpensesDB();
+        // IMPORTANTE: NO inicializar nada hasta verificar autenticación
+        // Solo inicializar gastos si el usuario está autenticado
+        function initExpensesIfAuthenticated() {
+            const authSession = localStorage.getItem('dashboard_auth_session');
+            if (authSession) {
+                try {
+                    const session = JSON.parse(authSession);
+                    const now = Date.now();
+                    if (session.expiresAt && now < session.expiresAt) {
+                        // Usuario autenticado, inicializar gastos
+                        if (typeof initExpensesDB === 'function') {
+                            initExpensesDB();
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error al verificar sesión para gastos:', e);
+                }
+            }
+        }
+        
+        // Verificar autenticación inmediatamente al cargar el script
+        (function() {
+            console.log('🔐 Script de autenticación cargado');
+            
+            // Asegurar que el dashboard esté oculto por defecto
+            function hideDashboard() {
+                const dashboardContent = document.getElementById('dashboardContent');
+                const loginContainer = document.getElementById('loginContainer');
+                const body = document.body;
+                
+                if (dashboardContent) {
+                    dashboardContent.classList.remove('authenticated');
+                }
+                if (loginContainer) {
+                    loginContainer.classList.remove('hidden');
+                }
+                if (body) {
+                    body.classList.remove('authenticated');
+                }
+            }
+            
+            // Ejecutar inmediatamente si el DOM está listo, o esperar
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    hideDashboard();
+                    checkAuthStatus();
+                });
+            } else {
+                hideDashboard();
+                setTimeout(checkAuthStatus, 50);
+            }
+        })();
+        
+        // Inicializar gastos solo si está autenticado (después de verificar)
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initExpensesIfAuthenticated);
+        } else {
+            setTimeout(initExpensesIfAuthenticated, 200);
+        }
     </script>
     
     <!-- Widget Chatbot Flor -->
     <script src="flor-widget.js"></script>
+    </div>
+    <!-- Fin del contenido del Dashboard -->
 </body>
 </html> 
