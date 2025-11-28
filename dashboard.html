@@ -1327,6 +1327,14 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- Chart.js library for charts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <!-- Supabase Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Supabase Configuration -->
+    <script src="supabase-config.js"></script>
+    <!-- Supabase Client -->
+    <script src="supabase-client.js"></script>
+    <!-- Migration Script (opcional - descomentar si quieres migrar automáticamente) -->
+    <!-- <script src="migrate-to-supabase.js"></script> -->
 </head>
 <body>
     <!-- Pantalla de Login -->
@@ -3669,7 +3677,7 @@
         }
 
         // Función para cargar hoteles en la tabla
-        function loadHotelsTable() {
+        async function loadHotelsTable() {
             console.log('🔄 Cargando tabla de hoteles...');
             
             const tbody = document.getElementById('hotelsTableBody');
@@ -3678,9 +3686,23 @@
                 return;
             }
             
-            // Obtener hoteles del localStorage
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-            console.log(`📋 Encontrados ${hotels.length} hoteles en localStorage:`, hotels.map(h => h.name));
+            // Intentar obtener hoteles de Supabase primero, luego localStorage como fallback
+            let hotels = [];
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    console.log('☁️ Cargando hoteles desde Supabase...');
+                    hotels = await window.supabaseClient.getHotels();
+                    console.log(`✅ ${hotels.length} hoteles cargados desde Supabase`);
+                } catch (error) {
+                    console.warn('⚠️ Error cargando desde Supabase, usando localStorage:', error);
+                    hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                }
+            } else {
+                console.log('💾 Cargando hoteles desde localStorage...');
+                hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            }
+            
+            console.log(`📋 Encontrados ${hotels.length} hoteles:`, hotels.map(h => h.name));
             
             tbody.innerHTML = '';
 
@@ -4540,10 +4562,24 @@
         }
         
         // Función para cargar tabla de cotizaciones
-        function loadQuotesTable() {
+        async function loadQuotesTable() {
             console.log('📋 Cargando tabla de cotizaciones...');
             
-            const quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
+            // Intentar cargar desde Supabase primero
+            let quotes = [];
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    console.log('☁️ Cargando cotizaciones desde Supabase...');
+                    quotes = await window.supabaseClient.getQuotes();
+                    console.log(`✅ ${quotes.length} cotizaciones cargadas desde Supabase`);
+                } catch (error) {
+                    console.warn('⚠️ Error cargando desde Supabase, usando localStorage:', error);
+                    quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
+                }
+            } else {
+                console.log('💾 Cargando cotizaciones desde localStorage...');
+                quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
+            }
             const tbody = document.getElementById('quotesTableBody');
             const noQuotesMessage = document.getElementById('noQuotesMessage');
             
@@ -6675,12 +6711,30 @@
         }
 
         // Función para inicializar base de datos de hoteles
-        function initHotelsDB() {
+        async function initHotelsDB() {
             console.log('🏨 Inicializando base de datos de hoteles...');
             
-            // Verificar si ya existen hoteles en localStorage
-            const existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-            console.log(`📊 Estado inicial: ${existingHotels.length} hoteles en localStorage`);
+            // Intentar cargar desde Supabase primero
+            let existingHotels = [];
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    console.log('☁️ Cargando hoteles desde Supabase...');
+                    existingHotels = await window.supabaseClient.getHotels();
+                    console.log(`📊 Estado inicial: ${existingHotels.length} hoteles en Supabase`);
+                    
+                    // Sincronizar con localStorage
+                    if (existingHotels.length > 0) {
+                        localStorage.setItem('hotelsDB', JSON.stringify(existingHotels));
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Error cargando desde Supabase, usando localStorage:', error);
+                    existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                }
+            } else {
+                existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            }
+            
+            console.log(`📊 Estado inicial: ${existingHotels.length} hoteles`);
             
             if (existingHotels.length > 0) {
                 console.log('📋 Hoteles existentes:', existingHotels.map(h => h.name));
@@ -7067,8 +7121,8 @@
             return null;
         }
 
-        // Función para cargar tabla de hoteles
-        function loadHotelsTable() {
+        // Función para cargar tabla de hoteles (versión actualizada con Supabase)
+        async function loadHotelsTable() {
             console.log('📋 Cargando tabla de hoteles...');
             
             const tbody = document.getElementById('hotelsTableBody');
@@ -7077,8 +7131,21 @@
                 return;
             }
             
-            // Obtener hoteles del localStorage
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            // Intentar obtener hoteles de Supabase primero, luego localStorage como fallback
+            let hotels = [];
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    console.log('☁️ Cargando hoteles desde Supabase...');
+                    hotels = await window.supabaseClient.getHotels();
+                    console.log(`✅ ${hotels.length} hoteles cargados desde Supabase`);
+                } catch (error) {
+                    console.warn('⚠️ Error cargando desde Supabase, usando localStorage:', error);
+                    hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                }
+            } else {
+                console.log('💾 Cargando hoteles desde localStorage...');
+                hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            }
             
             tbody.innerHTML = '';
             
@@ -7503,7 +7570,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         }
 
         // Función para guardar cambios del hotel
-        function saveHotelChanges() {
+        async function saveHotelChanges() {
             console.log('💾 Guardando cambios del hotel...');
             
             const form = document.getElementById('editHotelForm');
@@ -7568,28 +7635,56 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             
             if (mode === 'add') {
                 // Agregar nuevo hotel
-                const newHotel = {
-                    id: Date.now().toString(), // ID único
-                    ...hotelData,
-                    createdAt: new Date().toISOString()
-                };
-                
-                // Obtener hoteles existentes
-                const existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-                existingHotels.push(newHotel);
-                
-                // Guardar en localStorage
-                localStorage.setItem('hotelsDB', JSON.stringify(existingHotels));
-                
-                console.log('✅ Hotel agregado correctamente:', newHotel);
-                alert('✅ Hotel agregado correctamente');
-                
-                // Notificar a index.html sobre el cambio
-                window.dispatchEvent(new StorageEvent('storage', {
-                    key: 'hotelsDB',
-                    newValue: JSON.stringify(existingHotels),
-                    oldValue: JSON.stringify(existingHotels.filter(h => h.id !== newHotel.id))
-                }));
+                try {
+                    // Preparar datos para Supabase
+                    const hotelForSupabase = {
+                        name: hotelData.name,
+                        location: hotelData.location,
+                        description: hotelData.description,
+                        rating: hotelData.rating,
+                        price: parseFloat(String(hotelData.price).replace(/[^0-9.-]/g, '')) || 0,
+                        status: hotelData.status,
+                        amenities: hotelData.amenities,
+                        images: hotelData.images,
+                        coordinates: hotelData.coordinates,
+                        google_maps: hotelData.googleMaps
+                    };
+
+                    // Intentar guardar en Supabase primero
+                    if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                        try {
+                            const savedHotel = await window.supabaseClient.createHotel(hotelForSupabase);
+                            console.log('✅ Hotel guardado en Supabase:', savedHotel);
+                            alert('✅ Hotel agregado correctamente (guardado en la nube)');
+                        } catch (error) {
+                            console.warn('⚠️ Error guardando en Supabase, guardando en localStorage:', error);
+                            // Fallback a localStorage
+                            const newHotel = {
+                                id: Date.now().toString(),
+                                ...hotelData,
+                                createdAt: new Date().toISOString()
+                            };
+                            const existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                            existingHotels.push(newHotel);
+                            localStorage.setItem('hotelsDB', JSON.stringify(existingHotels));
+                            alert('✅ Hotel agregado correctamente (guardado localmente)');
+                        }
+                    } else {
+                        // Solo localStorage si Supabase no está disponible
+                        const newHotel = {
+                            id: Date.now().toString(),
+                            ...hotelData,
+                            createdAt: new Date().toISOString()
+                        };
+                        const existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                        existingHotels.push(newHotel);
+                        localStorage.setItem('hotelsDB', JSON.stringify(existingHotels));
+                        alert('✅ Hotel agregado correctamente (guardado localmente)');
+                    }
+                } catch (error) {
+                    console.error('❌ Error guardando hotel:', error);
+                    alert('❌ Error al guardar el hotel');
+                }
                 
             } else {
                 // Editar hotel existente
@@ -7598,22 +7693,62 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                     return;
                 }
                 
-                const existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-                const hotelIndex = existingHotels.findIndex(h => h.id === hotelId);
-                
-                if (hotelIndex !== -1) {
-                    existingHotels[hotelIndex] = {
-                        ...existingHotels[hotelIndex],
-                        ...hotelData,
-                        updatedAt: new Date().toISOString()
+                try {
+                    // Preparar datos para Supabase
+                    const updatesForSupabase = {
+                        name: hotelData.name,
+                        location: hotelData.location,
+                        description: hotelData.description,
+                        rating: hotelData.rating,
+                        price: parseFloat(String(hotelData.price).replace(/[^0-9.-]/g, '')) || 0,
+                        status: hotelData.status,
+                        amenities: hotelData.amenities,
+                        images: hotelData.images,
+                        coordinates: hotelData.coordinates,
+                        google_maps: hotelData.googleMaps
                     };
-                    
-                    localStorage.setItem('hotelsDB', JSON.stringify(existingHotels));
-                    console.log('✅ Hotel actualizado correctamente');
-                    alert('✅ Hotel actualizado correctamente');
-                } else {
-                    console.error('❌ Hotel no encontrado para editar');
-                    alert('❌ Error: Hotel no encontrado');
+
+                    // Intentar actualizar en Supabase primero
+                    if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                        try {
+                            await window.supabaseClient.updateHotel(hotelId, updatesForSupabase);
+                            console.log('✅ Hotel actualizado en Supabase');
+                            alert('✅ Hotel actualizado correctamente (guardado en la nube)');
+                        } catch (error) {
+                            console.warn('⚠️ Error actualizando en Supabase, actualizando en localStorage:', error);
+                            // Fallback a localStorage
+                            const existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                            const hotelIndex = existingHotels.findIndex(h => h.id === hotelId);
+                            if (hotelIndex !== -1) {
+                                existingHotels[hotelIndex] = {
+                                    ...existingHotels[hotelIndex],
+                                    ...hotelData,
+                                    updatedAt: new Date().toISOString()
+                                };
+                                localStorage.setItem('hotelsDB', JSON.stringify(existingHotels));
+                                alert('✅ Hotel actualizado correctamente (guardado localmente)');
+                            }
+                        }
+                    } else {
+                        // Solo localStorage si Supabase no está disponible
+                        const existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                        const hotelIndex = existingHotels.findIndex(h => h.id === hotelId);
+                        if (hotelIndex !== -1) {
+                            existingHotels[hotelIndex] = {
+                                ...existingHotels[hotelIndex],
+                                ...hotelData,
+                                updatedAt: new Date().toISOString()
+                            };
+                            localStorage.setItem('hotelsDB', JSON.stringify(existingHotels));
+                            alert('✅ Hotel actualizado correctamente (guardado localmente)');
+                        } else {
+                            console.error('❌ Hotel no encontrado para editar');
+                            alert('❌ Error: Hotel no encontrado');
+                        }
+                    }
+                } catch (error) {
+                    console.error('❌ Error actualizando hotel:', error);
+                    alert('❌ Error al actualizar el hotel');
                 }
             }
             
@@ -9829,7 +9964,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         let allReservationsData = [];
         
         // Función para cargar tabla de reservas
-        function loadReservationsTable(searchFilter = '') {
+        async function loadReservationsTable(searchFilter = '') {
             console.log('🔄 Cargando tabla de reservas...');
             
             const tbody = document.getElementById('reservationsTableBody');
@@ -9838,9 +9973,23 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 return;
             }
             
-            // Obtener reservas del localStorage
-            let reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
-            console.log(`📋 Encontradas ${reservations.length} reservas en localStorage`);
+            // Intentar cargar desde Supabase primero
+            let reservations = [];
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    console.log('☁️ Cargando reservas desde Supabase...');
+                    reservations = await window.supabaseClient.getReservations();
+                    console.log(`✅ ${reservations.length} reservas cargadas desde Supabase`);
+                } catch (error) {
+                    console.warn('⚠️ Error cargando desde Supabase, usando localStorage:', error);
+                    reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+                }
+            } else {
+                console.log('💾 Cargando reservas desde localStorage...');
+                reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+            }
+            
+            console.log(`📋 Encontradas ${reservations.length} reservas`);
             
             // Guardar todas las reservas en variable global
             allReservationsData = reservations;
@@ -12202,50 +12351,113 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
         
         // Guardar gasto
-        function saveExpense(event) {
+        async function saveExpense(event) {
             event.preventDefault();
             
-            const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
             const expenseId = document.getElementById('expenseForm').dataset.expenseId;
             
             const amount = parseFloat(document.getElementById('expenseAmount').value);
             const exchangeRate = parseFloat(document.getElementById('expenseExchangeRate').value);
             const usd = exchangeRate > 0 ? amount / exchangeRate : 0;
             
-            const expense = {
-                id: expenseId || Date.now().toString(),
+            const expenseData = {
                 date: document.getElementById('expenseDate').value,
                 type: document.getElementById('expenseType').value,
                 category: document.getElementById('expenseCategory').value,
                 subcategory: document.getElementById('expenseSubcategory').value || '',
                 description: document.getElementById('expenseDescription').value,
                 amount: amount,
-                exchangeRate: exchangeRate,
-                usd: parseFloat(usd.toFixed(2)),
-                createdAt: expenseId ? expenses.find(e => e.id === expenseId)?.createdAt : new Date().toISOString(),
-                updatedAt: new Date().toISOString()
+                exchange_rate: exchangeRate || null,
+                usd_amount: parseFloat(usd.toFixed(2)) || null
             };
             
-            if (expenseId) {
-                const index = expenses.findIndex(e => e.id === expenseId);
-                if (index !== -1) {
-                    expenses[index] = expense;
+            try {
+                // Intentar guardar en Supabase primero
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    try {
+                        if (expenseId) {
+                            await window.supabaseClient.updateExpense(expenseId, expenseData);
+                            console.log('✅ Gasto actualizado en Supabase');
+                            alert('✅ Gasto actualizado correctamente (guardado en la nube)');
+                        } else {
+                            await window.supabaseClient.createExpense(expenseData);
+                            console.log('✅ Gasto guardado en Supabase');
+                            alert('✅ Gasto guardado correctamente (guardado en la nube)');
+                        }
+                    } catch (error) {
+                        console.warn('⚠️ Error guardando en Supabase, guardando en localStorage:', error);
+                        // Fallback a localStorage
+                        const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+                        const expense = {
+                            id: expenseId || Date.now().toString(),
+                            ...expenseData,
+                            exchangeRate: expenseData.exchange_rate,
+                            usd: expenseData.usd_amount,
+                            createdAt: expenseId ? expenses.find(e => e.id === expenseId)?.createdAt : new Date().toISOString(),
+                            updatedAt: new Date().toISOString()
+                        };
+                        
+                        if (expenseId) {
+                            const index = expenses.findIndex(e => e.id === expenseId);
+                            if (index !== -1) {
+                                expenses[index] = expense;
+                            }
+                        } else {
+                            expenses.push(expense);
+                        }
+                        localStorage.setItem('expensesDB', JSON.stringify(expenses));
+                        alert('✅ Gasto guardado correctamente (guardado localmente)');
+                    }
+                } else {
+                    // Solo localStorage si Supabase no está disponible
+                    const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+                    const expense = {
+                        id: expenseId || Date.now().toString(),
+                        ...expenseData,
+                        exchangeRate: expenseData.exchange_rate,
+                        usd: expenseData.usd_amount,
+                        createdAt: expenseId ? expenses.find(e => e.id === expenseId)?.createdAt : new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    };
+                    
+                    if (expenseId) {
+                        const index = expenses.findIndex(e => e.id === expenseId);
+                        if (index !== -1) {
+                            expenses[index] = expense;
+                        }
+                    } else {
+                        expenses.push(expense);
+                    }
+                    localStorage.setItem('expensesDB', JSON.stringify(expenses));
+                    alert('✅ Gasto guardado correctamente (guardado localmente)');
                 }
-            } else {
-                expenses.push(expense);
+                
+                closeExpenseModal();
+                loadExpensesData();
+            } catch (error) {
+                console.error('❌ Error guardando gasto:', error);
+                alert('❌ Error al guardar el gasto');
             }
-            
-            localStorage.setItem('expensesDB', JSON.stringify(expenses));
-            console.log('✅ Gasto guardado:', expense);
-            
-            closeExpenseModal();
-            loadExpensesData();
-            alert('✅ Gasto guardado correctamente');
         }
 
         // Cargar tabla de gastos
-        function loadExpensesTable() {
-            const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+        async function loadExpensesTable() {
+            // Intentar cargar desde Supabase primero
+            let expenses = [];
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    console.log('☁️ Cargando gastos desde Supabase...');
+                    expenses = await window.supabaseClient.getExpenses();
+                    console.log(`✅ ${expenses.length} gastos cargados desde Supabase`);
+                } catch (error) {
+                    console.warn('⚠️ Error cargando desde Supabase, usando localStorage:', error);
+                    expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+                }
+            } else {
+                console.log('💾 Cargando gastos desde localStorage...');
+                expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+            }
+            
             const tbody = document.getElementById('expensesTableBody');
             const noExpensesMessage = document.getElementById('noExpensesMessage');
             
@@ -12320,15 +12532,37 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Eliminar gasto
-        function deleteExpense(expenseId) {
+        async function deleteExpense(expenseId) {
             if (!confirm('¿Estás seguro de que quieres eliminar este gasto?')) return;
             
-            const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
-            const filtered = expenses.filter(e => e.id !== expenseId);
-            localStorage.setItem('expensesDB', JSON.stringify(filtered));
-            
-            loadExpensesData();
-            alert('✅ Gasto eliminado correctamente');
+            try {
+                // Intentar eliminar de Supabase primero
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    try {
+                        await window.supabaseClient.deleteExpense(expenseId);
+                        console.log('✅ Gasto eliminado de Supabase');
+                        alert('✅ Gasto eliminado correctamente (eliminado de la nube)');
+                    } catch (error) {
+                        console.warn('⚠️ Error eliminando de Supabase, eliminando de localStorage:', error);
+                        // Fallback a localStorage
+                        const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+                        const filtered = expenses.filter(e => e.id !== expenseId);
+                        localStorage.setItem('expensesDB', JSON.stringify(filtered));
+                        alert('✅ Gasto eliminado correctamente (eliminado localmente)');
+                    }
+                } else {
+                    // Solo localStorage si Supabase no está disponible
+                    const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+                    const filtered = expenses.filter(e => e.id !== expenseId);
+                    localStorage.setItem('expensesDB', JSON.stringify(filtered));
+                    alert('✅ Gasto eliminado correctamente (eliminado localmente)');
+                }
+                
+                loadExpensesData();
+            } catch (error) {
+                console.error('❌ Error eliminando gasto:', error);
+                alert('❌ Error al eliminar el gasto');
+            }
         }
 
         // Actualizar KPIs de gastos
@@ -13117,6 +13351,36 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     
     <!-- Widget Chatbot Flor -->
     <script src="flor-widget.js"></script>
+    
+    <!-- Script de Migración (cargar después de todo lo demás) -->
+    <script src="migrate-to-supabase.js"></script>
+    
+    <!-- Verificar conexión con Supabase al cargar -->
+    <script>
+        // Verificar conexión cuando el dashboard esté listo
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(async () => {
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    try {
+                        const testResult = await window.supabaseClient.testConnection();
+                        if (testResult.success) {
+                            console.log('✅ Conexión con Supabase verificada correctamente');
+                            console.log('💾 Los datos se guardarán en la nube automáticamente');
+                        } else {
+                            console.warn('⚠️ No se pudo conectar con Supabase:', testResult.error);
+                            console.warn('💾 Se usará localStorage como respaldo');
+                        }
+                    } catch (error) {
+                        console.warn('⚠️ Error verificando conexión con Supabase:', error);
+                        console.warn('💾 Se usará localStorage como respaldo');
+                    }
+                } else {
+                    console.warn('⚠️ Supabase no está configurado. Los datos se guardarán solo en localStorage.');
+                    console.warn('📖 Para activar el guardado en la nube, configura tus credenciales en supabase-config.js');
+                }
+            }, 1000);
+        });
+    </script>
     </div>
     <!-- Fin del contenido del Dashboard -->
 </body>
