@@ -3055,24 +3055,33 @@
 
     <script>
         // ============================================
-        // SISTEMA DE AUTENTICACIÓN
+        // SISTEMA DE AUTENTICACIÓN - EJECUTAR PRIMERO
         // ============================================
+        console.log('🔐 Script de autenticación cargado');
         
-        // IMPORTANTE: Ocultar dashboard y mostrar login por defecto
+        // IMPORTANTE: Ocultar dashboard y mostrar login por defecto INMEDIATAMENTE
         (function() {
-            // Ejecutar inmediatamente cuando el script se carga
-            if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', function() {
-                    const dashboardContent = document.getElementById('dashboardContent');
-                    const loginContainer = document.getElementById('loginContainer');
-                    if (dashboardContent) dashboardContent.classList.remove('authenticated');
-                    if (loginContainer) loginContainer.classList.remove('hidden');
-                });
-            } else {
+            function hideDashboardAndShowLogin() {
                 const dashboardContent = document.getElementById('dashboardContent');
                 const loginContainer = document.getElementById('loginContainer');
-                if (dashboardContent) dashboardContent.classList.remove('authenticated');
-                if (loginContainer) loginContainer.classList.remove('hidden');
+                const body = document.body;
+                
+                if (dashboardContent) {
+                    dashboardContent.classList.remove('authenticated');
+                }
+                if (loginContainer) {
+                    loginContainer.classList.remove('hidden');
+                }
+                if (body) {
+                    body.classList.remove('authenticated');
+                }
+            }
+            
+            // Ejecutar inmediatamente si el DOM está listo
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', hideDashboardAndShowLogin);
+            } else {
+                hideDashboardAndShowLogin();
             }
         })();
         
@@ -12459,40 +12468,39 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }
         }
         
-        // Verificar autenticación inmediatamente al cargar el script
+        // Verificar autenticación cuando el DOM esté listo (esto se ejecuta ANTES del DOMContentLoaded del dashboard)
         (function() {
-            console.log('🔐 Script de autenticación cargado');
-            
-            // Asegurar que el dashboard esté oculto por defecto
-            function hideDashboard() {
-                const dashboardContent = document.getElementById('dashboardContent');
-                const loginContainer = document.getElementById('loginContainer');
-                const body = document.body;
-                
-                if (dashboardContent) {
-                    dashboardContent.classList.remove('authenticated');
-                }
-                if (loginContainer) {
-                    loginContainer.classList.remove('hidden');
-                }
-                if (body) {
-                    body.classList.remove('authenticated');
-                }
+            function verifyAuth() {
+                console.log('🔐 Verificando autenticación...');
+                checkAuthStatus();
             }
             
-            // Ejecutar inmediatamente si el DOM está listo, o esperar
             if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', function() {
-                    hideDashboard();
-                    checkAuthStatus();
-                });
+                document.addEventListener('DOMContentLoaded', verifyAuth);
             } else {
-                hideDashboard();
-                setTimeout(checkAuthStatus, 50);
+                setTimeout(verifyAuth, 10);
             }
         })();
         
         // Inicializar gastos solo si está autenticado (después de verificar)
+        function initExpensesIfAuthenticated() {
+            const authSession = localStorage.getItem('dashboard_auth_session');
+            if (authSession) {
+                try {
+                    const session = JSON.parse(authSession);
+                    const now = Date.now();
+                    if (session.expiresAt && now < session.expiresAt) {
+                        // Usuario autenticado, inicializar gastos
+                        if (typeof initExpensesDB === 'function') {
+                            initExpensesDB();
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error al verificar sesión para gastos:', e);
+                }
+            }
+        }
+        
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initExpensesIfAuthenticated);
         } else {
