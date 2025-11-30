@@ -8876,18 +8876,42 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         imagesArray.push(...hotelData.galleryImages);
                     }
                     
+                    // Preparar coordenadas (debe ser JSONB o null)
+                    let coordinatesData = null;
+                    if (hotelData.coordinates) {
+                        if (typeof hotelData.coordinates === 'object' && hotelData.coordinates.lat && hotelData.coordinates.lng) {
+                            coordinatesData = hotelData.coordinates;
+                        } else {
+                            coordinatesData = hotelData.coordinates;
+                        }
+                    }
+                    
+                    // Preparar amenities (debe ser JSONB array o null)
+                    let amenitiesData = null;
+                    if (hotelData.amenities && Array.isArray(hotelData.amenities) && hotelData.amenities.length > 0) {
+                        amenitiesData = hotelData.amenities;
+                    } else if (hotelData.amenities && typeof hotelData.amenities === 'string') {
+                        amenitiesData = hotelData.amenities.split(',').map(a => a.trim()).filter(a => a);
+                    }
+                    
                     const hotelForSupabase = {
                         name: hotelData.name,
                         location: hotelData.location,
-                        description: hotelData.description,
-                        rating: hotelData.rating,
+                        description: hotelData.description || null,
+                        rating: hotelData.rating || 0,
                         price: parseFloat(String(hotelData.price).replace(/[^0-9.-]/g, '')) || 0,
-                        status: hotelData.status,
-                        amenities: hotelData.amenities,
-                        images: imagesArray.length > 0 ? imagesArray : [], // Guardar todas las imágenes en el campo images
-                        coordinates: hotelData.coordinates,
-                        google_maps: hotelData.googleMaps
+                        status: hotelData.status || 'Activo',
+                        amenities: amenitiesData,
+                        images: imagesArray.length > 0 ? imagesArray : null, // Guardar todas las imágenes en el campo images
+                        coordinates: coordinatesData,
+                        google_maps: hotelData.googleMaps || null
                     };
+                    
+                    console.log('📤 Datos preparados para Supabase (nuevo hotel):', {
+                        ...hotelForSupabase,
+                        images: imagesArray.length > 0 ? `${imagesArray.length} imagen(es)` : 'vacío',
+                        imagesSize: JSON.stringify(imagesArray).length
+                    });
 
                     // Intentar guardar en Supabase primero
                     if (window.supabaseClient && window.supabaseClient.isInitialized()) {
