@@ -8575,8 +8575,14 @@
                     console.log('✅ Formulario configurado - modo: edit, hotelId:', hotelId);
                     console.log('✅ Dataset del formulario:', {
                         mode: form.dataset.mode,
-                        hotelId: form.dataset.hotelId
+                        hotelId: form.dataset.hotelId,
+                        hotel: {
+                            id: hotel.id,
+                            name: hotel.name
+                        }
                     });
+                } else {
+                    console.error('❌ Formulario editHotelForm no encontrado');
                 }
                 
                 // NOTA: Código de configuración de botones de imágenes eliminado - los campos fueron removidos
@@ -8771,8 +8777,24 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             // Obtener imágenes del formulario (pueden ser base64 o URLs)
             const imageInput = document.getElementById('editHotelImage');
             const photosInput = document.getElementById('editHotelPhotos');
-            const mainImage = imageInput?.value?.trim() || '';
-            const galleryImages = getGalleryImagesFromInput();
+            let mainImage = imageInput?.value?.trim() || '';
+            let galleryImages = getGalleryImagesFromInput();
+            
+            // Validar tamaño de imágenes base64 (localStorage tiene límite de ~5-10MB por item)
+            const maxImageSize = 2 * 1024 * 1024; // 2MB por imagen base64
+            if (mainImage && mainImage.startsWith('data:') && mainImage.length > maxImageSize) {
+                console.warn('⚠️ Imagen principal muy grande, truncando...');
+                alert('⚠️ La imagen principal es muy grande. Considera usar una URL externa o comprimir la imagen.');
+            }
+            
+            // Filtrar imágenes de galería que sean demasiado grandes
+            galleryImages = galleryImages.filter(img => {
+                if (img.startsWith('data:') && img.length > maxImageSize) {
+                    console.warn('⚠️ Imagen de galería muy grande, omitiendo...');
+                    return false;
+                }
+                return true;
+            });
             
             const hotelData = {
                 name: nameInput.value.trim(),
@@ -8813,6 +8835,15 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             
             const mode = form.dataset.mode;
             const hotelId = form.dataset.hotelId;
+            
+            console.log('📋 Modo del formulario:', mode);
+            console.log('📋 ID del hotel:', hotelId);
+            
+            if (!mode) {
+                console.error('❌ Modo del formulario no definido');
+                alert('❌ Error: Modo del formulario no definido. Por favor, cierra y vuelve a abrir el formulario.');
+                return;
+            }
             
             if (mode === 'add') {
                 // Agregar nuevo hotel
@@ -8869,10 +8900,16 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                     alert('❌ Error al guardar el hotel');
                 }
                 
-            } else {
+            } else if (mode === 'edit') {
                 // Editar hotel existente
                 if (!hotelId) {
                     console.error('❌ ID de hotel no encontrado para edición');
+                    console.error('📋 Form dataset:', {
+                        mode: form.dataset.mode,
+                        hotelId: form.dataset.hotelId,
+                        formId: form.id
+                    });
+                    alert('❌ Error: ID de hotel no encontrado. Por favor, cierra y vuelve a abrir el formulario.');
                     return;
                 }
                 
@@ -8902,39 +8939,65 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         } catch (error) {
                             console.warn('⚠️ Error actualizando en Supabase, actualizando en localStorage:', error);
                             // Fallback a localStorage
-                const existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-                const hotelIndex = existingHotels.findIndex(h => h.id === hotelId);
-                if (hotelIndex !== -1) {
-                    existingHotels[hotelIndex] = {
-                        ...existingHotels[hotelIndex],
-                        ...hotelData,
-                        updatedAt: new Date().toISOString()
-                    };
-                    localStorage.setItem('hotelsDB', JSON.stringify(existingHotels));
-                                alert('✅ Hotel actualizado correctamente (guardado localmente)');
+                            try {
+                                const existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                                const hotelIndex = existingHotels.findIndex(h => h.id === hotelId);
+                                if (hotelIndex !== -1) {
+                                    existingHotels[hotelIndex] = {
+                                        ...existingHotels[hotelIndex],
+                                        ...hotelData,
+                                        updatedAt: new Date().toISOString()
+                                    };
+                                    localStorage.setItem('hotelsDB', JSON.stringify(existingHotels));
+                                    alert('✅ Hotel actualizado correctamente (guardado localmente)');
+                                } else {
+                                    console.error('❌ Hotel no encontrado para editar en localStorage');
+                                    alert('❌ Error: Hotel no encontrado');
+                                }
+                            } catch (localError) {
+                                console.error('❌ Error guardando en localStorage:', localError);
+                                throw new Error(`Error guardando en localStorage: ${localError.message}`);
                             }
                         }
                     } else {
                         // Solo localStorage si Supabase no está disponible
-                        const existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-                        const hotelIndex = existingHotels.findIndex(h => h.id === hotelId);
-                        if (hotelIndex !== -1) {
-                            existingHotels[hotelIndex] = {
-                                ...existingHotels[hotelIndex],
-                                ...hotelData,
-                                updatedAt: new Date().toISOString()
-                            };
-                            localStorage.setItem('hotelsDB', JSON.stringify(existingHotels));
-                            alert('✅ Hotel actualizado correctamente (guardado localmente)');
-                } else {
-                    console.error('❌ Hotel no encontrado para editar');
-                    alert('❌ Error: Hotel no encontrado');
+                        try {
+                            const existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                            const hotelIndex = existingHotels.findIndex(h => h.id === hotelId);
+                            if (hotelIndex !== -1) {
+                                existingHotels[hotelIndex] = {
+                                    ...existingHotels[hotelIndex],
+                                    ...hotelData,
+                                    updatedAt: new Date().toISOString()
+                                };
+                                localStorage.setItem('hotelsDB', JSON.stringify(existingHotels));
+                                alert('✅ Hotel actualizado correctamente (guardado localmente)');
+                            } else {
+                                console.error('❌ Hotel no encontrado para editar');
+                                alert('❌ Error: Hotel no encontrado');
+                            }
+                        } catch (localError) {
+                            console.error('❌ Error guardando en localStorage:', localError);
+                            throw new Error(`Error guardando en localStorage: ${localError.message}`);
                         }
                     }
                 } catch (error) {
                     console.error('❌ Error actualizando hotel:', error);
-                    alert('❌ Error al actualizar el hotel');
+                    const errorMessage = error?.message || error?.toString() || 'Error desconocido';
+                    console.error('📋 Detalles del error:', {
+                        error,
+                        hotelId,
+                        hotelData: {
+                            ...hotelData,
+                            mainImage: hotelData.mainImage ? `${hotelData.mainImage.substring(0, 50)}...` : 'vacío',
+                            galleryImages: hotelData.galleryImages?.length || 0
+                        }
+                    });
+                    alert(`❌ Error al actualizar el hotel\n\n${errorMessage}\n\nRevisa la consola para más detalles.`);
                 }
+            } else {
+                console.error('❌ Modo de formulario desconocido:', mode);
+                alert(`❌ Error: Modo de formulario desconocido (${mode}). Por favor, cierra y vuelve a abrir el formulario.`);
             }
             
             // Cerrar modal
