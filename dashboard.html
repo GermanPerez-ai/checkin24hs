@@ -586,34 +586,9 @@
             background-color: rgba(0,0,0,0.5);
         }
         
-        /* OCULTAR CAMPOS DE IMAGEN - SOLUCIÓN CSS DEFINITIVA */
-        #editHotelImage,
-        #editHotelPhotos,
-        #editImagePreview,
-        #editPhotosPreview,
-        /* Botones de selección de imágenes - AHORA VISIBLES */
-        #btnSelectMainImage,
-        #btnSelectGalleryImages {
-            display: inline-flex !important;
-            visibility: visible !important;
-            opacity: 1 !important;
-            height: auto !important;
-            width: auto !important;
-            position: relative !important;
-            left: auto !important;
-            pointer-events: auto !important;
-        }
-        
-        /* Ocultar form-group que contiene campos de imagen usando selector universal */
+        /* MOSTRAR CAMPOS DE IMAGEN - AHORA VISIBLES */
         #editHotelModal .form-group {
             position: relative;
-        }
-        
-        #editHotelModal .form-group:has(#editHotelImage),
-        #editHotelModal .form-group:has(#editHotelPhotos),
-        #editHotelModal .form-group:has(#editImagePreview),
-        #editHotelModal .form-group:has(#editPhotosPreview) {
-            display: none !important;
         }
 
         .modal-content {
@@ -648,25 +623,7 @@
             font-weight: 500;
         }
         
-        /* OCULTAR CAMPOS DE IMAGEN - SOLUCIÓN CSS DEFINITIVA */
-        #editHotelImage,
-        #editHotelPhotos,
-        #editImagePreview,
-        #editPhotosPreview {
-            display: none !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
-            height: 0 !important;
-            width: 0 !important;
-            position: absolute !important;
-            left: -9999px !important;
-        }
-        
-        /* Ocultar cualquier form-group que contenga campos de imagen */
-        form#editHotelForm .form-group:has(#editHotelImage),
-        form#editHotelForm .form-group:has(#editHotelPhotos) {
-            display: none !important;
-        }
+        /* CAMPOS DE IMAGEN AHORA VISIBLES - CSS eliminado */
 
         /* Form Styles */
         .form-group {
@@ -8179,52 +8136,6 @@
                 console.error('❌ Título del modal no encontrado');
             }
             
-            // ELIMINAR CAMPOS DE IMAGEN SI APARECEN (debido a caché del navegador)
-            setTimeout(function() {
-                // Buscar y eliminar campo de Imagen Principal
-                var imageField = document.getElementById('editHotelImage');
-                if (imageField) {
-                    var formGroup = imageField.closest('.form-group');
-                    if (formGroup) {
-                        formGroup.remove();
-                        console.log('✅ Campo editHotelImage eliminado');
-                    }
-                }
-                
-                // Buscar y eliminar campo de Galería de Fotos
-                var photosField = document.getElementById('editHotelPhotos');
-                if (photosField) {
-                    var formGroup = photosField.closest('.form-group');
-                    if (formGroup) {
-                        formGroup.remove();
-                        console.log('✅ Campo editHotelPhotos eliminado');
-                    }
-                }
-                
-                // Buscar y eliminar cualquier label que diga "Imagen Principal"
-                var labels = document.querySelectorAll('#editHotelModal .form-label');
-                labels.forEach(function(label) {
-                    if (label.textContent && label.textContent.includes('Imagen Principal')) {
-                        var formGroup = label.closest('.form-group');
-                        if (formGroup) {
-                            formGroup.remove();
-                            console.log('✅ Campo "Imagen Principal" eliminado por label');
-                        }
-                    }
-                });
-                
-                // Buscar y eliminar cualquier label que diga "Galería de Fotos"
-                labels.forEach(function(label) {
-                    if (label.textContent && label.textContent.includes('Galería de Fotos')) {
-                        var formGroup = label.closest('.form-group');
-                        if (formGroup) {
-                            formGroup.remove();
-                            console.log('✅ Campo "Galería de Fotos" eliminado por label');
-                        }
-                    }
-                });
-            }, 50);
-            
             // Mostrar el modal
             modal.style.display = 'block';
             console.log('✅ Modal mostrado');
@@ -8571,52 +8482,6 @@
             // Mostrar el modal
             const modal = document.getElementById('editHotelModal');
             if (modal) {
-                // ELIMINAR CAMPOS DE IMAGEN SI APARECEN (debido a caché del navegador)
-                setTimeout(function() {
-                    // Buscar y eliminar campo de Imagen Principal
-                    var imageField = document.getElementById('editHotelImage');
-                    if (imageField) {
-                        var formGroup = imageField.closest('.form-group');
-                        if (formGroup) {
-                            formGroup.remove();
-                            console.log('✅ Campo editHotelImage eliminado');
-                        }
-                    }
-                    
-                    // Buscar y eliminar campo de Galería de Fotos
-                    var photosField = document.getElementById('editHotelPhotos');
-                    if (photosField) {
-                        var formGroup = photosField.closest('.form-group');
-                        if (formGroup) {
-                            formGroup.remove();
-                            console.log('✅ Campo editHotelPhotos eliminado');
-                        }
-                    }
-                    
-                    // Buscar y eliminar cualquier label que diga "Imagen Principal"
-                    var labels = document.querySelectorAll('#editHotelModal .form-label');
-                    labels.forEach(function(label) {
-                        if (label.textContent && label.textContent.includes('Imagen Principal')) {
-                            var formGroup = label.closest('.form-group');
-                            if (formGroup) {
-                                formGroup.remove();
-                                console.log('✅ Campo "Imagen Principal" eliminado por label');
-                            }
-                        }
-                    });
-                    
-                    // Buscar y eliminar cualquier label que diga "Galería de Fotos"
-                    labels.forEach(function(label) {
-                        if (label.textContent && label.textContent.includes('Galería de Fotos')) {
-                            var formGroup = label.closest('.form-group');
-                            if (formGroup) {
-                                formGroup.remove();
-                                console.log('✅ Campo "Galería de Fotos" eliminado por label');
-                            }
-                        }
-                    });
-                }, 50);
-                
                 modal.style.display = 'block';
                 
                 // Configurar el formulario para modo "editar"
