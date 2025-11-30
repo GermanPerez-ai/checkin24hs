@@ -106,14 +106,39 @@ class SupabaseClient {
         }
 
         try {
+            // Limpiar campos undefined y null innecesarios
+            const cleanUpdates = {};
+            Object.keys(updates).forEach(key => {
+                if (updates[key] !== undefined) {
+                    cleanUpdates[key] = updates[key];
+                }
+            });
+            cleanUpdates.updated_at = new Date().toISOString();
+            
+            console.log('📤 Actualizando hotel en Supabase:', {
+                id,
+                updates: {
+                    ...cleanUpdates,
+                    images: cleanUpdates.images ? `${Array.isArray(cleanUpdates.images) ? cleanUpdates.images.length : 'N/A'} imagen(es)` : 'null'
+                }
+            });
+            
             const { data, error } = await this.client
                 .from('hotels')
-                .update({ ...updates, updated_at: new Date().toISOString() })
+                .update(cleanUpdates)
                 .eq('id', id)
                 .select()
                 .single();
             
-            if (error) throw error;
+            if (error) {
+                console.error('❌ Error detallado de Supabase:', {
+                    code: error.code,
+                    message: error.message,
+                    details: error.details,
+                    hint: error.hint
+                });
+                throw error;
+            }
             
             // Sincronizar con localStorage
             const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');

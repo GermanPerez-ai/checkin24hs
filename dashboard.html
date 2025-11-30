@@ -8533,21 +8533,38 @@
             // Cargar imágenes
             const imageInput = document.getElementById('editHotelImage');
             const photosInput = document.getElementById('editHotelPhotos');
-            if (imageInput) {
-                imageInput.value = hotel.mainImage || hotel.images?.[0] || '';
-                updateImagePreview();
-            }
-            if (photosInput) {
-                // Cargar galería de imágenes (puede ser array o string separado por comas)
-                let galleryImages = [];
+            
+            // En Supabase, las imágenes están en el campo 'images' (JSONB)
+            // La primera imagen es la principal, el resto es la galería
+            let mainImage = '';
+            let galleryImages = [];
+            
+            if (hotel.mainImage) {
+                // Si existe mainImage (localStorage antiguo)
+                mainImage = hotel.mainImage;
                 if (hotel.galleryImages && Array.isArray(hotel.galleryImages)) {
                     galleryImages = hotel.galleryImages;
                 } else if (hotel.images && Array.isArray(hotel.images)) {
-                    // Si hay mainImage, excluirla de la galería
-                    galleryImages = hotel.mainImage ? hotel.images.slice(1) : hotel.images;
-                } else if (hotel.images && typeof hotel.images === 'string') {
-                    galleryImages = hotel.images.split(',').map(img => img.trim()).filter(img => img);
+                    galleryImages = hotel.images.slice(1); // Excluir la primera que es mainImage
                 }
+            } else if (hotel.images && Array.isArray(hotel.images) && hotel.images.length > 0) {
+                // Formato Supabase: todas las imágenes en el array 'images'
+                mainImage = hotel.images[0];
+                galleryImages = hotel.images.slice(1); // El resto es la galería
+            } else if (hotel.images && typeof hotel.images === 'string') {
+                // Formato antiguo: string separado por comas
+                const imagesList = hotel.images.split(',').map(img => img.trim()).filter(img => img);
+                if (imagesList.length > 0) {
+                    mainImage = imagesList[0];
+                    galleryImages = imagesList.slice(1);
+                }
+            }
+            
+            if (imageInput) {
+                imageInput.value = mainImage;
+                updateImagePreview();
+            }
+            if (photosInput) {
                 photosInput.value = galleryImages.join('|||');
                 updatePhotosPreview();
             }
@@ -8849,6 +8866,16 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 // Agregar nuevo hotel
                 try {
                     // Preparar datos para Supabase
+                    // NOTA: La tabla hotels solo tiene 'images' (JSONB), no 'mainImage' ni 'galleryImages'
+                    // Combinamos mainImage y galleryImages en el campo images
+                    const imagesArray = [];
+                    if (hotelData.mainImage) {
+                        imagesArray.push(hotelData.mainImage);
+                    }
+                    if (hotelData.galleryImages && Array.isArray(hotelData.galleryImages)) {
+                        imagesArray.push(...hotelData.galleryImages);
+                    }
+                    
                     const hotelForSupabase = {
                         name: hotelData.name,
                         location: hotelData.location,
@@ -8857,9 +8884,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         price: parseFloat(String(hotelData.price).replace(/[^0-9.-]/g, '')) || 0,
                         status: hotelData.status,
                         amenities: hotelData.amenities,
-                        mainImage: hotelData.mainImage || '',
-                        galleryImages: hotelData.galleryImages || [],
-                        images: hotelData.images || [], // Compatibilidad
+                        images: imagesArray.length > 0 ? imagesArray : [], // Guardar todas las imágenes en el campo images
                         coordinates: hotelData.coordinates,
                         google_maps: hotelData.googleMaps
                     };
@@ -8915,20 +8940,52 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 
                 try {
                     // Preparar datos para Supabase
+                    // NOTA: La tabla hotels solo tiene 'images' (JSONB), no 'mainImage' ni 'galleryImages'
+                    // Combinamos mainImage y galleryImages en el campo images
+                    const imagesArray = [];
+                    if (hotelData.mainImage) {
+                        imagesArray.push(hotelData.mainImage);
+                    }
+                    if (hotelData.galleryImages && Array.isArray(hotelData.galleryImages)) {
+                        imagesArray.push(...hotelData.galleryImages);
+                    }
+                    
+                    // Preparar coordenadas (debe ser JSONB o null)
+                    let coordinatesData = null;
+                    if (hotelData.coordinates) {
+                        if (typeof hotelData.coordinates === 'object' && hotelData.coordinates.lat && hotelData.coordinates.lng) {
+                            coordinatesData = hotelData.coordinates;
+                        } else {
+                            coordinatesData = hotelData.coordinates;
+                        }
+                    }
+                    
+                    // Preparar amenities (debe ser JSONB array o null)
+                    let amenitiesData = null;
+                    if (hotelData.amenities && Array.isArray(hotelData.amenities) && hotelData.amenities.length > 0) {
+                        amenitiesData = hotelData.amenities;
+                    } else if (hotelData.amenities && typeof hotelData.amenities === 'string') {
+                        amenitiesData = hotelData.amenities.split(',').map(a => a.trim()).filter(a => a);
+                    }
+                    
                     const updatesForSupabase = {
                         name: hotelData.name,
                         location: hotelData.location,
-                        description: hotelData.description,
-                        rating: hotelData.rating,
+                        description: hotelData.description || null,
+                        rating: hotelData.rating || 0,
                         price: parseFloat(String(hotelData.price).replace(/[^0-9.-]/g, '')) || 0,
-                        status: hotelData.status,
-                        amenities: hotelData.amenities,
-                        mainImage: hotelData.mainImage || '',
-                        galleryImages: hotelData.galleryImages || [],
-                        images: hotelData.images || [], // Compatibilidad
-                        coordinates: hotelData.coordinates,
-                        google_maps: hotelData.googleMaps
+                        status: hotelData.status || 'Activo',
+                        amenities: amenitiesData,
+                        images: imagesArray.length > 0 ? imagesArray : null, // Guardar todas las imágenes en el campo images
+                        coordinates: coordinatesData,
+                        google_maps: hotelData.googleMaps || null
                     };
+                    
+                    console.log('📤 Datos preparados para Supabase:', {
+                        ...updatesForSupabase,
+                        images: imagesArray.length > 0 ? `${imagesArray.length} imagen(es)` : 'vacío',
+                        imagesSize: JSON.stringify(imagesArray).length
+                    });
 
                     // Intentar actualizar en Supabase primero
                     if (window.supabaseClient && window.supabaseClient.isInitialized()) {
