@@ -5505,8 +5505,213 @@
             }
         }
 
+        // ============================================
+        // FUNCIONES PARA CARGAR Y MOSTRAR HOTELES DESDE LA BASE DE DATOS
+        // ============================================
+        
+        // Función para obtener la URL de imagen del hotel (soporta base64 y URLs)
+        function getHotelImageUrl(hotel) {
+            // Prioridad 1: mainImage
+            if (hotel.mainImage) {
+                return hotel.mainImage;
+            }
+            // Prioridad 2: images array (primera imagen)
+            if (hotel.images && hotel.images.length > 0) {
+                return hotel.images[0];
+            }
+            // Prioridad 3: image (campo antiguo)
+            if (hotel.image) {
+                return hotel.image;
+            }
+            // Prioridad 4: image_url (campo antiguo)
+            if (hotel.image_url) {
+                return hotel.image_url;
+            }
+            // Imagen por defecto
+            return 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&h=200&fit=crop';
+        }
+        
+        // Función para obtener galería de imágenes del hotel
+        function getHotelGalleryImages(hotel) {
+            if (hotel.galleryImages && hotel.galleryImages.length > 0) {
+                return hotel.galleryImages;
+            }
+            if (hotel.images && hotel.images.length > 1) {
+                return hotel.images.slice(1); // Todas excepto la primera (que es la principal)
+            }
+            return [];
+        }
+        
+        // Función para cargar hoteles desde localStorage o Supabase
+        async function loadHotelsFromDatabase() {
+            console.log('📥 Cargando hoteles desde la base de datos...');
+            
+            let hotels = [];
+            
+            // Intentar cargar desde Supabase si está disponible
+            if (window.supabaseClient && window.supabaseClient.isInitialized && window.supabaseClient.isInitialized()) {
+                try {
+                    console.log('☁️ Cargando hoteles desde Supabase...');
+                    hotels = await window.supabaseClient.getHotels();
+                    console.log(`✅ ${hotels.length} hoteles cargados desde Supabase`);
+                } catch (error) {
+                    console.warn('⚠️ Error cargando desde Supabase, usando localStorage:', error);
+                    hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                }
+            } else {
+                // Cargar desde localStorage
+                console.log('💾 Cargando hoteles desde localStorage...');
+                hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            }
+            
+            // Filtrar solo hoteles activos
+            hotels = hotels.filter(hotel => hotel.status !== 'Inactivo' && hotel.status !== 'inactivo');
+            
+            console.log(`📋 ${hotels.length} hoteles activos encontrados`);
+            return hotels;
+        }
+        
+        // Función para renderizar hoteles en el carrusel de ofertas
+        async function renderHotelsInCarousel() {
+            const carousel = document.getElementById('hotels-carousel-offers');
+            if (!carousel) {
+                console.warn('⚠️ Carrusel de hoteles no encontrado');
+                return;
+            }
+            
+            const hotels = await loadHotelsFromDatabase();
+            
+            if (hotels.length === 0) {
+                console.log('⚠️ No hay hoteles para mostrar');
+                return;
+            }
+            
+            // Limpiar carrusel
+            carousel.innerHTML = '';
+            
+            // Renderizar cada hotel
+            hotels.slice(0, 10).forEach((hotel, index) => {
+                const imageUrl = getHotelImageUrl(hotel);
+                const hotelCard = document.createElement('div');
+                hotelCard.style.cssText = 'background: white; border-radius: 12px; padding: 15px; min-width: 280px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); height: 380px; display: flex; flex-direction: column; justify-content: space-between; cursor: pointer;';
+                hotelCard.onclick = () => showHotelDetailsModal('dashboard', hotel.id);
+                
+                hotelCard.innerHTML = `
+                    <img src="${imageUrl}" alt="${hotel.name}" 
+                         style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 12px;"
+                         onerror="this.src='https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&h=200&fit=crop'">
+                    <h3 style="margin: 0 0 8px 0; font-size: 1.1rem; color: #333; font-weight: 600;">
+                        ${hotel.name.length > 25 ? hotel.name.substring(0, 25) + '...' : hotel.name}
+                    </h3>
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                        <span style="background: #28a745; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; font-weight: 600;">
+                            ${hotel.rating || 'N/A'} ${hotel.rating >= 4 ? 'Excelente' : hotel.rating >= 3 ? 'Bueno' : 'Regular'}
+                        </span>
+                    </div>
+                    <p style="margin: 0 0 8px 0; color: #666; font-size: 0.9rem;">${hotel.location || ''}</p>
+                    <div style="display: flex; align-items: center; gap: 5px; margin-bottom: 12px;">
+                        ${hotel.amenities && hotel.amenities.length > 0 ? 
+                            `<span style="color: #28a745;">✔</span>
+                             <span style="color: #666; font-size: 0.9rem;">${hotel.amenities.slice(0, 2).join(', ')}</span>` 
+                            : ''}
+                    </div>
+                    <div>
+                        <button onclick="event.stopPropagation(); solicitarCotizacionPromocion('${hotel.name}')" 
+                                style="width: 100%; background: #667eea; color: white; border: none; padding: 10px; border-radius: 8px; cursor: pointer; font-weight: bold;">
+                            Solicitar Cotización
+                        </button>
+                    </div>
+                `;
+                
+                carousel.appendChild(hotelCard);
+            });
+            
+            console.log(`✅ ${hotels.length} hoteles renderizados en el carrusel`);
+        }
+        
+        // Función para renderizar hoteles en tarjetas (grid)
+        async function renderHotelsInGrid() {
+            const gridContainer = document.querySelector('.hotels-grid-container');
+            if (!gridContainer) {
+                console.warn('⚠️ Contenedor de grid de hoteles no encontrado');
+                return;
+            }
+            
+            const hotels = await loadHotelsFromDatabase();
+            
+            if (hotels.length === 0) {
+                console.log('⚠️ No hay hoteles para mostrar');
+                return;
+            }
+            
+            // Limpiar grid
+            gridContainer.innerHTML = '';
+            
+            // Renderizar cada hotel
+            hotels.forEach((hotel) => {
+                const imageUrl = getHotelImageUrl(hotel);
+                const hotelCard = document.createElement('div');
+                hotelCard.className = 'hotel-card-new';
+                hotelCard.onclick = () => {
+                    if (typeof showHotelDetailsModal === 'function') {
+                        showHotelDetailsModal('dashboard', hotel.id);
+                    }
+                };
+                
+                const mainAmenities = hotel.amenities ? hotel.amenities.slice(0, 3).map(a => 
+                    `<span>${a}</span>`
+                ).join('') : '';
+                
+                hotelCard.innerHTML = `
+                    <div class="hotel-image-container">
+                        <img src="${imageUrl}" alt="${hotel.name}" class="hotel-image" 
+                             onerror="this.src='https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&h=200&fit=crop'">
+                        ${hotel.badge ? `<div class="hotel-badge">${hotel.badge}</div>` : ''}
+                    </div>
+                    <div class="hotel-card-body">
+                        <h3>${hotel.name}</h3>
+                        <p>${hotel.description || hotel.location || ''}</p>
+                        ${mainAmenities ? `<div class="hotel-features">${mainAmenities}</div>` : ''}
+                    </div>
+                    <div class="hotel-card-footer">
+                        <button class="hotel-btn" onclick="event.stopPropagation(); solicitarCotizacionPromocion('${hotel.name}')">
+                            Solicitar Cotización
+                        </button>
+                        <button class="hotel-btn" onclick="event.stopPropagation(); showHotelDetailsModal('dashboard', '${hotel.id}')" style="background: #6c757d;">
+                            Detalles
+                        </button>
+                    </div>
+                `;
+                
+                gridContainer.appendChild(hotelCard);
+            });
+            
+            console.log(`✅ ${hotels.length} hoteles renderizados en el grid`);
+        }
+        
+        // Función para inicializar hoteles cuando se carga la página
+        async function initializeHotels() {
+            console.log('🚀 Inicializando hoteles...');
+            try {
+                await renderHotelsInCarousel();
+                await renderHotelsInGrid();
+                console.log('✅ Hoteles inicializados correctamente');
+            } catch (error) {
+                console.error('❌ Error inicializando hoteles:', error);
+            }
+        }
+        
+        // Cargar hoteles cuando se carga la página
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeHotels);
+        } else {
+            initializeHotels();
+        }
 
     </script>
+    
+    <!-- Cliente de Supabase (opcional, para cargar hoteles desde la nube) -->
+    <script src="supabase-client.js"></script>
     
     <!-- Widget Chatbot Flor -->
     <script src="flor-widget.js"></script>

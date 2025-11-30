@@ -585,6 +585,36 @@
             height: 100%;
             background-color: rgba(0,0,0,0.5);
         }
+        
+        /* OCULTAR CAMPOS DE IMAGEN - SOLUCIÓN CSS DEFINITIVA */
+        #editHotelImage,
+        #editHotelPhotos,
+        #editImagePreview,
+        #editPhotosPreview,
+        /* Botones de selección de imágenes - AHORA VISIBLES */
+        #btnSelectMainImage,
+        #btnSelectGalleryImages {
+            display: inline-flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            height: auto !important;
+            width: auto !important;
+            position: relative !important;
+            left: auto !important;
+            pointer-events: auto !important;
+        }
+        
+        /* Ocultar form-group que contiene campos de imagen usando selector universal */
+        #editHotelModal .form-group {
+            position: relative;
+        }
+        
+        #editHotelModal .form-group:has(#editHotelImage),
+        #editHotelModal .form-group:has(#editHotelPhotos),
+        #editHotelModal .form-group:has(#editImagePreview),
+        #editHotelModal .form-group:has(#editPhotosPreview) {
+            display: none !important;
+        }
 
         .modal-content {
             background-color: white;
@@ -616,6 +646,26 @@
             color: #333;
             font-size: 1.3rem;
             font-weight: 500;
+        }
+        
+        /* OCULTAR CAMPOS DE IMAGEN - SOLUCIÓN CSS DEFINITIVA */
+        #editHotelImage,
+        #editHotelPhotos,
+        #editImagePreview,
+        #editPhotosPreview {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+            height: 0 !important;
+            width: 0 !important;
+            position: absolute !important;
+            left: -9999px !important;
+        }
+        
+        /* Ocultar cualquier form-group que contenga campos de imagen */
+        form#editHotelForm .form-group:has(#editHotelImage),
+        form#editHotelForm .form-group:has(#editHotelPhotos) {
+            display: none !important;
         }
 
         /* Form Styles */
@@ -1637,24 +1687,10 @@
                 </div>
             </div>
 
-            <!-- Hotels Section -->
+            <!-- Hotels Section - NUEVO MÓDULO LIMPIO -->
             <div id="hotels-section" style="display: none;">
-                <h2 class="page-title">Gestión de Hoteles</h2>
+                <h2 class="page-title">🏨 Gestión de Hoteles</h2>
                 
-                <!-- Pestañas de Hoteles -->
-                <div style="display: flex; gap: 8px; margin-bottom: 24px; border-bottom: 2px solid #e0e0e0;">
-                    <button onclick="showHotelsTab('hotels')" id="hotels-tab-btn" class="hotels-tab active" style="padding: 12px 24px; border: none; background: #1976d2; color: white; border-radius: 8px 8px 0 0; cursor: pointer; font-weight: 500;">
-                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px; font-size: 20px;">hotel</span>
-                        Hoteles
-                    </button>
-                    <button onclick="showHotelsTab('promotions')" id="promotions-tab-btn" class="hotels-tab" style="padding: 12px 24px; border: none; background: #f0f0f0; color: #333; border-radius: 8px 8px 0 0; cursor: pointer; font-weight: 500;">
-                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px; font-size: 20px;">local_offer</span>
-                        Promociones
-                    </button>
-                </div>
-                
-                <!-- Contenido de pestaña Hoteles -->
-                <div id="hotels-tab-content" class="hotels-tab-content" style="display: block;">
                 <!-- Action Buttons -->
                 <div style="margin-bottom: 24px; display: flex; gap: 12px; flex-wrap: wrap;">
                     <button class="form-button" onclick="addNewHotel()">
@@ -1742,14 +1778,6 @@
                                 <!-- Los hoteles se cargarán dinámicamente -->
                             </tbody>
                         </table>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Contenido de pestaña Promociones -->
-                <div id="promotions-tab-content" class="hotels-tab-content" style="display: none;">
-                    <div id="hotel-promotions-content">
-                        <!-- El contenido de promociones se cargará aquí -->
                     </div>
                 </div>
             </div>
@@ -2620,11 +2648,11 @@
 
 
 
-    <!-- Modal de Edición de Hotel -->
+    <!-- Modal de Agregar/Editar Hotel - NUEVO Y LIMPIO -->
     <div id="editHotelModal" class="modal">
-                        <div class="modal-content" style="max-width: 650px; max-height: 85vh; overflow-y: auto;">
+        <div class="modal-content" style="max-width: 650px; max-height: 85vh; overflow-y: auto;">
             <span class="close" onclick="closeEditModal()">&times;</span>
-            <h2 class="modal-title">Editar Hotel</h2>
+            <h2 class="modal-title" id="editHotelModalTitle">🏨 Agregar Nuevo Hotel</h2>
             
             <form id="editHotelForm">
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
@@ -2643,12 +2671,9 @@
                         <div class="form-group">
                             <label class="form-label">📍 Ubicación Google Maps</label>
                             <div style="display: flex; gap: 10px; align-items: center;">
-                                <input type="text" class="form-input" id="editHotelGoogleMaps" placeholder="https://maps.google.com/?q=..." style="flex: 1;" onchange="testCoordinatesExtraction()">
-                                <button type="button" class="form-button secondary" onclick="openGoogleMapsHelp()" style="white-space: nowrap;" title="Ayuda para obtener enlace de Google Maps">
+                                <input type="text" class="form-input" id="editHotelGoogleMaps" placeholder="https://maps.google.com/?q=..." style="flex: 1;">
+                                <button type="button" class="form-button secondary" onclick="openGoogleMapsHelp()" style="white-space: nowrap;" title="Ayuda">
                                     <span class="material-icons" style="font-size: 16px;">help</span>
-                                </button>
-                                <button type="button" class="form-button secondary" onclick="testCoordinatesExtraction()" style="white-space: nowrap;" title="Probar extracción de coordenadas">
-                                    <span class="material-icons" style="font-size: 16px;">location_on</span>
                                 </button>
                             </div>
                             <div style="margin-top: 5px; font-size: 0.85rem; color: #666;">
@@ -2690,16 +2715,37 @@
                         <div class="form-group">
                             <label class="form-label">Imagen Principal *</label>
                             <div style="display: flex; gap: 10px; align-items: center;">
-                                <input type="text" class="form-input" id="editHotelImage" placeholder="Ruta de la imagen (ej: hotel-images/hotel-1-puyehue/main.jpg)" required style="flex: 1;">
-                                <button type="button" class="form-button secondary" onclick="openImageManager('main')" style="white-space: nowrap;">
-                                    <span class="material-icons" style="font-size: 16px;">folder_open</span>
-                                    Seleccionar
+                                <input type="text" class="form-input" id="editHotelImage" placeholder="Selecciona una imagen" readonly style="flex: 1; background: #f5f5f5;">
+                                <!-- Input de archivo oculto para imagen principal -->
+                                <input type="file" id="mainImageFileInput" accept="image/*" style="display: none;" onchange="handleMainImageUpload(event)">
+                                <button type="button" class="form-button" onclick="document.getElementById('mainImageFileInput').click()" style="white-space: nowrap;">
+                                    <span class="material-icons" style="vertical-align: middle; margin-right: 4px; font-size: 18px;">folder_open</span>
+                                    Seleccionar desde Disco
                                 </button>
-                                <button type="button" class="form-button secondary" onclick="showImageHelp()" style="white-space: nowrap;" title="Ayuda">
-                                    <span class="material-icons" style="font-size: 16px;">help</span>
+                                <button type="button" class="form-button" onclick="openImageManagerSimple('main')" style="white-space: nowrap; background: #4caf50;">
+                                    <span class="material-icons" style="vertical-align: middle; margin-right: 4px; font-size: 18px;">link</span>
+                                    Desde URL
                                 </button>
                             </div>
-                            <div id="editImagePreview" style="margin-top: 10px; text-align: center;"></div>
+                            <div id="editImagePreview" style="margin-top: 10px; min-height: 50px;"></div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Galería de Fotos</label>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <input type="text" class="form-input" id="editHotelPhotos" placeholder="Selecciona imágenes para la galería" readonly style="flex: 1; background: #f5f5f5;">
+                                <!-- Input de archivo oculto para galería -->
+                                <input type="file" id="galleryImagesFileInput" accept="image/*" multiple style="display: none;" onchange="handleGalleryImagesUpload(event)">
+                                <button type="button" class="form-button" onclick="document.getElementById('galleryImagesFileInput').click()" style="white-space: nowrap;">
+                                    <span class="material-icons" style="vertical-align: middle; margin-right: 4px; font-size: 18px;">folder_open</span>
+                                    Seleccionar desde Disco
+                                </button>
+                                <button type="button" class="form-button" onclick="openImageManagerSimple('gallery')" style="white-space: nowrap; background: #4caf50;">
+                                    <span class="material-icons" style="vertical-align: middle; margin-right: 4px; font-size: 18px;">link</span>
+                                    Desde URL
+                                </button>
+                            </div>
+                            <div id="editPhotosPreview" style="margin-top: 10px; min-height: 50px; display: flex; flex-wrap: wrap; gap: 10px;"></div>
                         </div>
                         
                         <div class="form-group">
@@ -2714,19 +2760,6 @@
                     </div>
                 </div>
                 
-                <!-- Galería de Fotos -->
-                <div class="form-group">
-                    <label class="form-label">Galería de Fotos</label>
-                    <div style="display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px;">
-                        <textarea class="form-input" id="editHotelPhotos" rows="3" placeholder="Rutas separadas por comas: hotel-images/hotel-1-puyehue/gallery-1.jpg, hotel-images/hotel-1-puyehue/gallery-2.jpg" style="flex: 1;"></textarea>
-                        <button type="button" class="form-button secondary" onclick="openImageManager('gallery')" style="white-space: nowrap; align-self: flex-start;">
-                            <span class="material-icons" style="font-size: 16px;">folder_open</span>
-                            Seleccionar
-                        </button>
-                    </div>
-                    <div id="editPhotosPreview" style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;"></div>
-                </div>
-                
                 <!-- Botones -->
                 <div style="margin-top: 20px; display: flex; gap: 12px; justify-content: flex-end;">
                     <button type="button" class="form-button secondary" onclick="closeEditModal()">Cancelar</button>
@@ -2736,69 +2769,6 @@
         </div>
     </div>
 
-    <!-- Modal del Gestor de Imágenes -->
-    <div id="imageManagerModal" class="modal">
-                        <div class="modal-content" style="max-width: 700px; max-height: 75vh; overflow-y: auto;">
-            <span class="close" onclick="closeImageManager()">&times;</span>
-            <h2 class="modal-title">Gestor de Imágenes - <span id="currentHotelName"></span></h2>
-            
-            <div style="margin-bottom: 20px;">
-                <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 15px;">
-                    <label class="form-label" style="margin: 0;">Subir nuevas imágenes:</label>
-                    <input type="file" id="imageUpload" multiple accept="image/*" style="flex: 1;">
-                    <button type="button" class="form-button" onclick="uploadImages()">
-                        <span class="material-icons" style="font-size: 16px;">cloud_upload</span>
-                        Subir
-                    </button>
-                </div>
-                
-                <div style="display: flex; gap: 8px; margin-bottom: 15px;">
-                    <button type="button" class="form-button secondary" onclick="cleanDuplicateImages()" title="Limpiar duplicados">
-                        <span class="material-icons" style="font-size: 14px;">cleaning_services</span>
-                        Limpiar
-                    </button>
-                    <button type="button" class="form-button secondary" onclick="resetImageManager()" title="Resetear gestor">
-                        <span class="material-icons" style="font-size: 14px;">refresh</span>
-                        Resetear
-                    </button>
-                    <button type="button" class="form-button secondary" onclick="showImageHelp()" title="Ayuda">
-                        <span class="material-icons" style="font-size: 14px;">help</span>
-                        Ayuda
-                    </button>
-                </div>
-                
-                <div style="background-color: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                    <h4 style="margin: 0 0 10px 0; color: #333;">Carpeta del Hotel:</h4>
-                    <p style="margin: 0; color: #666; font-size: 0.9rem;" id="hotelFolderPath"></p>
-                    <div class="photo-counter" id="photoCounter" style="margin-top: 10px; text-align: center; font-weight: bold; color: #388e3c;">0/10 fotos seleccionadas</div>
-                </div>
-            </div>
-            
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                <!-- Imágenes Disponibles -->
-                <div>
-                    <h3 style="margin-bottom: 15px; color: #333;">Imágenes Disponibles</h3>
-                    <div id="availableImages" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; max-height: 400px; overflow-y: auto;">
-                        <!-- Las imágenes se cargarán dinámicamente -->
-                    </div>
-                </div>
-                
-                <!-- Imágenes Seleccionadas -->
-                <div>
-                    <h3 style="margin-bottom: 15px; color: #333;">Imágenes Seleccionadas</h3>
-                    <div id="selectedImages" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; max-height: 400px; overflow-y: auto;">
-                        <!-- Las imágenes seleccionadas se mostrarán aquí -->
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Botones -->
-            <div style="margin-top: 20px; display: flex; gap: 12px; justify-content: flex-end;">
-                <button type="button" class="form-button secondary" onclick="closeImageManager()">Cancelar</button>
-                <button type="button" class="form-button" onclick="applyImageSelection()">Aplicar Selección</button>
-            </div>
-        </div>
-    </div>
 
     <!-- Modal del Carrusel de Fotos -->
     <div id="photoCarouselModal" class="modal">
@@ -2821,6 +2791,125 @@
                 
                 <!-- Miniaturas -->
                 <div id="carouselThumbnails" style="position: absolute; bottom: 80px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; z-index: 1001; max-width: 80%; overflow-x: auto; padding: 10px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal del Gestor de Imágenes -->
+    <div id="imageManagerModal" class="modal" style="display: none; z-index: 10000;">
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0; color: #333;">📸 Gestor de Imágenes - <span id="currentHotelName">Nuevo Hotel</span></h2>
+                <button onclick="closeImageManagerSimple()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #666; padding: 0; width: 35px; height: 35px; line-height: 35px;">&times;</button>
+            </div>
+            
+            <!-- Sección de Subir Imágenes -->
+            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                <h3 style="margin: 0 0 15px 0; color: #333; font-size: 1.1rem;">📤 Subir Imágenes desde tu Disco Duro</h3>
+                
+                <!-- Input de archivo oculto -->
+                <input 
+                    type="file" 
+                    id="imageUploadInput" 
+                    multiple 
+                    accept="image/*" 
+                    style="display: none;"
+                    onchange="handleFileSelection(event)">
+                
+                <!-- Botón grande y visible para seleccionar archivos -->
+                <div style="text-align: center; margin-bottom: 15px;">
+                    <button 
+                        type="button" 
+                        id="selectFilesButton"
+                        onclick="
+                            console.log('🔵 Botón de seleccionar archivos clickeado');
+                            const input = document.getElementById('imageUploadInput');
+                            if (input) {
+                                console.log('✅ Input encontrado, abriendo explorador...');
+                                input.click();
+                            } else {
+                                console.error('❌ Input imageUploadInput no encontrado');
+                                alert('Error: No se puede abrir el explorador. Recarga la página.');
+                            }
+                        "
+                        style="
+                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                            color: white;
+                            border: none;
+                            padding: 20px 40px;
+                            border-radius: 12px;
+                            cursor: pointer;
+                            font-size: 1.1rem;
+                            font-weight: 600;
+                            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+                            transition: all 0.3s ease;
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 12px;
+                            min-width: 300px;
+                        "
+                        onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(102, 126, 234, 0.4)'"
+                        onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(102, 126, 234, 0.3)'">
+                        <span class="material-icons" style="font-size: 28px;">folder_open</span>
+                        <span>📁 Seleccionar Imágenes desde tu Disco Duro</span>
+                    </button>
+                </div>
+                
+                <!-- Información de archivos seleccionados -->
+                <div id="selectedFilesInfo" style="display: none; margin-bottom: 15px; padding: 12px; background: #e8f5e9; border-left: 4px solid #4caf50; border-radius: 4px;">
+                    <strong>📁 Archivos seleccionados:</strong> <span id="fileCount">0</span> imagen(es)
+                </div>
+                
+                <!-- Botón para subir -->
+                <div style="text-align: center;">
+                    <button 
+                        type="button" 
+                        id="uploadButton"
+                        onclick="uploadImagesSimple()"
+                        disabled
+                        style="
+                            background: #4caf50;
+                            color: white;
+                            border: none;
+                            padding: 15px 30px;
+                            border-radius: 8px;
+                            cursor: pointer;
+                            font-size: 1rem;
+                            font-weight: 600;
+                            opacity: 0.5;
+                            transition: all 0.3s ease;
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 10px;
+                        ">
+                        <span class="material-icons" style="font-size: 20px;">cloud_upload</span>
+                        <span>Subir Imágenes</span>
+                    </button>
+                </div>
+                
+                <div style="margin-top: 15px; padding: 12px; background: #e3f2fd; border-left: 4px solid #2196f3; border-radius: 4px; font-size: 0.9rem; color: #1565c0;">
+                    <strong>💡 Información:</strong> Haz clic en el botón de arriba para abrir el explorador de archivos. Puedes seleccionar múltiples imágenes a la vez. Las imágenes se comprimirán automáticamente (máximo 10MB por imagen antes de comprimir).
+                </div>
+            </div>
+            
+            <!-- Vista Previa de Imágenes Subidas -->
+            <div style="margin-bottom: 20px;">
+                <h3 style="margin: 0 0 15px 0; color: #333; font-size: 1.1rem;">🖼️ Imágenes Disponibles</h3>
+                <div id="uploadedImagesPreview" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; min-height: 100px;">
+                    <p style="grid-column: 1/-1; text-align: center; color: #999; padding: 20px;">
+                        No hay imágenes subidas aún. Selecciona imágenes desde tu disco duro arriba.
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Botones de Acción -->
+            <div style="display: flex; gap: 12px; justify-content: flex-end; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                <button type="button" class="form-button secondary" onclick="closeImageManagerSimple()">
+                    Cancelar
+                </button>
+                <button type="button" class="form-button" onclick="applyImageSelectionSimple()" style="background: #4caf50; color: white;">
+                    Aplicar Selección
+                </button>
             </div>
         </div>
     </div>
@@ -3156,6 +3245,59 @@
     <!-- Fin del contenido del Dashboard -->
 
     <script>
+        // ============================================
+        // CAMPOS DE IMAGEN - AHORA SON NECESARIOS, NO ELIMINAR
+        // ============================================
+        // NOTA: Este script anteriormente eliminaba los campos de imagen cada 100ms
+        // Ahora los campos son necesarios para subir fotos reales desde el disco duro
+        // Por lo tanto, este script está COMPLETAMENTE DESACTIVADO
+        console.log('✅ Script de eliminación de campos de imagen DESACTIVADO');
+        console.log('✅ Los campos de imagen ahora son necesarios y se preservarán');
+        
+        // Función vacía para evitar errores si algo intenta llamarla
+        (function preservarCamposImagen() {
+            // Esta función ya no hace nada - los campos se preservan
+            // No hay setInterval, no hay MutationObserver, no hay eliminación
+            console.log('✅ Campos de imagen preservados - script desactivado');
+        })();
+        
+        // ============================================
+        // SOLUCIÓN INMEDIATA PARA MODAL DE IMÁGENES
+        // ============================================
+        // Esta función se ejecuta inmediatamente y sobrescribe cualquier función en caché
+        (function() {
+            window.abrirModalImagenesDirecto = function(mode) {
+                console.log('🚀 ABRIENDO MODAL DIRECTO - Modo:', mode);
+                const modal = document.getElementById('imageManagerModal');
+                if (!modal) {
+                    console.error('❌ Modal no encontrado');
+                    alert('Error: Modal no encontrado. Recarga la página.');
+                    return;
+                }
+                modal.style.display = 'block';
+                modal.style.zIndex = '10000';
+                modal.style.position = 'fixed';
+                modal.style.top = '0';
+                modal.style.left = '0';
+                modal.style.width = '100%';
+                modal.style.height = '100%';
+                modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+                console.log('✅ Modal abierto directamente');
+                
+                // Configurar nombre del hotel
+                const hotelNameSpan = document.getElementById('currentHotelName');
+                if (hotelNameSpan) {
+                    const nameInput = document.getElementById('editHotelName');
+                    if (nameInput && nameInput.value) {
+                        hotelNameSpan.textContent = nameInput.value;
+                    } else {
+                        hotelNameSpan.textContent = 'Nuevo Hotel';
+                    }
+                }
+            };
+            console.log('✅ Función abrirModalImagenesDirecto disponible globalmente');
+        })();
+
         // ============================================
         // SISTEMA DE AUTENTICACIÓN - EJECUTAR PRIMERO
         // ============================================
@@ -4154,16 +4296,73 @@
             }
         }
 
-        // Función para actualizar vista previa de imagen
+        // Función para actualizar vista previa de imagen (ELIMINADA - campo de imagen removido)
         function updateImagePreview() {
-            // Implementar lógica de vista previa
-            console.log('Actualizando vista previa de imagen...');
+            const imageInput = document.getElementById('editHotelImage');
+            const previewContainer = document.getElementById('editImagePreview');
+            
+            if (!imageInput || !previewContainer) {
+                return;
+            }
+            
+            const imagePath = imageInput.value.trim();
+            
+            if (imagePath) {
+                const isUrl = !imagePath.startsWith('data:');
+                previewContainer.innerHTML = `
+                    <div style="border: 2px solid #ddd; border-radius: 8px; padding: 10px; background: #f9f9f9;">
+                        <img src="${imagePath}" alt="Vista previa" 
+                             style="max-width: 100%; max-height: 300px; border-radius: 4px; display: block; margin: 0 auto;"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                        <div style="display: none; text-align: center; color: #999; padding: 20px;">
+                            <span class="material-icons" style="font-size: 48px;">broken_image</span>
+                            <p>No se pudo cargar la imagen</p>
+                        </div>
+                        ${isUrl ? '<div style="text-align: center; margin-top: 8px; font-size: 12px; color: #4caf50;"><span class="material-icons" style="font-size: 16px; vertical-align: middle;">link</span> URL Externa</div>' : ''}
+                    </div>
+                `;
+            } else {
+                previewContainer.innerHTML = '';
+            }
         }
 
-        // Función para actualizar vista previa de fotos
+        // Función para actualizar vista previa de fotos (ELIMINADA - campo de galería removido)
         function updatePhotosPreview() {
-            // Implementar lógica de vista previa de fotos
-            console.log('Actualizando vista previa de fotos...');
+            const photosInput = document.getElementById('editHotelPhotos');
+            const previewContainer = document.getElementById('editPhotosPreview');
+            
+            if (!photosInput || !previewContainer) {
+                return;
+            }
+            
+            const photosValue = photosInput.value.trim();
+            const photoPaths = photosValue ? photosValue.split(',').map(p => p.trim()).filter(p => p) : [];
+            
+            previewContainer.innerHTML = '';
+            
+            if (photoPaths.length > 0) {
+                photoPaths.forEach((photoPath, index) => {
+                    const photoDiv = document.createElement('div');
+                    photoDiv.style.cssText = 'position: relative; width: 150px; height: 150px; border: 2px solid #ddd; border-radius: 8px; overflow: hidden; margin: 5px; display: inline-block;';
+                    
+                    const isUrl = !photoPath.startsWith('data:');
+                    photoDiv.innerHTML = `
+                        <img src="${photoPath}" alt="Foto ${index + 1}" 
+                             style="width: 100%; height: 100%; object-fit: cover;"
+                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                        <div style="display: none; width: 100%; height: 100%; background: #f0f0f0; align-items: center; justify-content: center; flex-direction: column;">
+                            <span class="material-icons" style="font-size: 32px; color: #999;">broken_image</span>
+                            <span style="font-size: 12px; color: #999;">Error</span>
+                        </div>
+                        <div style="position: absolute; top: 5px; left: 5px; background: rgba(0,0,0,0.7); color: white; padding: 2px 8px; border-radius: 4px; font-size: 12px;">
+                            ${index + 1}
+                        </div>
+                        ${isUrl ? '<div style="position: absolute; bottom: 5px; right: 5px; background: rgba(33,150,243,0.9); color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px;"><span class="material-icons" style="font-size: 12px; vertical-align: middle;">link</span></div>' : ''}
+                    `;
+                    
+                    previewContainer.appendChild(photoDiv);
+                });
+            }
         }
 
         // Función para guardar cambios del hotel
@@ -4179,16 +4378,184 @@
             console.log('Sincronizando con index.html...');
         }
 
-        // Función para abrir gestor de imágenes
-        function openImageManager(mode) {
-            // Implementar gestor de imágenes
-            console.log('Abriendo gestor de imágenes en modo:', mode);
+        // Función simple para abrir modal directamente (sin caché)
+        function abrirModalImagenesDirecto(mode) {
+            console.log('🚀 ABRIENDO MODAL DIRECTO - Modo:', mode);
+            
+            const modal = document.getElementById('imageManagerModal');
+            if (!modal) {
+                console.error('❌ Modal no encontrado');
+                alert('Error: Modal no encontrado. Recarga la página.');
+                return;
+            }
+            
+            // Abrir modal inmediatamente
+            modal.style.display = 'block';
+            modal.style.zIndex = '10000';
+            modal.style.position = 'fixed';
+            modal.style.top = '0';
+            modal.style.left = '0';
+            modal.style.width = '100%';
+            modal.style.height = '100%';
+            modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+            
+            console.log('✅ Modal abierto directamente - Display:', modal.style.display);
+            
+            // Llamar a la función completa después de abrir el modal
+            if (typeof openImageManager === 'function') {
+                setTimeout(() => openImageManager(mode), 100);
+            } else {
+                console.warn('⚠️ openImageManager no está disponible, configurando modal básico...');
+                // Configuración básica del modal
+                const hotelNameSpan = document.getElementById('currentHotelName');
+                if (hotelNameSpan) {
+                    const nameInput = document.getElementById('editHotelName');
+                    hotelNameSpan.textContent = (nameInput && nameInput.value) || 'Nuevo Hotel';
+                }
+            }
         }
 
-        // Función para cerrar gestor de imágenes
+        // Función para abrir gestor de imágenes
+        function openImageManager(mode) {
+            // Prevenir aperturas múltiples
+            if (isImageManagerOpening) {
+                console.log('⚠️ El gestor de imágenes ya se está abriendo, ignorando...');
+                return;
+            }
+            
+            const modal = document.getElementById('imageManagerModal');
+            
+            if (!modal) {
+                console.error('❌ ERROR: Modal no encontrado');
+                alert('❌ Error: Modal no encontrado. Recarga la página.');
+                return;
+            }
+            
+            // Verificar si el modal ya está abierto
+            if (modal.style.display === 'block' || window.getComputedStyle(modal).display === 'block') {
+                console.log('⚠️ El gestor de imágenes ya está abierto');
+                return;
+            }
+            
+            isImageManagerOpening = true;
+            console.log('📁 ABRIENDO GESTOR DE IMÁGENES - MODO:', mode);
+            
+            console.log('✅ Modal encontrado, abriendo...');
+            modal.style.display = 'block';
+            modal.style.zIndex = '10000';
+            console.log('✅ Modal abierto - Display:', modal.style.display);
+            
+            // Permitir nueva apertura después de un breve delay
+            setTimeout(() => {
+                isImageManagerOpening = false;
+            }, 500);
+            
+            // AHORA configurar el resto
+            try {
+                
+                // Intentar obtener hotelId de varias fuentes
+                let hotelId = null;
+                
+                // 1. Intentar desde variable global
+                if (typeof globalEditingHotelId !== 'undefined' && globalEditingHotelId) {
+                    hotelId = globalEditingHotelId;
+                    console.log('✅ HotelId obtenido de variable global:', hotelId);
+                }
+                
+                // 2. Intentar desde el formulario
+                if (!hotelId) {
+                    const form = document.getElementById('editHotelForm');
+                    if (form && form.dataset && form.dataset.hotelId) {
+                        hotelId = form.dataset.hotelId;
+                        if (hotelId && hotelId !== 'null' && hotelId !== 'undefined') {
+                            console.log('✅ HotelId obtenido del formulario:', hotelId);
+                        }
+                    }
+                }
+                
+                // 3. Si aún no tenemos hotelId, intentar obtenerlo del nombre del hotel
+                if (!hotelId || hotelId === 'null' || hotelId === 'undefined') {
+                    try {
+                        const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                        const nameInput = document.getElementById('editHotelName');
+                        if (nameInput && nameInput.value) {
+                            const hotel = hotels.find(h => h.name === nameInput.value);
+                            if (hotel && hotel.id) {
+                                hotelId = hotel.id;
+                                console.log('✅ HotelId obtenido por nombre del hotel:', hotelId);
+                            }
+                        }
+                    } catch (error) {
+                        console.warn('⚠️ Error buscando hotel por nombre:', error);
+                    }
+                }
+                
+                // 4. Si es un nuevo hotel, crear ID temporal
+                if (!hotelId || hotelId === 'null' || hotelId === 'undefined') {
+                    hotelId = 'new-hotel-' + Date.now();
+                    console.log('⚠️ Usando ID temporal para nuevo hotel:', hotelId);
+                }
+                
+                currentEditingHotelId = hotelId;
+                currentImageManagerMode = mode || 'main';
+                
+                // Obtener datos del hotel (si existe)
+                let hotelName = 'Nuevo Hotel';
+                try {
+                    const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                    const hotel = hotels.find(h => h.id === hotelId);
+                    
+                    if (hotel && hotel.name) {
+                        hotelName = hotel.name;
+                    } else {
+                        const nameInput = document.getElementById('editHotelName');
+                        if (nameInput && nameInput.value) {
+                            hotelName = nameInput.value;
+                        }
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Error obteniendo nombre del hotel:', error);
+                }
+                
+                // Mostrar nombre del hotel en el modal
+                const hotelNameSpan = document.getElementById('currentHotelName');
+                if (hotelNameSpan) {
+                    hotelNameSpan.textContent = hotelName;
+                }
+                
+                // Mostrar carpeta del hotel
+                const hotelFolderPath = document.getElementById('hotelFolderPath');
+                if (hotelFolderPath) {
+                    try {
+                        const slug = getHotelSlug(hotelName);
+                        hotelFolderPath.textContent = `hotel-images/hotel-${hotelId}-${slug}/`;
+                    } catch (error) {
+                        console.warn('⚠️ Error generando slug:', error);
+                        hotelFolderPath.textContent = `hotel-images/hotel-${hotelId}/`;
+                    }
+                }
+                
+                // Limpiar imágenes subidas si es una nueva sesión
+                uploadedImages = [];
+                
+                // Renderizar gestor
+                try {
+                    renderImageManager();
+                } catch (error) {
+                    console.error('❌ Error renderizando gestor:', error);
+                }
+                
+                console.log('✅ Gestor de imágenes completamente inicializado');
+                
+            } catch (error) {
+                console.error('❌ Error crítico en openImageManager:', error);
+                alert('❌ Error al abrir el gestor de imágenes: ' + error.message);
+            }
+        }
+
+        // Función para cerrar gestor de imágenes (compatibilidad)
         function closeImageManager() {
-            // Implementar cierre del gestor
-            console.log('Cerrando gestor de imágenes...');
+            closeImageManagerSimple();
         }
 
         // Función para obtener slug del hotel
@@ -4210,14 +4577,134 @@
 
         // Función para renderizar gestor de imágenes
         function renderImageManager() {
-            // Implementar renderizado del gestor
-            console.log('Renderizando gestor de imágenes...');
+            console.log('🎨 Renderizando gestor de imágenes...');
+            
+            const availableContainer = document.getElementById('availableImages');
+            const selectedContainer = document.getElementById('selectedImages');
+            
+            if (!availableContainer || !selectedContainer) {
+                console.error('❌ Contenedores de imágenes no encontrados');
+                return;
+            }
+            
+            // Limpiar contenedores
+            availableContainer.innerHTML = '';
+            selectedContainer.innerHTML = '';
+            
+            // Obtener imágenes ya seleccionadas del formulario
+            let selectedImages = [];
+            if (currentImageManagerMode === 'main') {
+                const imageInput = document.getElementById('editHotelImage');
+                if (imageInput && imageInput.value) {
+                    selectedImages = [imageInput.value];
+                }
+            } else {
+                const photosInput = document.getElementById('editHotelPhotos');
+                if (photosInput && photosInput.value) {
+                    selectedImages = photosInput.value.split(',').map(img => img.trim()).filter(img => img);
+                }
+            }
+            
+            // Agregar imágenes subidas (nuevas)
+            uploadedImages.forEach((img, index) => {
+                const imgDiv = document.createElement('div');
+                imgDiv.className = 'image-item';
+                imgDiv.dataset.imagePath = img.data;
+                imgDiv.dataset.imageName = img.name;
+                
+                if (selectedImages.includes(img.data)) {
+                    imgDiv.classList.add('selected');
+                }
+                
+                imgDiv.innerHTML = `
+                    <img src="${img.data}" alt="${img.name}" 
+                         style="width: 100%; height: 100px; object-fit: cover; border-radius: 8px;">
+                    <div class="image-name">${img.name}</div>
+                    <div class="select-overlay">
+                        <span class="material-icons">check_circle</span>
+                    </div>
+                `;
+                
+                imgDiv.onclick = () => toggleImageSelection(img.data);
+                availableContainer.appendChild(imgDiv);
+            });
+            
+            // Mostrar imágenes seleccionadas
+            selectedImages.forEach(imagePath => {
+                const imgDiv = document.createElement('div');
+                imgDiv.className = 'image-item selected';
+                
+                imgDiv.innerHTML = `
+                    <img src="${imagePath}" alt="Seleccionada" 
+                         style="width: 100%; height: 100px; object-fit: cover; border-radius: 8px;"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <div class="photo-placeholder" style="display: none;">
+                        <span class="material-icons">photo</span>
+                    </div>
+                    <div class="image-name">Imagen seleccionada</div>
+                    <div class="select-overlay">
+                        <span class="material-icons">check_circle</span>
+                    </div>
+                `;
+                
+                selectedContainer.appendChild(imgDiv);
+            });
+            
+            // Actualizar contador
+            updatePhotoCounter();
         }
 
         // Función para alternar selección de imagen
         function toggleImageSelection(imagePath) {
-            // Implementar selección de imagen
-            console.log('Alternando selección de imagen:', imagePath);
+            console.log('🔄 Alternando selección de imagen:', imagePath);
+            
+            // Obtener imágenes seleccionadas actuales
+            let selectedImages = [];
+            if (currentImageManagerMode === 'main') {
+                const imageInput = document.getElementById('editHotelImage');
+                if (imageInput && imageInput.value) {
+                    selectedImages = [imageInput.value];
+                }
+            } else {
+                const photosInput = document.getElementById('editHotelPhotos');
+                if (photosInput && photosInput.value) {
+                    selectedImages = photosInput.value.split(',').map(img => img.trim()).filter(img => img);
+                }
+            }
+            
+            // Si es modo 'main', solo puede haber una imagen seleccionada
+            if (currentImageManagerMode === 'main') {
+                selectedImages = [imagePath];
+            } else {
+                // Modo 'gallery', puede haber múltiples
+                const index = selectedImages.indexOf(imagePath);
+                if (index > -1) {
+                    selectedImages.splice(index, 1); // Deseleccionar
+                } else {
+                    if (selectedImages.length < 10) {
+                        selectedImages.push(imagePath); // Seleccionar
+                    } else {
+                        alert('⚠️ Máximo 10 imágenes en la galería');
+                        return;
+                    }
+                }
+            }
+            
+            // Actualizar formulario
+            if (currentImageManagerMode === 'main') {
+                const imageInput = document.getElementById('editHotelImage');
+                if (imageInput) {
+                    imageInput.value = selectedImages[0] || '';
+                }
+            } else {
+                const photosInput = document.getElementById('editHotelPhotos');
+                if (photosInput) {
+                    photosInput.value = selectedImages.join(', ');
+                }
+            }
+            
+            // Re-renderizar
+            renderImageManager();
         }
 
         // Función para ver foto
@@ -4234,20 +4721,641 @@
 
         // Función para actualizar contador de fotos
         function updatePhotoCounter() {
-            // Implementar actualización de contador
-            console.log('Actualizando contador de fotos...');
+            let selectedCount = 0;
+            
+            if (currentImageManagerMode === 'main') {
+                const imageInput = document.getElementById('editHotelImage');
+                if (imageInput && imageInput.value) {
+                    selectedCount = 1;
+                }
+            } else {
+                const photosInput = document.getElementById('editHotelPhotos');
+                if (photosInput && photosInput.value) {
+                    const images = photosInput.value.split(',').map(img => img.trim()).filter(img => img);
+                    selectedCount = images.length;
+                }
+            }
+            
+            const counter = document.getElementById('photoCounter');
+            if (counter) {
+                const maxCount = currentImageManagerMode === 'main' ? 1 : 10;
+                counter.textContent = `${selectedCount}/${maxCount} ${currentImageManagerMode === 'main' ? 'imagen' : 'fotos'} seleccionada(s)`;
+                counter.style.color = selectedCount > 0 ? '#388e3c' : '#666';
+            }
         }
 
         // Función para aplicar selección de imagen
         function applyImageSelection() {
-            // Implementar aplicación de selección
-            console.log('Aplicando selección de imagen...');
+            console.log('✅ Aplicando selección de imagen...');
+            
+            // Los valores ya están actualizados en el formulario por toggleImageSelection
+            // Solo necesitamos cerrar el modal y actualizar previews
+            
+            // Actualizar previews
+            if (currentImageManagerMode === 'main') {
+                updateImagePreview();
+            } else {
+                updatePhotosPreview();
+            }
+            
+            // Cerrar modal
+            closeImageManager();
+            
+            alert('✅ Imágenes aplicadas correctamente');
         }
 
-        // Función para subir imágenes
-        function uploadImages() {
-            // Implementar subida de imágenes
-            console.log('Subiendo imágenes...');
+        // ============================================
+        // GESTOR DE IMÁGENES - VERSIÓN NUEVA Y SIMPLE
+        // ============================================
+        
+        // Variables globales
+        let imageManagerMode = 'main'; // 'main' o 'gallery'
+        let uploadedImagesBase64 = []; // Array de imágenes en base64
+        let globalEditingHotelId = null; // ID del hotel que se está editando actualmente
+
+        // Variable para prevenir aperturas múltiples del modal
+        let isImageManagerOpening = false;
+        
+        // Función para abrir el modal de imágenes - VERSIÓN NUEVA Y SIMPLE
+        function openImageManagerSimple(mode) {
+            console.log('🔵 openImageManagerSimple llamada con modo:', mode);
+            
+            // Prevenir aperturas múltiples
+            if (isImageManagerOpening) {
+                console.log('⚠️ El gestor de imágenes ya se está abriendo, ignorando...');
+                return;
+            }
+            
+            const modal = document.getElementById('imageManagerModal');
+            if (!modal) {
+                console.error('❌ Modal imageManagerModal no encontrado en el DOM');
+                alert('❌ Error: Modal no encontrado. Recarga la página (F5).');
+                return;
+            }
+            
+            console.log('✅ Modal encontrado:', modal);
+            
+            // Verificar si el modal ya está abierto
+            const currentDisplay = window.getComputedStyle(modal).display;
+            if (modal.style.display === 'block' || currentDisplay === 'block') {
+                console.log('⚠️ El gestor de imágenes ya está abierto');
+                return;
+            }
+            
+            isImageManagerOpening = true;
+            console.log('🚀 Abriendo modal de imágenes - Modo:', mode);
+            
+            // Guardar el modo
+            imageManagerMode = mode || 'main';
+            
+            // Configurar nombre del hotel
+            const hotelNameSpan = document.getElementById('currentHotelName');
+            if (hotelNameSpan) {
+                const nameInput = document.getElementById('editHotelName');
+                hotelNameSpan.textContent = (nameInput && nameInput.value) || 'Nuevo Hotel';
+            }
+            
+            // Limpiar imágenes subidas
+            uploadedImagesBase64 = [];
+            updateUploadedImagesPreview();
+            
+            // Abrir modal con estilos forzados
+            modal.style.setProperty('display', 'block', 'important');
+            modal.style.setProperty('z-index', '10000', 'important');
+            modal.style.setProperty('position', 'fixed', 'important');
+            modal.style.setProperty('top', '0', 'important');
+            modal.style.setProperty('left', '0', 'important');
+            modal.style.setProperty('width', '100%', 'important');
+            modal.style.setProperty('height', '100%', 'important');
+            modal.style.setProperty('background-color', 'rgba(0,0,0,0.5)', 'important');
+            
+            console.log('✅ Modal abierto - Display:', window.getComputedStyle(modal).display);
+            console.log('✅ Modal z-index:', window.getComputedStyle(modal).zIndex);
+            
+            // Verificar que el input de archivo existe
+            const fileInput = document.getElementById('imageUploadInput');
+            if (!fileInput) {
+                console.error('❌ Input imageUploadInput no encontrado');
+            } else {
+                console.log('✅ Input de archivo encontrado:', fileInput);
+            }
+            
+            // Permitir nueva apertura después de un breve delay
+            setTimeout(() => {
+                isImageManagerOpening = false;
+            }, 500);
+        }
+        
+        // Función para cerrar el modal
+        function closeImageManagerSimple() {
+            const modal = document.getElementById('imageManagerModal');
+            if (modal) {
+                modal.style.display = 'none';
+                isImageManagerOpening = false; // Resetear el flag
+                console.log('✅ Modal cerrado');
+            }
+        }
+
+        // Función para comprimir imagen antes de convertir a base64
+        function compressImage(file, maxWidth = 1920, maxHeight = 1080, quality = 0.7) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+                        
+                        // Calcular nuevas dimensiones manteniendo proporción
+                        if (width > maxWidth || height > maxHeight) {
+                            if (width > height) {
+                                height = (height * maxWidth) / width;
+                                width = maxWidth;
+                            } else {
+                                width = (width * maxHeight) / height;
+                                height = maxHeight;
+                            }
+                        }
+                        
+                        canvas.width = width;
+                        canvas.height = height;
+                        
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        // Convertir a base64 con compresión
+                        const compressedBase64 = canvas.toDataURL(file.type, quality);
+                        const originalSize = file.size;
+                        const compressedSize = Math.round((compressedBase64.length - 22) * 3 / 4); // Aproximación del tamaño
+                        const compressionRatio = ((1 - compressedSize / originalSize) * 100).toFixed(1);
+                        
+                        console.log(`📦 Imagen comprimida: ${file.name} - Original: ${(originalSize / 1024).toFixed(2)} KB, Comprimida: ${(compressedSize / 1024).toFixed(2)} KB (${compressionRatio}% reducción)`);
+                        
+                        resolve({
+                            name: file.name,
+                            data: compressedBase64,
+                            type: file.type,
+                            size: compressedSize,
+                            originalSize: originalSize
+                        });
+                    };
+                    img.onerror = reject;
+                    img.src = e.target.result;
+                };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+        
+        // Función para agregar imagen desde URL
+        async function addImageFromURL() {
+            const helpText = `🔗 Ingresa la URL de la imagen:
+
+📋 Ejemplos de URLs que funcionan:
+• https://images.unsplash.com/photo-1566073771259-6a8506099945
+• https://images.pexels.com/photos/261102/pexels-photo-261102.jpeg
+• https://i.imgur.com/abc123.jpg
+• https://ejemplo.com/imagen.jpg
+
+💡 Cómo obtener la URL:
+1. Haz clic derecho en la imagen
+2. Selecciona "Copiar dirección de imagen"
+3. Pega aquí
+
+⚠️ La URL debe ser accesible públicamente.`;
+            
+            const url = prompt(helpText, 'https://');
+            if (!url || !url.trim() || url === 'https://') {
+                return;
+            }
+            
+            const imageUrl = url.trim();
+            
+            // Validar que sea una URL válida
+            try {
+                new URL(imageUrl);
+            } catch (e) {
+                alert('❌ Por favor, ingresa una URL válida\n\nEjemplo: https://images.unsplash.com/photo-123.jpg');
+                return;
+            }
+            
+            // Verificar que sea una imagen
+            const isImageExtension = imageUrl.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)(\?.*)?$/i);
+            const hasImageKeyword = imageUrl.toLowerCase().includes('image') || 
+                                   imageUrl.toLowerCase().includes('photo') || 
+                                   imageUrl.toLowerCase().includes('picture') ||
+                                   imageUrl.toLowerCase().includes('img');
+            
+            if (!isImageExtension && !hasImageKeyword) {
+                const confirm = window.confirm('⚠️ La URL no parece ser una imagen.\n\n¿Deseas continuar de todos modos?\n\n(Recomendado: URLs que terminen en .jpg, .png, etc.)');
+                if (!confirm) return;
+            }
+            
+            try {
+                console.log('📥 Cargando imagen desde URL:', imageUrl);
+                
+                // Crear objeto de imagen
+                const fileName = imageUrl.split('/').pop().split('?')[0] || 'imagen-desde-url.jpg';
+                const imgObj = {
+                    name: fileName.length > 50 ? fileName.substring(0, 50) + '...' : fileName,
+                    data: imageUrl,
+                    type: 'image/url',
+                    size: 0,
+                    isUrl: true,
+                    originalUrl: imageUrl
+                };
+                
+                uploadedImagesBase64.push(imgObj);
+                updateUploadedImagesPreview();
+                
+                // Mostrar mensaje con información
+                const serviceName = getImageServiceName(imageUrl);
+                const message = serviceName 
+                    ? `✅ Imagen agregada desde ${serviceName}\n\nLa imagen se cargará desde:\n${imageUrl.substring(0, 60)}...`
+                    : `✅ Imagen agregada desde URL correctamente\n\nLa imagen se cargará desde la URL proporcionada.`;
+                
+                alert(message);
+                
+            } catch (error) {
+                console.error('❌ Error agregando imagen desde URL:', error);
+                alert('❌ Error al agregar la imagen.\n\nVerifica que:\n• La URL sea accesible públicamente\n• La URL sea correcta\n• El servidor permita acceso desde otros sitios\n\n💡 Tip: Prueba abriendo la URL en una nueva pestaña primero.');
+            }
+        }
+        
+        // Función auxiliar para identificar el servicio de imagen
+        function getImageServiceName(url) {
+            const urlLower = url.toLowerCase();
+            if (urlLower.includes('unsplash.com')) return 'Unsplash';
+            if (urlLower.includes('pexels.com')) return 'Pexels';
+            if (urlLower.includes('pixabay.com')) return 'Pixabay';
+            if (urlLower.includes('imgur.com')) return 'Imgur';
+            if (urlLower.includes('imgbb.com')) return 'ImgBB';
+            if (urlLower.includes('postimg.cc')) return 'Postimg';
+            if (urlLower.includes('booking.com') || urlLower.includes('bstatic.com')) return 'Booking.com';
+            if (urlLower.includes('tripadvisor.com')) return 'TripAdvisor';
+            return null;
+        }
+        
+        // Función para manejar la subida de imagen principal directamente desde disco
+        async function handleMainImageUpload(event) {
+            console.log('📁 handleMainImageUpload llamada');
+            const file = event.target.files[0];
+            
+            if (!file) {
+                console.log('⚠️ No se seleccionó ningún archivo');
+                return;
+            }
+            
+            console.log(`📤 Procesando imagen principal: ${file.name} (${(file.size / 1024).toFixed(2)} KB)`);
+            
+            // Validar tamaño
+            const maxSize = 10 * 1024 * 1024; // 10MB
+            if (file.size > maxSize) {
+                alert(`⚠️ La imagen "${file.name}" es demasiado grande (máximo 10MB antes de comprimir)`);
+                event.target.value = ''; // Limpiar input
+                return;
+            }
+            
+            // Validar tipo
+            if (!file.type.startsWith('image/')) {
+                alert(`⚠️ El archivo "${file.name}" no es una imagen válida`);
+                event.target.value = ''; // Limpiar input
+                return;
+            }
+            
+            try {
+                // Comprimir y convertir a base64
+                const compressed = await compressImage(file);
+                console.log('✅ Imagen principal comprimida y lista');
+                
+                // Guardar en el campo del formulario
+                const imageInput = document.getElementById('editHotelImage');
+                if (imageInput) {
+                    imageInput.value = compressed.data;
+                    updateImagePreview();
+                    alert(`✅ Imagen principal "${file.name}" agregada correctamente`);
+                }
+                
+                // Limpiar input para permitir seleccionar otra vez
+                event.target.value = '';
+                
+            } catch (error) {
+                console.error('❌ Error procesando imagen principal:', error);
+                alert(`❌ Error procesando imagen "${file.name}"`);
+                event.target.value = ''; // Limpiar input
+            }
+        }
+        
+        // Función para manejar la subida de imágenes de galería directamente desde disco
+        async function handleGalleryImagesUpload(event) {
+            console.log('📁 handleGalleryImagesUpload llamada');
+            const files = Array.from(event.target.files);
+            
+            if (files.length === 0) {
+                console.log('⚠️ No se seleccionaron archivos');
+                return;
+            }
+            
+            console.log(`📤 Procesando ${files.length} imagen(es) para galería...`);
+            
+            const photosInput = document.getElementById('editHotelPhotos');
+            if (!photosInput) {
+                console.error('❌ Campo editHotelPhotos no encontrado');
+                return;
+            }
+            
+            const currentImages = photosInput.value ? photosInput.value.split(',').map(i => i.trim()).filter(i => i) : [];
+            const maxSize = 10 * 1024 * 1024; // 10MB
+            let processedCount = 0;
+            let errorCount = 0;
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                
+                // Validar tamaño
+                if (file.size > maxSize) {
+                    alert(`⚠️ La imagen "${file.name}" es demasiado grande (máximo 10MB antes de comprimir)`);
+                    errorCount++;
+                    continue;
+                }
+                
+                // Validar tipo
+                if (!file.type.startsWith('image/')) {
+                    alert(`⚠️ El archivo "${file.name}" no es una imagen válida`);
+                    errorCount++;
+                    continue;
+                }
+                
+                // Validar límite de galería
+                if (currentImages.length + processedCount >= 10) {
+                    alert(`⚠️ Máximo 10 imágenes en la galería. Solo se procesarán las primeras ${10 - currentImages.length} imágenes.`);
+                    break;
+                }
+                
+                try {
+                    // Comprimir y convertir a base64
+                    const compressed = await compressImage(file);
+                    currentImages.push(compressed.data);
+                    processedCount++;
+                    console.log(`✅ Imagen ${i + 1}/${files.length} procesada: ${file.name}`);
+                    
+                } catch (error) {
+                    console.error(`❌ Error procesando imagen "${file.name}":`, error);
+                    errorCount++;
+                }
+            }
+            
+            // Actualizar campo del formulario
+            photosInput.value = currentImages.join(', ');
+            updatePhotosPreview();
+            
+            // Mostrar resultado
+            if (processedCount > 0) {
+                const message = `✅ ${processedCount} imagen(es) agregada(s) a la galería${errorCount > 0 ? ` (${errorCount} error(es))` : ''}`;
+                alert(message);
+            } else {
+                alert('⚠️ No se pudo procesar ninguna imagen');
+            }
+            
+            // Limpiar input para permitir seleccionar otra vez
+            event.target.value = '';
+        }
+        
+        // Función para manejar la selección de archivos (para el modal)
+        function handleFileSelection(event) {
+            console.log('📁 handleFileSelection llamada');
+            const files = event.target.files;
+            const fileCount = files ? files.length : 0;
+            console.log(`📁 ${fileCount} archivo(s) seleccionado(s)`);
+            
+            const infoDiv = document.getElementById('selectedFilesInfo');
+            const countSpan = document.getElementById('fileCount');
+            const uploadButton = document.getElementById('uploadButton');
+            
+            if (!infoDiv || !countSpan || !uploadButton) {
+                console.error('❌ Elementos del formulario no encontrados');
+                return;
+            }
+            
+            if (fileCount > 0) {
+                infoDiv.style.display = 'block';
+                countSpan.textContent = fileCount;
+                uploadButton.disabled = false;
+                uploadButton.style.opacity = '1';
+                uploadButton.style.cursor = 'pointer';
+                console.log(`✅ ${fileCount} archivo(s) seleccionado(s) - Botón de subir habilitado`);
+            } else {
+                infoDiv.style.display = 'none';
+                uploadButton.disabled = true;
+                uploadButton.style.opacity = '0.5';
+                uploadButton.style.cursor = 'not-allowed';
+            }
+        }
+        
+        // Función para subir imágenes (con compresión)
+        async function uploadImagesSimple() {
+            const fileInput = document.getElementById('imageUploadInput');
+            if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+                alert('⚠️ Por favor, selecciona al menos una imagen');
+                return;
+            }
+            
+            const files = Array.from(fileInput.files);
+            const maxSize = 10 * 1024 * 1024; // 10MB (aumentado porque comprimiremos)
+            
+            console.log(`📤 Procesando ${files.length} imagen(es) con compresión...`);
+            
+            uploadedImagesBase64 = [];
+            let processedCount = 0;
+            let errorCount = 0;
+            
+            for (let index = 0; index < files.length; index++) {
+                const file = files[index];
+                
+                // Validar tamaño original
+                if (file.size > maxSize) {
+                    alert(`⚠️ La imagen "${file.name}" es demasiado grande (máximo 10MB antes de comprimir)`);
+                    errorCount++;
+                    continue;
+                }
+                
+                // Validar tipo
+                if (!file.type.startsWith('image/')) {
+                    alert(`⚠️ El archivo "${file.name}" no es una imagen válida`);
+                    errorCount++;
+                    continue;
+                }
+                
+                try {
+                    // Comprimir y convertir a base64
+                    const compressed = await compressImage(file);
+                    uploadedImagesBase64.push(compressed);
+                    processedCount++;
+                    
+                    console.log(`✅ Imagen ${index + 1}/${files.length} procesada: ${file.name}`);
+                    
+                } catch (error) {
+                    console.error(`❌ Error procesando imagen "${file.name}":`, error);
+                    alert(`❌ Error procesando imagen "${file.name}"`);
+                    errorCount++;
+                }
+            }
+            
+            if (uploadedImagesBase64.length > 0) {
+                updateUploadedImagesPreview();
+                const message = `✅ ${processedCount} imagen(es) procesada(s) correctamente${errorCount > 0 ? ` (${errorCount} error(es))` : ''}`;
+                alert(message);
+                fileInput.value = '';
+            } else {
+                alert('⚠️ No se pudo procesar ninguna imagen');
+            }
+        }
+        
+        // Función para actualizar preview de imágenes subidas
+        function updateUploadedImagesPreview() {
+            const container = document.getElementById('uploadedImagesPreview');
+            if (!container) return;
+            
+            container.innerHTML = '';
+            
+            if (uploadedImagesBase64.length === 0) {
+                container.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #999; padding: 20px;">No hay imágenes subidas aún</p>';
+                return;
+            }
+            
+            uploadedImagesBase64.forEach((img, index) => {
+                const div = document.createElement('div');
+                div.style.cssText = 'position: relative; border: 2px solid #ddd; border-radius: 8px; overflow: hidden; cursor: pointer;';
+                
+                // Determinar si es URL o base64
+                const isUrl = img.isUrl || (!img.data.startsWith('data:'));
+                const imageSrc = isUrl ? img.data : img.data;
+                const badgeText = isUrl ? 'URL' : (img.originalSize ? `${Math.round((1 - img.size / img.originalSize) * 100)}%` : '');
+                
+                div.innerHTML = `
+                    <img src="${imageSrc}" alt="${img.name}" 
+                         style="width: 100%; height: 150px; object-fit: cover;"
+                         onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'200\\' height=\\'150\\'%3E%3Crect fill=\\'%23ddd\\' width=\\'200\\' height=\\'150\\'/%3E%3Ctext fill=\\'%23999\\' font-family=\\'sans-serif\\' font-size=\\'14\\' x=\\'50%25\\' y=\\'50%25\\' text-anchor=\\'middle\\' dy=\\'.3em\\'%3EError cargando imagen%3C/text%3E%3C/svg%3E';">
+                    <div style="position: absolute; top: 5px; right: 5px; background: rgba(0,0,0,0.7); color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">
+                        ${index + 1}
+                    </div>
+                    ${badgeText ? `<div style="position: absolute; top: 5px; left: 5px; background: rgba(76,175,80,0.9); color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;">
+                        ${badgeText}
+                    </div>` : ''}
+                    ${isUrl ? `<div style="position: absolute; bottom: 30px; left: 0; right: 0; background: rgba(33,150,243,0.9); color: white; padding: 4px; font-size: 10px; text-align: center;">
+                        🔗 URL Externa
+                    </div>` : ''}
+                    <div style="padding: 8px; font-size: 12px; color: #666; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${img.name}
+                    </div>
+                `;
+                div.onclick = function() {
+                    selectImage(img.data);
+                };
+                container.appendChild(div);
+            });
+        }
+        
+        // Función para seleccionar una imagen (acepta base64 o URL)
+        function selectImage(imageData) {
+            // imageData puede ser base64 o URL
+            if (imageManagerMode === 'main') {
+                // Modo imagen principal - solo una imagen
+                const imageInput = document.getElementById('editHotelImage');
+                if (imageInput) {
+                    imageInput.value = imageData;
+                    updateImagePreview();
+                }
+            } else {
+                // Modo galería - múltiples imágenes
+                const photosInput = document.getElementById('editHotelPhotos');
+                if (photosInput) {
+                    const currentImages = photosInput.value ? photosInput.value.split(',').map(i => i.trim()) : [];
+                    if (!currentImages.includes(imageData)) {
+                        currentImages.push(imageData);
+                        photosInput.value = currentImages.join(', ');
+                        updatePhotosPreview();
+                    }
+                }
+            }
+            
+            alert('✅ Imagen seleccionada correctamente');
+        }
+        
+        // Función para aplicar selección
+        function applyImageSelectionSimple() {
+            closeImageManagerSimple();
+            alert('✅ Selección aplicada correctamente');
+        }
+
+        // Función antigua (mantener por compatibilidad)
+        async function uploadImages() {
+            const fileInput = document.getElementById('imageUpload');
+            if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+                alert('⚠️ Por favor, selecciona al menos una imagen');
+                return;
+            }
+
+            const files = Array.from(fileInput.files);
+            const maxSize = 5 * 1024 * 1024; // 5MB máximo
+            
+            console.log(`📤 Subiendo ${files.length} imagen(es)...`);
+            
+            uploadedImages = [];
+            
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                
+                // Validar tamaño
+                if (file.size > maxSize) {
+                    alert(`⚠️ La imagen "${file.name}" es demasiado grande (máximo 5MB)`);
+                    continue;
+                }
+                
+                // Validar tipo
+                if (!file.type.startsWith('image/')) {
+                    alert(`⚠️ El archivo "${file.name}" no es una imagen válida`);
+                    continue;
+                }
+                
+                try {
+                    // Convertir a base64
+                    const base64 = await fileToBase64(file);
+                    uploadedImages.push({
+                        name: file.name,
+                        data: base64,
+                        type: file.type,
+                        size: file.size
+                    });
+                    
+                    console.log(`✅ Imagen "${file.name}" convertida a base64 (${(file.size / 1024).toFixed(2)} KB)`);
+                } catch (error) {
+                    console.error(`❌ Error procesando imagen "${file.name}":`, error);
+                    alert(`❌ Error procesando imagen "${file.name}"`);
+                }
+            }
+            
+            if (uploadedImages.length > 0) {
+                // Agregar las imágenes a las disponibles
+                renderImageManager();
+                alert(`✅ ${uploadedImages.length} imagen(es) procesada(s) correctamente. Ahora puedes seleccionarlas.`);
+                
+                // Limpiar el input
+                fileInput.value = '';
+            } else {
+                alert('⚠️ No se pudo procesar ninguna imagen');
+            }
+        }
+        
+        // Función auxiliar para convertir archivo a base64
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
         }
 
         // Función para crear archivo de imagen
@@ -4344,16 +5452,7 @@
                 });
             }
             
-            // Event listeners para previews en tiempo real
-            const imageInput = document.getElementById('editHotelImage');
-            if (imageInput) {
-                imageInput.addEventListener('input', updateImagePreview);
-            }
-            
-            const photosInput = document.getElementById('editHotelPhotos');
-            if (photosInput) {
-                photosInput.addEventListener('input', updatePhotosPreview);
-            }
+            // Event listeners para previews en tiempo real (ELIMINADOS - campos de imagen removidos)
             
             // Cerrar modal al hacer clic fuera
             window.addEventListener('click', function(event) {
@@ -4368,9 +5467,10 @@
                 if (event.target === editModal) {
                     closeEditModal();
                 }
-                if (event.target === imageModal) {
-                    closeImageManager();
-                }
+                // NO cerrar el modal de imágenes al hacer clic fuera - solo cerrar cuando se hace clic en el botón cerrar
+                // if (event.target === imageModal) {
+                //     closeImageManager();
+                // }
                 if (event.target === carouselModal) {
                     // Implementar cierre de carrusel
                 }
@@ -4397,8 +5497,34 @@
 
         // Función para resetear gestor de imágenes
         function resetImageManager() {
-            // Implementar reset
-            console.log('Reseteando gestor de imágenes...');
+            console.log('🔄 Reseteando gestor de imágenes...');
+            
+            // Limpiar imágenes subidas
+            uploadedImages = [];
+            
+            // Limpiar selecciones
+            if (currentImageManagerMode === 'main') {
+                const imageInput = document.getElementById('editHotelImage');
+                if (imageInput) {
+                    imageInput.value = '';
+                }
+            } else {
+                const photosInput = document.getElementById('editHotelPhotos');
+                if (photosInput) {
+                    photosInput.value = '';
+                }
+            }
+            
+            // Limpiar input de archivos
+            const fileInput = document.getElementById('imageUpload');
+            if (fileInput) {
+                fileInput.value = '';
+            }
+            
+            // Re-renderizar
+            renderImageManager();
+            
+            alert('✅ Gestor de imágenes reseteado');
         }
 
         // Función para abrir carrusel de fotos
@@ -7053,6 +8179,52 @@
                 console.error('❌ Título del modal no encontrado');
             }
             
+            // ELIMINAR CAMPOS DE IMAGEN SI APARECEN (debido a caché del navegador)
+            setTimeout(function() {
+                // Buscar y eliminar campo de Imagen Principal
+                var imageField = document.getElementById('editHotelImage');
+                if (imageField) {
+                    var formGroup = imageField.closest('.form-group');
+                    if (formGroup) {
+                        formGroup.remove();
+                        console.log('✅ Campo editHotelImage eliminado');
+                    }
+                }
+                
+                // Buscar y eliminar campo de Galería de Fotos
+                var photosField = document.getElementById('editHotelPhotos');
+                if (photosField) {
+                    var formGroup = photosField.closest('.form-group');
+                    if (formGroup) {
+                        formGroup.remove();
+                        console.log('✅ Campo editHotelPhotos eliminado');
+                    }
+                }
+                
+                // Buscar y eliminar cualquier label que diga "Imagen Principal"
+                var labels = document.querySelectorAll('#editHotelModal .form-label');
+                labels.forEach(function(label) {
+                    if (label.textContent && label.textContent.includes('Imagen Principal')) {
+                        var formGroup = label.closest('.form-group');
+                        if (formGroup) {
+                            formGroup.remove();
+                            console.log('✅ Campo "Imagen Principal" eliminado por label');
+                        }
+                    }
+                });
+                
+                // Buscar y eliminar cualquier label que diga "Galería de Fotos"
+                labels.forEach(function(label) {
+                    if (label.textContent && label.textContent.includes('Galería de Fotos')) {
+                        var formGroup = label.closest('.form-group');
+                        if (formGroup) {
+                            formGroup.remove();
+                            console.log('✅ Campo "Galería de Fotos" eliminado por label');
+                        }
+                    }
+                });
+            }, 50);
+            
             // Mostrar el modal
             modal.style.display = 'block';
             console.log('✅ Modal mostrado');
@@ -7355,8 +8527,6 @@
             const descriptionTextarea = document.getElementById('editHotelDescription');
             const amenitiesInput = document.getElementById('editHotelAmenities');
             const statusSelect = document.getElementById('editHotelStatus');
-            const imagesInput = document.getElementById('editHotelImages');
-            
             if (nameInput) nameInput.value = hotel.name || '';
             if (locationInput) locationInput.value = hotel.location || '';
             if (googleMapsInput) {
@@ -7386,7 +8556,7 @@
             if (descriptionTextarea) descriptionTextarea.value = hotel.description || '';
             if (amenitiesInput) amenitiesInput.value = Array.isArray(hotel.amenities) ? hotel.amenities.join(', ') : '';
             if (statusSelect) statusSelect.value = hotel.status || 'Activo';
-            if (imagesInput) imagesInput.value = Array.isArray(hotel.images) ? hotel.images.join(', ') : '';
+            // NOTA: Campo imagesInput eliminado - ya no se usa
             
             // Cambiar el título del modal
             const modalTitle = document.querySelector('#editHotelModal h2');
@@ -7394,9 +8564,59 @@
                 modalTitle.textContent = '🏨 Editar Hotel';
             }
             
+            // Guardar hotelId globalmente para acceso desde el gestor de imágenes
+            globalEditingHotelId = hotelId;
+            console.log('✅ HotelId guardado globalmente:', globalEditingHotelId);
+            
             // Mostrar el modal
             const modal = document.getElementById('editHotelModal');
             if (modal) {
+                // ELIMINAR CAMPOS DE IMAGEN SI APARECEN (debido a caché del navegador)
+                setTimeout(function() {
+                    // Buscar y eliminar campo de Imagen Principal
+                    var imageField = document.getElementById('editHotelImage');
+                    if (imageField) {
+                        var formGroup = imageField.closest('.form-group');
+                        if (formGroup) {
+                            formGroup.remove();
+                            console.log('✅ Campo editHotelImage eliminado');
+                        }
+                    }
+                    
+                    // Buscar y eliminar campo de Galería de Fotos
+                    var photosField = document.getElementById('editHotelPhotos');
+                    if (photosField) {
+                        var formGroup = photosField.closest('.form-group');
+                        if (formGroup) {
+                            formGroup.remove();
+                            console.log('✅ Campo editHotelPhotos eliminado');
+                        }
+                    }
+                    
+                    // Buscar y eliminar cualquier label que diga "Imagen Principal"
+                    var labels = document.querySelectorAll('#editHotelModal .form-label');
+                    labels.forEach(function(label) {
+                        if (label.textContent && label.textContent.includes('Imagen Principal')) {
+                            var formGroup = label.closest('.form-group');
+                            if (formGroup) {
+                                formGroup.remove();
+                                console.log('✅ Campo "Imagen Principal" eliminado por label');
+                            }
+                        }
+                    });
+                    
+                    // Buscar y eliminar cualquier label que diga "Galería de Fotos"
+                    labels.forEach(function(label) {
+                        if (label.textContent && label.textContent.includes('Galería de Fotos')) {
+                            var formGroup = label.closest('.form-group');
+                            if (formGroup) {
+                                formGroup.remove();
+                                console.log('✅ Campo "Galería de Fotos" eliminado por label');
+                            }
+                        }
+                    });
+                }, 50);
+                
                 modal.style.display = 'block';
                 
                 // Configurar el formulario para modo "editar"
@@ -7404,7 +8624,14 @@
                 if (form) {
                     form.dataset.mode = 'edit';
                     form.dataset.hotelId = hotelId;
+                    console.log('✅ Formulario configurado - modo: edit, hotelId:', hotelId);
+                    console.log('✅ Dataset del formulario:', {
+                        mode: form.dataset.mode,
+                        hotelId: form.dataset.hotelId
+                    });
                 }
+                
+                // NOTA: Código de configuración de botones de imágenes eliminado - los campos fueron removidos
             }
         }
 
@@ -7588,12 +8815,16 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             const descriptionTextarea = document.getElementById('editHotelDescription');
             const amenitiesInput = document.getElementById('editHotelAmenities');
             const statusSelect = document.getElementById('editHotelStatus');
-            const imagesInput = document.getElementById('editHotelImages');
-            
             if (!nameInput || !locationInput) {
                 console.error('❌ Campos requeridos no encontrados');
                 return;
             }
+            
+            // Obtener imágenes del formulario (pueden ser base64 o URLs)
+            const imageInput = document.getElementById('editHotelImage');
+            const photosInput = document.getElementById('editHotelPhotos');
+            const mainImage = imageInput?.value?.trim() || '';
+            const galleryImages = photosInput?.value ? photosInput.value.split(',').map(img => img.trim()).filter(img => img) : [];
             
             const hotelData = {
                 name: nameInput.value.trim(),
@@ -7604,7 +8835,9 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 description: descriptionTextarea?.value || '',
                 amenities: amenitiesInput?.value ? amenitiesInput.value.split(',').map(a => a.trim()) : [],
                 status: statusSelect?.value || 'Activo',
-                images: imagesInput?.value ? imagesInput.value.split(',').map(img => img.trim()) : []
+                mainImage: mainImage, // Imagen principal (base64 o URL)
+                galleryImages: galleryImages, // Galería de fotos (array de base64 o URLs)
+                images: mainImage ? [mainImage, ...galleryImages] : galleryImages // Compatibilidad con versiones anteriores
             };
             
             // Extraer coordenadas de Google Maps si está disponible
@@ -7645,7 +8878,9 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         price: parseFloat(String(hotelData.price).replace(/[^0-9.-]/g, '')) || 0,
                         status: hotelData.status,
                         amenities: hotelData.amenities,
-                        images: hotelData.images,
+                        mainImage: hotelData.mainImage || '',
+                        galleryImages: hotelData.galleryImages || [],
+                        images: hotelData.images || [], // Compatibilidad
                         coordinates: hotelData.coordinates,
                         google_maps: hotelData.googleMaps
                     };
@@ -7659,14 +8894,14 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         } catch (error) {
                             console.warn('⚠️ Error guardando en Supabase, guardando en localStorage:', error);
                             // Fallback a localStorage
-                            const newHotel = {
+                const newHotel = {
                                 id: Date.now().toString(),
-                                ...hotelData,
-                                createdAt: new Date().toISOString()
-                            };
-                            const existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-                            existingHotels.push(newHotel);
-                            localStorage.setItem('hotelsDB', JSON.stringify(existingHotels));
+                    ...hotelData,
+                    createdAt: new Date().toISOString()
+                };
+                const existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                existingHotels.push(newHotel);
+                localStorage.setItem('hotelsDB', JSON.stringify(existingHotels));
                             alert('✅ Hotel agregado correctamente (guardado localmente)');
                         }
                     } else {
@@ -7703,7 +8938,9 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         price: parseFloat(String(hotelData.price).replace(/[^0-9.-]/g, '')) || 0,
                         status: hotelData.status,
                         amenities: hotelData.amenities,
-                        images: hotelData.images,
+                        mainImage: hotelData.mainImage || '',
+                        galleryImages: hotelData.galleryImages || [],
+                        images: hotelData.images || [], // Compatibilidad
                         coordinates: hotelData.coordinates,
                         google_maps: hotelData.googleMaps
                     };
@@ -7717,15 +8954,15 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         } catch (error) {
                             console.warn('⚠️ Error actualizando en Supabase, actualizando en localStorage:', error);
                             // Fallback a localStorage
-                            const existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-                            const hotelIndex = existingHotels.findIndex(h => h.id === hotelId);
-                            if (hotelIndex !== -1) {
-                                existingHotels[hotelIndex] = {
-                                    ...existingHotels[hotelIndex],
-                                    ...hotelData,
-                                    updatedAt: new Date().toISOString()
-                                };
-                                localStorage.setItem('hotelsDB', JSON.stringify(existingHotels));
+                const existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                const hotelIndex = existingHotels.findIndex(h => h.id === hotelId);
+                if (hotelIndex !== -1) {
+                    existingHotels[hotelIndex] = {
+                        ...existingHotels[hotelIndex],
+                        ...hotelData,
+                        updatedAt: new Date().toISOString()
+                    };
+                    localStorage.setItem('hotelsDB', JSON.stringify(existingHotels));
                                 alert('✅ Hotel actualizado correctamente (guardado localmente)');
                             }
                         }
@@ -7741,9 +8978,9 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                             };
                             localStorage.setItem('hotelsDB', JSON.stringify(existingHotels));
                             alert('✅ Hotel actualizado correctamente (guardado localmente)');
-                        } else {
-                            console.error('❌ Hotel no encontrado para editar');
-                            alert('❌ Error: Hotel no encontrado');
+                } else {
+                    console.error('❌ Hotel no encontrado para editar');
+                    alert('❌ Error: Hotel no encontrado');
                         }
                     }
                 } catch (error) {
@@ -7862,10 +9099,89 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             console.log('Mostrando formulario de registro...');
         }
 
+        // ============================================
+        // SOBRESCRIBIR BOTONES DE IMAGENES - EVITA CACHE
+        // ============================================
+        function sobrescribirBotonesImagenes() {
+            // Buscar todos los botones que abren el gestor de imágenes
+            const buttons = document.querySelectorAll('button[onclick*="imageManager"], button[onclick*="abrirModal"], button[onclick*="openImage"]');
+            
+            buttons.forEach(function(btn) {
+                // Verificar si el botón tiene el texto "Seleccionar" y un ícono folder_open
+                const icon = btn.querySelector('.material-icons');
+                if (icon && icon.textContent === 'folder_open') {
+                    btn.onclick = function() {
+                        console.log('🚀 Botón clickeado - Abriendo modal directamente');
+                        var modal = document.getElementById('imageManagerModal');
+                        if (modal) {
+                            modal.style.display = 'block';
+                            modal.style.zIndex = '99999';
+                            modal.style.position = 'fixed';
+                            modal.style.top = '0';
+                            modal.style.left = '0';
+                            modal.style.width = '100%';
+                            modal.style.height = '100%';
+                            modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+                            console.log('✅ Modal abierto - Display:', modal.style.display);
+                            
+                            // Configurar nombre del hotel
+                            var hotelNameSpan = document.getElementById('currentHotelName');
+                            if (hotelNameSpan) {
+                                var nameInput = document.getElementById('editHotelName');
+                                hotelNameSpan.textContent = (nameInput && nameInput.value) || 'Nuevo Hotel';
+                            }
+                        } else {
+                            alert('ERROR: Modal no encontrado. Por favor, recarga la página.');
+                        }
+                    };
+                    console.log('✅ Botón sobrescrito:', btn);
+                }
+            });
+        }
+
         // Event listener para cuando el DOM esté listo
         // IMPORTANTE: Este código se ejecuta DESPUÉS de la verificación de autenticación
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Dashboard DOMContentLoaded ejecutado');
+            
+            // Sobrescribir botones inmediatamente
+            sobrescribirBotonesImagenes();
+            
+            // También sobrescribir después de un pequeño delay por si el HTML se carga después
+            setTimeout(sobrescribirBotonesImagenes, 500);
+            setTimeout(sobrescribirBotonesImagenes, 1000);
+            setTimeout(sobrescribirBotonesImagenes, 2000);
+            
+            // CONFIGURAR EVENT LISTENERS DEL MODAL DE IMÁGENES
+            setTimeout(function() {
+                // Botón cerrar modal
+                const btnClose = document.getElementById('btnCloseImageManager');
+                if (btnClose) {
+                    btnClose.onclick = closeImageManagerSimple;
+                }
+                
+                // Botón cancelar
+                const btnCancel = document.getElementById('btnCancelImageManager');
+                if (btnCancel) {
+                    btnCancel.onclick = closeImageManagerSimple;
+                }
+                
+                // Botón subir imágenes
+                const btnUpload = document.getElementById('btnUploadImages');
+                if (btnUpload) {
+                    btnUpload.onclick = uploadImagesSimple;
+                }
+                
+                // Botón aplicar selección
+                const btnApply = document.getElementById('btnApplyImageSelection');
+                if (btnApply) {
+                    btnApply.onclick = applyImageSelectionSimple;
+                }
+                
+                // NOTA: Código de botones de imágenes eliminado - los campos fueron removidos
+                
+                console.log('✅ Event listeners del modal de imágenes configurados');
+            }, 500);
             
             // Verificar si hay sesión válida
             const authSession = localStorage.getItem('dashboard_auth_session');
@@ -7888,17 +9204,17 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             // Solo inicializar el dashboard si el usuario está autenticado
             if (isAuthenticated) {
                 console.log('✅ Usuario autenticado, inicializando dashboard...');
-                // Inicializar dashboard
+            // Inicializar dashboard
                 if (typeof initializeDashboard === 'function') {
-                    initializeDashboard();
+            initializeDashboard();
                 }
-                
-                // Configurar sincronización automática
+            
+            // Configurar sincronización automática
                 if (typeof setupAutoSync === 'function') {
-                    setupAutoSync();
+            setupAutoSync();
                 }
-                
-                console.log('✅ Dashboard inicializado correctamente');
+            
+            console.log('✅ Dashboard inicializado correctamente');
             } else {
                 console.log('🔒 Usuario no autenticado, NO inicializando dashboard');
                 // Asegurar que el dashboard esté oculto
@@ -12393,18 +13709,18 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             ...expenseData,
                             exchangeRate: expenseData.exchange_rate,
                             usd: expenseData.usd_amount,
-                            createdAt: expenseId ? expenses.find(e => e.id === expenseId)?.createdAt : new Date().toISOString(),
-                            updatedAt: new Date().toISOString()
-                        };
-                        
-                        if (expenseId) {
-                            const index = expenses.findIndex(e => e.id === expenseId);
-                            if (index !== -1) {
-                                expenses[index] = expense;
-                            }
-                        } else {
-                            expenses.push(expense);
-                        }
+                createdAt: expenseId ? expenses.find(e => e.id === expenseId)?.createdAt : new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+            
+            if (expenseId) {
+                const index = expenses.findIndex(e => e.id === expenseId);
+                if (index !== -1) {
+                    expenses[index] = expense;
+                }
+            } else {
+                expenses.push(expense);
+            }
                         localStorage.setItem('expensesDB', JSON.stringify(expenses));
                         alert('✅ Gasto guardado correctamente (guardado localmente)');
                     }
@@ -12428,12 +13744,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     } else {
                         expenses.push(expense);
                     }
-                    localStorage.setItem('expensesDB', JSON.stringify(expenses));
+            localStorage.setItem('expensesDB', JSON.stringify(expenses));
                     alert('✅ Gasto guardado correctamente (guardado localmente)');
                 }
-                
-                closeExpenseModal();
-                loadExpensesData();
+            
+            closeExpenseModal();
+            loadExpensesData();
             } catch (error) {
                 console.error('❌ Error guardando gasto:', error);
                 alert('❌ Error al guardar el gasto');
@@ -12545,9 +13861,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     } catch (error) {
                         console.warn('⚠️ Error eliminando de Supabase, eliminando de localStorage:', error);
                         // Fallback a localStorage
-                        const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
-                        const filtered = expenses.filter(e => e.id !== expenseId);
-                        localStorage.setItem('expensesDB', JSON.stringify(filtered));
+            const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+            const filtered = expenses.filter(e => e.id !== expenseId);
+            localStorage.setItem('expensesDB', JSON.stringify(filtered));
                         alert('✅ Gasto eliminado correctamente (eliminado localmente)');
                     }
                 } else {
@@ -12557,8 +13873,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     localStorage.setItem('expensesDB', JSON.stringify(filtered));
                     alert('✅ Gasto eliminado correctamente (eliminado localmente)');
                 }
-                
-                loadExpensesData();
+            
+            loadExpensesData();
             } catch (error) {
                 console.error('❌ Error eliminando gasto:', error);
                 alert('❌ Error al eliminar el gasto');
@@ -12880,7 +14196,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     if (session.expiresAt && now < session.expiresAt) {
                         // Usuario autenticado, inicializar gastos
                         if (typeof initExpensesDB === 'function') {
-                            initExpensesDB();
+        initExpensesDB();
                         }
                     }
                 } catch (e) {
