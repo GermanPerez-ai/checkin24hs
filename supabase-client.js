@@ -564,6 +564,28 @@ class SupabaseClient {
         }
     }
 
+    async deleteUser(userId) {
+        if (!this.isInitialized()) {
+            const users = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+            const updatedUsers = users.filter(user => user.id !== userId);
+            localStorage.setItem('checkin24hs_users', JSON.stringify(updatedUsers));
+            return { success: true };
+        }
+
+        try {
+            const { error } = await this.client
+                .from('system_users')
+                .delete()
+                .eq('id', userId);
+            
+            if (error) throw error;
+            return { success: true };
+        } catch (error) {
+            console.error('❌ Error eliminando usuario:', error);
+            throw error;
+        }
+    }
+
     // ============================================
     // ADMINISTRADORES DEL DASHBOARD
     // ============================================

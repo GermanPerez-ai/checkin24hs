@@ -499,10 +499,28 @@
             font-size: 0.9rem;
         }
         
+        .action-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 16px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        
         .search-box {
             position: relative;
             display: flex;
             align-items: center;
+            z-index: 1;
         }
         
         .search-box input {
@@ -511,6 +529,8 @@
             border-radius: 8px;
             font-size: 0.9rem;
             width: 250px;
+            position: relative;
+            z-index: 1;
         }
         
         .search-box .material-icons {
@@ -518,6 +538,8 @@
             right: 12px;
             color: #666;
             font-size: 18px;
+            z-index: 2;
+            pointer-events: none;
         }
         
         .quote-status {
@@ -2211,12 +2233,12 @@
                     <h3 class="card-title">Usuarios Registrados - Panel de Administración</h3>
                     
                     <!-- Buscador de usuarios -->
-                    <div style="margin-bottom: 16px; margin-top: 16px;">
-                        <div style="position: relative;">
+                    <div style="margin-bottom: 16px; margin-top: 16px; position: relative; z-index: 1;">
+                        <div style="position: relative; z-index: 1;">
                             <input type="text" id="usersSearchInput" placeholder="Buscar usuarios por nombre, email o teléfono..." 
-                                   style="width: 100%; padding: 12px 40px 12px 16px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.95rem; transition: border-color 0.3s;"
+                                   style="width: 100%; padding: 12px 40px 12px 16px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.95rem; transition: border-color 0.3s; position: relative; z-index: 1;"
                                    onkeyup="searchUsers()" oninput="searchUsers()">
-                            <span class="material-icons" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #666; pointer-events: none;">search</span>
+                            <span class="material-icons" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: #666; pointer-events: none; z-index: 2;">search</span>
                         </div>
                         <div id="usersSearchInfo" style="margin-top: 8px; font-size: 0.85rem; color: #666; display: none;">
                             <span id="usersSearchCount">0</span> resultados encontrados
@@ -11229,9 +11251,19 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
         
         // Función para eliminar usuario
-        function deleteUser(userId) {
+        async function deleteUser(userId) {
             if (confirm('¿Estás seguro de que quieres eliminar este usuario?')) {
                 try {
+                    // Eliminar de Supabase si está inicializado
+                    if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                        try {
+                            await window.supabaseClient.deleteUser(userId);
+                            console.log('✅ Usuario eliminado de Supabase:', userId);
+                        } catch (supabaseError) {
+                            console.warn('⚠️ Error al eliminar de Supabase (continuando con localStorage):', supabaseError);
+                        }
+                    }
+                    
                     // Cargar usuarios actuales
                     const users = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
                     
@@ -11240,6 +11272,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     
                     // Guardar usuarios actualizados
                     localStorage.setItem('checkin24hs_users', JSON.stringify(updatedUsers));
+                    
+                    // También eliminar de clientesDB si existe
+                    const clientesDB = JSON.parse(localStorage.getItem('clientesDB') || '[]');
+                    const updatedClientesDB = clientesDB.filter(c => c.id !== userId);
+                    localStorage.setItem('clientesDB', JSON.stringify(updatedClientesDB));
                     
                     // Recargar tabla
                     loadUsersData();
@@ -13662,18 +13699,6 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 alert('❌ Error al actualizar usuarios: ' + error.message);
                 }
             }
-        function deleteUser(userId) {
-            if (confirm('¿Estás seguro de que quieres eliminar este usuario? Esta acción no se puede deshacer.')) {
-                const clientesDB = JSON.parse(localStorage.getItem('clientesDB') || '[]');
-                const updatedDB = clientesDB.filter(c => c.id !== userId);
-                localStorage.setItem('clientesDB', JSON.stringify(updatedDB));
-                
-                if (typeof loadUsersData === 'function') {
-                    loadUsersData();
-                }
-                alert('✅ Usuario eliminado correctamente');
-            }
-        }
 
         // ===== FUNCIONES PARA GESTIÓN DE GASTOS =====
         
