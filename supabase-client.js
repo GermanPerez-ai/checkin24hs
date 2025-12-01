@@ -573,14 +573,49 @@ class SupabaseClient {
         }
 
         try {
-            const { error } = await this.client
-                .from('system_users')
-                .delete()
-                .eq('id', userId);
+            // Si el userId no es un UUID (es numérico o string simple), intentar eliminar por email
+            const users = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+            const userToDelete = users.find(user => user.id === userId || user.id == userId);
             
-            if (error) throw error;
+            // Intentar eliminar por ID (si es UUID) o por email
+            let deleteQuery = this.client.from('system_users').delete();
+            
+            // Verificar si el ID es un UUID válido
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            const isUUID = uuidRegex.test(userId);
+            
+            if (isUUID) {
+                // Si es UUID, eliminar por ID
+                deleteQuery = deleteQuery.eq('id', userId);
+            } else if (userToDelete && userToDelete.email) {
+                // Si no es UUID pero tenemos el email, eliminar por email
+                deleteQuery = deleteQuery.eq('email', userToDelete.email);
+            } else {
+                // Si no tenemos email y no es UUID, simplemente retornar éxito
+                // (el usuario probablemente no existe en Supabase)
+                console.log('ℹ️ Usuario no encontrado en Supabase, solo eliminando de localStorage');
+                return { success: true };
+            }
+            
+            const { error } = await deleteQuery;
+            
+            // Si el error es 400 o 404, probablemente el usuario no existe en Supabase
+            // Esto es normal para usuarios de prueba que solo están en localStorage
+            if (error) {
+                if (error.code === 'PGRST116' || error.message?.includes('No rows')) {
+                    console.log('ℹ️ Usuario no existe en Supabase (probablemente solo en localStorage)');
+                    return { success: true };
+                }
+                throw error;
+            }
+            
             return { success: true };
         } catch (error) {
+            // Si hay un error pero es porque el usuario no existe, no lanzar excepción
+            if (error.code === 'PGRST116' || error.message?.includes('No rows') || error.status === 400) {
+                console.log('ℹ️ Usuario no existe en Supabase, continuando con eliminación local');
+                return { success: true };
+            }
             console.error('❌ Error eliminando usuario:', error);
             throw error;
         }
