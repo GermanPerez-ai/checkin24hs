@@ -11299,10 +11299,36 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }
         }
         
-        // Función para eliminar todos los usuarios de index.html
-        function deleteAllUsers() {
+        // Función para eliminar todos los usuarios
+        async function deleteAllUsers() {
             if (confirm('⚠️ ¿Estás seguro de que quieres eliminar TODOS los usuarios registrados?\n\nEsta acción eliminará todos los usuarios de la aplicación móvil (index.html) y no se puede deshacer.')) {
                 try {
+                    // Obtener usuarios antes de eliminar para intentar eliminarlos de Supabase
+                    const users = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+                    
+                    // Intentar eliminar de Supabase si está inicializado
+                    if (window.supabaseClient && window.supabaseClient.isInitialized() && users.length > 0) {
+                        console.log('🗑️ Eliminando usuarios de Supabase...');
+                        let deletedFromSupabase = 0;
+                        let errorsFromSupabase = 0;
+                        
+                        for (const user of users) {
+                            try {
+                                await window.supabaseClient.deleteUser(user.id);
+                                deletedFromSupabase++;
+                            } catch (error) {
+                                // Ignorar errores si el usuario no existe en Supabase
+                                errorsFromSupabase++;
+                                console.log(`ℹ️ Usuario ${user.id} no existe en Supabase o ya fue eliminado`);
+                            }
+                        }
+                        
+                        console.log(`✅ ${deletedFromSupabase} usuarios eliminados de Supabase`);
+                        if (errorsFromSupabase > 0) {
+                            console.log(`ℹ️ ${errorsFromSupabase} usuarios no encontrados en Supabase (probablemente solo en localStorage)`);
+                        }
+                    }
+                    
                     // Eliminar usuarios de checkin24hs_users (dashboard)
                     localStorage.removeItem('checkin24hs_users');
                     
