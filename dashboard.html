@@ -3207,7 +3207,7 @@
                 <div class="form-group">
                     <label class="form-label">URL del Servidor (Opcional)</label>
                     <input type="text" id="whatsappServerURL" class="form-input" 
-                           placeholder="http://localhost:3001">
+                           placeholder="https://api.checkin24hs.com">
                     <small style="color: #666; margin-top: 5px; display: block;">
                         Si tienes un servidor con endpoint de WhatsApp, ingresa su URL aquí
                     </small>
@@ -6387,6 +6387,12 @@
         
         // Función para eliminar una cotización
         function deleteQuote(quoteId) {
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
+            
             console.log('🗑️ Eliminando cotización:', quoteId);
             
             if (!confirm('¿Estás seguro de que quieres eliminar esta cotización?')) {
@@ -6462,6 +6468,12 @@
         // Función para limpiar todas las cotizaciones
         function clearAllQuotes() {
             console.log('🗑️ Limpiando todas las cotizaciones...');
+            
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
             
             if (!confirm('¿Estás seguro de que quieres eliminar TODAS las cotizaciones? Esta acción no se puede deshacer.')) {
                 return;
@@ -7803,6 +7815,12 @@
         
         // Función para eliminar promoción
         function deletePromotion(hotelId, promoIndex) {
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
+            
             if (confirm('¿Estás seguro de que quieres eliminar esta promoción?')) {
                 const promotions = JSON.parse(localStorage.getItem(`promotions_${hotelId}`) || '[]');
                 promotions.splice(promoIndex, 1);
@@ -8251,6 +8269,12 @@
 
         // Función para eliminar hotel
         function deleteHotel(hotelId) {
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
+            
             console.log('🗑️ Eliminando hotel:', hotelId);
             
             if (!confirm('¿Estás seguro de que quieres eliminar este hotel? Esta acción no se puede deshacer.')) {
@@ -10598,6 +10622,12 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         
         // Función para eliminar campaña
         function deleteCampaign(campaignId) {
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
+            
             if (confirm('¿Estás seguro de que quieres eliminar esta campaña?')) {
                 const campaigns = JSON.parse(localStorage.getItem('marketing_campaigns') || '[]');
                 const updatedCampaigns = campaigns.filter(c => c.id !== campaignId);
@@ -11261,6 +11291,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         
         // Función para eliminar usuario
         async function deleteUser(userId) {
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
+            
             if (confirm('¿Estás seguro de que quieres eliminar este usuario?')) {
                 try {
                     // Eliminar de Supabase si está inicializado
@@ -11301,6 +11337,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         
         // Función para eliminar todos los usuarios
         async function deleteAllUsers() {
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
+            
             if (confirm('⚠️ ¿Estás seguro de que quieres eliminar TODOS los usuarios registrados?\n\nEsta acción eliminará todos los usuarios de la aplicación móvil (index.html) y no se puede deshacer.')) {
                 try {
                     // Obtener usuarios antes de eliminar para intentar eliminarlos de Supabase
@@ -12487,6 +12529,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
         // Función para eliminar reserva
         function deleteReservation(reservationId) {
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
+            
             if (confirm('¿Estás seguro de que quieres eliminar esta reserva?')) {
                 console.log('🗑️ Eliminando reserva:', reservationId);
                 
@@ -12955,6 +13003,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
         // Función para eliminar todas las reservas
         function deleteAllReservations() {
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
+            
             console.log('🗑️ Eliminando todas las reservas...');
             
             // Obtener cantidad de reservas
@@ -13732,8 +13786,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 } catch (error) {
                 console.error('❌ Error al actualizar usuarios desde reservas:', error);
                 alert('❌ Error al actualizar usuarios: ' + error.message);
-                }
             }
+        }
 
         // ===== FUNCIONES PARA GESTIÓN DE GASTOS =====
         
@@ -14001,6 +14055,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
         // Eliminar gasto
         async function deleteExpense(expenseId) {
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
+            
             if (!confirm('¿Estás seguro de que quieres eliminar este gasto?')) return;
             
             try {
@@ -14816,6 +14876,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             </form>
         </div>
     </div>
+    
+    <!-- Sistema Flor - Chatbot con aprendizaje -->
+    <script src="flor-knowledge-base.js"></script>
+    <script src="flor-ai-service.js"></script>
+    <script src="flor-learning-system.js"></script>
+    <script src="flor-agent.js"></script>
     
     <!-- Widget Chatbot Flor -->
     <script src="flor-widget.js"></script>
