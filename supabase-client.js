@@ -472,8 +472,8 @@ class SupabaseClient {
     }
 
     async updateExpense(id, updates) {
-        // Convertir ID a número
-        const numericId = typeof id === 'string' ? parseInt(id) : id;
+        // Mantener el ID tal como está (puede ser UUID string o número)
+        const expenseId = id;
         
         // Limpiar campos que no son de Supabase (solo enviar snake_case)
         const cleanUpdates = {
@@ -488,11 +488,11 @@ class SupabaseClient {
             updated_at: new Date().toISOString()
         };
         
-        console.log('✏️ Actualizando gasto ID:', numericId, 'con datos:', cleanUpdates);
+        console.log('✏️ Actualizando gasto ID:', expenseId, 'con datos:', cleanUpdates);
         
         if (!this.isInitialized()) {
             const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
-            const index = expenses.findIndex(e => e.id == id || e.id == numericId);
+            const index = expenses.findIndex(e => e.id == id);
             if (index !== -1) {
                 expenses[index] = { ...expenses[index], ...updates, ...cleanUpdates };
                 localStorage.setItem('expensesDB', JSON.stringify(expenses));
@@ -504,12 +504,12 @@ class SupabaseClient {
         }
 
         try {
-            console.log('📤 Enviando UPDATE a Supabase para ID:', numericId);
+            console.log('📤 Enviando UPDATE a Supabase para ID:', expenseId);
             
             const { data, error } = await this.client
                 .from('expenses')
                 .update(cleanUpdates)
-                .eq('id', numericId)
+                .eq('id', expenseId)
                 .select();
             
             if (error) {
@@ -518,7 +518,7 @@ class SupabaseClient {
             }
             
             if (!data || data.length === 0) {
-                console.error('❌ No se encontró el gasto con ID:', numericId);
+                console.error('❌ No se encontró el gasto con ID:', expenseId);
                 throw new Error('Gasto no encontrado en la base de datos');
             }
             

@@ -14184,11 +14184,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                     try {
                         if (expenseId) {
-                            // Convertir ID a número para Supabase
-                            const numericId = parseInt(expenseId);
-                            console.log('🔄 Actualizando gasto con ID:', numericId, '(original:', expenseId, ')');
+                            // Usar el ID tal como está (puede ser UUID o número)
+                            console.log('🔄 Actualizando gasto con ID:', expenseId);
                             
-                            const result = await window.supabaseClient.updateExpense(numericId, expenseData);
+                            const result = await window.supabaseClient.updateExpense(expenseId, expenseData);
                             
                             if (result) {
                                 console.log('✅ Gasto actualizado en Supabase:', result);
