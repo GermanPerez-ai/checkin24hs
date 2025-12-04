@@ -9769,11 +9769,16 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         function showHotelPromotions() {
             console.log('🏨 Mostrando promociones de hoteles...');
             
-            // Mostrar sección de hoteles y cambiar a pestaña de promociones
-            window.showSection('hotels', null);
-            setTimeout(() => {
-                showHotelsTab('promotions');
-            }, 100);
+            // Obtener hoteles del localStorage
+            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            
+            if (hotels.length === 0) {
+                alert('No hay hoteles registrados. Primero agregue al menos un hotel.');
+                return;
+            }
+            
+            // Mostrar modal de promociones
+            showHotelPromotionsModal(hotels);
         }
         
         // Función para cambiar entre pestañas de Hoteles
