@@ -128,3 +128,7 @@ node_modules
 node_modules
 node_modules
 node_modules
+.tmp.driveupload/
+*.zip
+node_modules/
+.wrangler/
