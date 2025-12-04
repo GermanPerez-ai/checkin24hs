@@ -392,6 +392,7 @@ class SupabaseClient {
     
     async getExpenses(filters = {}) {
         if (!this.isInitialized()) {
+            console.log('💾 Supabase no inicializado, cargando desde localStorage');
             return JSON.parse(localStorage.getItem('expensesDB') || '[]');
         }
 
@@ -412,7 +413,9 @@ class SupabaseClient {
             
             if (error) throw error;
             
-            // Sincronizar con localStorage
+            console.log(`☁️ Gastos cargados de Supabase: ${data ? data.length : 0} registros`);
+            
+            // Solo sincronizar si hay datos
             if (data && data.length > 0) {
                 localStorage.setItem('expensesDB', JSON.stringify(data));
             }
@@ -425,28 +428,42 @@ class SupabaseClient {
     }
 
     async createExpense(expense) {
+        // IMPORTANTE: Eliminar el id para que Supabase genere uno nuevo automáticamente
+        const expenseToCreate = { ...expense };
+        delete expenseToCreate.id;
+        delete expenseToCreate.exchangeRate; // Solo usar snake_case para Supabase
+        delete expenseToCreate.usd; // Solo usar usd_amount para Supabase
+        
+        console.log('📝 Creando gasto en Supabase:', expenseToCreate);
+        
         if (!this.isInitialized()) {
             const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
-            expense.id = expense.id || 'expense-' + Date.now();
-            expenses.push(expense);
+            const newExpense = {
+                ...expense,
+                id: 'expense-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                created_at: new Date().toISOString()
+            };
+            expenses.push(newExpense);
             localStorage.setItem('expensesDB', JSON.stringify(expenses));
-            return expense;
+            console.log('💾 Gasto guardado en localStorage, total:', expenses.length);
+            return newExpense;
         }
 
         try {
             const { data, error } = await this.client
                 .from('expenses')
-                .insert([expense])
+                .insert([expenseToCreate])
                 .select()
                 .single();
             
-            if (error) throw error;
+            if (error) {
+                console.error('❌ Error de Supabase:', error);
+                throw error;
+            }
             
-            // Sincronizar con localStorage
-            const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
-            expenses.push(data);
-            localStorage.setItem('expensesDB', JSON.stringify(expenses));
+            console.log('✅ Gasto creado en Supabase con ID:', data.id);
             
+            // NO sincronizar con localStorage aquí - se hará al cargar
             return data;
         } catch (error) {
             console.error('❌ Error creando gasto:', error);
