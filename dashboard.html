@@ -3446,6 +3446,13 @@
             if (body) {
                 body.classList.add('authenticated');
             }
+            
+            // Inicializar sincronización en tiempo real después de un pequeño delay
+            setTimeout(() => {
+                if (typeof initRealtimeSubscriptions === 'function') {
+                    initRealtimeSubscriptions();
+                }
+            }, 1000);
         }
 
         // Manejar el login
@@ -9293,6 +9300,196 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 }
             });
         }
+
+        // ===== SISTEMA DE SINCRONIZACIÓN EN TIEMPO REAL =====
+        
+        // Mostrar notificación de actualización
+        function showRealtimeNotification(message, type = 'info') {
+            // Crear notificación
+            const notification = document.createElement('div');
+            notification.className = 'realtime-notification';
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${type === 'info' ? '#2196f3' : type === 'success' ? '#4caf50' : '#ff9800'};
+                color: white;
+                padding: 16px 24px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                z-index: 10000;
+                animation: slideIn 0.3s ease-out;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                max-width: 400px;
+            `;
+            
+            notification.innerHTML = `
+                <span class="material-icons" style="font-size: 24px;">sync</span>
+                <div>
+                    <strong style="display: block; margin-bottom: 4px;">Actualización en tiempo real</strong>
+                    <span style="font-size: 0.9rem;">${message}</span>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Agregar animación CSS si no existe
+            if (!document.getElementById('realtime-notification-styles')) {
+                const style = document.createElement('style');
+                style.id = 'realtime-notification-styles';
+                style.textContent = `
+                    @keyframes slideIn {
+                        from { transform: translateX(100%); opacity: 0; }
+                        to { transform: translateX(0); opacity: 1; }
+                    }
+                    @keyframes slideOut {
+                        from { transform: translateX(0); opacity: 1; }
+                        to { transform: translateX(100%); opacity: 0; }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+            
+            // Remover después de 4 segundos
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-in';
+                setTimeout(() => notification.remove(), 300);
+            }, 4000);
+        }
+        
+        // Inicializar suscripciones en tiempo real
+        function initRealtimeSubscriptions() {
+            if (!window.supabaseClient || !window.supabaseClient.isInitialized()) {
+                console.warn('⚠️ Supabase no está listo para tiempo real');
+                return;
+            }
+            
+            console.log('🔄 Iniciando sincronización en tiempo real...');
+            
+            // Variable para evitar recargas múltiples
+            let reloadTimeout = null;
+            
+            function scheduleReload(sectionId, message) {
+                if (reloadTimeout) clearTimeout(reloadTimeout);
+                reloadTimeout = setTimeout(() => {
+                    // Recargar la sección correspondiente
+                    switch(sectionId) {
+                        case 'hotels':
+                            if (typeof loadHotelsTable === 'function') loadHotelsTable();
+                            break;
+                        case 'reservations':
+                            if (typeof loadReservations === 'function') loadReservations();
+                            break;
+                        case 'quotes':
+                            if (typeof loadQuotes === 'function') loadQuotes();
+                            break;
+                        case 'users':
+                            if (typeof loadUsersData === 'function') loadUsersData();
+                            break;
+                        case 'expenses':
+                            if (typeof loadExpenses === 'function') loadExpenses();
+                            break;
+                    }
+                    showRealtimeNotification(message, 'info');
+                }, 500);
+            }
+            
+            // Suscribirse a cambios en hoteles
+            window.supabaseClient.subscribeToHotels((payload) => {
+                const action = payload.eventType === 'INSERT' ? 'agregó' : 
+                               payload.eventType === 'UPDATE' ? 'actualizó' : 'eliminó';
+                scheduleReload('hotels', `Se ${action} un hotel`);
+            });
+            
+            // Suscribirse a cambios en reservaciones
+            window.supabaseClient.subscribeToReservations((payload) => {
+                const action = payload.eventType === 'INSERT' ? 'agregó' : 
+                               payload.eventType === 'UPDATE' ? 'actualizó' : 'eliminó';
+                scheduleReload('reservations', `Se ${action} una reserva`);
+            });
+            
+            // Suscribirse a cambios en cotizaciones
+            window.supabaseClient.subscribeToQuotes((payload) => {
+                const action = payload.eventType === 'INSERT' ? 'agregó' : 
+                               payload.eventType === 'UPDATE' ? 'actualizó' : 'eliminó';
+                scheduleReload('quotes', `Se ${action} una cotización`);
+            });
+            
+            // Suscribirse a cambios en usuarios
+            window.supabaseClient.subscribeToUsers((payload) => {
+                const action = payload.eventType === 'INSERT' ? 'agregó' : 
+                               payload.eventType === 'UPDATE' ? 'actualizó' : 'eliminó';
+                scheduleReload('users', `Se ${action} un usuario`);
+            });
+            
+            // Suscribirse a cambios en gastos
+            window.supabaseClient.subscribeToExpenses((payload) => {
+                const action = payload.eventType === 'INSERT' ? 'agregó' : 
+                               payload.eventType === 'UPDATE' ? 'actualizó' : 'eliminó';
+                scheduleReload('expenses', `Se ${action} un gasto`);
+            });
+            
+            // Suscribirse a cambios en agentes
+            window.supabaseClient.subscribeToAgents((payload) => {
+                const action = payload.eventType === 'INSERT' ? 'agregó' : 
+                               payload.eventType === 'UPDATE' ? 'actualizó' : 'eliminó';
+                // Recargar reservaciones ya que los agentes se usan ahí
+                scheduleReload('reservations', `Se ${action} un agente`);
+            });
+            
+            console.log('✅ Sincronización en tiempo real activa');
+            
+            // Mostrar indicador de conexión en tiempo real
+            showRealtimeIndicator();
+        }
+        
+        // Mostrar indicador de conexión en tiempo real en la UI
+        function showRealtimeIndicator() {
+            // Agregar indicador al header si no existe
+            if (!document.getElementById('realtime-indicator')) {
+                const header = document.querySelector('.dashboard-header') || document.querySelector('.main-header');
+                if (header) {
+                    const indicator = document.createElement('div');
+                    indicator.id = 'realtime-indicator';
+                    indicator.style.cssText = `
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        background: rgba(76, 175, 80, 0.2);
+                        padding: 6px 12px;
+                        border-radius: 20px;
+                        font-size: 0.85rem;
+                        color: #4caf50;
+                        margin-left: auto;
+                    `;
+                    indicator.innerHTML = `
+                        <span style="width: 8px; height: 8px; background: #4caf50; border-radius: 50%; animation: pulse 2s infinite;"></span>
+                        <span>Tiempo real</span>
+                    `;
+                    
+                    // Agregar animación de pulso
+                    if (!document.getElementById('pulse-animation')) {
+                        const style = document.createElement('style');
+                        style.id = 'pulse-animation';
+                        style.textContent = `
+                            @keyframes pulse {
+                                0%, 100% { opacity: 1; }
+                                50% { opacity: 0.5; }
+                            }
+                        `;
+                        document.head.appendChild(style);
+                    }
+                    
+                    header.appendChild(indicator);
+                }
+            }
+        }
+        
+        // Hacer funciones globales
+        window.initRealtimeSubscriptions = initRealtimeSubscriptions;
+        window.showRealtimeNotification = showRealtimeNotification;
 
         // Event listener para cuando el DOM esté listo
         // IMPORTANTE: Este código se ejecuta DESPUÉS de la verificación de autenticación

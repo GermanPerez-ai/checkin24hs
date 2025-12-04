@@ -701,19 +701,28 @@ class SupabaseClient {
     // SUBSCRIPCIONES EN TIEMPO REAL
     // ============================================
     
+    // Almacenar suscripciones activas
+    activeSubscriptions = {};
+
     subscribeToReservations(callback) {
         if (!this.isInitialized()) {
             console.warn('⚠️ Supabase no está inicializado, no se pueden usar suscripciones en tiempo real');
             return null;
         }
 
-        return this.client
+        const channel = this.client
             .channel('reservations-changes')
             .on('postgres_changes', 
                 { event: '*', schema: 'public', table: 'reservations' },
-                callback
+                (payload) => {
+                    console.log('🔄 Cambio en reservaciones:', payload.eventType);
+                    callback(payload);
+                }
             )
             .subscribe();
+        
+        this.activeSubscriptions.reservations = channel;
+        return channel;
     }
 
     subscribeToQuotes(callback) {
@@ -722,13 +731,145 @@ class SupabaseClient {
             return null;
         }
 
-        return this.client
+        const channel = this.client
             .channel('quotes-changes')
             .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'quotes' },
-                callback
+                (payload) => {
+                    console.log('🔄 Cambio en cotizaciones:', payload.eventType);
+                    callback(payload);
+                }
             )
             .subscribe();
+        
+        this.activeSubscriptions.quotes = channel;
+        return channel;
+    }
+
+    subscribeToHotels(callback) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado, no se pueden usar suscripciones en tiempo real');
+            return null;
+        }
+
+        const channel = this.client
+            .channel('hotels-changes')
+            .on('postgres_changes',
+                { event: '*', schema: 'public', table: 'hotels' },
+                (payload) => {
+                    console.log('🔄 Cambio en hoteles:', payload.eventType);
+                    callback(payload);
+                }
+            )
+            .subscribe();
+        
+        this.activeSubscriptions.hotels = channel;
+        return channel;
+    }
+
+    subscribeToUsers(callback) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado, no se pueden usar suscripciones en tiempo real');
+            return null;
+        }
+
+        const channel = this.client
+            .channel('users-changes')
+            .on('postgres_changes',
+                { event: '*', schema: 'public', table: 'users' },
+                (payload) => {
+                    console.log('🔄 Cambio en usuarios:', payload.eventType);
+                    callback(payload);
+                }
+            )
+            .subscribe();
+        
+        this.activeSubscriptions.users = channel;
+        return channel;
+    }
+
+    subscribeToExpenses(callback) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado, no se pueden usar suscripciones en tiempo real');
+            return null;
+        }
+
+        const channel = this.client
+            .channel('expenses-changes')
+            .on('postgres_changes',
+                { event: '*', schema: 'public', table: 'expenses' },
+                (payload) => {
+                    console.log('🔄 Cambio en gastos:', payload.eventType);
+                    callback(payload);
+                }
+            )
+            .subscribe();
+        
+        this.activeSubscriptions.expenses = channel;
+        return channel;
+    }
+
+    subscribeToAgents(callback) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado, no se pueden usar suscripciones en tiempo real');
+            return null;
+        }
+
+        const channel = this.client
+            .channel('agents-changes')
+            .on('postgres_changes',
+                { event: '*', schema: 'public', table: 'agents' },
+                (payload) => {
+                    console.log('🔄 Cambio en agentes:', payload.eventType);
+                    callback(payload);
+                }
+            )
+            .subscribe();
+        
+        this.activeSubscriptions.agents = channel;
+        return channel;
+    }
+
+    // Suscribirse a TODOS los cambios relevantes
+    subscribeToAllChanges(callbacks = {}) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado');
+            return;
+        }
+
+        console.log('🔄 Iniciando suscripciones en tiempo real...');
+
+        if (callbacks.onReservationChange) {
+            this.subscribeToReservations(callbacks.onReservationChange);
+        }
+        if (callbacks.onQuoteChange) {
+            this.subscribeToQuotes(callbacks.onQuoteChange);
+        }
+        if (callbacks.onHotelChange) {
+            this.subscribeToHotels(callbacks.onHotelChange);
+        }
+        if (callbacks.onUserChange) {
+            this.subscribeToUsers(callbacks.onUserChange);
+        }
+        if (callbacks.onExpenseChange) {
+            this.subscribeToExpenses(callbacks.onExpenseChange);
+        }
+        if (callbacks.onAgentChange) {
+            this.subscribeToAgents(callbacks.onAgentChange);
+        }
+
+        console.log('✅ Suscripciones en tiempo real activas');
+    }
+
+    // Desuscribirse de todos los canales
+    unsubscribeAll() {
+        Object.values(this.activeSubscriptions).forEach(channel => {
+            if (channel) {
+                this.client.removeChannel(channel);
+            }
+        });
+        this.activeSubscriptions = {};
+        console.log('🔌 Desuscrito de todos los canales');
     }
 
     // ============================================
