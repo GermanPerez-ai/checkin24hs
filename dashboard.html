@@ -14156,9 +14156,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             const expenseId = document.getElementById('expenseForm').dataset.expenseId;
             
-            const amount = parseFloat(document.getElementById('expenseAmount').value);
-            const exchangeRate = parseFloat(document.getElementById('expenseExchangeRate').value);
-            const usd = exchangeRate > 0 ? amount / exchangeRate : 0;
+            const amount = parseFloat(document.getElementById('expenseAmount').value) || 0;
+            const exchangeRateValue = document.getElementById('expenseExchangeRate').value;
+            const exchangeRate = exchangeRateValue ? parseFloat(exchangeRateValue) : null;
+            const usd = (exchangeRate && exchangeRate > 0) ? amount / exchangeRate : null;
+            
+            console.log('💾 Guardando gasto:', { amount, exchangeRate, usd });
             
             const expenseData = {
                 date: document.getElementById('expenseDate').value,
@@ -14167,9 +14170,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 subcategory: document.getElementById('expenseSubcategory').value || '',
                 description: document.getElementById('expenseDescription').value,
                 amount: amount,
-                exchange_rate: exchangeRate || null,
-                usd_amount: parseFloat(usd.toFixed(2)) || null
+                exchange_rate: exchangeRate,
+                usd_amount: usd ? parseFloat(usd.toFixed(2)) : null,
+                // También guardar con nombres alternativos para compatibilidad
+                exchangeRate: exchangeRate,
+                usd: usd ? parseFloat(usd.toFixed(2)) : null
             };
+            
+            console.log('📦 Datos del gasto:', expenseData);
             
             try {
                 // Intentar guardar en Supabase primero
