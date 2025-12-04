@@ -20,6 +20,9 @@ const CONFIG = {
     AUTO_REPLY: true,                    // Activar respuestas automáticas de Flor
     FLOR_ENABLED: true,                  // Habilitar Flor
     SAVE_MESSAGES: true,                 // Guardar mensajes en archivo
+    USE_GEMINI_AI: true,                 // Usar Gemini IA para respuestas inteligentes
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',  // Se configura desde el endpoint /api/config
+    GEMINI_MODEL: 'gemini-1.5-flash',    // Modelo de Gemini
     AGENT_NUMBERS: [                     // Números de agentes (no reciben respuestas automáticas)
         // Agregar números de agentes aquí en formato: '5491112345678@c.us'
     ],
@@ -30,6 +33,20 @@ const CONFIG = {
         timezone: 'America/Argentina/Buenos_Aires'
     }
 };
+
+// Cargar configuración guardada
+const configFile = path.join(__dirname, 'config.json');
+if (fs.existsSync(configFile)) {
+    try {
+        const savedConfig = JSON.parse(fs.readFileSync(configFile, 'utf8'));
+        if (savedConfig.GEMINI_API_KEY) CONFIG.GEMINI_API_KEY = savedConfig.GEMINI_API_KEY;
+        if (savedConfig.GEMINI_MODEL) CONFIG.GEMINI_MODEL = savedConfig.GEMINI_MODEL;
+        if (savedConfig.USE_GEMINI_AI !== undefined) CONFIG.USE_GEMINI_AI = savedConfig.USE_GEMINI_AI;
+        console.log('✅ Configuración cargada desde config.json');
+    } catch (e) {
+        console.log('⚠️ No se pudo cargar config.json');
+    }
+}
 
 // ===== BASE DE CONOCIMIENTO DE FUTURA FLOR (simplificada) =====
 const FLOR_KNOWLEDGE = {
@@ -135,6 +152,10 @@ client.on('message', async (message) => {
         console.log(`\n📨 Mensaje recibido de ${message.from}:`);
         console.log(`   "${message.body}"`);
 
+        // Actualizar estadísticas
+        stats.totalMessages++;
+        stats.uniqueContacts.add(message.from);
+
         // Guardar mensaje
         if (CONFIG.SAVE_MESSAGES) {
             saveMessage(message);
@@ -154,16 +175,17 @@ client.on('message', async (message) => {
             return;
         }
 
-        // Responder automáticamente con Flor
+        // Responder automáticamente con Futura Flor
         if (CONFIG.AUTO_REPLY && CONFIG.FLOR_ENABLED) {
-            const response = generateFlorResponse(message.body);
-            
-            // Simular tiempo de escritura
+            // Simular tiempo de escritura mientras genera respuesta
             await client.sendPresenceAvailable();
             await message.getChat().then(chat => chat.sendStateTyping());
-            await delay(Math.min(response.length * 30, 3000)); // Max 3 segundos
+            
+            // Obtener respuesta inteligente (Gemini IA o predefinida)
+            const response = await getSmartResponse(message.body);
             
             await message.reply(response);
+            stats.autoReplies++; // Incrementar respuestas automáticas
             console.log(`   🌸 Futura Flor respondió: "${response.substring(0, 50)}..."`);
         }
 
@@ -232,6 +254,101 @@ function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// ===== INTEGRACIÓN CON GEMINI IA =====
+
+async function generateGeminiResponse(userMessage, conversationHistory = []) {
+    if (!CONFIG.GEMINI_API_KEY) {
+        console.log('⚠️ API Key de Gemini no configurada, usando respuestas predefinidas');
+        return null;
+    }
+
+    const systemPrompt = `Eres Futura Flor, la asistente virtual de Checkin24hs, una agencia de viajes especializada en hoteles de lujo en la Patagonia chilena.
+
+INFORMACIÓN DE LA EMPRESA:
+- Nombre: Checkin24hs
+- Email: reservas@checkin24hs.com
+- Web: www.checkin24hs.com
+- Especialidad: Hoteles de lujo en Patagonia
+
+HOTELES QUE MANEJAMOS:
+1. Hotel Terma de Puyehue - Spa termal con aguas termales naturales
+2. Hotel Huilo-Huilo - Ecoturismo en la selva valdiviana
+3. Hotel Corralco - Ski y actividades de montaña
+4. Hotel Futangue - Lagos y montañas
+
+TU PERSONALIDAD:
+- Amable y profesional
+- Respuestas concisas pero informativas
+- Usa emojis moderadamente
+- Si te piden una cotización, solicita: fechas, cantidad de personas y hotel preferido
+- Si quieren reservar, indica que un agente humano los contactará
+
+IMPORTANTE:
+- Responde en español
+- Máximo 300 caracteres por respuesta para WhatsApp
+- No inventes precios, solo di que varían según temporada
+- Si no sabes algo, ofrece conectar con un agente humano`;
+
+    try {
+        const modelName = CONFIG.GEMINI_MODEL || 'gemini-1.5-flash';
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${CONFIG.GEMINI_API_KEY}`;
+        console.log(`🤖 Llamando a Gemini: ${modelName}`);
+        
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                contents: [
+                    {
+                        role: 'user',
+                        parts: [{ text: systemPrompt + '\n\nMensaje del cliente: ' + userMessage }]
+                    }
+                ],
+                generationConfig: {
+                    temperature: 0.7,
+                    maxOutputTokens: 500,
+                }
+            })
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            console.error('❌ Error de Gemini:', response.status, response.statusText);
+            console.error('❌ Detalles:', errorBody);
+            return null;
+        }
+
+        const data = await response.json();
+        
+        if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+            const aiResponse = data.candidates[0].content.parts[0].text;
+            console.log('🤖 Respuesta de Gemini IA');
+            return aiResponse;
+        }
+        
+        return null;
+    } catch (error) {
+        console.error('❌ Error llamando a Gemini:', error.message);
+        return null;
+    }
+}
+
+// Función principal de respuesta (usa Gemini si está configurado)
+async function getSmartResponse(userMessage) {
+    // Intentar con Gemini IA primero
+    if (CONFIG.USE_GEMINI_AI && CONFIG.GEMINI_API_KEY) {
+        const aiResponse = await generateGeminiResponse(userMessage);
+        if (aiResponse) {
+            return aiResponse;
+        }
+    }
+    
+    // Fallback a respuestas predefinidas
+    return generateFlorResponse(userMessage);
+}
+
 // ===== GUARDAR MENSAJES =====
 
 function saveMessage(message) {
@@ -258,14 +375,65 @@ function saveMessage(message) {
     fs.writeFileSync(logFile, JSON.stringify(messages, null, 2));
 }
 
+// ===== ESTADÍSTICAS =====
+let stats = {
+    totalMessages: 0,
+    autoReplies: 0,
+    uniqueContacts: new Set(),
+    startTime: Date.now()
+};
+
+// Cargar estadísticas guardadas
+const statsFile = path.join(__dirname, 'stats.json');
+if (fs.existsSync(statsFile)) {
+    try {
+        const savedStats = JSON.parse(fs.readFileSync(statsFile, 'utf8'));
+        stats.totalMessages = savedStats.totalMessages || 0;
+        stats.autoReplies = savedStats.autoReplies || 0;
+        stats.uniqueContacts = new Set(savedStats.uniqueContacts || []);
+    } catch (e) {
+        console.log('⚠️ No se pudieron cargar estadísticas');
+    }
+}
+
+// Guardar estadísticas periódicamente
+setInterval(() => {
+    const statsData = {
+        totalMessages: stats.totalMessages,
+        autoReplies: stats.autoReplies,
+        uniqueContacts: Array.from(stats.uniqueContacts)
+    };
+    fs.writeFileSync(statsFile, JSON.stringify(statsData, null, 2));
+}, 60000); // Cada minuto
+
 // ===== API ENDPOINTS =====
 
-// Estado del servidor
-app.get('/api/status', (req, res) => {
+// Estado del servidor (compatible con CRM)
+app.get('/api/status', async (req, res) => {
+    let phoneNumber = '-';
+    let userName = '-';
+    
+    if (clientReady) {
+        try {
+            const info = await client.info;
+            if (info) {
+                phoneNumber = info.wid ? info.wid.user : '-';
+                userName = info.pushname || '-';
+            }
+        } catch (e) {
+            console.log('No se pudo obtener info del cliente');
+        }
+    }
+    
     res.json({
+        connected: clientReady,
         whatsapp: clientReady ? 'connected' : 'disconnected',
         flor: CONFIG.FLOR_ENABLED ? 'active' : 'inactive',
-        autoReply: CONFIG.AUTO_REPLY
+        autoReply: CONFIG.AUTO_REPLY,
+        qrCode: qrCodeData ? `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeData)}` : null,
+        phoneNumber: phoneNumber,
+        userName: userName,
+        lastActivity: new Date().toLocaleString('es-AR')
     });
 });
 
@@ -274,10 +442,46 @@ app.get('/api/qr', (req, res) => {
     if (clientReady) {
         res.json({ status: 'connected', qr: null });
     } else if (qrCodeData) {
-        res.json({ status: 'waiting_scan', qr: qrCodeData });
+        res.json({ 
+            status: 'waiting_scan', 
+            qr: qrCodeData,
+            qrImage: `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeData)}`
+        });
     } else {
         res.json({ status: 'initializing', qr: null });
     }
+});
+
+// Desconectar/Logout de WhatsApp
+app.post('/api/logout', async (req, res) => {
+    try {
+        if (clientReady) {
+            await client.logout();
+            clientReady = false;
+            qrCodeData = null;
+            console.log('🔌 WhatsApp desconectado por solicitud del usuario');
+            res.json({ success: true, message: 'WhatsApp desconectado' });
+        } else {
+            res.json({ success: true, message: 'WhatsApp ya estaba desconectado' });
+        }
+    } catch (error) {
+        console.error('Error al desconectar:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Estadísticas de WhatsApp
+app.get('/api/stats', (req, res) => {
+    const uptime = Date.now() - stats.startTime;
+    const avgResponseTime = stats.autoReplies > 0 ? Math.round(uptime / stats.autoReplies / 1000) : 0;
+    
+    res.json({
+        totalMessages: stats.totalMessages,
+        autoReplies: stats.autoReplies,
+        uniqueContacts: stats.uniqueContacts.size,
+        avgResponseTime: avgResponseTime > 0 ? `${avgResponseTime}s` : '-',
+        uptime: Math.round(uptime / 1000 / 60) + ' min'
+    });
 });
 
 // Enviar mensaje
@@ -316,6 +520,66 @@ app.post('/api/toggle-flor', (req, res) => {
     CONFIG.FLOR_ENABLED = !CONFIG.FLOR_ENABLED;
     console.log(`🌸 Futura Flor ${CONFIG.FLOR_ENABLED ? 'activada' : 'desactivada'}`);
     res.json({ florEnabled: CONFIG.FLOR_ENABLED });
+});
+
+// Configurar Gemini IA
+app.post('/api/config/gemini', (req, res) => {
+    const { apiKey, model, enabled } = req.body;
+    
+    if (apiKey !== undefined) CONFIG.GEMINI_API_KEY = apiKey;
+    if (model !== undefined) CONFIG.GEMINI_MODEL = model;
+    if (enabled !== undefined) CONFIG.USE_GEMINI_AI = enabled;
+    
+    // Guardar configuración
+    const configData = {
+        GEMINI_API_KEY: CONFIG.GEMINI_API_KEY,
+        GEMINI_MODEL: CONFIG.GEMINI_MODEL,
+        USE_GEMINI_AI: CONFIG.USE_GEMINI_AI
+    };
+    fs.writeFileSync(configFile, JSON.stringify(configData, null, 2));
+    
+    console.log(`🤖 Gemini IA ${CONFIG.USE_GEMINI_AI ? 'activada' : 'desactivada'} - Modelo: ${CONFIG.GEMINI_MODEL}`);
+    res.json({ 
+        success: true,
+        geminiEnabled: CONFIG.USE_GEMINI_AI,
+        model: CONFIG.GEMINI_MODEL,
+        hasApiKey: !!CONFIG.GEMINI_API_KEY
+    });
+});
+
+// Obtener configuración actual
+app.get('/api/config', (req, res) => {
+    res.json({
+        autoReply: CONFIG.AUTO_REPLY,
+        florEnabled: CONFIG.FLOR_ENABLED,
+        geminiEnabled: CONFIG.USE_GEMINI_AI,
+        geminiModel: CONFIG.GEMINI_MODEL,
+        hasGeminiKey: !!CONFIG.GEMINI_API_KEY,
+        businessHours: CONFIG.BUSINESS_HOURS
+    });
+});
+
+// Actualizar configuración desde CRM
+app.post('/api/config', (req, res) => {
+    const { autoReply, businessHoursOnly, outOfHoursMessage } = req.body;
+    
+    if (autoReply !== undefined) {
+        CONFIG.AUTO_REPLY = autoReply;
+    }
+    if (businessHoursOnly !== undefined) {
+        CONFIG.BUSINESS_HOURS.enabled = businessHoursOnly;
+    }
+    if (outOfHoursMessage !== undefined) {
+        CONFIG.OUT_OF_HOURS_MESSAGE = outOfHoursMessage;
+    }
+    
+    console.log('📱 Configuración actualizada desde CRM:', { autoReply, businessHoursOnly });
+    
+    res.json({
+        success: true,
+        autoReply: CONFIG.AUTO_REPLY,
+        businessHoursEnabled: CONFIG.BUSINESS_HOURS.enabled
+    });
 });
 
 // Obtener conversaciones del día

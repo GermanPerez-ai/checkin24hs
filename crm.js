@@ -1070,6 +1070,11 @@ function showFlorTab(tabId) {
     if (tabId === 'learning') {
         loadLearningData();
     }
+    // Si se muestra la pestaña de WhatsApp, verificar conexión
+    if (tabId === 'whatsapp') {
+        loadWhatsAppConfig();
+        checkWhatsAppConnection();
+    }
     // Ocultar todos los tabs
     document.querySelectorAll('#flor-config-section .tab-content').forEach(tab => {
         tab.classList.remove('active');
@@ -2755,4 +2760,238 @@ function viewInteraction(id) {
         }
     });
 }
+
+// ===== INTEGRACIÓN WHATSAPP =====
+
+// Variable para almacenar el intervalo de verificación de estado
+let whatsappStatusInterval = null;
+
+// Cargar configuración de WhatsApp
+function loadWhatsAppConfig() {
+    console.log('📱 Cargando configuración de WhatsApp...');
+    
+    const config = JSON.parse(localStorage.getItem('whatsappConfig') || '{}');
+    
+    // URL del servidor
+    const serverUrl = document.getElementById('whatsapp-server-url');
+    if (serverUrl) {
+        serverUrl.value = config.serverUrl || 'http://72.61.58.240:3001';
+    }
+    
+    // Respuestas automáticas
+    const autoReply = document.getElementById('whatsapp-auto-reply');
+    if (autoReply) {
+        autoReply.checked = config.autoReply !== false;
+    }
+    
+    // Solo horario laboral
+    const businessHours = document.getElementById('whatsapp-business-hours-only');
+    if (businessHours) {
+        businessHours.checked = config.businessHoursOnly || false;
+    }
+    
+    // Mensaje fuera de horario
+    const outOfHoursMsg = document.getElementById('whatsapp-out-of-hours-message');
+    if (outOfHoursMsg) {
+        outOfHoursMsg.value = config.outOfHoursMessage || 'Gracias por contactarnos. Nuestro horario de atención es de Lunes a Viernes de 9:00 a 18:00. Te responderemos a la brevedad.';
+    }
+    
+    // Cargar estadísticas
+    loadWhatsAppStats();
+}
+
+// Guardar configuración de WhatsApp
+function saveWhatsAppConfig() {
+    const config = {
+        serverUrl: document.getElementById('whatsapp-server-url')?.value || 'http://72.61.58.240:3001',
+        autoReply: document.getElementById('whatsapp-auto-reply')?.checked || false,
+        businessHoursOnly: document.getElementById('whatsapp-business-hours-only')?.checked || false,
+        outOfHoursMessage: document.getElementById('whatsapp-out-of-hours-message')?.value || ''
+    };
+    
+    localStorage.setItem('whatsappConfig', JSON.stringify(config));
+    
+    // También enviar configuración al servidor
+    sendWhatsAppConfigToServer(config);
+    
+    console.log('✅ Configuración de WhatsApp guardada');
+    alert('Configuración de WhatsApp guardada correctamente');
+}
+
+// Enviar configuración al servidor
+async function sendWhatsAppConfigToServer(config) {
+    try {
+        const serverUrl = config.serverUrl || 'http://72.61.58.240:3001';
+        
+        const response = await fetch(`${serverUrl}/api/config`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                autoReply: config.autoReply,
+                businessHoursOnly: config.businessHoursOnly,
+                outOfHoursMessage: config.outOfHoursMessage
+            })
+        });
+        
+        if (response.ok) {
+            console.log('✅ Configuración enviada al servidor de WhatsApp');
+        }
+    } catch (error) {
+        console.error('Error enviando configuración al servidor:', error);
+    }
+}
+
+// Verificar conexión con WhatsApp
+async function checkWhatsAppConnection() {
+    console.log('🔄 Verificando conexión con WhatsApp...');
+    
+    const statusIndicator = document.getElementById('whatsapp-status-indicator');
+    const statusText = document.getElementById('whatsapp-status-text');
+    const statusDetail = document.getElementById('whatsapp-status-detail');
+    const qrSection = document.getElementById('whatsapp-qr-section');
+    const infoSection = document.getElementById('whatsapp-info-section');
+    
+    // Estado inicial: verificando
+    if (statusIndicator) statusIndicator.style.background = '#ffc107';
+    if (statusText) statusText.textContent = 'Verificando conexión...';
+    if (statusDetail) statusDetail.textContent = 'Conectando con el servidor...';
+    
+    const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://72.61.58.240:3001';
+    
+    try {
+        const response = await fetch(`${serverUrl}/api/status`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Servidor no responde');
+        }
+        
+        const data = await response.json();
+        console.log('📱 Estado de WhatsApp:', data);
+        
+        if (data.connected) {
+            // Conectado
+            if (statusIndicator) statusIndicator.style.background = '#4caf50';
+            if (statusText) statusText.textContent = '✅ WhatsApp Conectado';
+            if (statusDetail) statusDetail.textContent = 'Listo para recibir y enviar mensajes';
+            
+            if (qrSection) qrSection.style.display = 'none';
+            if (infoSection) {
+                infoSection.style.display = 'block';
+                document.getElementById('whatsapp-phone-number').textContent = data.phoneNumber || '-';
+                document.getElementById('whatsapp-user-name').textContent = data.userName || '-';
+                document.getElementById('whatsapp-last-activity').textContent = data.lastActivity || 'Ahora';
+            }
+            
+            // Detener verificación periódica de QR
+            if (whatsappStatusInterval) {
+                clearInterval(whatsappStatusInterval);
+                whatsappStatusInterval = null;
+            }
+        } else if (data.qrCode) {
+            // Necesita escanear QR
+            if (statusIndicator) statusIndicator.style.background = '#ff9800';
+            if (statusText) statusText.textContent = '📲 Escanea el código QR';
+            if (statusDetail) statusDetail.textContent = 'Abre WhatsApp en tu teléfono para vincular';
+            
+            if (infoSection) infoSection.style.display = 'none';
+            if (qrSection) {
+                qrSection.style.display = 'block';
+                document.getElementById('whatsapp-qr-code').innerHTML = `<img src="${data.qrCode}" alt="QR Code" style="max-width: 300px;">`;
+            }
+            
+            // Verificar periódicamente hasta que se conecte
+            if (!whatsappStatusInterval) {
+                whatsappStatusInterval = setInterval(checkWhatsAppConnection, 5000);
+            }
+        } else {
+            // Desconectado, esperando QR
+            if (statusIndicator) statusIndicator.style.background = '#ff9800';
+            if (statusText) statusText.textContent = '⏳ Esperando código QR...';
+            if (statusDetail) statusDetail.textContent = 'El servidor está generando el código QR';
+            
+            if (infoSection) infoSection.style.display = 'none';
+            if (qrSection) qrSection.style.display = 'none';
+            
+            // Verificar periódicamente
+            if (!whatsappStatusInterval) {
+                whatsappStatusInterval = setInterval(checkWhatsAppConnection, 3000);
+            }
+        }
+        
+    } catch (error) {
+        console.error('❌ Error conectando con servidor WhatsApp:', error);
+        
+        if (statusIndicator) statusIndicator.style.background = '#f44336';
+        if (statusText) statusText.textContent = '❌ Error de conexión';
+        if (statusDetail) statusDetail.textContent = 'No se puede conectar con el servidor. Verifica la URL y que el servidor esté corriendo.';
+        
+        if (qrSection) qrSection.style.display = 'none';
+        if (infoSection) infoSection.style.display = 'none';
+        
+        // Detener verificación periódica
+        if (whatsappStatusInterval) {
+            clearInterval(whatsappStatusInterval);
+            whatsappStatusInterval = null;
+        }
+    }
+}
+
+// Desconectar WhatsApp
+async function disconnectWhatsApp() {
+    if (!confirm('¿Estás seguro de desconectar WhatsApp? Tendrás que escanear el código QR nuevamente.')) {
+        return;
+    }
+    
+    const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://72.61.58.240:3001';
+    
+    try {
+        const response = await fetch(`${serverUrl}/api/logout`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            alert('WhatsApp desconectado correctamente');
+            checkWhatsAppConnection();
+        } else {
+            alert('Error al desconectar WhatsApp');
+        }
+    } catch (error) {
+        console.error('Error desconectando WhatsApp:', error);
+        alert('Error al desconectar WhatsApp: ' + error.message);
+    }
+}
+
+// Cargar estadísticas de WhatsApp
+async function loadWhatsAppStats() {
+    const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://72.61.58.240:3001';
+    
+    try {
+        const response = await fetch(`${serverUrl}/api/stats`);
+        
+        if (response.ok) {
+            const stats = await response.json();
+            
+            document.getElementById('whatsapp-total-messages').textContent = stats.totalMessages || 0;
+            document.getElementById('whatsapp-auto-replies').textContent = stats.autoReplies || 0;
+            document.getElementById('whatsapp-unique-contacts').textContent = stats.uniqueContacts || 0;
+            document.getElementById('whatsapp-avg-response').textContent = stats.avgResponseTime || '-';
+        }
+    } catch (error) {
+        console.log('No se pudieron cargar estadísticas de WhatsApp');
+    }
+}
+
+// Hacer funciones globales
+window.loadWhatsAppConfig = loadWhatsAppConfig;
+window.saveWhatsAppConfig = saveWhatsAppConfig;
+window.checkWhatsAppConnection = checkWhatsAppConnection;
+window.disconnectWhatsApp = disconnectWhatsApp;
+window.loadWhatsAppStats = loadWhatsAppStats;
 
