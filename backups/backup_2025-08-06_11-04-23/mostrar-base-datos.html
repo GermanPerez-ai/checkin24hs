@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ubicación Base de Datos - Checkin24hs</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            background: rgba(255,255,255,0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+        .info-box {
+            background: rgba(255,255,255,0.2);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .code {
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        .highlight {
+            background: #ffd700;
+            color: #333;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .button {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .button:hover {
+            background: #218838;
+        }
+        .danger {
+            background: #dc3545;
+        }
+        .danger:hover {
+            background: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗄️ Ubicación Base de Datos de Usuarios</h1>
+        
+        <div class="info-box">
+            <h2>📍 ¿Dónde se guarda?</h2>
+            <p>La base de datos de usuarios se guarda en el <span class="highlight">localStorage</span> del navegador.</p>
+            
+            <h3>🔑 Clave de almacenamiento:</h3>
+            <div class="code">'clientesDB'</div>
+            
+            <h3>📁 Ubicación física:</h3>
+            <p>El localStorage se guarda en el navegador del usuario, no en el servidor. Cada navegador tiene su propia ubicación:</p>
+            <ul>
+                <li><strong>Chrome:</strong> <code>%LOCALAPPDATA%\Google\Chrome\User Data\Default\Local Storage</code></li>
+                <li><strong>Firefox:</strong> <code>%APPDATA%\Mozilla\Firefox\Profiles\[profile]\storage\default</code></li>
+                <li><strong>Edge:</strong> <code>%LOCALAPPDATA%\Microsoft\Edge\User Data\Default\Local Storage</code></li>
+            </ul>
+        </div>
+
+        <div class="info-box">
+            <h2>💾 Funciones de guardado</h2>
+            <p>La base de datos se guarda en estas funciones:</p>
+            
+            <h3>1. Al registrar un nuevo usuario:</h3>
+            <div class="code">function registerUser() {
+    // ... validaciones ...
+    clientesDB.push(nuevoCliente);
+    localStorage.setItem('clientesDB', JSON.stringify(clientesDB));
+}</div>
+
+            <h3>2. Al actualizar un cliente:</h3>
+            <div class="code">function actualizarCliente() {
+    // ... actualizaciones ...
+    localStorage.setItem('clientesDB', JSON.stringify(clientesDB));
+}</div>
+
+            <h3>3. Al agregar cotizaciones:</h3>
+            <div class="code">function agregarCotizacionACliente() {
+    // ... agregar cotización ...
+    localStorage.setItem('clientesDB', JSON.stringify(clientesDB));
+}</div>
+        </div>
+
+        <div class="info-box">
+            <h2>📖 Funciones de lectura</h2>
+            <p>La base de datos se carga en estas funciones:</p>
+            
+            <h3>1. Al inicializar la aplicación:</h3>
+            <div class="code">function initClientesDB() {
+    const savedDB = localStorage.getItem('clientesDB');
+    if (savedDB) {
+        clientesDB = JSON.parse(savedDB);
+    } else {
+        clientesDB = [];
+    }
+}</div>
+
+            <h3>2. Al buscar un cliente:</h3>
+            <div class="code">function buscarClientePorEmail(email) {
+    return clientesDB.find(cliente => cliente.email === email);
+}</div>
+        </div>
+
+        <div class="info-box">
+            <h2>🔍 Ver datos actuales</h2>
+            <p>Puedes ver los datos guardados actualmente:</p>
+            <button class="button" onclick="mostrarDatos()">📊 Ver Base de Datos</button>
+            <button class="button danger" onclick="limpiarDatos()">🗑️ Limpiar Base de Datos</button>
+            <button class="button" onclick="exportarDatos()">📤 Exportar Datos</button>
+        </div>
+
+        <div id="datosContainer" class="info-box" style="display: none;">
+            <h3>📋 Datos actuales:</h3>
+            <div id="datosMostrados" class="code"></div>
+        </div>
+
+        <div class="info-box">
+            <h2>⚠️ Importante</h2>
+            <ul>
+                <li>Los datos se guardan <strong>localmente</strong> en el navegador</li>
+                <li>Si cambias de navegador, los datos no se transfieren</li>
+                <li>Si borras los datos del navegador, se pierden los usuarios</li>
+                <li>El localStorage tiene un límite de ~5-10MB</li>
+                <li>Los datos son <strong>persistentes</strong> hasta que se borren manualmente</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function mostrarDatos() {
+            const clientesDB = JSON.parse(localStorage.getItem('clientesDB') || '[]');
+            const container = document.getElementById('datosContainer');
+            const datosDiv = document.getElementById('datosMostrados');
+            
+            if (clientesDB.length === 0) {
+                datosDiv.innerHTML = '❌ No hay usuarios registrados';
+            } else {
+                let html = `<strong>Total usuarios: ${clientesDB.length}</strong>\n\n`;
+                clientesDB.forEach((cliente, index) => {
+                    html += `<strong>Usuario ${index + 1}:</strong>\n`;
+                    html += `  ID: ${cliente.id}\n`;
+                    html += `  Nombre: ${cliente.name}\n`;
+                    html += `  Email: ${cliente.email}\n`;
+                    html += `  Teléfono: ${cliente.phone}\n`;
+                    html += `  Fecha registro: ${cliente.fechaRegistro}\n`;
+                    html += `  Cotizaciones: ${cliente.cotizaciones ? cliente.cotizaciones.length : 0}\n`;
+                    html += `  Status: ${cliente.status}\n\n`;
+                });
+                datosDiv.innerHTML = html.replace(/\n/g, '<br>');
+            }
+            
+            container.style.display = 'block';
+        }
+
+        function limpiarDatos() {
+            if (confirm('¿Estás seguro de que quieres eliminar TODA la base de datos de usuarios? Esta acción no se puede deshacer.')) {
+                localStorage.removeItem('clientesDB');
+                localStorage.removeItem('currentUser');
+                alert('✅ Base de datos eliminada correctamente');
+                mostrarDatos();
+            }
+        }
+
+        function exportarDatos() {
+            const clientesDB = localStorage.getItem('clientesDB');
+            if (!clientesDB) {
+                alert('❌ No hay datos para exportar');
+                return;
+            }
+
+            const blob = new Blob([clientesDB], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'checkin24hs-usuarios.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            alert('✅ Datos exportados como checkin24hs-usuarios.json');
+        }
+    </script>
+</body>
+</html> 

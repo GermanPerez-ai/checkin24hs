@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Save Functionality - Checkin24hs</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        .form-input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .form-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .form-button:hover {
+            background: #0056b3;
+        }
+        .form-button.secondary {
+            background: #6c757d;
+        }
+        .form-button.secondary:hover {
+            background: #545b62;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .console {
+            background: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        .hotel-display {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
+        .hotel-display pre {
+            margin: 0;
+            white-space: pre-wrap;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Save Functionality - Checkin24hs</h1>
+    
+    <div class="status info">
+        🔍 Esta página prueba que la función de guardado funciona correctamente
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Formulario de Prueba</h2>
+        <form id="testForm">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <!-- Columna Izquierda -->
+                <div>
+                    <div class="form-group">
+                        <label class="form-label">Nombre del Hotel *</label>
+                        <input type="text" class="form-input" id="testHotelName" value="Hotel Huilo-Huilo" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Ubicación *</label>
+                        <input type="text" class="form-input" id="testHotelLocation" value="Panguipulli, Chile" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Calificación (1-5)</label>
+                        <input type="number" class="form-input" id="testHotelRating" value="4.6" min="1" max="5" step="0.1">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Rango de Precio</label>
+                        <input type="text" class="form-input" id="testHotelPrice" value="$200-$450">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Categoría de Precio</label>
+                        <select class="form-input" id="testHotelPriceRange">
+                            <option value="low">Bajo</option>
+                            <option value="medium">Medio</option>
+                            <option value="high" selected>Alto</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Estado</label>
+                        <select class="form-input" id="testHotelStatus">
+                            <option value="Activo" selected>Activo</option>
+                            <option value="Inactivo">Inactivo</option>
+                            <option value="Mantenimiento">Mantenimiento</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Columna Derecha -->
+                <div>
+                    <div class="form-group">
+                        <label class="form-label">Imagen Principal *</label>
+                        <input type="text" class="form-input" id="testHotelImage" value="hotel-images/hotel-2-huilo-huilo/main.jpg" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Descripción</label>
+                        <textarea class="form-input" id="testHotelDescription" rows="4">Resort de montaña con acceso directo al bosque nativo y piscina natural. Perfecto para unas vacaciones en la Patagonia.</textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Amenities (separadas por comas)</label>
+                        <input type="text" class="form-input" id="testHotelAmenities" value="Spa, Restaurante, WiFi, Parking">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Galería de Fotos</label>
+                        <textarea class="form-input" id="testHotelPhotos" rows="3">hotel-images/hotel-2-huilo-huilo/photo-1.jpg, hotel-images/hotel-2-huilo-huilo/photo-2.jpg, hotel-images/hotel-2-huilo-huilo/gallery-1.jpg</textarea>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="margin-top: 20px; display: flex; gap: 12px; justify-content: flex-end;">
+                <button type="button" class="form-button secondary" onclick="clearForm()">Limpiar</button>
+                <button type="button" class="form-button" onclick="testSaveFunction()">Probar Guardado</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 Resultado del Test</h2>
+        <div id="testResult"></div>
+        <div class="hotel-display" id="hotelDisplay" style="display: none;">
+            <h4>Hotel Guardado:</h4>
+            <pre id="hotelData"></pre>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🔧 Acciones de Prueba</h2>
+        <button class="form-button" onclick="testGetHotelSlug()">Probar getHotelSlug</button>
+        <button class="form-button" onclick="testValidation()">Probar Validaciones</button>
+        <button class="form-button" onclick="testLocalStorage()">Probar localStorage</button>
+        <button class="form-button" onclick="openDashboard()">Abrir Dashboard</button>
+    </div>
+
+    <div class="test-section">
+        <h2>📝 Console Log</h2>
+        <div class="console" id="consoleLog"></div>
+    </div>
+
+    <script>
+        // Función para obtener el slug del hotel (copiada del dashboard)
+        function getHotelSlug(name) {
+            // Remover la palabra "Hotel" del inicio si existe
+            let cleanName = name.replace(/^hotel\s+/i, '');
+            
+            return cleanName.toLowerCase()
+                .replace(/[^a-z0-9\s-]/g, '')
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-')
+                .trim();
+        }
+
+        // Función para log en la consola
+        function log(message) {
+            const consoleDiv = document.getElementById('consoleLog');
+            const timestamp = new Date().toLocaleTimeString();
+            consoleDiv.innerHTML += `[${timestamp}] ${message}\n`;
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+            console.log(message);
+        }
+
+        // Función para probar el guardado
+        function testSaveFunction() {
+            log('🔄 Iniciando prueba de guardado...');
+            
+            try {
+                // Obtener valores del formulario
+                const name = document.getElementById('testHotelName').value.trim();
+                const location = document.getElementById('testHotelLocation').value.trim();
+                const rating = parseFloat(document.getElementById('testHotelRating').value);
+                const price = document.getElementById('testHotelPrice').value.trim();
+                const priceRange = document.getElementById('testHotelPriceRange').value;
+                const status = document.getElementById('testHotelStatus').value;
+                const image = document.getElementById('testHotelImage').value.trim();
+                const description = document.getElementById('testHotelDescription').value.trim();
+                const amenitiesText = document.getElementById('testHotelAmenities').value.trim();
+                const photosText = document.getElementById('testHotelPhotos').value.trim();
+                
+                log('📝 Datos del formulario obtenidos correctamente');
+                
+                // Validaciones
+                if (!name || !location || !image) {
+                    throw new Error('Campos obligatorios faltantes: ' + JSON.stringify({ name, location, image }));
+                }
+                
+                if (image && !image.startsWith('http') && !image.startsWith('hotel-images/')) {
+                    throw new Error('Ruta de imagen inválida: ' + image);
+                }
+                
+                if (rating < 1 || rating > 5) {
+                    throw new Error('Calificación inválida: ' + rating);
+                }
+                
+                // Crear objeto hotel
+                const hotel = {
+                    id: "2",
+                    name: name,
+                    location: location,
+                    rating: rating,
+                    price: price,
+                    priceRange: priceRange,
+                    status: status,
+                    image: image,
+                    description: description,
+                    amenities: amenitiesText ? amenitiesText.split(',').map(a => a.trim()) : [],
+                    photos: photosText ? photosText.split(',').map(p => p.trim()) : []
+                };
+                
+                log('✅ Hotel creado correctamente');
+                
+                // Guardar en localStorage
+                localStorage.setItem('test_hotel_2', JSON.stringify(hotel));
+                log('💾 Hotel guardado en localStorage');
+                
+                // Mostrar resultado
+                const resultDiv = document.getElementById('testResult');
+                resultDiv.innerHTML = `
+                    <div class="status success">
+                        ✅ Test completado exitosamente
+                    </div>
+                `;
+                
+                // Mostrar datos del hotel
+                const hotelDisplay = document.getElementById('hotelDisplay');
+                const hotelData = document.getElementById('hotelData');
+                hotelData.textContent = JSON.stringify(hotel, null, 2);
+                hotelDisplay.style.display = 'block';
+                
+                log('🎉 Test de guardado completado exitosamente');
+                
+            } catch (error) {
+                log('❌ Error en test de guardado: ' + error.message);
+                
+                const resultDiv = document.getElementById('testResult');
+                resultDiv.innerHTML = `
+                    <div class="status error">
+                        ❌ Error: ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // Función para probar getHotelSlug
+        function testGetHotelSlug() {
+            log('🔄 Probando getHotelSlug...');
+            
+            const testNames = [
+                'Hotel Huilo-Huilo',
+                'Hotel Terma de Puyehue',
+                'Hotel Corralco Resort',
+                'Termas de Aguas Calientes'
+            ];
+            
+            testNames.forEach(name => {
+                const slug = getHotelSlug(name);
+                log(`"${name}" → "${slug}"`);
+            });
+        }
+
+        // Función para probar validaciones
+        function testValidation() {
+            log('🔄 Probando validaciones...');
+            
+            // Test 1: Campos vacíos
+            const emptyName = '';
+            const emptyLocation = '';
+            const emptyImage = '';
+            
+            if (!emptyName || !emptyLocation || !emptyImage) {
+                log('❌ Validación de campos vacíos: FALLÓ');
+            } else {
+                log('✅ Validación de campos vacíos: PASÓ');
+            }
+            
+            // Test 2: Ruta de imagen inválida
+            const invalidImage = 'invalid/path/image.jpg';
+            if (invalidImage && !invalidImage.startsWith('http') && !invalidImage.startsWith('hotel-images/')) {
+                log('✅ Validación de ruta de imagen inválida: PASÓ');
+            } else {
+                log('❌ Validación de ruta de imagen inválida: FALLÓ');
+            }
+            
+            // Test 3: Calificación inválida
+            const invalidRating = 6;
+            if (invalidRating < 1 || invalidRating > 5) {
+                log('✅ Validación de calificación inválida: PASÓ');
+            } else {
+                log('❌ Validación de calificación inválida: FALLÓ');
+            }
+        }
+
+        // Función para probar localStorage
+        function testLocalStorage() {
+            log('🔄 Probando localStorage...');
+            
+            try {
+                // Test de escritura
+                localStorage.setItem('test_key', 'test_value');
+                log('✅ Escritura en localStorage: PASÓ');
+                
+                // Test de lectura
+                const value = localStorage.getItem('test_key');
+                if (value === 'test_value') {
+                    log('✅ Lectura de localStorage: PASÓ');
+                } else {
+                    log('❌ Lectura de localStorage: FALLÓ');
+                }
+                
+                // Test de eliminación
+                localStorage.removeItem('test_key');
+                const deletedValue = localStorage.getItem('test_key');
+                if (deletedValue === null) {
+                    log('✅ Eliminación de localStorage: PASÓ');
+                } else {
+                    log('❌ Eliminación de localStorage: FALLÓ');
+                }
+                
+            } catch (error) {
+                log('❌ Error en localStorage: ' + error.message);
+            }
+        }
+
+        // Función para abrir dashboard
+        function openDashboard() {
+            window.open('dashboard.html', '_blank');
+            log('🔗 Abriendo dashboard en nueva pestaña');
+        }
+
+        // Función para limpiar formulario
+        function clearForm() {
+            document.getElementById('testForm').reset();
+            log('🧹 Formulario limpiado');
+        }
+
+        // Inicializar página
+        document.addEventListener('DOMContentLoaded', function() {
+            log('🚀 Página de prueba iniciada');
+            testGetHotelSlug();
+            testValidation();
+            testLocalStorage();
+        });
+    </script>
+</body>
+</html> 

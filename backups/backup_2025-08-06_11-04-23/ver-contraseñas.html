@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ver Contraseñas - Checkin24hs</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            background: rgba(255,255,255,0.1);
+            padding: 30px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+        .warning {
+            background: rgba(255, 193, 7, 0.3);
+            border: 2px solid #ffc107;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .user-card {
+            background: rgba(255,255,255,0.2);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 15px 0;
+        }
+        .password {
+            background: #28a745;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-weight: bold;
+        }
+        .button {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        .button:hover {
+            background: #c82333;
+        }
+        .info {
+            background: rgba(40, 167, 69, 0.3);
+            border: 2px solid #28a745;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Ver Contraseñas de Usuarios</h1>
+        
+        <div class="warning">
+            <h3>⚠️ ADVERTENCIA DE SEGURIDAD</h3>
+            <p>Este archivo es solo para desarrollo y administración. Las contraseñas se almacenan en texto plano en localStorage por simplicidad.</p>
+            <p><strong>En producción, las contraseñas deberían estar hasheadas.</strong></p>
+        </div>
+
+        <div class="info">
+            <h3>📋 Instrucciones:</h3>
+            <ol>
+                <li>Haz clic en "Mostrar Usuarios" para ver todos los usuarios registrados</li>
+                <li>Las contraseñas aparecerán en verde</li>
+                <li>Este archivo es temporal y solo para desarrollo</li>
+            </ol>
+        </div>
+
+        <button class="button" onclick="mostrarUsuarios()">👥 Mostrar Usuarios</button>
+        <button class="button" onclick="limpiarDatos()">🗑️ Limpiar Datos</button>
+        <button class="button" onclick="exportarUsuarios()">📤 Exportar Usuarios</button>
+
+        <div id="usuariosContainer"></div>
+    </div>
+
+    <script>
+        function mostrarUsuarios() {
+            const clientesDB = JSON.parse(localStorage.getItem('clientesDB') || '[]');
+            const container = document.getElementById('usuariosContainer');
+            
+            if (clientesDB.length === 0) {
+                container.innerHTML = '<div class="user-card"><h3>❌ No hay usuarios registrados</h3></div>';
+                return;
+            }
+
+            let html = `<h2>👥 Usuarios Registrados (${clientesDB.length})</h2>`;
+            
+            clientesDB.forEach((cliente, index) => {
+                html += `
+                    <div class="user-card">
+                        <h3>👤 Usuario ${index + 1}</h3>
+                        <p><strong>ID:</strong> ${cliente.id}</p>
+                        <p><strong>Nombre:</strong> ${cliente.name}</p>
+                        <p><strong>Email:</strong> ${cliente.email}</p>
+                        <p><strong>Teléfono:</strong> ${cliente.phone}</p>
+                        <p><strong>Fecha de nacimiento:</strong> ${cliente.birthDay}/${cliente.birthMonth}</p>
+                        <p><strong>Fecha registro:</strong> ${new Date(cliente.fechaRegistro).toLocaleString()}</p>
+                        <p><strong>Última actividad:</strong> ${new Date(cliente.ultimaActividad).toLocaleString()}</p>
+                        <p><strong>Status:</strong> ${cliente.status}</p>
+                        <p><strong>Tipo cuenta:</strong> ${cliente.tipoCuenta}</p>
+                        <p><strong>Cotizaciones:</strong> ${cliente.cotizaciones ? cliente.cotizaciones.length : 0}</p>
+                        <p><strong>🔑 Contraseña:</strong> <span class="password">${cliente.password}</span></p>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
+        function limpiarDatos() {
+            if (confirm('¿Estás seguro de que quieres eliminar TODA la base de datos de usuarios? Esta acción no se puede deshacer.')) {
+                localStorage.removeItem('clientesDB');
+                localStorage.removeItem('currentUser');
+                alert('✅ Base de datos eliminada correctamente');
+                mostrarUsuarios();
+            }
+        }
+
+        function exportarUsuarios() {
+            const clientesDB = localStorage.getItem('clientesDB');
+            if (!clientesDB) {
+                alert('❌ No hay usuarios para exportar');
+                return;
+            }
+
+            const blob = new Blob([clientesDB], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'checkin24hs-usuarios-con-contraseñas.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            alert('✅ Usuarios exportados con contraseñas');
+        }
+
+        // Mostrar usuarios al cargar la página
+        window.onload = function() {
+            mostrarUsuarios();
+        };
+    </script>
+</body>
+</html> 

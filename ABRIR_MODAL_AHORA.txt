@@ -1,0 +1,59 @@
+===========================================
+INSTRUCCIONES PARA ABRIR EL MODAL AHORA
+===========================================
+
+PASO 1: Abre la Consola del Navegador
+--------------------------------------
+Presiona la tecla F12 en tu teclado
+
+
+PASO 2: Encuentra el Área de Texto
+-----------------------------------
+Verás una ventana en la parte inferior o derecha.
+Busca un área donde puedas escribir texto (generalmente tiene un símbolo ">" o "Console")
+
+
+PASO 3: Copia y Pega Este Código
+---------------------------------
+Copia TODO este texto (desde "const modal" hasta el final):
+
+const modal = document.getElementById('imageManagerModal');
+if (modal) {
+    modal.style.display = 'block';
+    modal.style.zIndex = '10000';
+    console.log('✅ Modal abierto');
+    alert('Modal abierto! Deberías verlo en pantalla.');
+} else {
+    console.error('❌ Modal no existe');
+    alert('Error: Modal no encontrado');
+}
+
+
+PASO 4: Presiona Enter
+----------------------
+Después de pegar el código, presiona la tecla Enter
+
+
+PASO 5: Verifica
+----------------
+- Si ves un mensaje "✅ Modal abierto" y una alerta, entonces el modal existe y se abrió
+- Si ves el modal en pantalla, ¡funciona!
+- Si ves "❌ Modal no existe", entonces hay un problema con el HTML
+
+
+===========================================
+ALTERNATIVA MÁS SIMPLE
+===========================================
+
+Si no puedes usar la consola, también puedes:
+
+1. Presionar F12
+2. Ir a la pestaña "Elements" o "Elementos"
+3. Presionar Ctrl+F (buscar)
+4. Buscar: imageManagerModal
+5. Si lo encuentras, haz click derecho → "Edit as HTML"
+6. Busca: style="display: none"
+7. Cámbialo por: style="display: block"
+
+Pero es más fácil usar la consola con el código de arriba.
+

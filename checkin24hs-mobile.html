@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔔 Checkin24hs - Call Center 24hs</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        /* Estilos para la pantalla de bienvenida */
+        .welcome-screen {
+            min-height: 100vh;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .welcome-background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            opacity: 0.5;
+            animation: slowZoom 30s ease-in-out infinite alternate;
+        }
+
+        @keyframes slowZoom {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.2); }
+        }
+
+        .welcome-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.6) 0%, rgba(118, 75, 162, 0.6) 50%, rgba(255, 107, 107, 0.5) 100%);
+        }
+
+        .welcome-content {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            color: white;
+            max-width: 800px;
+            padding: 40px 20px;
+            animation: fadeInUp 1s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .welcome-logo {
+            margin-bottom: 30px;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .welcome-logo-svg {
+            width: 120px;
+            height: 120px;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+        }
+
+        .welcome-title {
+            font-size: 3.5rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            animation: slideInUp 1.2s ease-out 0.3s both;
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .welcome-subtitle {
+            font-size: 1.5rem;
+            margin-bottom: 25px;
+            opacity: 0.9;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            animation: slideInUp 1.2s ease-out 0.5s both;
+        }
+
+        .welcome-description {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 40px;
+            opacity: 0.8;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            animation: slideInUp 1.2s ease-out 0.7s both;
+        }
+
+        .welcome-features {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+            animation: slideInUp 1.2s ease-out 0.9s both;
+        }
+
+        .welcome-feature {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 25px;
+            padding: 15px 25px;
+            transition: all 0.3s ease;
+            min-width: 180px;
+        }
+
+        .welcome-feature:hover {
+            transform: translateY(-5px);
+            background: rgba(255,255,255,0.2);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+        }
+
+        .welcome-feature .material-icons {
+            font-size: 24px;
+            color: #FFD700;
+        }
+
+        .welcome-feature span:last-child {
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        .welcome-buttons {
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+            animation: slideInUp 1.2s ease-out 1.1s both;
+        }
+
+        .welcome-btn {
+            padding: 15px 30px;
+            border-radius: 30px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border: none;
+            min-width: 200px;
+            justify-content: center;
+        }
+
+        .welcome-btn.primary {
+            background: white;
+            color: #667eea;
+            box-shadow: 0 4px 15px rgba(255,255,255,0.3);
+        }
+
+        .welcome-btn.primary:hover {
+            background: rgba(255,255,255,0.9);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255,255,255,0.4);
+        }
+
+        .welcome-btn.secondary {
+            background: transparent;
+            color: white;
+            border: 2px solid white;
+        }
+
+        .welcome-btn.secondary:hover {
+            background: rgba(255,255,255,0.1);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255,255,255,0.2);
+        }
+
+        .welcome-btn .material-icons {
+            font-size: 20px;
+        }
+
+        /* Responsive para móviles */
+        @media (max-width: 768px) {
+            .welcome-title {
+                font-size: 2.5rem;
+            }
+            
+            .welcome-subtitle {
+                font-size: 1.2rem;
+            }
+            
+            .welcome-description {
+                font-size: 1rem;
+            }
+            
+            .welcome-features {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .welcome-feature {
+                min-width: 200px;
+            }
+            
+            .welcome-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .welcome-btn {
+                width: 100%;
+                max-width: 300px;
+            }
+        }
+
+        /* Estilos para la aplicación principal */
+        .app {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100vh;
+            display: none;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1976d2, #42a5f5);
+            color: white;
+            padding: 25px 20px;
+            text-align: left;
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            font-size: 1rem;
+            opacity: 0.9;
+            margin-left: 115px;
+        }
+
+        .content {
+            padding: 20px;
+        }
+
+        .hotels-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .hotel-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            cursor: pointer;
+        }
+
+        .hotel-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        .hotel-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .hotel-info {
+            padding: 20px;
+        }
+
+        .hotel-name {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #1976d2;
+        }
+
+        .hotel-location {
+            color: #666;
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+        }
+
+        .hotel-rating {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .stars {
+            color: #ffc107;
+            margin-right: 8px;
+        }
+
+        .navigation {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 16px;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: background 0.2s ease;
+        }
+
+        .nav-item:hover {
+            background: #f5f5f5;
+        }
+
+        .nav-item.active {
+            color: #1976d2;
+        }
+
+        .nav-icon {
+            font-size: 24px;
+            margin-bottom: 4px;
+        }
+
+        .nav-label {
+            font-size: 0.8rem;
+        }
+
+        .main-content {
+            padding-bottom: 80px;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .hotels-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .content {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Pantalla de Bienvenida -->
+    <div id="welcomeScreen" class="welcome-screen">
+        <div class="welcome-background">
+            <div class="welcome-overlay"></div>
+        </div>
+        
+        <div class="welcome-content">
+            <div class="welcome-logo">
+                <svg class="welcome-logo-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="welcomeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#556B2F;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#6B8E23;stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                    
+                    <!-- Círculo exterior con doble borde -->
+                    <circle cx="100" cy="100" r="95" fill="white" stroke="#556B2F" stroke-width="3"/>
+                    <circle cx="100" cy="100" r="90" fill="white" stroke="#556B2F" stroke-width="1"/>
+                    
+                    <!-- Timbre de servicio -->
+                    <g transform="translate(100, 70)">
+                        <!-- Cuerpo del timbre -->
+                        <ellipse cx="0" cy="0" rx="12" ry="15" fill="#556B2F"/>
+                        
+                        <!-- Interior del timbre -->
+                        <ellipse cx="0" cy="0" rx="8" ry="11" fill="white" opacity="0.9"/>
+                        
+                        <!-- Badajo del timbre -->
+                        <circle cx="0" cy="5" r="2" fill="#556B2F"/>
+                        <rect x="-0.5" y="5" width="1" height="6" fill="#556B2F"/>
+                        <circle cx="0" cy="11" r="1.5" fill="#556B2F"/>
+                        
+                        <!-- Soporte del timbre -->
+                        <rect x="-2" y="-8" width="4" height="6" fill="#556B2F"/>
+                        <rect x="-3" y="-10" width="6" height="3" rx="1.5" fill="#556B2F"/>
+                        
+                        <!-- Ondas de sonido -->
+                        <path d="M -15,0 Q -20,-5 -25,0 Q -20,5 -15,0" fill="none" stroke="#556B2F" stroke-width="1.5"/>
+                        <path d="M 15,0 Q 20,-5 25,0 Q 20,5 15,0" fill="none" stroke="#556B2F" stroke-width="1.5"/>
+                    </g>
+                    
+                    <!-- Texto "CHECKIN" -->
+                    <text x="100" y="115" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="#556B2F">
+                        CHECKIN
+                    </text>
+                    
+                    <!-- Texto "CALL CENTER 24hs" -->
+                    <text x="100" y="135" font-family="Arial, sans-serif" font-size="12" font-weight="normal" text-anchor="middle" fill="#556B2F">
+                        CALL CENTER 24hs
+                    </text>
+                    
+                    <!-- Línea bajo "CALL CENTER" -->
+                    <line x1="70" y1="140" x2="130" y2="140" stroke="#556B2F" stroke-width="1"/>
+                </svg>
+            </div>
+            
+            <h1 class="welcome-title">Checkin24hs</h1>
+            <h2 class="welcome-subtitle">Estás a un check-in de tu próxima aventura</h2>
+            
+            <p class="welcome-description">
+                Explora los destinos más impresionantes de Chile. Desde las cumbres 
+                nevadas de los Andes hasta las playas del Pacífico, encuentra tu 
+                próximo hogar temporal en los mejores hoteles del país.
+            </p>
+            
+            <div class="welcome-features">
+                <div class="welcome-feature">
+                    <span class="material-icons">star</span>
+                    <span>Experiencias Únicas</span>
+                </div>
+                <div class="welcome-feature">
+                    <span class="material-icons">location_on</span>
+                    <span>Destinos Exclusivos</span>
+                </div>
+                <div class="welcome-feature">
+                    <span class="material-icons">hotel</span>
+                    <span>Reservas Garantizadas</span>
+                </div>
+            </div>
+            
+            <div class="welcome-buttons">
+                <button class="welcome-btn primary" onclick="showMainApp()">
+                    <span class="material-icons">arrow_forward</span>
+                    Comenzar Aventura
+                </button>
+                <button class="welcome-btn secondary" onclick="showMainApp()">
+                    Explorar Destinos
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Aplicación principal -->
+    <div id="mainApp" class="app">
+        <div class="header">
+            <h1>Checkin24hs</h1>
+            <p>Tu centro de reservas 24/7</p>
+        </div>
+
+        <div class="main-content">
+            <div class="content">
+                <h2 style="text-align: center; margin-bottom: 30px; color: #1976d2;">Hoteles Destacados</h2>
+                <div class="hotels-grid" id="hotelsGrid">
+                    <!-- Los hoteles se cargarán dinámicamente -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Navegación inferior -->
+        <div class="navigation">
+            <div class="nav-item active">
+                <span class="material-icons nav-icon">home</span>
+                <span class="nav-label">Inicio</span>
+            </div>
+            <div class="nav-item">
+                <span class="material-icons nav-icon">search</span>
+                <span class="nav-label">Buscar</span>
+            </div>
+            <div class="nav-item">
+                <span class="material-icons nav-icon">person</span>
+                <span class="nav-label">Perfil</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Datos de hoteles
+        const hotels = [
+            {
+                id: "1",
+                name: "Hotel Terma de Puyehue",
+                location: "Puyehue, Chile",
+                image: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400",
+                rating: 4.8,
+                price: "$150-$300"
+            },
+            {
+                id: "2",
+                name: "Hotel Huilo-Huilo",
+                location: "Panguipulli, Chile",
+                image: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=400",
+                rating: 4.6,
+                price: "$200-$450"
+            },
+            {
+                id: "3",
+                name: "Hotel Corralco Resort",
+                location: "Lonquimay, Chile",
+                image: "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=400",
+                rating: 4.7,
+                price: "$120-$250"
+            },
+            {
+                id: "4",
+                name: "Hotel Futangue",
+                location: "Lago Ranco, Chile",
+                image: "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=400",
+                rating: 4.5,
+                price: "$180-$320"
+            },
+            {
+                id: "5",
+                name: "Termas de Aguas Calientes",
+                location: "San José de Maipo, Chile",
+                image: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=400",
+                rating: 4.9,
+                price: "$250-$500"
+            }
+        ];
+
+        // Función para mostrar estrellas
+        function getStars(rating) {
+            let stars = '';
+            for (let i = 1; i <= 5; i++) {
+                if (i <= rating) {
+                    stars += '<span class="material-icons" style="color: #ffc107;">star</span>';
+                } else if (i - 0.5 <= rating) {
+                    stars += '<span class="material-icons" style="color: #ffc107;">star_half</span>';
+                } else {
+                    stars += '<span class="material-icons" style="color: #e0e0e0;">star</span>';
+                }
+            }
+            return stars;
+        }
+
+        // Función para renderizar hoteles
+        function renderHotels() {
+            const grid = document.getElementById('hotelsGrid');
+            grid.innerHTML = '';
+
+            hotels.forEach(hotel => {
+                const card = document.createElement('div');
+                card.className = 'hotel-card';
+                
+                card.innerHTML = `
+                    <img src="${hotel.image}" alt="${hotel.name}" class="hotel-image">
+                    <div class="hotel-info">
+                        <div class="hotel-name">${hotel.name}</div>
+                        <div class="hotel-location">${hotel.location}</div>
+                        <div class="hotel-rating">
+                            <div class="stars">${getStars(hotel.rating)}</div>
+                            <span>${hotel.rating}</span>
+                        </div>
+                        <div style="color: #1976d2; font-weight: bold; margin-top: 8px;">
+                            ${hotel.price}
+                        </div>
+                    </div>
+                `;
+                
+                grid.appendChild(card);
+            });
+        }
+
+        // Función para mostrar la aplicación principal
+        function showMainApp() {
+            document.getElementById('welcomeScreen').style.display = 'none';
+            document.getElementById('mainApp').style.display = 'block';
+            renderHotels();
+        }
+
+        // Inicializar cuando se carga la página
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 Checkin24hs Mobile iniciado');
+        });
+    </script>
+</body>
+</html> 

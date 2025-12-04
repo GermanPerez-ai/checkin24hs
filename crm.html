@@ -1131,12 +1131,43 @@
         </div>
     </div>
 
-    <!-- Scripts -->
+    <!-- Supabase Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Supabase Configuration -->
+    <script src="supabase-config.js"></script>
+    <!-- Supabase Client -->
+    <script src="supabase-client.js"></script>
+    
+    <!-- Flor AI Scripts -->
     <script src="flor-knowledge-base.js"></script>
     <script src="flor-ai-service.js"></script>
     <script src="flor-learning-system.js"></script>
     <script src="flor-agent.js"></script>
+    
+    <!-- CRM Main Script -->
     <script src="crm.js"></script>
+    
+    <!-- Verificar conexión con Supabase al cargar -->
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            setTimeout(async () => {
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    try {
+                        const testResult = await window.supabaseClient.testConnection();
+                        if (testResult.success) {
+                            console.log('✅ CRM conectado a Supabase correctamente');
+                        } else {
+                            console.warn('⚠️ No se pudo conectar con Supabase:', testResult.error);
+                        }
+                    } catch (error) {
+                        console.warn('⚠️ Error verificando conexión con Supabase:', error);
+                    }
+                } else {
+                    console.warn('⚠️ Supabase no está configurado. Los datos se guardarán solo en localStorage.');
+                }
+            }, 1000);
+        });
+    </script>
 </body>
 </html>
 

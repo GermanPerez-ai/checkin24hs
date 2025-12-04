@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test de Imágenes - Checkin24hs</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .hotel-section {
+            background: white;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .hotel-title {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .image-item {
+            text-align: center;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        .image-item img {
+            max-width: 100%;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 5px;
+            margin-bottom: 8px;
+        }
+        .image-name {
+            font-size: 12px;
+            color: #666;
+            word-break: break-all;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test de Previsualización de Imágenes</h1>
+    <p>Esta página prueba que las imágenes se pueden cargar y previsualizar correctamente.</p>
+
+    <div class="status success">
+        ✅ Las imágenes HTML con extensión .jpg incorrecta han sido eliminadas
+    </div>
+
+    <div class="hotel-section">
+        <h2 class="hotel-title">🏨 Hotel Huilo-Huilo</h2>
+        <div class="image-grid">
+            <div class="image-item">
+                <img src="hotel-images/hotel-2-huilo-huilo/main.jpg" alt="Imagen principal" onerror="this.style.display='none'; this.nextElementSibling.innerHTML='❌ Error cargando imagen'; this.nextElementSibling.style.color='red';">
+                <div class="image-name">main.jpg</div>
+            </div>
+            <div class="image-item">
+                <img src="hotel-images/hotel-2-huilo-huilo/photo-1.jpg" alt="Foto 1" onerror="this.style.display='none'; this.nextElementSibling.innerHTML='❌ Error cargando imagen'; this.nextElementSibling.style.color='red';">
+                <div class="image-name">photo-1.jpg</div>
+            </div>
+            <div class="image-item">
+                <img src="hotel-images/hotel-2-huilo-huilo/photo-2.jpg" alt="Foto 2" onerror="this.style.display='none'; this.nextElementSibling.innerHTML='❌ Error cargando imagen'; this.nextElementSibling.style.color='red';">
+                <div class="image-name">photo-2.jpg</div>
+            </div>
+            <div class="image-item">
+                <img src="hotel-images/hotel-2-huilo-huilo/gallery-1.jpg" alt="Galería 1" onerror="this.style.display='none'; this.nextElementSibling.innerHTML='❌ Error cargando imagen'; this.nextElementSibling.style.color='red';">
+                <div class="image-name">gallery-1.jpg</div>
+            </div>
+            <div class="image-item">
+                <img src="hotel-images/hotel-2-huilo-huilo/gallery-2.jpg" alt="Galería 2" onerror="this.style.display='none'; this.nextElementSibling.innerHTML='❌ Error cargando imagen'; this.nextElementSibling.style.color='red';">
+                <div class="image-name">gallery-2.jpg</div>
+            </div>
+            <div class="image-item">
+                <img src="hotel-images/hotel-2-huilo-huilo/gallery-3.jpg" alt="Galería 3" onerror="this.style.display='none'; this.nextElementSibling.innerHTML='❌ Error cargando imagen'; this.nextElementSibling.style.color='red';">
+                <div class="image-name">gallery-3.jpg</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="hotel-section">
+        <h2 class="hotel-title">🏨 Hotel Terma de Puyehue</h2>
+        <div class="image-grid">
+            <div class="image-item">
+                <img src="hotel-images/hotel-1-puyehue/main.jpg" alt="Imagen principal" onerror="this.style.display='none'; this.nextElementSibling.innerHTML='❌ Error cargando imagen'; this.nextElementSibling.style.color='red';">
+                <div class="image-name">main.jpg</div>
+            </div>
+            <div class="image-item">
+                <img src="hotel-images/hotel-1-puyehue/photo-1.jpg" alt="Foto 1" onerror="this.style.display='none'; this.nextElementSibling.innerHTML='❌ Error cargando imagen'; this.nextElementSibling.style.color='red';">
+                <div class="image-name">photo-1.jpg</div>
+            </div>
+            <div class="image-item">
+                <img src="hotel-images/hotel-1-puyehue/photo-2.jpg" alt="Foto 2" onerror="this.style.display='none'; this.nextElementSibling.innerHTML='❌ Error cargando imagen'; this.nextElementSibling.style.color='red';">
+                <div class="image-name">photo-2.jpg</div>
+            </div>
+            <div class="image-item">
+                <img src="hotel-images/hotel-1-puyehue/gallery-1.jpg" alt="Galería 1" onerror="this.style.display='none'; this.nextElementSibling.innerHTML='❌ Error cargando imagen'; this.nextElementSibling.style.color='red';">
+                <div class="image-name">gallery-1.jpg</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="hotel-section">
+        <h2 class="hotel-title">🏨 Hotel Corralco Resort</h2>
+        <div class="image-grid">
+            <div class="image-item">
+                <img src="hotel-images/hotel-3-corralco/main.jpg" alt="Imagen principal" onerror="this.style.display='none'; this.nextElementSibling.innerHTML='❌ Error cargando imagen'; this.nextElementSibling.style.color='red';">
+                <div class="image-name">main.jpg</div>
+            </div>
+            <div class="image-item">
+                <img src="hotel-images/hotel-3-corralco/photo-1.jpg" alt="Foto 1" onerror="this.style.display='none'; this.nextElementSibling.innerHTML='❌ Error cargando imagen'; this.nextElementSibling.style.color='red';">
+                <div class="image-name">photo-1.jpg</div>
+            </div>
+            <div class="image-item">
+                <img src="hotel-images/hotel-3-corralco/gallery-1.jpg" alt="Galería 1" onerror="this.style.display='none'; this.nextElementSibling.innerHTML='❌ Error cargando imagen'; this.nextElementSibling.style.color='red';">
+                <div class="image-name">gallery-1.jpg</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Contador de imágenes cargadas vs errores
+        let loadedImages = 0;
+        let errorImages = 0;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const images = document.querySelectorAll('img');
+            
+            images.forEach(img => {
+                if (img.complete) {
+                    if (img.naturalWidth > 0) {
+                        loadedImages++;
+                    } else {
+                        errorImages++;
+                    }
+                } else {
+                    img.addEventListener('load', () => loadedImages++);
+                    img.addEventListener('error', () => errorImages++);
+                }
+            });
+            
+            // Mostrar estadísticas después de un momento
+            setTimeout(() => {
+                const statsDiv = document.createElement('div');
+                statsDiv.className = `status ${errorImages === 0 ? 'success' : 'error'}`;
+                statsDiv.innerHTML = `
+                    📊 Estadísticas: ${loadedImages} imágenes cargadas correctamente, ${errorImages} errores
+                    ${errorImages === 0 ? '✅ Todas las imágenes se previsualizan correctamente!' : '❌ Algunas imágenes no se pueden cargar'}
+                `;
+                document.body.insertBefore(statsDiv, document.body.firstChild);
+            }, 2000);
+        });
+    </script>
+</body>
+</html> 

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Simple</title>
+</head>
+<body>
+    <div class="language-selector">
+        <button class="language-btn active" onclick="changeLanguage('es')">ES</button>
+        <button class="language-btn" onclick="changeLanguage('en')">EN</button>
+        <button class="language-btn" onclick="changeLanguage('pt')">PT</button>
+    </div>
+
+    <div id="welcomeScreen" class="welcome-screen">
+        <h1 data-lang="es">Test Español</h1>
+        <h1 data-lang="en">Test English</h1>
+        <h1 data-lang="pt">Test Português</h1>
+        
+        <button onclick="showAuthScreen()">Comenzar Aventura</button>
+        <button onclick="continueAsGuest()">Explorar Destinos</button>
+    </div>
+
+    <div id="authScreen" class="auth-screen" style="display: none;">
+        <h2>Pantalla de Login</h2>
+    </div>
+
+    <div id="mainApp" class="app" style="display: none;">
+        <h2>Aplicación Principal</h2>
+    </div>
+
+    <script>
+        // Variables globales
+        let currentUser = null;
+        let isAuthenticated = false;
+        let currentLanguage = 'es';
+
+        // Funciones básicas
+        function changeLanguage(lang) {
+            currentLanguage = lang;
+            console.log('🌐 Cambiando idioma a:', lang);
+            
+            // Hide all language-specific content first
+            document.querySelectorAll('[data-lang]').forEach(element => {
+                element.style.display = 'none';
+            });
+            
+            // Show content for selected language
+            const elementsToShow = document.querySelectorAll(`[data-lang="${lang}"]`);
+            elementsToShow.forEach(element => {
+                element.style.display = 'block';
+            });
+            
+            console.log('✅ Idioma cambiado a:', lang);
+        }
+
+        function showAuthScreen() {
+            console.log('🔐 Mostrando pantalla de autenticación...');
+            
+            const welcomeScreen = document.getElementById('welcomeScreen');
+            const authScreen = document.getElementById('authScreen');
+            
+            if (welcomeScreen && authScreen) {
+                welcomeScreen.style.display = 'none';
+                authScreen.style.display = 'block';
+                console.log('✅ Pantalla de autenticación mostrada');
+            } else {
+                console.error('❌ No se encontraron los elementos de pantalla');
+            }
+        }
+
+        function continueAsGuest() {
+            console.log('🔓 Iniciando acceso como invitado...');
+            
+            const welcomeScreen = document.getElementById('welcomeScreen');
+            const authScreen = document.getElementById('authScreen');
+            const mainApp = document.getElementById('mainApp');
+            
+            if (welcomeScreen && authScreen && mainApp) {
+                welcomeScreen.style.display = 'none';
+                authScreen.style.display = 'none';
+                mainApp.style.display = 'block';
+                console.log('✅ Acceso como invitado exitoso');
+            } else {
+                console.error('❌ No se encontraron los elementos de pantalla');
+            }
+        }
+
+        // Inicializar
+        document.addEventListener('DOMContentLoaded', function() {
+            changeLanguage('es');
+            console.log('🚀 Test iniciado');
+        });
+    </script>
+</body>
+</html> 

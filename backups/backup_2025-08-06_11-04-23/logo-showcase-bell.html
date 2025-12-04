@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkin24hs - Logos con Timbre</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e8f5e8 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #556B2F 0%, #6B8E23 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .logo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            padding: 40px;
+        }
+
+        .logo-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .logo-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.15);
+            border-color: #556B2F;
+        }
+
+        .logo-card h3 {
+            color: #556B2F;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .logo-card p {
+            color: #666;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        .logo-display {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .logo-display svg {
+            max-width: 100%;
+            height: auto;
+        }
+
+        .download-btn {
+            background: linear-gradient(135deg, #556B2F 0%, #6B8E23 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(85, 107, 47, 0.3);
+        }
+
+        .color-palette {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .color-swatch {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+
+        .olive-dark { background: #556B2F; }
+        .olive-light { background: #6B8E23; }
+        .yellow-orange { background: #FF8C00; }
+        .orange { background: #FFA500; }
+
+        .features {
+            background: #f8f9fa;
+            padding: 40px;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .features h2 {
+            text-align: center;
+            color: #556B2F;
+            margin-bottom: 30px;
+            font-size: 1.8rem;
+        }
+
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .feature {
+            text-align: center;
+            padding: 20px;
+        }
+
+        .feature-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #556B2F 0%, #6B8E23 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 15px;
+            color: white;
+            font-size: 1.5rem;
+        }
+
+        .feature h3 {
+            color: #556B2F;
+            margin-bottom: 10px;
+        }
+
+        .feature p {
+            color: #666;
+            line-height: 1.5;
+        }
+
+        @media (max-width: 768px) {
+            .logo-grid {
+                grid-template-columns: 1fr;
+                padding: 20px;
+            }
+            
+            .header {
+                padding: 30px 20px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔔 Checkin24hs - Logos con Timbre</h1>
+            <p>Nuevo diseño con timbre como elemento principal</p>
+        </div>
+
+        <div class="logo-grid">
+            <!-- Logo Completo -->
+            <div class="logo-card">
+                <h3>🔔 Logo Completo</h3>
+                <p>Versión completa con timbre detallado, reloj y texto. Ideal para headers principales y branding.</p>
+                <div class="logo-display">
+                    <svg width="200" height="80" viewBox="0 0 200 80" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="oliveGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#556B2F;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#6B8E23;stop-opacity:1" />
+                            </linearGradient>
+                            <linearGradient id="yellowOrangeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#FF8C00;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#FFA500;stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                        
+                        <rect x="0" y="0" width="200" height="80" rx="12" fill="url(#oliveGradient)" opacity="0.1"/>
+                        
+                        <g transform="translate(20, 15)">
+                            <ellipse cx="20" cy="25" rx="18" ry="22" fill="url(#yellowOrangeGradient)" stroke="#FF8C00" stroke-width="1"/>
+                            <ellipse cx="20" cy="25" rx="14" ry="18" fill="white" opacity="0.9"/>
+                            <circle cx="20" cy="30" r="3" fill="url(#oliveGradient)"/>
+                            <rect x="19" y="30" width="2" height="8" fill="url(#oliveGradient)"/>
+                            <circle cx="20" cy="38" r="2" fill="url(#oliveGradient)"/>
+                            <rect x="18" y="5" width="4" height="8" fill="url(#oliveGradient)"/>
+                            <rect x="15" y="3" width="10" height="4" rx="2" fill="url(#oliveGradient)"/>
+                            <ellipse cx="20" cy="20" rx="8" ry="10" fill="url(#yellowOrangeGradient)" opacity="0.3"/>
+                        </g>
+                        
+                        <g transform="translate(70, 15)">
+                            <circle cx="15" cy="15" r="15" fill="url(#oliveGradient)" stroke="#556B2F" stroke-width="1"/>
+                            <line x1="15" y1="5" x2="15" y2="7" stroke="white" stroke-width="1.5"/>
+                            <line x1="15" y1="23" x2="15" y2="25" stroke="white" stroke-width="1.5"/>
+                            <line x1="5" y1="15" x2="7" y2="15" stroke="white" stroke-width="1.5"/>
+                            <line x1="23" y1="15" x2="25" y2="15" stroke="white" stroke-width="1.5"/>
+                            <line x1="15" y1="15" x2="15" y2="8" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                            <line x1="15" y1="15" x2="20" y2="15" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                            <circle cx="15" cy="15" r="2" fill="white"/>
+                        </g>
+                        
+                        <g transform="translate(110, 25)">
+                            <text x="0" y="0" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="url(#oliveGradient)">Checkin</text>
+                            <text x="0" y="25" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="url(#yellowOrangeGradient)">24hs</text>
+                        </g>
+                        
+                        <g opacity="0.4">
+                            <line x1="65" y1="40" x2="70" y2="40" stroke="#556B2F" stroke-width="2" stroke-linecap="round"/>
+                            <line x1="105" y1="40" x2="110" y2="40" stroke="#FF8C00" stroke-width="2" stroke-linecap="round"/>
+                        </g>
+                    </svg>
+                </div>
+                <a href="logo-checkin24hs-bell.svg" download class="download-btn">📥 Descargar SVG</a>
+            </div>
+
+            <!-- Logo Simple -->
+            <div class="logo-card">
+                <h3>✨ Logo Simple</h3>
+                <p>Versión simplificada con timbre y reloj. Perfecta para aplicaciones móviles y espacios reducidos.</p>
+                <div class="logo-display">
+                    <svg width="180" height="60" viewBox="0 0 180 60" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="oliveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:#556B2F;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#6B8E23;stop-opacity:1" />
+                            </linearGradient>
+                            <linearGradient id="yellowOrangeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:#FF8C00;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#FFA500;stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                        
+                        <g transform="translate(15, 10)">
+                            <ellipse cx="15" cy="18" rx="12" ry="15" fill="url(#yellowOrangeGradient)"/>
+                            <ellipse cx="15" cy="18" rx="9" ry="12" fill="white" opacity="0.9"/>
+                            <circle cx="15" cy="22" r="2" fill="url(#oliveGradient)"/>
+                            <rect x="14.5" y="22" width="1" height="5" fill="url(#oliveGradient)"/>
+                            <circle cx="15" cy="27" r="1.5" fill="url(#oliveGradient)"/>
+                            <rect x="13" y="3" width="4" height="6" fill="url(#oliveGradient)"/>
+                            <rect x="11" y="1" width="8" height="3" rx="1.5" fill="url(#oliveGradient)"/>
+                        </g>
+                        
+                        <g transform="translate(45, 10)">
+                            <circle cx="12" cy="12" r="12" fill="url(#oliveGradient)"/>
+                            <circle cx="12" cy="12" r="10" fill="white" opacity="0.9"/>
+                            <circle cx="12" cy="12" r="8" fill="url(#oliveGradient)"/>
+                            <line x1="12" y1="12" x2="12" y2="6" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                            <line x1="12" y1="12" x2="16" y2="12" stroke="white" stroke-width="2" stroke-linecap="round"/>
+                            <circle cx="12" cy="12" r="1.5" fill="white"/>
+                        </g>
+                        
+                        <g transform="translate(75, 15)">
+                            <text x="0" y="0" font-family="'Segoe UI', Arial, sans-serif" font-size="20" font-weight="600" fill="url(#oliveGradient)">Checkin</text>
+                            <text x="0" y="25" font-family="'Segoe UI', Arial, sans-serif" font-size="18" font-weight="600" fill="url(#yellowOrangeGradient)">24hs</text>
+                        </g>
+                    </svg>
+                </div>
+                <a href="logo-checkin24hs-bell-simple.svg" download class="download-btn">📥 Descargar SVG</a>
+            </div>
+
+            <!-- Logo Texto -->
+            <div class="logo-card">
+                <h3>📝 Logo Texto</h3>
+                <p>Versión con timbre pequeño y texto. Ideal para firmas de email y documentos.</p>
+                <div class="logo-display">
+                    <svg width="200" height="60" viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="oliveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:#556B2F;stop-opacity:1" />
+                                <stop offset="50%" style="stop-color:#6B8E23;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#556B2F;stop-opacity:1" />
+                            </linearGradient>
+                            <linearGradient id="yellowOrangeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:#FF8C00;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#FFA500;stop-opacity:1" />
+                            </linearGradient>
+                            <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                                <feDropShadow dx="2" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.2"/>
+                            </filter>
+                        </defs>
+                        
+                        <rect x="0" y="0" width="200" height="60" rx="8" fill="url(#oliveGradient)" opacity="0.05"/>
+                        
+                        <g transform="translate(15, 15)">
+                            <ellipse cx="8" cy="10" rx="6" ry="8" fill="url(#yellowOrangeGradient)"/>
+                            <ellipse cx="8" cy="10" rx="4" ry="6" fill="white" opacity="0.9"/>
+                            <circle cx="8" cy="12" r="1" fill="url(#oliveGradient)"/>
+                            <rect x="7.5" y="12" width="1" height="3" fill="url(#oliveGradient)"/>
+                            <circle cx="8" cy="15" r="0.8" fill="url(#oliveGradient)"/>
+                            <rect x="6" y="2" width="4" height="3" fill="url(#oliveGradient)"/>
+                            <rect x="5" y="1" width="6" height="2" rx="1" fill="url(#oliveGradient)"/>
+                        </g>
+                        
+                        <text x="35" y="35" font-family="'Segoe UI', 'Arial', sans-serif" font-size="28" font-weight="700" fill="url(#oliveGradient)" filter="url(#shadow)">Checkin</text>
+                        <text x="155" y="35" font-family="'Segoe UI', 'Arial', sans-serif" font-size="24" font-weight="700" fill="url(#yellowOrangeGradient)" filter="url(#shadow)">24hs</text>
+                        <line x1="145" y1="30" x2="150" y2="30" stroke="url(#yellowOrangeGradient)" stroke-width="3" stroke-linecap="round" opacity="0.6"/>
+                        <circle cx="185" cy="45" r="2" fill="url(#oliveGradient)" opacity="0.6"/>
+                    </svg>
+                </div>
+                <a href="logo-checkin24hs-bell-text.svg" download class="download-btn">📥 Descargar SVG</a>
+            </div>
+
+            <!-- Logo Minimalista -->
+            <div class="logo-card">
+                <h3>🎯 Logo Minimalista</h3>
+                <p>Versión ultra minimalista con timbre pequeño. Perfecta para favicons y espacios muy pequeños.</p>
+                <div class="logo-display">
+                    <svg width="160" height="50" viewBox="0 0 160 50" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="oliveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:#556B2F;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#6B8E23;stop-opacity:1" />
+                            </linearGradient>
+                            <linearGradient id="yellowOrangeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" style="stop-color:#FF8C00;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:#FFA500;stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                        
+                        <g transform="translate(5, 10)">
+                            <ellipse cx="10" cy="12" rx="8" ry="10" fill="url(#yellowOrangeGradient)"/>
+                            <ellipse cx="10" cy="12" rx="6" ry="8" fill="white"/>
+                            <circle cx="10" cy="15" r="1.5" fill="url(#oliveGradient)"/>
+                            <rect x="9.5" y="15" width="1" height="4" fill="url(#oliveGradient)"/>
+                            <circle cx="10" cy="19" r="1" fill="url(#oliveGradient)"/>
+                            <rect x="8" y="2" width="4" height="4" fill="url(#oliveGradient)"/>
+                            <rect x="7" y="1" width="6" height="2" rx="1" fill="url(#oliveGradient)"/>
+                        </g>
+                        
+                        <g transform="translate(25, 10)">
+                            <circle cx="8" cy="8" r="8" fill="url(#oliveGradient)"/>
+                            <circle cx="8" cy="8" r="6" fill="white"/>
+                            <line x1="8" y1="8" x2="8" y2="4" stroke="url(#oliveGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                            <line x1="8" y1="8" x2="11" y2="8" stroke="url(#oliveGradient)" stroke-width="1.5" stroke-linecap="round"/>
+                            <circle cx="8" cy="8" r="1" fill="url(#oliveGradient)"/>
+                        </g>
+                        
+                        <g transform="translate(45, 15)">
+                            <text x="0" y="0" font-family="'Segoe UI', Arial, sans-serif" font-size="16" font-weight="600" fill="url(#oliveGradient)">Checkin</text>
+                            <text x="0" y="18" font-family="'Segoe UI', Arial, sans-serif" font-size="14" font-weight="600" fill="url(#yellowOrangeGradient)">24hs</text>
+                        </g>
+                    </svg>
+                </div>
+                <a href="logo-checkin24hs-bell-minimal.svg" download class="download-btn">📥 Descargar SVG</a>
+            </div>
+        </div>
+
+        <div class="features">
+            <h2>🔔 Concepto del Timbre</h2>
+            <div class="color-palette">
+                <div class="color-swatch olive-dark" title="Verde Oliva Oscuro #556B2F"></div>
+                <div class="color-swatch olive-light" title="Verde Oliva Claro #6B8E23"></div>
+                <div class="color-swatch yellow-orange" title="Amarillo-Naranja #FF8C00"></div>
+                <div class="color-swatch orange" title="Naranja #FFA500"></div>
+            </div>
+            
+            <div class="features-grid">
+                <div class="feature">
+                    <div class="feature-icon">🔔</div>
+                    <h3>Servicio 24/7</h3>
+                    <p>El timbre representa disponibilidad constante y atención inmediata</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🏨</div>
+                    <h3>Check-in</h3>
+                    <p>Símbolo tradicional de recepción y bienvenida en hoteles</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Respuesta Rápida</h3>
+                    <p>El timbre sugiere respuesta inmediata a las necesidades</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🎯</div>
+                    <h3>Identidad Única</h3>
+                    <p>Diferencia la marca de otras aplicaciones de hoteles</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

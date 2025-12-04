@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkin24hs - Sistema de Gestión Hotelera</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            text-align: center;
+            color: white;
+        }
+
+        .content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+
+        .modern-search-container {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+
+        .modern-search-form {
+            display: flex;
+            gap: 20px;
+            align-items: end;
+            flex-wrap: wrap;
+        }
+
+        .search-field {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        .field-icon {
+            font-size: 1.5rem;
+            margin-bottom: 8px;
+        }
+
+        .field-label {
+            display: block;
+            font-size: 0.9rem;
+            color: rgba(255,255,255,0.8);
+            margin-bottom: 5px;
+        }
+
+        .modern-input, .date-display-modern, .travelers-display {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 10px;
+            background: rgba(255,255,255,0.9);
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .modern-input:focus, .date-display-modern:focus, .travelers-display:focus {
+            outline: none;
+            border-color: rgba(255,255,255,0.8);
+            background: white;
+        }
+
+        .modern-search-btn {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .modern-search-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            position: relative;
+        }
+
+        .close {
+            position: absolute;
+            right: 20px;
+            top: 15px;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            color: #666;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        .dropdown-arrow {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            transition: transform 0.3s ease;
+        }
+
+        .date-display-modern, .travelers-display {
+            position: relative;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏨 Checkin24hs</h1>
+        <p>Sistema de Gestión Hotelera</p>
+    </div>
+
+    <div class="content">
+        <!-- Buscador de Hoteles -->
+        <div class="section">
+            <div class="modern-search-container">
+                <form class="modern-search-form">
+                    <!-- Destino -->
+                    <div class="search-field">
+                        <div class="field-icon">📍</div>
+                        <div>
+                            <label class="field-label">¿A dónde quieres ir?</label>
+                            <select class="modern-input" id="quickHotelSelect" required>
+                                <option value="">Seleccionar destino</option>
+                                <option value="Hotel Terma de Puyehue">🏨 Hotel Terma de Puyehue</option>
+                                <option value="Hotel Huilo-Huilo">🏨 Hotel Huilo-Huilo</option>
+                                <option value="Hotel Corralco Resort">🏨 Hotel Corralco Resort</option>
+                                <option value="Hotel Futangue">🏨 Hotel Futangue</option>
+                                <option value="Cabañas Termas de Aguas Calientes">🏡 Cabañas Termas de Aguas Calientes</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Fechas -->
+                    <div class="search-field">
+                        <div class="field-icon">📅</div>
+                        <div>
+                            <label class="field-label">Llegada → Salida</label>
+                            <div class="date-display-modern" onclick="toggleCalendar()">
+                                <span id="dateRangeDisplay">Seleccionar fechas</span>
+                                <span class="dropdown-arrow">▼</span>
+                            </div>
+                            <input type="hidden" id="quickCheckIn" required>
+                            <input type="hidden" id="quickCheckOut" required>
+                        </div>
+                    </div>
+                    
+                    <!-- Huéspedes -->
+                    <div class="search-field">
+                        <div class="field-icon">👥</div>
+                        <div>
+                            <label class="field-label">Huéspedes</label>
+                            <div class="travelers-display" onclick="toggleTravelersModal()">
+                                <span id="travelersDisplay">2 adultos • 0 niños</span>
+                                <span class="dropdown-arrow">▼</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Botón de solicitar cotización -->
+                    <button type="button" class="modern-search-btn" onclick="solicitarCotizacion()">
+                        <span class="search-icon">📋</span>
+                        Solicitar Cotización
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal del Calendario -->
+    <div id="calendarModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeCalendar()">&times;</span>
+            <h2>📅 Seleccionar Fechas</h2>
+            <p>Funcionalidad del calendario aquí...</p>
+        </div>
+    </div>
+
+    <!-- Modal de Huéspedes -->
+    <div id="travelersModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeTravelersModal()">&times;</span>
+            <h2>👥 Seleccionar Huéspedes</h2>
+            <p>Funcionalidad de huéspedes aquí...</p>
+        </div>
+    </div>
+
+    <script>
+        // Variables globales
+        let travelersData = {
+            adults: 2,
+            children: 0,
+            childrenAges: []
+        };
+
+        // Función para el calendario
+        function toggleCalendar() {
+            console.log('🔍 Función toggleCalendar llamada');
+            const modal = document.getElementById('calendarModal');
+            if (modal) {
+                modal.style.display = 'block';
+                console.log('✅ Modal de calendario abierto');
+            } else {
+                console.error('❌ Modal de calendario no encontrado');
+            }
+        }
+
+        function closeCalendar() {
+            const modal = document.getElementById('calendarModal');
+            if (modal) {
+                modal.style.display = 'none';
+                console.log('Calendario cerrado');
+            }
+        }
+
+        // Función para huéspedes
+        function toggleTravelersModal() {
+            console.log('🔍 Función toggleTravelersModal llamada');
+            const modal = document.getElementById('travelersModal');
+            if (modal) {
+                modal.style.display = 'block';
+                console.log('Modal de huéspedes abierto');
+            } else {
+                console.error('Modal de huéspedes no encontrado');
+            }
+        }
+
+        function closeTravelersModal() {
+            const modal = document.getElementById('travelersModal');
+            if (modal) {
+                modal.style.display = 'none';
+                console.log('Modal de huéspedes cerrado');
+            }
+        }
+
+        // Función para cotización
+        function solicitarCotizacion() {
+            console.log('🔍 Función solicitarCotizacion llamada');
+            
+            const hotelSelect = document.getElementById('quickHotelSelect');
+            const checkInInput = document.getElementById('quickCheckIn');
+            const checkOutInput = document.getElementById('quickCheckOut');
+            const travelersDisplay = document.getElementById('travelersDisplay');
+            
+            if (!hotelSelect || !hotelSelect.value) {
+                alert('❌ Por favor selecciona un hotel');
+                return;
+            }
+            
+            if (!checkInInput.value || !checkOutInput.value) {
+                alert('❌ Por favor selecciona las fechas');
+                return;
+            }
+            
+            if (!travelersDisplay || !travelersDisplay.textContent) {
+                alert('❌ Por favor selecciona los huéspedes');
+                return;
+            }
+            
+            const quoteData = {
+                hotel: hotelSelect.value,
+                checkIn: checkInInput.value,
+                checkOut: checkOutInput.value,
+                travelers: travelersDisplay.textContent,
+                timestamp: new Date().toLocaleString('es-ES')
+            };
+            
+            alert('✅ Datos recopilados correctamente: ' + JSON.stringify(quoteData));
+        }
+
+        // Cerrar modales al hacer clic fuera
+        window.onclick = function(event) {
+            const calendarModal = document.getElementById('calendarModal');
+            const travelersModal = document.getElementById('travelersModal');
+            
+            if (event.target === calendarModal) {
+                closeCalendar();
+            }
+            if (event.target === travelersModal) {
+                closeTravelersModal();
+            }
+        }
+
+        // Verificar que el script se carga
+        console.log('✅ Script cargado correctamente');
+        console.log('toggleCalendar:', typeof toggleCalendar);
+        console.log('toggleTravelersModal:', typeof toggleTravelersModal);
+        console.log('solicitarCotizacion:', typeof solicitarCotizacion);
+    </script>
+</body>
+</html> 

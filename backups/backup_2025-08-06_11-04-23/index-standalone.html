@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔔 Checkin24hs - Call Center 24hs</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            overflow-x: hidden;
+        }
+
+        .welcome-screen {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .background-image {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: url('https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            opacity: 0.5;
+            animation: slowZoom 30s ease-in-out infinite alternate;
+        }
+
+        @keyframes slowZoom {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.2); }
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.6) 0%, rgba(118, 75, 162, 0.6) 50%, rgba(255, 107, 107, 0.5) 100%);
+        }
+
+        .light-effect {
+            position: absolute;
+            top: 20%;
+            left: 10%;
+            width: 200px;
+            height: 200px;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            border-radius: 50%;
+            animation: pulse 4s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.2); }
+        }
+
+        .content {
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            color: white;
+            max-width: 800px;
+            padding: 2rem;
+        }
+
+        .logo {
+            font-size: 80px;
+            color: white;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+            animation: float 3s ease-in-out infinite;
+            margin-bottom: 2rem;
+            opacity: 0;
+            animation: fadeIn 1s ease-in-out 0.5s forwards, float 3s ease-in-out infinite;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .title {
+            font-size: 3.5rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            opacity: 0;
+            animation: slideUp 1s ease-in-out 1.2s forwards;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .subtitle {
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            opacity: 0;
+            animation: slideUp 1s ease-in-out 1.4s forwards;
+        }
+
+        .description {
+            font-size: 1.1rem;
+            margin-bottom: 3rem;
+            opacity: 0.8;
+            line-height: 1.6;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            opacity: 0;
+            animation: zoomIn 1s ease-in-out 1.6s forwards;
+        }
+
+        @keyframes zoomIn {
+            from {
+                opacity: 0;
+                transform: scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .features {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-bottom: 3rem;
+            opacity: 0;
+            animation: growIn 1s ease-in-out 1.8s forwards;
+        }
+
+        @keyframes growIn {
+            from {
+                opacity: 0;
+                transform: scale(0.5);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .feature-card {
+            padding: 1rem;
+            background-color: rgba(255,255,255,0.15);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            min-width: 160px;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            background-color: rgba(255,255,255,0.2);
+        }
+
+        .feature-icon {
+            font-size: 1.5rem;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+            opacity: 0;
+            animation: growIn 1s ease-in-out 2s forwards;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            border-radius: 1.5rem;
+            font-weight: bold;
+            font-size: 1.1rem;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background-color: white;
+            color: #667eea;
+        }
+
+        .btn-primary:hover {
+            background-color: rgba(255,255,255,0.9);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+        }
+
+        .btn-secondary {
+            background-color: transparent;
+            color: white;
+            border: 2px solid white;
+        }
+
+        .btn-secondary:hover {
+            background-color: rgba(255,255,255,0.1);
+            transform: translateY(-2px);
+        }
+
+        .main-app {
+            display: none;
+            min-height: 100vh;
+            background: #f5f5f5;
+        }
+
+        .app-header {
+            background: #1976d2;
+            color: white;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .app-content {
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .hotel-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .hotel-card {
+            background: white;
+            border-radius: 1rem;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .hotel-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .hotel-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .hotel-info {
+            padding: 1.5rem;
+        }
+
+        .hotel-name {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .hotel-location {
+            color: #666;
+            margin-bottom: 1rem;
+        }
+
+        .hotel-rating {
+            color: #ff9800;
+            margin-bottom: 1rem;
+        }
+
+        .hotel-price {
+            font-size: 1.25rem;
+            font-weight: bold;
+            color: #1976d2;
+        }
+
+        @media (max-width: 768px) {
+            .title {
+                font-size: 2.5rem;
+            }
+            
+            .subtitle {
+                font-size: 1.2rem;
+            }
+            
+            .description {
+                font-size: 1rem;
+            }
+            
+            .buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .features {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Pantalla de Bienvenida -->
+    <div id="welcome-screen" class="welcome-screen">
+        <div class="background-image"></div>
+        <div class="overlay"></div>
+        <div class="light-effect"></div>
+        
+        <div class="content">
+            <div class="logo">🏨</div>
+            
+            <h1 class="title">Checkin24hs</h1>
+            
+            <h2 class="subtitle">Estás a un check-in de tu próxima aventura</h2>
+            
+            <p class="description">
+                Explora los destinos más impresionantes de Chile. Desde las cumbres 
+                nevadas de los Andes hasta las playas del Pacífico, encuentra tu 
+                próximo hogar temporal en los mejores hoteles del país.
+            </p>
+            
+            <div class="features">
+                <div class="feature-card">
+                    <span class="feature-icon">⭐</span>
+                    <span>Experiencias Únicas</span>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">📍</span>
+                    <span>Destinos Exclusivos</span>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-icon">🏨</span>
+                    <span>Reservas Garantizadas</span>
+                </div>
+            </div>
+            
+            <div class="buttons">
+                <button class="btn btn-primary" onclick="showMainApp()">
+                    Comenzar Aventura
+                    <span>→</span>
+                </button>
+                <button class="btn btn-secondary" onclick="showMainApp()">
+                    Explorar Destinos
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Aplicación Principal -->
+    <div id="main-app" class="main-app">
+        <div class="app-header">
+            <h1>🏨 Checkin24hs</h1>
+            <p>Tu plataforma de reservas de hoteles</p>
+        </div>
+        
+        <div class="app-content">
+            <h2>Hoteles Destacados</h2>
+            
+            <div class="hotel-grid">
+                <div class="hotel-card">
+                    <img src="https://images.unsplash.com/photo-1566073771259-6a8506099945?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Hotel Puyehue" class="hotel-image">
+                    <div class="hotel-info">
+                        <h3 class="hotel-name">Hotel Puyehue</h3>
+                        <p class="hotel-location">Puyehue, Región de Los Lagos</p>
+                        <div class="hotel-rating">⭐⭐⭐⭐⭐</div>
+                        <p class="hotel-price">$120.000 / noche</p>
+                    </div>
+                </div>
+                
+                <div class="hotel-card">
+                    <img src="https://images.unsplash.com/photo-1571896349842-33c89424de2d?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Hotel Huilo Huilo" class="hotel-image">
+                    <div class="hotel-info">
+                        <h3 class="hotel-name">Hotel Huilo Huilo</h3>
+                        <p class="hotel-location">Panguipulli, Región de Los Ríos</p>
+                        <div class="hotel-rating">⭐⭐⭐⭐⭐</div>
+                        <p class="hotel-price">$95.000 / noche</p>
+                    </div>
+                </div>
+                
+                <div class="hotel-card">
+                    <img src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Hotel Corralco" class="hotel-image">
+                    <div class="hotel-info">
+                        <h3 class="hotel-name">Hotel Corralco</h3>
+                        <p class="hotel-location">Lonquimay, Región de La Araucanía</p>
+                        <div class="hotel-rating">⭐⭐⭐⭐</div>
+                        <p class="hotel-price">$85.000 / noche</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showMainApp() {
+            document.getElementById('welcome-screen').style.display = 'none';
+            document.getElementById('main-app').style.display = 'block';
+        }
+
+        // Opcional: Volver a la pantalla de bienvenida
+        function showWelcomeScreen() {
+            document.getElementById('main-app').style.display = 'none';
+            document.getElementById('welcome-screen').style.display = 'flex';
+        }
+
+        // Agregar botón de volver en la aplicación principal
+        document.addEventListener('DOMContentLoaded', function() {
+            const appHeader = document.querySelector('.app-header');
+            const backButton = document.createElement('button');
+            backButton.innerHTML = '← Volver';
+            backButton.style.cssText = `
+                position: absolute;
+                top: 1rem;
+                left: 1rem;
+                background: rgba(255,255,255,0.2);
+                border: none;
+                color: white;
+                padding: 0.5rem 1rem;
+                border-radius: 0.5rem;
+                cursor: pointer;
+                font-size: 0.9rem;
+            `;
+            backButton.onclick = showWelcomeScreen;
+            appHeader.style.position = 'relative';
+            appHeader.appendChild(backButton);
+        });
+    </script>
+</body>
+</html> 
