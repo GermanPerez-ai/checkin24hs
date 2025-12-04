@@ -472,34 +472,44 @@ class SupabaseClient {
     }
 
     async updateExpense(id, updates) {
+        // Limpiar campos que no son de Supabase
+        const cleanUpdates = { ...updates };
+        delete cleanUpdates.exchangeRate; // Solo usar exchange_rate
+        delete cleanUpdates.usd; // Solo usar usd_amount
+        delete cleanUpdates.id; // No actualizar el ID
+        
+        console.log('✏️ Actualizando gasto ID:', id, 'con datos:', cleanUpdates);
+        
         if (!this.isInitialized()) {
             const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
-            const index = expenses.findIndex(e => e.id === id);
+            const index = expenses.findIndex(e => e.id === id || e.id === parseInt(id));
             if (index !== -1) {
-                expenses[index] = { ...expenses[index], ...updates };
+                expenses[index] = { ...expenses[index], ...updates, updated_at: new Date().toISOString() };
                 localStorage.setItem('expensesDB', JSON.stringify(expenses));
+                console.log('💾 Gasto actualizado en localStorage');
                 return expenses[index];
             }
+            console.warn('⚠️ Gasto no encontrado en localStorage');
             return null;
         }
 
         try {
+            // Convertir ID a número si es necesario (Supabase usa integer)
+            const numericId = parseInt(id);
+            
             const { data, error } = await this.client
                 .from('expenses')
-                .update({ ...updates, updated_at: new Date().toISOString() })
-                .eq('id', id)
+                .update({ ...cleanUpdates, updated_at: new Date().toISOString() })
+                .eq('id', numericId)
                 .select()
                 .single();
             
-            if (error) throw error;
-            
-            // Sincronizar con localStorage
-            const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
-            const index = expenses.findIndex(e => e.id === id);
-            if (index !== -1) {
-                expenses[index] = data;
-                localStorage.setItem('expensesDB', JSON.stringify(expenses));
+            if (error) {
+                console.error('❌ Error de Supabase al actualizar:', error);
+                throw error;
             }
+            
+            console.log('✅ Gasto actualizado en Supabase:', data);
             
             return data;
         } catch (error) {
