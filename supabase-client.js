@@ -472,46 +472,59 @@ class SupabaseClient {
     }
 
     async updateExpense(id, updates) {
-        // Limpiar campos que no son de Supabase
-        const cleanUpdates = { ...updates };
-        delete cleanUpdates.exchangeRate; // Solo usar exchange_rate
-        delete cleanUpdates.usd; // Solo usar usd_amount
-        delete cleanUpdates.id; // No actualizar el ID
+        // Convertir ID a número
+        const numericId = typeof id === 'string' ? parseInt(id) : id;
         
-        console.log('✏️ Actualizando gasto ID:', id, 'con datos:', cleanUpdates);
+        // Limpiar campos que no son de Supabase (solo enviar snake_case)
+        const cleanUpdates = {
+            date: updates.date,
+            type: updates.type,
+            category: updates.category,
+            subcategory: updates.subcategory || '',
+            description: updates.description,
+            amount: updates.amount,
+            exchange_rate: updates.exchange_rate,
+            usd_amount: updates.usd_amount,
+            updated_at: new Date().toISOString()
+        };
+        
+        console.log('✏️ Actualizando gasto ID:', numericId, 'con datos:', cleanUpdates);
         
         if (!this.isInitialized()) {
             const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
-            const index = expenses.findIndex(e => e.id === id || e.id === parseInt(id));
+            const index = expenses.findIndex(e => e.id == id || e.id == numericId);
             if (index !== -1) {
-                expenses[index] = { ...expenses[index], ...updates, updated_at: new Date().toISOString() };
+                expenses[index] = { ...expenses[index], ...updates, ...cleanUpdates };
                 localStorage.setItem('expensesDB', JSON.stringify(expenses));
-                console.log('💾 Gasto actualizado en localStorage');
+                console.log('💾 Gasto actualizado en localStorage, index:', index);
                 return expenses[index];
             }
-            console.warn('⚠️ Gasto no encontrado en localStorage');
+            console.warn('⚠️ Gasto no encontrado en localStorage, ID:', id);
             return null;
         }
 
         try {
-            // Convertir ID a número si es necesario (Supabase usa integer)
-            const numericId = parseInt(id);
+            console.log('📤 Enviando UPDATE a Supabase para ID:', numericId);
             
             const { data, error } = await this.client
                 .from('expenses')
-                .update({ ...cleanUpdates, updated_at: new Date().toISOString() })
+                .update(cleanUpdates)
                 .eq('id', numericId)
-                .select()
-                .single();
+                .select();
             
             if (error) {
                 console.error('❌ Error de Supabase al actualizar:', error);
                 throw error;
             }
             
-            console.log('✅ Gasto actualizado en Supabase:', data);
+            if (!data || data.length === 0) {
+                console.error('❌ No se encontró el gasto con ID:', numericId);
+                throw new Error('Gasto no encontrado en la base de datos');
+            }
             
-            return data;
+            console.log('✅ Gasto actualizado en Supabase:', data[0]);
+            
+            return data[0];
         } catch (error) {
             console.error('❌ Error actualizando gasto:', error);
             throw error;

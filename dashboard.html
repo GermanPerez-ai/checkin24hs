@@ -14184,16 +14184,27 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                     try {
                         if (expenseId) {
-                            await window.supabaseClient.updateExpense(expenseId, expenseData);
-                            console.log('✅ Gasto actualizado en Supabase');
-                            alert('✅ Gasto actualizado correctamente (guardado en la nube)');
+                            // Convertir ID a número para Supabase
+                            const numericId = parseInt(expenseId);
+                            console.log('🔄 Actualizando gasto con ID:', numericId, '(original:', expenseId, ')');
+                            
+                            const result = await window.supabaseClient.updateExpense(numericId, expenseData);
+                            
+                            if (result) {
+                                console.log('✅ Gasto actualizado en Supabase:', result);
+                                alert('✅ Gasto actualizado correctamente');
+                            } else {
+                                throw new Error('No se recibió respuesta de Supabase');
+                            }
                         } else {
+                            console.log('➕ Creando nuevo gasto...');
                             await window.supabaseClient.createExpense(expenseData);
                             console.log('✅ Gasto guardado en Supabase');
-                            alert('✅ Gasto guardado correctamente (guardado en la nube)');
+                            alert('✅ Gasto guardado correctamente');
                         }
                     } catch (error) {
-                        console.warn('⚠️ Error guardando en Supabase, guardando en localStorage:', error);
+                        console.error('❌ Error guardando en Supabase:', error);
+                        alert('❌ Error: ' + error.message);
                         // Fallback a localStorage
                         const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
                         const expense = {
