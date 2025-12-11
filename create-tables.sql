@@ -100,6 +100,20 @@ CREATE TABLE dashboard_admins (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Tabla de Agentes
+CREATE TABLE agents (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code VARCHAR(50) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    agency VARCHAR(255),
+    status VARCHAR(50) DEFAULT 'Activo',
+    active BOOLEAN DEFAULT true,
+    commission_rate DECIMAL(5,2) DEFAULT 0,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Índices para mejor rendimiento
 CREATE INDEX idx_reservations_hotel ON reservations(hotel_id);
 CREATE INDEX idx_reservations_status ON reservations(status);
@@ -107,6 +121,8 @@ CREATE INDEX idx_reservations_checkin ON reservations(check_in);
 CREATE INDEX idx_quotes_status ON quotes(status);
 CREATE INDEX idx_expenses_date ON expenses(date);
 CREATE INDEX idx_expenses_type ON expenses(type);
+CREATE INDEX idx_agents_status ON agents(status);
+CREATE INDEX idx_agents_agency ON agents(agency);
 
 -- Políticas de seguridad básicas (Row Level Security)
 -- Por ahora, permitimos acceso público (ajusta según tus necesidades)

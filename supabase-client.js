@@ -48,16 +48,24 @@ class SupabaseClient {
             
             if (error) throw error;
             
-            // Sincronizar con localStorage como backup
+            // Sincronizar con localStorage como backup (si hay espacio)
             if (data && data.length > 0) {
-                localStorage.setItem('hotelsDB', JSON.stringify(data));
+                try {
+                    localStorage.setItem('hotelsDB', JSON.stringify(data));
+                } catch (e) {
+                    console.warn('⚠️ No se pudo guardar en localStorage (espacio lleno)');
+                }
             }
             
             return data || [];
         } catch (error) {
             console.error('❌ Error obteniendo hoteles:', error);
             // Fallback a localStorage
-            return JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            try {
+                return JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            } catch (e) {
+                return [];
+            }
         }
     }
 
@@ -188,11 +196,12 @@ class SupabaseClient {
     
     async getReservations(filters = {}) {
         if (!this.isInitialized()) {
+            console.log('💾 Supabase no inicializado, cargando reservas desde localStorage');
             return JSON.parse(localStorage.getItem('reservationsDB') || '[]');
         }
 
         try {
-            let query = this.client.from('reservations').select('*, hotels(*)');
+            let query = this.client.from('reservations').select('*');
             
             if (filters.status) {
                 query = query.eq('status', filters.status);
@@ -208,9 +217,15 @@ class SupabaseClient {
             
             if (error) throw error;
             
-            // Sincronizar con localStorage
+            console.log(`☁️ Reservas cargadas de Supabase: ${data ? data.length : 0} registros`);
+            
+            // Sincronizar con localStorage solo si hay datos
             if (data && data.length > 0) {
-                localStorage.setItem('reservationsDB', JSON.stringify(data));
+                try {
+                    localStorage.setItem('reservationsDB', JSON.stringify(data));
+                } catch (e) {
+                    console.warn('⚠️ No se pudo guardar en localStorage');
+                }
             }
             
             return data || [];
@@ -221,27 +236,38 @@ class SupabaseClient {
     }
 
     async createReservation(reservation) {
+        // Eliminar id para que Supabase genere uno nuevo (UUID)
+        const reservationToCreate = { ...reservation };
+        delete reservationToCreate.id;
+        
+        console.log('📝 Creando reserva en Supabase:', reservationToCreate);
+        
         if (!this.isInitialized()) {
+            console.log('💾 Supabase no inicializado, guardando en localStorage');
             const reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
-            reservation.id = reservation.id || 'res-' + Date.now();
-            reservations.push(reservation);
+            const newReservation = {
+                ...reservationToCreate,
+                id: 'res-' + Date.now(),
+                created_at: new Date().toISOString()
+            };
+            reservations.push(newReservation);
             localStorage.setItem('reservationsDB', JSON.stringify(reservations));
-            return reservation;
+            return newReservation;
         }
 
         try {
             const { data, error } = await this.client
                 .from('reservations')
-                .insert([reservation])
+                .insert([reservationToCreate])
                 .select()
                 .single();
             
-            if (error) throw error;
+            if (error) {
+                console.error('❌ Error de Supabase:', error);
+                throw error;
+            }
             
-            // Sincronizar con localStorage
-            const reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
-            reservations.push(data);
-            localStorage.setItem('reservationsDB', JSON.stringify(reservations));
+            console.log('✅ Reserva creada en Supabase con ID:', data.id);
             
             return data;
         } catch (error) {
@@ -485,6 +511,8 @@ class SupabaseClient {
             amount: updates.amount,
             exchange_rate: updates.exchange_rate,
             usd_amount: updates.usd_amount,
+            image_url: updates.image_url || null,
+            image_name: updates.image_name || null,
             updated_at: new Date().toISOString()
         };
         
@@ -733,6 +761,134 @@ class SupabaseClient {
             return data;
         } catch (error) {
             console.error('❌ Error actualizando administrador:', error);
+            throw error;
+        }
+    }
+
+    // ============================================
+    // AGENTES
+    // ============================================
+    
+    async getAgents() {
+        if (!this.isInitialized()) {
+            console.log('💾 Supabase no inicializado, cargando agentes desde localStorage');
+            return JSON.parse(localStorage.getItem('agentsDB') || '[]');
+        }
+
+        try {
+            const { data, error } = await this.client
+                .from('agents')
+                .select('*')
+                .order('created_at', { ascending: false });
+            
+            if (error) throw error;
+            
+            console.log(`☁️ Agentes cargados de Supabase: ${data ? data.length : 0} registros`);
+            
+            // Sincronizar con localStorage como backup
+            if (data && data.length > 0) {
+                localStorage.setItem('agentsDB', JSON.stringify(data));
+            }
+            
+            return data || [];
+        } catch (error) {
+            console.error('❌ Error obteniendo agentes:', error);
+            return JSON.parse(localStorage.getItem('agentsDB') || '[]');
+        }
+    }
+
+    async createAgent(agent) {
+        if (!this.isInitialized()) {
+            const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+            agent.id = agent.id || 'agent-' + Date.now();
+            agent.created_at = new Date().toISOString();
+            agents.push(agent);
+            localStorage.setItem('agentsDB', JSON.stringify(agents));
+            return agent;
+        }
+
+        try {
+            const { data, error } = await this.client
+                .from('agents')
+                .insert([agent])
+                .select()
+                .single();
+            
+            if (error) throw error;
+            
+            // Sincronizar con localStorage
+            const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+            agents.push(data);
+            localStorage.setItem('agentsDB', JSON.stringify(agents));
+            
+            return data;
+        } catch (error) {
+            console.error('❌ Error creando agente:', error);
+            throw error;
+        }
+    }
+
+    async updateAgent(id, updates) {
+        if (!this.isInitialized()) {
+            const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+            const index = agents.findIndex(a => a.id === id || a.id == id);
+            if (index !== -1) {
+                agents[index] = { ...agents[index], ...updates, updated_at: new Date().toISOString() };
+                localStorage.setItem('agentsDB', JSON.stringify(agents));
+                return agents[index];
+            }
+            return null;
+        }
+
+        try {
+            const { data, error } = await this.client
+                .from('agents')
+                .update({ ...updates, updated_at: new Date().toISOString() })
+                .eq('id', id)
+                .select()
+                .single();
+            
+            if (error) throw error;
+            
+            // Sincronizar con localStorage
+            const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+            const index = agents.findIndex(a => a.id === id);
+            if (index !== -1) {
+                agents[index] = data;
+                localStorage.setItem('agentsDB', JSON.stringify(agents));
+            }
+            
+            return data;
+        } catch (error) {
+            console.error('❌ Error actualizando agente:', error);
+            throw error;
+        }
+    }
+
+    async deleteAgent(id) {
+        if (!this.isInitialized()) {
+            const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+            const filtered = agents.filter(a => a.id !== id && a.id != id);
+            localStorage.setItem('agentsDB', JSON.stringify(filtered));
+            return { success: true };
+        }
+
+        try {
+            const { error } = await this.client
+                .from('agents')
+                .delete()
+                .eq('id', id);
+            
+            if (error) throw error;
+            
+            // Sincronizar con localStorage
+            const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+            const filtered = agents.filter(a => a.id !== id);
+            localStorage.setItem('agentsDB', JSON.stringify(filtered));
+            
+            return { success: true };
+        } catch (error) {
+            console.error('❌ Error eliminando agente:', error);
             throw error;
         }
     }
