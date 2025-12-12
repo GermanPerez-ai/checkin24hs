@@ -16387,10 +16387,31 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         // ============================================
 
         // Cargar administradores en la tabla
-        function loadAdminsTable() {
-            const admins = getAdminUsers();
+        async function loadAdminsTable() {
             const tableBody = document.getElementById('adminsTableBody');
             if (!tableBody) return;
+
+            // Mostrar loading
+            tableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px;">Cargando administradores...</td></tr>';
+
+            // Obtener administradores (de Supabase si está disponible)
+            let admins = [];
+            try {
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    console.log('☁️ Cargando administradores desde Supabase...');
+                    admins = await window.supabaseClient.getAdmins();
+                    // Sincronizar con localStorage como backup
+                    if (admins && admins.length > 0) {
+                        localStorage.setItem('dashboard_admin_users', JSON.stringify(admins));
+                    }
+                    console.log(`✅ ${admins.length} administradores cargados de Supabase`);
+                } else {
+                    admins = getAdminUsers();
+                }
+            } catch (error) {
+                console.error('❌ Error cargando administradores:', error);
+                admins = getAdminUsers();
+            }
 
             tableBody.innerHTML = '';
 
@@ -16405,7 +16426,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     '<span style="background: #4caf50; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">Activo</span>' :
                     '<span style="background: #f44336; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">Inactivo</span>';
 
-                const lastLogin = admin.lastLogin ? new Date(admin.lastLogin).toLocaleString('es-ES') : 'Nunca';
+                // Soportar ambas estructuras de campo (camelCase y snake_case)
+                const lastLoginValue = admin.lastLogin || admin.last_login;
+                const lastLogin = lastLoginValue ? new Date(lastLoginValue).toLocaleString('es-ES') : 'Nunca';
 
                 row.innerHTML = `
                     <td style="padding: 12px;">${admin.username}</td>
@@ -16437,12 +16460,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             });
 
             // Actualizar estadísticas
-            updateAdminStats();
+            updateAdminStats(admins);
         }
 
         // Actualizar estadísticas de administradores
-        function updateAdminStats() {
-            const admins = getAdminUsers();
+        function updateAdminStats(admins = null) {
+            if (!admins) {
+                admins = getAdminUsers();
+            }
             const total = admins.length;
             const totalAdmins = admins.filter(a => a.role === 'admin_total').length;
             const totalUsers = admins.filter(a => a.role === 'usuario').length;
@@ -16495,7 +16520,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Guardar administrador
-        function saveAdmin(event) {
+        async function saveAdmin(event) {
             event.preventDefault();
             
             if (!isAdminTotal()) {
@@ -16511,71 +16536,103 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             const status = document.getElementById('adminStatus').value;
             const password = document.getElementById('adminPassword').value;
 
-            const admins = getAdminUsers();
-
-            if (adminId) {
-                // Editar
-                const adminIndex = admins.findIndex(a => a.id === adminId);
-                if (adminIndex === -1) {
-                    alert('❌ Administrador no encontrado');
-                    return;
+            try {
+                // Obtener administradores (de Supabase si está disponible)
+                let admins = [];
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    admins = await window.supabaseClient.getAdmins();
+                } else {
+                    admins = getAdminUsers();
                 }
 
-                // Verificar que el username no esté en uso por otro admin
-                const usernameExists = admins.some(a => a.username.toLowerCase() === username.toLowerCase() && a.id !== adminId);
-                if (usernameExists) {
-                    alert('❌ El nombre de usuario ya está en uso');
-                    return;
+                if (adminId) {
+                    // Editar
+                    const adminIndex = admins.findIndex(a => a.id === adminId);
+                    if (adminIndex === -1) {
+                        alert('❌ Administrador no encontrado');
+                        return;
+                    }
+
+                    // Verificar que el username no esté en uso por otro admin
+                    const usernameExists = admins.some(a => a.username.toLowerCase() === username.toLowerCase() && a.id !== adminId);
+                    if (usernameExists) {
+                        alert('❌ El nombre de usuario ya está en uso');
+                        return;
+                    }
+
+                    const updates = {
+                        username: username,
+                        name: name,
+                        email: email,
+                        role: role,
+                        status: status,
+                        updated_at: new Date().toISOString()
+                    };
+                    
+                    if (password && password.length >= 6) {
+                        updates.password = password;
+                    } else if (password && password.length > 0) {
+                        alert('❌ La contraseña debe tener al menos 6 caracteres');
+                        return;
+                    }
+
+                    if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                        console.log('☁️ Actualizando administrador en Supabase...');
+                        await window.supabaseClient.updateAdmin(adminId, updates);
+                        console.log('✅ Administrador actualizado en Supabase');
+                    } else {
+                        // Fallback a localStorage
+                        admins[adminIndex] = { ...admins[adminIndex], ...updates };
+                        saveAdminUsers(admins);
+                    }
+                    
+                    alert('✅ Administrador actualizado correctamente');
+                } else {
+                    // Nuevo
+                    if (!password || password.length < 6) {
+                        alert('❌ La contraseña debe tener al menos 6 caracteres');
+                        return;
+                    }
+
+                    // Verificar que el username no esté en uso
+                    const usernameExists = admins.some(a => a.username.toLowerCase() === username.toLowerCase());
+                    if (usernameExists) {
+                        alert('❌ El nombre de usuario ya está en uso');
+                        return;
+                    }
+
+                    const newAdmin = {
+                        username: username,
+                        password: password,
+                        name: name,
+                        email: email,
+                        role: role,
+                        status: status,
+                        created_at: new Date().toISOString(),
+                        last_login: null
+                    };
+
+                    if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                        console.log('☁️ Creando administrador en Supabase...');
+                        await window.supabaseClient.createAdmin(newAdmin);
+                        console.log('✅ Administrador creado en Supabase');
+                    } else {
+                        // Fallback a localStorage
+                        newAdmin.id = 'admin-' + Date.now();
+                        admins.push(newAdmin);
+                        saveAdminUsers(admins);
+                    }
+                    
+                    alert('✅ Administrador creado correctamente');
                 }
 
-                admins[adminIndex].username = username;
-                admins[adminIndex].name = name;
-                admins[adminIndex].email = email;
-                admins[adminIndex].role = role;
-                admins[adminIndex].status = status;
+                closeAdminModal();
+                loadAdminsTable();
                 
-                if (password && password.length >= 6) {
-                    admins[adminIndex].password = password;
-                } else if (password && password.length > 0) {
-                    alert('❌ La contraseña debe tener al menos 6 caracteres');
-                    return;
-                }
-
-                saveAdminUsers(admins);
-                alert('✅ Administrador actualizado correctamente');
-            } else {
-                // Nuevo
-                if (!password || password.length < 6) {
-                    alert('❌ La contraseña debe tener al menos 6 caracteres');
-                    return;
-                }
-
-                // Verificar que el username no esté en uso
-                const usernameExists = admins.some(a => a.username.toLowerCase() === username.toLowerCase());
-                if (usernameExists) {
-                    alert('❌ El nombre de usuario ya está en uso');
-                    return;
-                }
-
-                const newAdmin = {
-                    id: 'admin-' + Date.now(),
-                    username: username,
-                    password: password,
-                    name: name,
-                    email: email,
-                    role: role,
-                    status: status,
-                    createdAt: new Date().toISOString(),
-                    lastLogin: null
-                };
-
-                admins.push(newAdmin);
-                saveAdminUsers(admins);
-                alert('✅ Administrador creado correctamente');
+            } catch (error) {
+                console.error('❌ Error guardando administrador:', error);
+                alert('Error al guardar el administrador: ' + error.message);
             }
-
-            closeAdminModal();
-            loadAdminsTable();
         }
 
         // Dar de baja administrador
