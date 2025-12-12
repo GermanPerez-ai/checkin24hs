@@ -12224,11 +12224,17 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             // Intentar cargar desde Supabase primero
             let reservations = [];
+            let loadedFromSupabase = false;
             if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                 try {
                     console.log('☁️ Cargando reservas desde Supabase...');
                     reservations = await window.supabaseClient.getReservations();
                     console.log(`✅ ${reservations.length} reservas cargadas desde Supabase`);
+                    loadedFromSupabase = true;
+                    
+                    // IMPORTANTE: Guardar en localStorage para que otras funciones tengan acceso
+                    localStorage.setItem('reservationsDB', JSON.stringify(reservations));
+                    console.log('💾 Reservas guardadas en localStorage');
                 } catch (error) {
                     console.warn('⚠️ Error cargando desde Supabase, usando localStorage:', error);
                     reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
@@ -12242,6 +12248,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             // Guardar todas las reservas en variable global
             allReservationsData = reservations;
+            
+            // Si se cargaron datos frescos de Supabase, actualizar las estadísticas
+            if (loadedFromSupabase) {
+                console.log('🔄 Actualizando estadísticas con datos frescos de Supabase...');
+                if (typeof updateStats === 'function') {
+                    updateStats();
+                }
+            }
             
             // Ordenar reservas por fecha (más recientes primero)
             reservations.sort((a, b) => {
