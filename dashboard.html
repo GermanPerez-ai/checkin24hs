@@ -14014,7 +14014,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             console.log('📥 Procesando archivo:', file.name);
             
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = async function(e) {
                 try {
                     const data = new Uint8Array(e.target.result);
                     // Leer el archivo Excel
@@ -14229,8 +14229,53 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         }
                     });
                     
-                    // Guardar todas las reservas
+                    // Guardar en localStorage como backup
                     localStorage.setItem('reservationsDB', JSON.stringify(existingReservations));
+                    
+                    // Subir a Supabase si está disponible
+                    if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                        console.log('☁️ Subiendo reservas importadas a Supabase...');
+                        
+                        // Obtener reservas que se acaban de agregar/actualizar
+                        const reservationsToSync = existingReservations.filter(r => {
+                            // Solo las que se procesaron en esta importación
+                            return r.createdAt && new Date(r.createdAt).getTime() > Date.now() - 60000;
+                        });
+                        
+                        let syncErrors = 0;
+                        for (const reservation of reservationsToSync) {
+                            try {
+                                // Convertir a formato snake_case para Supabase
+                                const supabaseReservation = {
+                                    reservation_code: reservation.reservationCode,
+                                    client_name: reservation.clientName,
+                                    client_email: reservation.clientEmail || '',
+                                    client_phone: reservation.clientPhone || '',
+                                    hotel_id: reservation.hotelId || null,
+                                    hotel_name: reservation.hotelName,
+                                    check_in: reservation.checkIn,
+                                    check_out: reservation.checkOut,
+                                    reservation_date: reservation.reservationDate || reservation.checkIn,
+                                    agent_name: reservation.agentName || '',
+                                    status: reservation.status || 'Confirmada',
+                                    total_amount: reservation.totalAmount || 0,
+                                    created_at: reservation.createdAt,
+                                    updated_at: reservation.updatedAt
+                                };
+                                
+                                await window.supabaseClient.createReservation(supabaseReservation);
+                            } catch (error) {
+                                console.error('Error sincronizando reserva:', reservation.reservationCode, error);
+                                syncErrors++;
+                            }
+                        }
+                        
+                        if (syncErrors > 0) {
+                            console.warn(`⚠️ ${syncErrors} reservas no se pudieron sincronizar con Supabase`);
+                        } else {
+                            console.log(`✅ ${reservationsToSync.length} reservas sincronizadas con Supabase`);
+                        }
+                    }
                     
                     // Mostrar resumen
                     let message = `✅ Importación completada:\n`;
