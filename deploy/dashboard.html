@@ -14233,17 +14233,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     localStorage.setItem('reservationsDB', JSON.stringify(existingReservations));
                     
                     // Subir a Supabase si está disponible
+                    let syncSuccess = false;
                     if (window.supabaseClient && window.supabaseClient.isInitialized()) {
-                        console.log('☁️ Subiendo reservas importadas a Supabase...');
-                        
-                        // Obtener reservas que se acaban de agregar/actualizar
-                        const reservationsToSync = existingReservations.filter(r => {
-                            // Solo las que se procesaron en esta importación
-                            return r.createdAt && new Date(r.createdAt).getTime() > Date.now() - 60000;
-                        });
+                        console.log('☁️ Subiendo ' + added + ' reservas importadas a Supabase...');
                         
                         let syncErrors = 0;
-                        for (const reservation of reservationsToSync) {
+                        let syncCount = 0;
+                        
+                        // Subir TODAS las reservas del array existingReservations a Supabase
+                        for (const reservation of existingReservations) {
                             try {
                                 // Convertir a formato snake_case para Supabase
                                 const supabaseReservation = {
@@ -14258,22 +14256,32 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                     reservation_date: reservation.reservationDate || reservation.checkIn,
                                     agent_name: reservation.agentName || '',
                                     status: reservation.status || 'Confirmada',
-                                    total_amount: reservation.totalAmount || 0,
-                                    created_at: reservation.createdAt,
-                                    updated_at: reservation.updatedAt
+                                    total_amount: reservation.totalAmount || 0
                                 };
                                 
                                 await window.supabaseClient.createReservation(supabaseReservation);
+                                syncCount++;
+                                
+                                // Log progreso cada 10 reservas
+                                if (syncCount % 10 === 0) {
+                                    console.log(`📤 Progreso: ${syncCount}/${existingReservations.length} reservas subidas`);
+                                }
                             } catch (error) {
-                                console.error('Error sincronizando reserva:', reservation.reservationCode, error);
-                                syncErrors++;
+                                // Si ya existe la reserva (código duplicado), contar como OK
+                                if (error.message && error.message.includes('duplicate')) {
+                                    syncCount++;
+                                } else {
+                                    console.error('Error sincronizando reserva:', reservation.reservationCode, error);
+                                    syncErrors++;
+                                }
                             }
                         }
                         
                         if (syncErrors > 0) {
                             console.warn(`⚠️ ${syncErrors} reservas no se pudieron sincronizar con Supabase`);
                         } else {
-                            console.log(`✅ ${reservationsToSync.length} reservas sincronizadas con Supabase`);
+                            console.log(`✅ ${syncCount} reservas sincronizadas con Supabase exitosamente`);
+                            syncSuccess = true;
                         }
                     }
                     
@@ -14281,6 +14289,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     let message = `✅ Importación completada:\n`;
                     message += `• ${added} reservas agregadas\n`;
                     message += `• ${updated} reservas actualizadas\n`;
+                    if (syncSuccess) {
+                        message += `• ☁️ Sincronizadas con la nube\n`;
+                    }
                     if (errors > 0) {
                         message += `• ${errors} errores encontrados\n\n`;
                         message += `Errores:\n${errorMessages.slice(0, 5).join('\n')}`;
@@ -14293,6 +14304,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     
                     // Cerrar modal
                     closeImportReservationsModal();
+                    
+                    // Esperar un momento antes de recargar para que Supabase procese
+                    await new Promise(resolve => setTimeout(resolve, 2000));
                     
                     // Actualizar tabla y estadísticas
                     if (typeof loadReservationsTable === 'function') {
