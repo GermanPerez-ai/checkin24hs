@@ -2310,7 +2310,7 @@
             <div style="padding: 20px;">
                 <p style="margin-bottom: 20px; color: #666;">
                     Selecciona un archivo Excel (.xlsx) con las reservas a importar. 
-                    El archivo debe tener las columnas: Código, Cliente, Email, Teléfono, Hotel, Fecha Entrada, Fecha Salida, Fecha Registro, Agente, Estado, Total.
+                    El archivo debe tener las columnas: <strong>Código, Cliente, Hotel, Fecha Entrada, Fecha Salida, Total</strong> (requeridos) y opcionalmente: Email, Teléfono, Fecha Registro, Agente, Estado.
                 </p>
                 <div style="margin-bottom: 20px;">
                     <label for="importFileInput" style="display: block; margin-bottom: 8px; font-weight: 500;">
@@ -14068,10 +14068,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             const status = (row['Estado'] || 'Confirmada').toString().trim();
                             const totalAmount = parseFloat(row['Total'] || 0);
                             
-                            // Validar campos requeridos
-                            if (!reservationCode || !clientName || !clientEmail || !checkIn || !checkOut) {
+                            // Validar campos requeridos (Email y Teléfono son opcionales)
+                            if (!reservationCode || !clientName || !checkIn || !checkOut) {
                                 errors++;
-                                errorMessages.push(`Fila ${index + 2}: Faltan campos requeridos (Código, Cliente, Email, Fechas)`);
+                                errorMessages.push(`Fila ${index + 2}: Faltan campos requeridos (Código, Cliente, Fechas)`);
                                 return;
                             }
                             
@@ -16542,20 +16542,20 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     admins = getAdminUsers();
                 }
 
-            if (adminId) {
-                // Editar
-                const adminIndex = admins.findIndex(a => a.id === adminId);
-                if (adminIndex === -1) {
-                    alert('❌ Administrador no encontrado');
-                    return;
-                }
+                if (adminId) {
+                    // Editar
+                    const adminIndex = admins.findIndex(a => a.id === adminId);
+                    if (adminIndex === -1) {
+                        alert('❌ Administrador no encontrado');
+                        return;
+                    }
 
-                // Verificar que el username no esté en uso por otro admin
-                const usernameExists = admins.some(a => a.username.toLowerCase() === username.toLowerCase() && a.id !== adminId);
-                if (usernameExists) {
-                    alert('❌ El nombre de usuario ya está en uso');
-                    return;
-                }
+                    // Verificar que el username no esté en uso por otro admin
+                    const usernameExists = admins.some(a => a.username.toLowerCase() === username.toLowerCase() && a.id !== adminId);
+                    if (usernameExists) {
+                        alert('❌ El nombre de usuario ya está en uso');
+                        return;
+                    }
 
                     const updates = {
                         username: username,
@@ -16565,13 +16565,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         status: status,
                         updated_at: new Date().toISOString()
                     };
-                
-                if (password && password.length >= 6) {
+                    
+                    if (password && password.length >= 6) {
                         updates.password_hash = password;
-                } else if (password && password.length > 0) {
-                    alert('❌ La contraseña debe tener al menos 6 caracteres');
-                    return;
-                }
+                    } else if (password && password.length > 0) {
+                        alert('❌ La contraseña debe tener al menos 6 caracteres');
+                        return;
+                    }
 
                     if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                         console.log('☁️ Actualizando administrador en Supabase...');
@@ -16580,31 +16580,31 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     } else {
                         // Fallback a localStorage
                         admins[adminIndex] = { ...admins[adminIndex], ...updates };
-                saveAdminUsers(admins);
+                        saveAdminUsers(admins);
                     }
                     
-                alert('✅ Administrador actualizado correctamente');
-            } else {
-                // Nuevo
-                if (!password || password.length < 6) {
-                    alert('❌ La contraseña debe tener al menos 6 caracteres');
-                    return;
-                }
+                    alert('✅ Administrador actualizado correctamente');
+                } else {
+                    // Nuevo
+                    if (!password || password.length < 6) {
+                        alert('❌ La contraseña debe tener al menos 6 caracteres');
+                        return;
+                    }
 
-                // Verificar que el username no esté en uso
-                const usernameExists = admins.some(a => a.username.toLowerCase() === username.toLowerCase());
-                if (usernameExists) {
-                    alert('❌ El nombre de usuario ya está en uso');
-                    return;
-                }
+                    // Verificar que el username no esté en uso
+                    const usernameExists = admins.some(a => a.username.toLowerCase() === username.toLowerCase());
+                    if (usernameExists) {
+                        alert('❌ El nombre de usuario ya está en uso');
+                        return;
+                    }
 
-                const newAdmin = {
-                    username: username,
+                    const newAdmin = {
+                        username: username,
                         password_hash: password,
-                    name: name,
-                    email: email,
-                    role: role,
-                    status: status,
+                        name: name,
+                        email: email,
+                        role: role,
+                        status: status,
                         created_at: new Date().toISOString(),
                         last_login: null
                     };
@@ -16616,15 +16616,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     } else {
                         // Fallback a localStorage
                         newAdmin.id = 'admin-' + Date.now();
-                admins.push(newAdmin);
-                saveAdminUsers(admins);
+                        admins.push(newAdmin);
+                        saveAdminUsers(admins);
                     }
                     
-                alert('✅ Administrador creado correctamente');
-            }
+                    alert('✅ Administrador creado correctamente');
+                }
 
-            closeAdminModal();
-            loadAdminsTable();
+                closeAdminModal();
+                loadAdminsTable();
                 
             } catch (error) {
                 console.error('❌ Error guardando administrador:', error);
@@ -16716,19 +16716,19 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     console.log('✅ Contraseña actualizada en Supabase');
                 } else {
                     // Fallback a localStorage
-            const admins = getAdminUsers();
-            const admin = admins.find(a => a.id === adminId);
-            if (!admin) {
-                alert('❌ Administrador no encontrado');
-                return;
-            }
-            admin.password = password;
+                    const admins = getAdminUsers();
+                    const admin = admins.find(a => a.id === adminId);
+                    if (!admin) {
+                        alert('❌ Administrador no encontrado');
+                        return;
+                    }
+                    admin.password = password;
                     admin.password_hash = password;
-            saveAdminUsers(admins);
+                    saveAdminUsers(admins);
                 }
 
-            closeResetPasswordModal();
-            alert('✅ Contraseña reseteada correctamente');
+                closeResetPasswordModal();
+                alert('✅ Contraseña reseteada correctamente');
             } catch (error) {
                 console.error('❌ Error al resetear contraseña:', error);
                 alert('Error al resetear contraseña: ' + error.message);

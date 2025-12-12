@@ -2310,7 +2310,7 @@
             <div style="padding: 20px;">
                 <p style="margin-bottom: 20px; color: #666;">
                     Selecciona un archivo Excel (.xlsx) con las reservas a importar. 
-                    El archivo debe tener las columnas: Código, Cliente, Email, Teléfono, Hotel, Fecha Entrada, Fecha Salida, Fecha Registro, Agente, Estado, Total.
+                    El archivo debe tener las columnas: <strong>Código, Cliente, Hotel, Fecha Entrada, Fecha Salida, Total</strong> (requeridos) y opcionalmente: Email, Teléfono, Fecha Registro, Agente, Estado.
                 </p>
                 <div style="margin-bottom: 20px;">
                     <label for="importFileInput" style="display: block; margin-bottom: 8px; font-weight: 500;">
@@ -14068,10 +14068,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             const status = (row['Estado'] || 'Confirmada').toString().trim();
                             const totalAmount = parseFloat(row['Total'] || 0);
                             
-                            // Validar campos requeridos
-                            if (!reservationCode || !clientName || !clientEmail || !checkIn || !checkOut) {
+                            // Validar campos requeridos (Email y Teléfono son opcionales)
+                            if (!reservationCode || !clientName || !checkIn || !checkOut) {
                                 errors++;
-                                errorMessages.push(`Fila ${index + 2}: Faltan campos requeridos (Código, Cliente, Email, Fechas)`);
+                                errorMessages.push(`Fila ${index + 2}: Faltan campos requeridos (Código, Cliente, Fechas)`);
                                 return;
                             }
                             
