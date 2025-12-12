@@ -1920,10 +1920,7 @@
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">refresh</span>
                         Actualizar
                     </button>
-                    <button class="form-button" onclick="deleteAllReservations()" style="background: #f44336; color: white;">
-                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">delete_forever</span>
-                        Eliminar Todas las Reservas
-                    </button>
+                    <!-- Botón de eliminar reservas removido por seguridad -->
                 </div>
 
                 <!-- Stats Cards -->
@@ -16545,20 +16542,20 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     admins = getAdminUsers();
                 }
 
-                if (adminId) {
-                    // Editar
-                    const adminIndex = admins.findIndex(a => a.id === adminId);
-                    if (adminIndex === -1) {
-                        alert('❌ Administrador no encontrado');
-                        return;
-                    }
+            if (adminId) {
+                // Editar
+                const adminIndex = admins.findIndex(a => a.id === adminId);
+                if (adminIndex === -1) {
+                    alert('❌ Administrador no encontrado');
+                    return;
+                }
 
-                    // Verificar que el username no esté en uso por otro admin
-                    const usernameExists = admins.some(a => a.username.toLowerCase() === username.toLowerCase() && a.id !== adminId);
-                    if (usernameExists) {
-                        alert('❌ El nombre de usuario ya está en uso');
-                        return;
-                    }
+                // Verificar que el username no esté en uso por otro admin
+                const usernameExists = admins.some(a => a.username.toLowerCase() === username.toLowerCase() && a.id !== adminId);
+                if (usernameExists) {
+                    alert('❌ El nombre de usuario ya está en uso');
+                    return;
+                }
 
                     const updates = {
                         username: username,
@@ -16568,13 +16565,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         status: status,
                         updated_at: new Date().toISOString()
                     };
-                    
-                    if (password && password.length >= 6) {
+                
+                if (password && password.length >= 6) {
                         updates.password_hash = password;
-                    } else if (password && password.length > 0) {
-                        alert('❌ La contraseña debe tener al menos 6 caracteres');
-                        return;
-                    }
+                } else if (password && password.length > 0) {
+                    alert('❌ La contraseña debe tener al menos 6 caracteres');
+                    return;
+                }
 
                     if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                         console.log('☁️ Actualizando administrador en Supabase...');
@@ -16583,31 +16580,31 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     } else {
                         // Fallback a localStorage
                         admins[adminIndex] = { ...admins[adminIndex], ...updates };
-                        saveAdminUsers(admins);
+                saveAdminUsers(admins);
                     }
                     
-                    alert('✅ Administrador actualizado correctamente');
-                } else {
-                    // Nuevo
-                    if (!password || password.length < 6) {
-                        alert('❌ La contraseña debe tener al menos 6 caracteres');
-                        return;
-                    }
+                alert('✅ Administrador actualizado correctamente');
+            } else {
+                // Nuevo
+                if (!password || password.length < 6) {
+                    alert('❌ La contraseña debe tener al menos 6 caracteres');
+                    return;
+                }
 
-                    // Verificar que el username no esté en uso
-                    const usernameExists = admins.some(a => a.username.toLowerCase() === username.toLowerCase());
-                    if (usernameExists) {
-                        alert('❌ El nombre de usuario ya está en uso');
-                        return;
-                    }
+                // Verificar que el username no esté en uso
+                const usernameExists = admins.some(a => a.username.toLowerCase() === username.toLowerCase());
+                if (usernameExists) {
+                    alert('❌ El nombre de usuario ya está en uso');
+                    return;
+                }
 
-                    const newAdmin = {
-                        username: username,
+                const newAdmin = {
+                    username: username,
                         password_hash: password,
-                        name: name,
-                        email: email,
-                        role: role,
-                        status: status,
+                    name: name,
+                    email: email,
+                    role: role,
+                    status: status,
                         created_at: new Date().toISOString(),
                         last_login: null
                     };
@@ -16619,15 +16616,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     } else {
                         // Fallback a localStorage
                         newAdmin.id = 'admin-' + Date.now();
-                        admins.push(newAdmin);
-                        saveAdminUsers(admins);
+                admins.push(newAdmin);
+                saveAdminUsers(admins);
                     }
                     
-                    alert('✅ Administrador creado correctamente');
-                }
+                alert('✅ Administrador creado correctamente');
+            }
 
-                closeAdminModal();
-                loadAdminsTable();
+            closeAdminModal();
+            loadAdminsTable();
                 
             } catch (error) {
                 console.error('❌ Error guardando administrador:', error);
@@ -16719,19 +16716,19 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     console.log('✅ Contraseña actualizada en Supabase');
                 } else {
                     // Fallback a localStorage
-                    const admins = getAdminUsers();
-                    const admin = admins.find(a => a.id === adminId);
-                    if (!admin) {
-                        alert('❌ Administrador no encontrado');
-                        return;
-                    }
-                    admin.password = password;
+            const admins = getAdminUsers();
+            const admin = admins.find(a => a.id === adminId);
+            if (!admin) {
+                alert('❌ Administrador no encontrado');
+                return;
+            }
+            admin.password = password;
                     admin.password_hash = password;
-                    saveAdminUsers(admins);
+            saveAdminUsers(admins);
                 }
 
-                closeResetPasswordModal();
-                alert('✅ Contraseña reseteada correctamente');
+            closeResetPasswordModal();
+            alert('✅ Contraseña reseteada correctamente');
             } catch (error) {
                 console.error('❌ Error al resetear contraseña:', error);
                 alert('Error al resetear contraseña: ' + error.message);
