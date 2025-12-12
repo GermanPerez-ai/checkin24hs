@@ -12160,83 +12160,32 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         // ===== FUNCIONES DE RESERVAS =====
 
         // Función para inicializar base de datos de reservas
-        function initReservationsDB() {
+        async function initReservationsDB() {
             console.log('Inicializando base de datos de reservas...');
             
             // Verificar si ya existen reservas en localStorage
             const existingReservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
             
             if (existingReservations.length === 0) {
-                console.log('🆕 No hay reservas en la base de datos, agregando reservas de ejemplo...');
+                console.log('🔄 No hay reservas en localStorage, intentando cargar desde Supabase...');
                 
-                // Reservas de ejemplo
-                const defaultReservations = [
-                    {
-                        id: 'res-001',
-                        reservationCode: 'RES-2024-001',
-                        clientName: 'María González',
-                        clientEmail: 'maria.gonzalez@email.com',
-                        clientPhone: '+56912345678',
-                        hotelId: 'hotel-puyehue',
-                        hotelName: 'Hotel Terma de Puyehue',
-                        checkIn: '2024-02-15',
-                        checkOut: '2024-02-18',
-                        guests: 2,
-                        adults: 2,
-                        children: 0,
-                        roomType: 'Doble',
-                        status: 'Confirmada',
-                        totalAmount: 600,
-                        paymentStatus: 'Pagado',
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString()
-                    },
-                    {
-                        id: 'res-002',
-                        reservationCode: 'RES-2024-002',
-                        clientName: 'Carlos Rodríguez',
-                        clientEmail: 'carlos.rodriguez@email.com',
-                        clientPhone: '+56987654321',
-                        hotelId: 'hotel-huilo-huilo',
-                        hotelName: 'Hotel Huilo-Huilo',
-                        checkIn: '2024-02-20',
-                        checkOut: '2024-02-22',
-                        guests: 4,
-                        adults: 2,
-                        children: 2,
-                        roomType: 'Familiar',
-                        status: 'Pendiente',
-                        totalAmount: 480,
-                        paymentStatus: 'Pendiente',
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString()
-                    },
-                    {
-                        id: 'res-003',
-                        reservationCode: 'RES-2024-003',
-                        clientName: 'Ana Silva',
-                        clientEmail: 'ana.silva@email.com',
-                        clientPhone: '+56911223344',
-                        hotelId: 'hotel-corralco',
-                        hotelName: 'Hotel Corralco Resort',
-                        checkIn: '2024-02-25',
-                        checkOut: '2024-02-28',
-                        guests: 2,
-                        adults: 2,
-                        children: 0,
-                        roomType: 'Doble',
-                        status: 'Confirmada',
-                        totalAmount: 720,
-                        paymentStatus: 'Pagado',
-                        createdAt: new Date().toISOString(),
-                        updatedAt: new Date().toISOString()
+                // Intentar cargar desde Supabase primero
+                try {
+                    if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                        const supabaseReservations = await window.supabaseClient.getReservations();
+                        if (supabaseReservations && supabaseReservations.length > 0) {
+                            localStorage.setItem('reservationsDB', JSON.stringify(supabaseReservations));
+                            console.log(`✅ ${supabaseReservations.length} reservas cargadas desde Supabase`);
+                            return;
+                        }
                     }
-                ];
+                } catch (error) {
+                    console.error('❌ Error al cargar reservas desde Supabase:', error);
+                }
                 
-                // Guardar reservas de ejemplo en localStorage
-                localStorage.setItem('reservationsDB', JSON.stringify(defaultReservations));
-                
-                console.log(`✅ ${defaultReservations.length} reservas de ejemplo agregadas`);
+                // Si no hay reservas en Supabase, dejar vacío (NO agregar reservas de ejemplo)
+                console.log('ℹ️ No hay reservas en Supabase. El sistema está listo para agregar reservas reales.');
+                localStorage.setItem('reservationsDB', JSON.stringify([]));
                 
             } else {
                 console.log(`ℹ️ Ya existen ${existingReservations.length} reservas en la base de datos`);
