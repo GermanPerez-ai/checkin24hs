@@ -4383,11 +4383,14 @@
                 const currentMonth = now.getMonth() + 1;
                 
                 const monthlyReservations = reservations.filter(reservation => {
-                    if (!reservation.checkIn || reservation.status === 'Cancelada' || reservation.status === 'cancelada') {
+                    // Soportar tanto checkIn (camelCase) como check_in (snake_case de Supabase)
+                    const checkInDate = reservation.checkIn || reservation.check_in;
+                    
+                    if (!checkInDate || reservation.status === 'Cancelada' || reservation.status === 'cancelada') {
                         return false;
                     }
                     
-                    let dateStr = reservation.checkIn;
+                    let dateStr = checkInDate;
                     if (dateStr.includes('T')) {
                         dateStr = dateStr.split('T')[0];
                     }
@@ -4449,13 +4452,14 @@
                         return false;
                     }
                     
-                    // Verificar si tiene checkIn
-                    if (!reservation.checkIn) {
+                    // Soportar tanto checkIn (camelCase) como check_in (snake_case de Supabase)
+                    const rawCheckIn = reservation.checkIn || reservation.check_in;
+                    if (!rawCheckIn) {
                         return false;
                     }
                     
                     // Normalizar fecha de checkIn
-                    const checkInDate = normalizeDate(reservation.checkIn);
+                    const checkInDate = normalizeDate(rawCheckIn);
                     if (!checkInDate) {
                         return false;
                     }
@@ -4568,8 +4572,9 @@
                 
                 // Filtrar reservas que tienen checkIn de HOY (fecha de entrada)
                 const todayReservations = reservations.filter(reservation => {
-                    // Verificar si tiene checkIn de HOY (fecha de entrada)
-                    const checkIn = normalizeDate(reservation.checkIn);
+                    // Soportar tanto checkIn (camelCase) como check_in (snake_case de Supabase)
+                    const rawCheckIn = reservation.checkIn || reservation.check_in;
+                    const checkIn = normalizeDate(rawCheckIn);
                     const checkInToday = checkIn !== null && checkIn === todayStr;
                     
                     // Incluir solo si tiene checkIn de HOY
@@ -4578,10 +4583,10 @@
                     if (isToday) {
                         console.log(`✅ Reserva de hoy encontrada (checkIn hoy):`, {
                             id: reservation.id,
-                            code: reservation.reservationCode,
-                            checkIn: reservation.checkIn,
+                            code: reservation.reservationCode || reservation.reservation_code,
+                            checkIn: rawCheckIn,
                             checkInNormalizado: checkIn,
-                            totalAmount: reservation.totalAmount,
+                            totalAmount: reservation.totalAmount || reservation.total_amount,
                             status: reservation.status
                         });
                     }
@@ -6294,12 +6299,15 @@
             
             // Filtrar reservas del mes actual que no estén canceladas
             const monthlyReservations = reservations.filter(reservation => {
-                if (!reservation.checkIn || reservation.status === 'Cancelada' || reservation.status === 'cancelada') {
+                // Soportar tanto checkIn (camelCase) como check_in (snake_case de Supabase)
+                const checkInDate = reservation.checkIn || reservation.check_in;
+                
+                if (!checkInDate || reservation.status === 'Cancelada' || reservation.status === 'cancelada') {
                     return false;
                 }
                 
                 // Normalizar fecha de check-in
-                let dateStr = reservation.checkIn;
+                let dateStr = checkInDate;
                 if (dateStr.includes('T')) {
                     dateStr = dateStr.split('T')[0];
                 }
