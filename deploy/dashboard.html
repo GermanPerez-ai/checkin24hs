@@ -14003,7 +14003,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
         
         // Función para procesar archivo Excel importado
-        function processImportFile() {
+        async function processImportFile() {
             const fileInput = document.getElementById('importFileInput');
             if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
                 alert('⚠️ Por favor selecciona un archivo Excel');
@@ -14036,21 +14036,59 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     
                     console.log(`📋 ${jsonData.length} filas encontradas en el archivo`);
                     
-                    // Obtener reservas existentes
+                    // ============================================
+                    // IMPORTANTE: Cargar reservas de SUPABASE primero
+                    // para verificar duplicados correctamente
+                    // ============================================
+                    let supabaseReservations = [];
+                    const supabaseCodesSet = new Set();
+                    
+                    if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                        console.log('☁️ Cargando reservas existentes de Supabase para verificar duplicados...');
+                        try {
+                            supabaseReservations = await window.supabaseClient.getReservations();
+                            console.log(`📊 ${supabaseReservations.length} reservas encontradas en Supabase`);
+                            
+                            // Crear Set con los códigos existentes en Supabase (ambos formatos)
+                            supabaseReservations.forEach(res => {
+                                const code = res.reservation_code || res.reservationCode;
+                                if (code) {
+                                    supabaseCodesSet.add(code.toString().trim().toUpperCase());
+                                }
+                            });
+                            console.log(`🔑 ${supabaseCodesSet.size} códigos únicos en Supabase`);
+                        } catch (error) {
+                            console.warn('⚠️ No se pudieron cargar reservas de Supabase:', error);
+                        }
+                    }
+                    
+                    // Obtener reservas de localStorage como fallback
                     const existingReservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
                     const reservationsMap = new Map();
                     
-                    // Crear mapa de reservas existentes por código
+                    // Crear mapa de reservas existentes por código (localStorage + Supabase)
                     existingReservations.forEach(res => {
-                        if (res.reservationCode) {
-                            reservationsMap.set(res.reservationCode, res);
+                        const code = res.reservationCode || res.reservation_code;
+                        if (code) {
+                            reservationsMap.set(code.toString().trim().toUpperCase(), res);
+                        }
+                    });
+                    
+                    // Agregar también los de Supabase al mapa
+                    supabaseReservations.forEach(res => {
+                        const code = res.reservation_code || res.reservationCode;
+                        if (code) {
+                            reservationsMap.set(code.toString().trim().toUpperCase(), res);
                         }
                     });
                     
                     let added = 0;
                     let updated = 0;
+                    let skipped = 0;
                     let errors = 0;
                     const errorMessages = [];
+                    const skippedCodes = []; // Códigos que fueron saltados por duplicados
+                    const newReservationsToUpload = []; // Solo las reservas nuevas para subir a Supabase
                     
                     // Procesar cada fila del Excel
                     jsonData.forEach((row, index) => {
@@ -14175,24 +14213,18 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             const normalizedCheckOut = normalizeDate(checkOut);
                             const normalizedReservationDate = normalizeDate(reservationDate) || new Date().toISOString().split('T')[0];
                             
-                            // Verificar si la reserva ya existe
-                            const existingReservation = reservationsMap.get(reservationCode);
+                            // ============================================
+                            // VERIFICAR DUPLICADOS CONTRA SUPABASE Y LOCAL
+                            // ============================================
+                            const codeUpperCase = reservationCode.toUpperCase();
+                            const existsInSupabase = supabaseCodesSet.has(codeUpperCase);
+                            const existingReservation = reservationsMap.get(codeUpperCase);
                             
-                            if (existingReservation) {
-                                // Actualizar reserva existente
-                                existingReservation.clientName = clientName;
-                                existingReservation.clientEmail = clientEmail;
-                                existingReservation.clientPhone = clientPhone;
-                                existingReservation.hotelId = hotelId;
-                                existingReservation.hotelName = hotelName;
-                                existingReservation.checkIn = normalizedCheckIn;
-                                existingReservation.checkOut = normalizedCheckOut;
-                                existingReservation.reservationDate = normalizedReservationDate;
-                                existingReservation.agentName = agentName;
-                                existingReservation.status = status;
-                                existingReservation.totalAmount = totalAmount;
-                                existingReservation.updatedAt = new Date().toISOString();
-                                updated++;
+                            if (existsInSupabase || existingReservation) {
+                                // La reserva ya existe, SALTAR y advertir
+                                skipped++;
+                                skippedCodes.push(reservationCode);
+                                console.log(`⚠️ Reserva duplicada saltada: ${reservationCode} (Cliente: ${clientName})`);
                             } else {
                                 // Crear nueva reserva
                                 const newReservation = {
@@ -14214,7 +14246,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                 };
                                 
                                 existingReservations.push(newReservation);
-                                reservationsMap.set(reservationCode, newReservation);
+                                reservationsMap.set(codeUpperCase, newReservation);
+                                supabaseCodesSet.add(codeUpperCase); // Prevenir duplicados dentro del mismo archivo
+                                newReservationsToUpload.push(newReservation); // Guardar para subir a Supabase
                                 added++;
                                 
                                 // Guardar o actualizar usuario
@@ -14232,16 +14266,16 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     // Guardar en localStorage como backup
                     localStorage.setItem('reservationsDB', JSON.stringify(existingReservations));
                     
-                    // Subir a Supabase si está disponible
+                    // Subir SOLO las reservas NUEVAS a Supabase
                     let syncSuccess = false;
-                    if (window.supabaseClient && window.supabaseClient.isInitialized()) {
-                        console.log('☁️ Subiendo ' + added + ' reservas importadas a Supabase...');
+                    if (window.supabaseClient && window.supabaseClient.isInitialized() && newReservationsToUpload.length > 0) {
+                        console.log(`☁️ Subiendo ${newReservationsToUpload.length} reservas NUEVAS a Supabase...`);
                         
                         let syncErrors = 0;
                         let syncCount = 0;
                         
-                        // Subir TODAS las reservas del array existingReservations a Supabase
-                        for (const reservation of existingReservations) {
+                        // Solo subir las reservas que son realmente nuevas
+                        for (const reservation of newReservationsToUpload) {
                             try {
                                 // Convertir a formato snake_case para Supabase
                                 const supabaseReservation = {
@@ -14264,16 +14298,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                 
                                 // Log progreso cada 10 reservas
                                 if (syncCount % 10 === 0) {
-                                    console.log(`📤 Progreso: ${syncCount}/${existingReservations.length} reservas subidas`);
+                                    console.log(`📤 Progreso: ${syncCount}/${newReservationsToUpload.length} reservas subidas`);
                                 }
                             } catch (error) {
-                                // Si ya existe la reserva (código duplicado), contar como OK
-                                if (error.message && error.message.includes('duplicate')) {
-                                    syncCount++;
-                                } else {
-                                    console.error('Error sincronizando reserva:', reservation.reservationCode, error);
-                                    syncErrors++;
-                                }
+                                console.error('Error sincronizando reserva:', reservation.reservationCode, error);
+                                syncErrors++;
                             }
                         }
                         
@@ -14283,24 +14312,46 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             console.log(`✅ ${syncCount} reservas sincronizadas con Supabase exitosamente`);
                             syncSuccess = true;
                         }
+                    } else if (newReservationsToUpload.length === 0 && added === 0) {
+                        console.log('ℹ️ No hay reservas nuevas para subir a Supabase');
+                        syncSuccess = true;
                     }
                     
-                    // Mostrar resumen
+                    // ============================================
+                    // MOSTRAR RESUMEN CON CÓDIGOS DUPLICADOS
+                    // ============================================
                     let message = `✅ Importación completada:\n`;
-                    message += `• ${added} reservas agregadas\n`;
-                    message += `• ${updated} reservas actualizadas\n`;
-                    if (syncSuccess) {
+                    message += `• ${added} reservas nuevas agregadas\n`;
+                    if (skipped > 0) {
+                        message += `• ⚠️ ${skipped} reservas saltadas (ya existían)\n`;
+                    }
+                    if (syncSuccess && added > 0) {
                         message += `• ☁️ Sincronizadas con la nube\n`;
                     }
                     if (errors > 0) {
-                        message += `• ${errors} errores encontrados\n\n`;
-                        message += `Errores:\n${errorMessages.slice(0, 5).join('\n')}`;
+                        message += `• ${errors} errores encontrados\n`;
+                    }
+                    
+                    // Mostrar códigos duplicados si hay pocos
+                    if (skippedCodes.length > 0 && skippedCodes.length <= 20) {
+                        message += `\n📋 Códigos duplicados:\n${skippedCodes.join(', ')}`;
+                    } else if (skippedCodes.length > 20) {
+                        message += `\n📋 Primeros 20 códigos duplicados:\n${skippedCodes.slice(0, 20).join(', ')}\n... y ${skippedCodes.length - 20} más`;
+                    }
+                    
+                    if (errors > 0) {
+                        message += `\n\n❌ Errores:\n${errorMessages.slice(0, 5).join('\n')}`;
                         if (errorMessages.length > 5) {
                             message += `\n... y ${errorMessages.length - 5} más`;
                         }
                     }
                     
                     alert(message);
+                    
+                    // Log detallado en consola
+                    if (skippedCodes.length > 0) {
+                        console.log(`📋 Lista completa de códigos duplicados saltados (${skippedCodes.length}):`, skippedCodes);
+                    }
                     
                     // Cerrar modal
                     closeImportReservationsModal();
@@ -14316,7 +14367,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         updateReservationsStats();
                     }
                     
-                    console.log(`✅ Importación completada: ${added} agregadas, ${updated} actualizadas, ${errors} errores`);
+                    console.log(`✅ Importación completada: ${added} nuevas, ${skipped} duplicadas saltadas, ${errors} errores`);
                     
                 } catch (error) {
                     console.error('❌ Error al procesar archivo:', error);
