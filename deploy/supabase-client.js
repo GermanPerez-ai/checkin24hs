@@ -240,25 +240,43 @@ class SupabaseClient {
         const reservationToCreate = { ...reservation };
         delete reservationToCreate.id;
         
-        console.log('📝 Creando reserva en Supabase:', reservationToCreate);
+        console.log('📝 Creando/Actualizando reserva en Supabase:', reservationToCreate);
         
         if (!this.isInitialized()) {
             console.log('💾 Supabase no inicializado, guardando en localStorage');
             const reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
-            const newReservation = {
-                ...reservationToCreate,
-                id: 'res-' + Date.now(),
-                created_at: new Date().toISOString()
-            };
-            reservations.push(newReservation);
-            localStorage.setItem('reservationsDB', JSON.stringify(reservations));
-            return newReservation;
+            // Buscar si ya existe por reservation_code
+            const existingIndex = reservations.findIndex(r => 
+                r.reservation_code === reservationToCreate.reservation_code || 
+                r.reservationCode === reservationToCreate.reservation_code
+            );
+            
+            if (existingIndex !== -1) {
+                // Actualizar existente
+                reservations[existingIndex] = { ...reservations[existingIndex], ...reservationToCreate };
+                localStorage.setItem('reservationsDB', JSON.stringify(reservations));
+                return reservations[existingIndex];
+            } else {
+                // Crear nuevo
+                const newReservation = {
+                    ...reservationToCreate,
+                    id: 'res-' + Date.now(),
+                    created_at: new Date().toISOString()
+                };
+                reservations.push(newReservation);
+                localStorage.setItem('reservationsDB', JSON.stringify(reservations));
+                return newReservation;
+            }
         }
 
         try {
+            // Usar UPSERT: si existe reservation_code, actualiza; si no, crea
             const { data, error } = await this.client
                 .from('reservations')
-                .insert([reservationToCreate])
+                .upsert([reservationToCreate], { 
+                    onConflict: 'reservation_code',
+                    ignoreDuplicates: false 
+                })
                 .select()
                 .single();
             
@@ -267,11 +285,85 @@ class SupabaseClient {
                 throw error;
             }
             
-            console.log('✅ Reserva creada en Supabase con ID:', data.id);
+            console.log('✅ Reserva guardada en Supabase con ID:', data.id);
             
             return data;
         } catch (error) {
-            console.error('❌ Error creando reserva:', error);
+            console.error('❌ Error creando/actualizando reserva:', error);
+            throw error;
+        }
+    }
+
+    // Función para eliminar reservas duplicadas (mantiene la más reciente)
+    async cleanDuplicateReservations() {
+        if (!this.isInitialized()) {
+            console.log('❌ Supabase no inicializado');
+            return { deleted: 0, kept: 0 };
+        }
+
+        try {
+            console.log('🔍 Buscando reservas duplicadas...');
+            
+            // Obtener todas las reservas
+            const { data: allReservations, error: fetchError } = await this.client
+                .from('reservations')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (fetchError) throw fetchError;
+
+            // Agrupar por reservation_code
+            const groupedByCode = {};
+            allReservations.forEach(res => {
+                const code = res.reservation_code;
+                if (!code) return;
+                
+                if (!groupedByCode[code]) {
+                    groupedByCode[code] = [];
+                }
+                groupedByCode[code].push(res);
+            });
+
+            // Encontrar duplicados (códigos con más de 1 reserva)
+            const duplicatesToDelete = [];
+            let keptCount = 0;
+
+            Object.keys(groupedByCode).forEach(code => {
+                const reservations = groupedByCode[code];
+                if (reservations.length > 1) {
+                    console.log(`🔄 Código ${code}: ${reservations.length} duplicados encontrados`);
+                    // Mantener el primero (más reciente por created_at desc), eliminar el resto
+                    keptCount++;
+                    for (let i = 1; i < reservations.length; i++) {
+                        duplicatesToDelete.push(reservations[i].id);
+                    }
+                } else {
+                    keptCount++;
+                }
+            });
+
+            console.log(`📊 Resumen: ${keptCount} reservas únicas, ${duplicatesToDelete.length} duplicados a eliminar`);
+
+            // Eliminar duplicados
+            if (duplicatesToDelete.length > 0) {
+                for (const id of duplicatesToDelete) {
+                    const { error: deleteError } = await this.client
+                        .from('reservations')
+                        .delete()
+                        .eq('id', id);
+
+                    if (deleteError) {
+                        console.error(`❌ Error eliminando duplicado ${id}:`, deleteError);
+                    }
+                }
+                console.log(`✅ ${duplicatesToDelete.length} duplicados eliminados`);
+            } else {
+                console.log('✅ No se encontraron duplicados');
+            }
+
+            return { deleted: duplicatesToDelete.length, kept: keptCount };
+        } catch (error) {
+            console.error('❌ Error limpiando duplicados:', error);
             throw error;
         }
     }
