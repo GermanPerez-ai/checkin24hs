@@ -6219,7 +6219,7 @@
         }
 
         // Función para inicializar dashboard
-        function initializeDashboard() {
+        async function initializeDashboard() {
             // Inicializar bases de datos
             if (typeof initClientesDB === 'function') {
                 initClientesDB();
@@ -6227,8 +6227,9 @@
             if (typeof initHotelsDB === 'function') {
                 initHotelsDB();
             }
+            // IMPORTANTE: Esperar a que las reservas se carguen de Supabase antes de continuar
             if (typeof initReservationsDB === 'function') {
-                initReservationsDB();
+                await initReservationsDB();
             }
             if (typeof initQuotesDB === 'function') {
                 initQuotesDB();
@@ -6246,6 +6247,7 @@
                 updateHotelsStats();
             }
             // Actualizar estadísticas del dashboard (incluye Ingresos de Hoy)
+            // AHORA los datos de reservas ya están cargados de Supabase
             if (typeof updateStats === 'function') {
                 updateStats();
             }
