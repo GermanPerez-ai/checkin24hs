@@ -4014,7 +4014,7 @@
                 const adminUsers = getAdminUsers();
                 const user = adminUsers.find(u => 
                     u.username.toLowerCase() === username.toLowerCase() && 
-                    u.password === password &&
+                    (u.password === password || u.password_hash === password) &&
                     u.status === 'active'
                 );
                 
@@ -16570,7 +16570,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     };
                     
                     if (password && password.length >= 6) {
-                        updates.password = password;
+                        updates.password_hash = password;
                     } else if (password && password.length > 0) {
                         alert('❌ La contraseña debe tener al menos 6 caracteres');
                         return;
@@ -16603,7 +16603,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
                     const newAdmin = {
                         username: username,
-                        password: password,
+                        password_hash: password,
                         name: name,
                         email: email,
                         role: role,
@@ -16690,7 +16690,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Resetear contraseña
-        function resetAdminPassword(event) {
+        async function resetAdminPassword(event) {
             event.preventDefault();
             
             if (!isAdminTotal()) {
@@ -16712,17 +16712,30 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 return;
             }
 
-            const admins = getAdminUsers();
-            const admin = admins.find(a => a.id === adminId);
-            if (!admin) {
-                alert('❌ Administrador no encontrado');
-                return;
-            }
+            try {
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    console.log('☁️ Actualizando contraseña en Supabase...');
+                    await window.supabaseClient.updateAdmin(adminId, { password_hash: password });
+                    console.log('✅ Contraseña actualizada en Supabase');
+                } else {
+                    // Fallback a localStorage
+                    const admins = getAdminUsers();
+                    const admin = admins.find(a => a.id === adminId);
+                    if (!admin) {
+                        alert('❌ Administrador no encontrado');
+                        return;
+                    }
+                    admin.password = password;
+                    admin.password_hash = password;
+                    saveAdminUsers(admins);
+                }
 
-            admin.password = password;
-            saveAdminUsers(admins);
-            closeResetPasswordModal();
-            alert('✅ Contraseña reseteada correctamente');
+                closeResetPasswordModal();
+                alert('✅ Contraseña reseteada correctamente');
+            } catch (error) {
+                console.error('❌ Error al resetear contraseña:', error);
+                alert('Error al resetear contraseña: ' + error.message);
+            }
         }
 
         // Cerrar modales
