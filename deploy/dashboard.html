@@ -12656,9 +12656,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             // Procesar cada reserva
             reservations.forEach(reservation => {
-                // Obtener fecha de check-in
-                const checkInDate = reservation.checkIn;
-                // Buscar monto en diferentes campos posibles
+                // Obtener fecha de check-in (buscar en camelCase y snake_case)
+                const checkInDate = reservation.checkIn || reservation.check_in;
+                // Buscar monto en diferentes campos posibles (camelCase y snake_case)
                 const totalAmount = parseFloat(reservation.totalAmount) || 
                                    parseFloat(reservation.total_amount) || 
                                    parseFloat(reservation.amount) || 
