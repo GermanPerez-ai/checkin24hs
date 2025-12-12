@@ -12171,6 +12171,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     if (supabaseReservations && supabaseReservations.length > 0) {
                         localStorage.setItem('reservationsDB', JSON.stringify(supabaseReservations));
                         console.log(`✅ ${supabaseReservations.length} reservas cargadas desde Supabase`);
+                        
+                        // IMPORTANTE: Actualizar estadísticas después de cargar reservas
+                        console.log('🔄 Actualizando estadísticas con las reservas cargadas...');
+                        if (typeof updateStats === 'function') {
+                            updateStats();
+                        }
+                        if (typeof loadMonthlySales === 'function') {
+                            loadMonthlySales();
+                        }
                         return;
                     } else {
                         console.log('ℹ️ No hay reservas en Supabase. El sistema está listo para agregar reservas reales.');
