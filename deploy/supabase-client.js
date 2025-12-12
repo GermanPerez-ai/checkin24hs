@@ -48,16 +48,24 @@ class SupabaseClient {
             
             if (error) throw error;
             
-            // Sincronizar con localStorage como backup
+            // Sincronizar con localStorage como backup (si hay espacio)
             if (data && data.length > 0) {
-                localStorage.setItem('hotelsDB', JSON.stringify(data));
+                try {
+                    localStorage.setItem('hotelsDB', JSON.stringify(data));
+                } catch (e) {
+                    console.warn('⚠️ No se pudo guardar en localStorage (espacio lleno)');
+                }
             }
             
             return data || [];
         } catch (error) {
             console.error('❌ Error obteniendo hoteles:', error);
             // Fallback a localStorage
-            return JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            try {
+                return JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            } catch (e) {
+                return [];
+            }
         }
     }
 
@@ -188,11 +196,12 @@ class SupabaseClient {
     
     async getReservations(filters = {}) {
         if (!this.isInitialized()) {
+            console.log('💾 Supabase no inicializado, cargando reservas desde localStorage');
             return JSON.parse(localStorage.getItem('reservationsDB') || '[]');
         }
 
         try {
-            let query = this.client.from('reservations').select('*, hotels(*)');
+            let query = this.client.from('reservations').select('*');
             
             if (filters.status) {
                 query = query.eq('status', filters.status);
@@ -208,9 +217,15 @@ class SupabaseClient {
             
             if (error) throw error;
             
-            // Sincronizar con localStorage
+            console.log(`☁️ Reservas cargadas de Supabase: ${data ? data.length : 0} registros`);
+            
+            // Sincronizar con localStorage solo si hay datos
             if (data && data.length > 0) {
-                localStorage.setItem('reservationsDB', JSON.stringify(data));
+                try {
+                    localStorage.setItem('reservationsDB', JSON.stringify(data));
+                } catch (e) {
+                    console.warn('⚠️ No se pudo guardar en localStorage');
+                }
             }
             
             return data || [];
@@ -221,27 +236,38 @@ class SupabaseClient {
     }
 
     async createReservation(reservation) {
+        // Eliminar id para que Supabase genere uno nuevo (UUID)
+        const reservationToCreate = { ...reservation };
+        delete reservationToCreate.id;
+        
+        console.log('📝 Creando reserva en Supabase:', reservationToCreate);
+        
         if (!this.isInitialized()) {
+            console.log('💾 Supabase no inicializado, guardando en localStorage');
             const reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
-            reservation.id = reservation.id || 'res-' + Date.now();
-            reservations.push(reservation);
+            const newReservation = {
+                ...reservationToCreate,
+                id: 'res-' + Date.now(),
+                created_at: new Date().toISOString()
+            };
+            reservations.push(newReservation);
             localStorage.setItem('reservationsDB', JSON.stringify(reservations));
-            return reservation;
+            return newReservation;
         }
 
         try {
             const { data, error } = await this.client
                 .from('reservations')
-                .insert([reservation])
+                .insert([reservationToCreate])
                 .select()
                 .single();
             
-            if (error) throw error;
+            if (error) {
+                console.error('❌ Error de Supabase:', error);
+                throw error;
+            }
             
-            // Sincronizar con localStorage
-            const reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
-            reservations.push(data);
-            localStorage.setItem('reservationsDB', JSON.stringify(reservations));
+            console.log('✅ Reserva creada en Supabase con ID:', data.id);
             
             return data;
         } catch (error) {
@@ -392,6 +418,7 @@ class SupabaseClient {
     
     async getExpenses(filters = {}) {
         if (!this.isInitialized()) {
+            console.log('💾 Supabase no inicializado, cargando desde localStorage');
             return JSON.parse(localStorage.getItem('expensesDB') || '[]');
         }
 
@@ -412,7 +439,9 @@ class SupabaseClient {
             
             if (error) throw error;
             
-            // Sincronizar con localStorage
+            console.log(`☁️ Gastos cargados de Supabase: ${data ? data.length : 0} registros`);
+            
+            // Solo sincronizar si hay datos
             if (data && data.length > 0) {
                 localStorage.setItem('expensesDB', JSON.stringify(data));
             }
@@ -425,28 +454,42 @@ class SupabaseClient {
     }
 
     async createExpense(expense) {
+        // IMPORTANTE: Eliminar el id para que Supabase genere uno nuevo automáticamente
+        const expenseToCreate = { ...expense };
+        delete expenseToCreate.id;
+        delete expenseToCreate.exchangeRate; // Solo usar snake_case para Supabase
+        delete expenseToCreate.usd; // Solo usar usd_amount para Supabase
+        
+        console.log('📝 Creando gasto en Supabase:', expenseToCreate);
+        
         if (!this.isInitialized()) {
             const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
-            expense.id = expense.id || 'expense-' + Date.now();
-            expenses.push(expense);
+            const newExpense = {
+                ...expense,
+                id: 'expense-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+                created_at: new Date().toISOString()
+            };
+            expenses.push(newExpense);
             localStorage.setItem('expensesDB', JSON.stringify(expenses));
-            return expense;
+            console.log('💾 Gasto guardado en localStorage, total:', expenses.length);
+            return newExpense;
         }
 
         try {
             const { data, error } = await this.client
                 .from('expenses')
-                .insert([expense])
+                .insert([expenseToCreate])
                 .select()
                 .single();
             
-            if (error) throw error;
+            if (error) {
+                console.error('❌ Error de Supabase:', error);
+                throw error;
+            }
             
-            // Sincronizar con localStorage
-            const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
-            expenses.push(data);
-            localStorage.setItem('expensesDB', JSON.stringify(expenses));
+            console.log('✅ Gasto creado en Supabase con ID:', data.id);
             
+            // NO sincronizar con localStorage aquí - se hará al cargar
             return data;
         } catch (error) {
             console.error('❌ Error creando gasto:', error);
@@ -455,36 +498,61 @@ class SupabaseClient {
     }
 
     async updateExpense(id, updates) {
+        // Mantener el ID tal como está (puede ser UUID string o número)
+        const expenseId = id;
+        
+        // Limpiar campos que no son de Supabase (solo enviar snake_case)
+        const cleanUpdates = {
+            date: updates.date,
+            type: updates.type,
+            category: updates.category,
+            subcategory: updates.subcategory || '',
+            description: updates.description,
+            amount: updates.amount,
+            exchange_rate: updates.exchange_rate,
+            usd_amount: updates.usd_amount,
+            image_url: updates.image_url || null,
+            image_name: updates.image_name || null,
+            updated_at: new Date().toISOString()
+        };
+        
+        console.log('✏️ Actualizando gasto ID:', expenseId, 'con datos:', cleanUpdates);
+        
         if (!this.isInitialized()) {
             const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
-            const index = expenses.findIndex(e => e.id === id);
+            const index = expenses.findIndex(e => e.id == id);
             if (index !== -1) {
-                expenses[index] = { ...expenses[index], ...updates };
+                expenses[index] = { ...expenses[index], ...updates, ...cleanUpdates };
                 localStorage.setItem('expensesDB', JSON.stringify(expenses));
+                console.log('💾 Gasto actualizado en localStorage, index:', index);
                 return expenses[index];
             }
+            console.warn('⚠️ Gasto no encontrado en localStorage, ID:', id);
             return null;
         }
 
         try {
+            console.log('📤 Enviando UPDATE a Supabase para ID:', expenseId);
+            
             const { data, error } = await this.client
                 .from('expenses')
-                .update({ ...updates, updated_at: new Date().toISOString() })
-                .eq('id', id)
-                .select()
-                .single();
+                .update(cleanUpdates)
+                .eq('id', expenseId)
+                .select();
             
-            if (error) throw error;
-            
-            // Sincronizar con localStorage
-            const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
-            const index = expenses.findIndex(e => e.id === id);
-            if (index !== -1) {
-                expenses[index] = data;
-                localStorage.setItem('expensesDB', JSON.stringify(expenses));
+            if (error) {
+                console.error('❌ Error de Supabase al actualizar:', error);
+                throw error;
             }
             
-            return data;
+            if (!data || data.length === 0) {
+                console.error('❌ No se encontró el gasto con ID:', expenseId);
+                throw new Error('Gasto no encontrado en la base de datos');
+            }
+            
+            console.log('✅ Gasto actualizado en Supabase:', data[0]);
+            
+            return data[0];
         } catch (error) {
             console.error('❌ Error actualizando gasto:', error);
             throw error;
@@ -560,6 +628,49 @@ class SupabaseClient {
             return data;
         } catch (error) {
             console.error('❌ Error creando usuario:', error);
+            throw error;
+        }
+    }
+
+    async updateUser(userId, updates) {
+        if (!this.isInitialized()) {
+            const users = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+            const index = users.findIndex(u => u.id === userId || u.id == userId);
+            if (index !== -1) {
+                users[index] = { ...users[index], ...updates };
+                localStorage.setItem('checkin24hs_users', JSON.stringify(users));
+                return users[index];
+            }
+            return null;
+        }
+
+        try {
+            // Verificar si el ID es un UUID válido
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            const isUUID = uuidRegex.test(userId);
+            
+            let query = this.client.from('system_users').update(updates);
+            
+            if (isUUID) {
+                query = query.eq('id', userId);
+            } else {
+                // Buscar por email si no es UUID
+                const users = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+                const user = users.find(u => u.id === userId || u.id == userId);
+                if (user && user.email) {
+                    query = query.eq('email', user.email);
+                } else {
+                    throw new Error('Usuario no encontrado');
+                }
+            }
+            
+            const { data, error } = await query.select().single();
+            
+            if (error) throw error;
+            console.log('✅ Usuario actualizado en Supabase:', data);
+            return data;
+        } catch (error) {
+            console.error('❌ Error actualizando usuario:', error);
             throw error;
         }
     }
@@ -698,22 +809,159 @@ class SupabaseClient {
     }
 
     // ============================================
+    // AGENTES
+    // ============================================
+    
+    async getAgents() {
+        if (!this.isInitialized()) {
+            console.log('💾 Supabase no inicializado, cargando agentes desde localStorage');
+            return JSON.parse(localStorage.getItem('agentsDB') || '[]');
+        }
+
+        try {
+            const { data, error } = await this.client
+                .from('agents')
+                .select('*')
+                .order('created_at', { ascending: false });
+            
+            if (error) throw error;
+            
+            console.log(`☁️ Agentes cargados de Supabase: ${data ? data.length : 0} registros`);
+            
+            // Sincronizar con localStorage como backup
+            if (data && data.length > 0) {
+                localStorage.setItem('agentsDB', JSON.stringify(data));
+            }
+            
+            return data || [];
+        } catch (error) {
+            console.error('❌ Error obteniendo agentes:', error);
+            return JSON.parse(localStorage.getItem('agentsDB') || '[]');
+        }
+    }
+
+    async createAgent(agent) {
+        if (!this.isInitialized()) {
+            const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+            agent.id = agent.id || 'agent-' + Date.now();
+            agent.created_at = new Date().toISOString();
+            agents.push(agent);
+            localStorage.setItem('agentsDB', JSON.stringify(agents));
+            return agent;
+        }
+
+        try {
+            const { data, error } = await this.client
+                .from('agents')
+                .insert([agent])
+                .select()
+                .single();
+            
+            if (error) throw error;
+            
+            // Sincronizar con localStorage
+            const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+            agents.push(data);
+            localStorage.setItem('agentsDB', JSON.stringify(agents));
+            
+            return data;
+        } catch (error) {
+            console.error('❌ Error creando agente:', error);
+            throw error;
+        }
+    }
+
+    async updateAgent(id, updates) {
+        if (!this.isInitialized()) {
+            const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+            const index = agents.findIndex(a => a.id === id || a.id == id);
+            if (index !== -1) {
+                agents[index] = { ...agents[index], ...updates, updated_at: new Date().toISOString() };
+                localStorage.setItem('agentsDB', JSON.stringify(agents));
+                return agents[index];
+            }
+            return null;
+        }
+
+        try {
+            const { data, error } = await this.client
+                .from('agents')
+                .update({ ...updates, updated_at: new Date().toISOString() })
+                .eq('id', id)
+                .select()
+                .single();
+            
+            if (error) throw error;
+            
+            // Sincronizar con localStorage
+            const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+            const index = agents.findIndex(a => a.id === id);
+            if (index !== -1) {
+                agents[index] = data;
+                localStorage.setItem('agentsDB', JSON.stringify(agents));
+            }
+            
+            return data;
+        } catch (error) {
+            console.error('❌ Error actualizando agente:', error);
+            throw error;
+        }
+    }
+
+    async deleteAgent(id) {
+        if (!this.isInitialized()) {
+            const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+            const filtered = agents.filter(a => a.id !== id && a.id != id);
+            localStorage.setItem('agentsDB', JSON.stringify(filtered));
+            return { success: true };
+        }
+
+        try {
+            const { error } = await this.client
+                .from('agents')
+                .delete()
+                .eq('id', id);
+            
+            if (error) throw error;
+            
+            // Sincronizar con localStorage
+            const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+            const filtered = agents.filter(a => a.id !== id);
+            localStorage.setItem('agentsDB', JSON.stringify(filtered));
+            
+            return { success: true };
+        } catch (error) {
+            console.error('❌ Error eliminando agente:', error);
+            throw error;
+        }
+    }
+
+    // ============================================
     // SUBSCRIPCIONES EN TIEMPO REAL
     // ============================================
     
+    // Almacenar suscripciones activas
+    activeSubscriptions = {};
+
     subscribeToReservations(callback) {
         if (!this.isInitialized()) {
             console.warn('⚠️ Supabase no está inicializado, no se pueden usar suscripciones en tiempo real');
             return null;
         }
 
-        return this.client
+        const channel = this.client
             .channel('reservations-changes')
             .on('postgres_changes', 
                 { event: '*', schema: 'public', table: 'reservations' },
-                callback
+                (payload) => {
+                    console.log('🔄 Cambio en reservaciones:', payload.eventType);
+                    callback(payload);
+                }
             )
             .subscribe();
+        
+        this.activeSubscriptions.reservations = channel;
+        return channel;
     }
 
     subscribeToQuotes(callback) {
@@ -722,13 +970,145 @@ class SupabaseClient {
             return null;
         }
 
-        return this.client
+        const channel = this.client
             .channel('quotes-changes')
             .on('postgres_changes',
                 { event: '*', schema: 'public', table: 'quotes' },
-                callback
+                (payload) => {
+                    console.log('🔄 Cambio en cotizaciones:', payload.eventType);
+                    callback(payload);
+                }
             )
             .subscribe();
+        
+        this.activeSubscriptions.quotes = channel;
+        return channel;
+    }
+
+    subscribeToHotels(callback) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado, no se pueden usar suscripciones en tiempo real');
+            return null;
+        }
+
+        const channel = this.client
+            .channel('hotels-changes')
+            .on('postgres_changes',
+                { event: '*', schema: 'public', table: 'hotels' },
+                (payload) => {
+                    console.log('🔄 Cambio en hoteles:', payload.eventType);
+                    callback(payload);
+                }
+            )
+            .subscribe();
+        
+        this.activeSubscriptions.hotels = channel;
+        return channel;
+    }
+
+    subscribeToUsers(callback) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado, no se pueden usar suscripciones en tiempo real');
+            return null;
+        }
+
+        const channel = this.client
+            .channel('users-changes')
+            .on('postgres_changes',
+                { event: '*', schema: 'public', table: 'users' },
+                (payload) => {
+                    console.log('🔄 Cambio en usuarios:', payload.eventType);
+                    callback(payload);
+                }
+            )
+            .subscribe();
+        
+        this.activeSubscriptions.users = channel;
+        return channel;
+    }
+
+    subscribeToExpenses(callback) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado, no se pueden usar suscripciones en tiempo real');
+            return null;
+        }
+
+        const channel = this.client
+            .channel('expenses-changes')
+            .on('postgres_changes',
+                { event: '*', schema: 'public', table: 'expenses' },
+                (payload) => {
+                    console.log('🔄 Cambio en gastos:', payload.eventType);
+                    callback(payload);
+                }
+            )
+            .subscribe();
+        
+        this.activeSubscriptions.expenses = channel;
+        return channel;
+    }
+
+    subscribeToAgents(callback) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado, no se pueden usar suscripciones en tiempo real');
+            return null;
+        }
+
+        const channel = this.client
+            .channel('agents-changes')
+            .on('postgres_changes',
+                { event: '*', schema: 'public', table: 'agents' },
+                (payload) => {
+                    console.log('🔄 Cambio en agentes:', payload.eventType);
+                    callback(payload);
+                }
+            )
+            .subscribe();
+        
+        this.activeSubscriptions.agents = channel;
+        return channel;
+    }
+
+    // Suscribirse a TODOS los cambios relevantes
+    subscribeToAllChanges(callbacks = {}) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado');
+            return;
+        }
+
+        console.log('🔄 Iniciando suscripciones en tiempo real...');
+
+        if (callbacks.onReservationChange) {
+            this.subscribeToReservations(callbacks.onReservationChange);
+        }
+        if (callbacks.onQuoteChange) {
+            this.subscribeToQuotes(callbacks.onQuoteChange);
+        }
+        if (callbacks.onHotelChange) {
+            this.subscribeToHotels(callbacks.onHotelChange);
+        }
+        if (callbacks.onUserChange) {
+            this.subscribeToUsers(callbacks.onUserChange);
+        }
+        if (callbacks.onExpenseChange) {
+            this.subscribeToExpenses(callbacks.onExpenseChange);
+        }
+        if (callbacks.onAgentChange) {
+            this.subscribeToAgents(callbacks.onAgentChange);
+        }
+
+        console.log('✅ Suscripciones en tiempo real activas');
+    }
+
+    // Desuscribirse de todos los canales
+    unsubscribeAll() {
+        Object.values(this.activeSubscriptions).forEach(channel => {
+            if (channel) {
+                this.client.removeChannel(channel);
+            }
+        });
+        this.activeSubscriptions = {};
+        console.log('🔌 Desuscrito de todos los canales');
     }
 
     // ============================================
