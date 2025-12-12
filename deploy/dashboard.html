@@ -5984,6 +5984,52 @@
                     closeImportUsersModal();
                 }
             });
+            
+            // ============================================
+            // SUSCRIPCIONES EN TIEMPO REAL
+            // ============================================
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                console.log('🔄 Activando suscripciones en tiempo real...');
+                
+                window.supabaseClient.subscribeToAllChanges({
+                    onReservationChange: (payload) => {
+                        console.log('🔔 Cambio en reservas detectado:', payload.eventType);
+                        // Recargar datos de reservas
+                        if (typeof initReservationsDB === 'function') {
+                            initReservationsDB().then(() => {
+                                if (typeof updateStats === 'function') updateStats();
+                                if (typeof loadReservationsTable === 'function') loadReservationsTable();
+                            });
+                        }
+                    },
+                    onHotelChange: (payload) => {
+                        console.log('🔔 Cambio en hoteles detectado:', payload.eventType);
+                        if (typeof loadHotelsTable === 'function') loadHotelsTable();
+                        if (typeof updateHotelsStats === 'function') updateHotelsStats();
+                    },
+                    onAgentChange: (payload) => {
+                        console.log('🔔 Cambio en agentes detectado:', payload.eventType);
+                        if (typeof loadAgentsTable === 'function') loadAgentsTable();
+                    },
+                    onExpenseChange: (payload) => {
+                        console.log('🔔 Cambio en gastos detectado:', payload.eventType);
+                        if (typeof loadExpensesTable === 'function') loadExpensesTable();
+                        if (typeof updateExpensesStats === 'function') updateExpensesStats();
+                    },
+                    onQuoteChange: (payload) => {
+                        console.log('🔔 Cambio en cotizaciones detectado:', payload.eventType);
+                        if (typeof loadQuotesTable === 'function') loadQuotesTable();
+                    },
+                    onUserChange: (payload) => {
+                        console.log('🔔 Cambio en usuarios detectado:', payload.eventType);
+                        if (typeof loadUsersTable === 'function') loadUsersTable();
+                    }
+                });
+                
+                console.log('✅ Suscripciones en tiempo real activas');
+            } else {
+                console.warn('⚠️ Supabase no disponible - no hay sincronización en tiempo real');
+            }
         }
 
         // Función para limpiar imágenes duplicadas

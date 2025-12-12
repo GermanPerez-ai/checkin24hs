@@ -632,6 +632,49 @@ class SupabaseClient {
         }
     }
 
+    async updateUser(userId, updates) {
+        if (!this.isInitialized()) {
+            const users = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+            const index = users.findIndex(u => u.id === userId || u.id == userId);
+            if (index !== -1) {
+                users[index] = { ...users[index], ...updates };
+                localStorage.setItem('checkin24hs_users', JSON.stringify(users));
+                return users[index];
+            }
+            return null;
+        }
+
+        try {
+            // Verificar si el ID es un UUID válido
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+            const isUUID = uuidRegex.test(userId);
+            
+            let query = this.client.from('system_users').update(updates);
+            
+            if (isUUID) {
+                query = query.eq('id', userId);
+            } else {
+                // Buscar por email si no es UUID
+                const users = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+                const user = users.find(u => u.id === userId || u.id == userId);
+                if (user && user.email) {
+                    query = query.eq('email', user.email);
+                } else {
+                    throw new Error('Usuario no encontrado');
+                }
+            }
+            
+            const { data, error } = await query.select().single();
+            
+            if (error) throw error;
+            console.log('✅ Usuario actualizado en Supabase:', data);
+            return data;
+        } catch (error) {
+            console.error('❌ Error actualizando usuario:', error);
+            throw error;
+        }
+    }
+
     async deleteUser(userId) {
         if (!this.isInitialized()) {
             const users = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');

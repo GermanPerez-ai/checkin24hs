@@ -967,7 +967,7 @@ function editAgent(agentId) {
     modal.style.display = 'flex';
 }
 
-function saveAgent(event) {
+async function saveAgent(event) {
     event.preventDefault();
     
     const agentId = document.getElementById('agentId').value;
@@ -981,81 +981,128 @@ function saveAgent(event) {
         return;
     }
     
-    const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
-    
-    if (agentId) {
-        // Editar agente existente
-        const agentIndex = agents.findIndex(a => a.id === agentId);
-        if (agentIndex === -1) {
-            alert('Agente no encontrado');
-            return;
-        }
-        
-        // Verificar si el código ya existe en otro agente
-        const existingAgent = agents.find(a => a.code === code && a.id !== agentId);
-        if (existingAgent) {
-            alert('Ya existe un agente con este código');
-            return;
-        }
-        
-        agents[agentIndex] = {
-            ...agents[agentIndex],
-            code,
-            name,
-            agency,
-            active,
-            updatedAt: new Date().toISOString()
-        };
-    } else {
-        // Nuevo agente
+    try {
         // Verificar si el código ya existe
-        const existingAgent = agents.find(a => a.code === code);
-        if (existingAgent) {
-            alert('Ya existe un agente con este código');
-            return;
+        let agents = [];
+        if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+            agents = await window.supabaseClient.getAgents();
+        } else {
+            agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
         }
         
-        const newAgent = {
-            id: 'agent-' + Date.now(),
-            code,
-            name,
-            agency,
-            active,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        };
+        if (agentId) {
+            // Editar agente existente
+            const existingAgent = agents.find(a => a.code === code && a.id !== agentId);
+            if (existingAgent) {
+                alert('Ya existe un agente con este código');
+                return;
+            }
+            
+            const updates = {
+                code,
+                name,
+                agency,
+                active,
+                updated_at: new Date().toISOString()
+            };
+            
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                console.log('☁️ Actualizando agente en Supabase...');
+                await window.supabaseClient.updateAgent(agentId, updates);
+                console.log('✅ Agente actualizado en Supabase');
+            } else {
+                // Fallback a localStorage
+                const agentIndex = agents.findIndex(a => a.id === agentId);
+                if (agentIndex !== -1) {
+                    agents[agentIndex] = { ...agents[agentIndex], ...updates };
+                    localStorage.setItem('agentsDB', JSON.stringify(agents));
+                }
+            }
+        } else {
+            // Nuevo agente
+            const existingAgent = agents.find(a => a.code === code);
+            if (existingAgent) {
+                alert('Ya existe un agente con este código');
+                return;
+            }
+            
+            const newAgent = {
+                code,
+                name,
+                agency,
+                active,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+            
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                console.log('☁️ Creando agente en Supabase...');
+                await window.supabaseClient.createAgent(newAgent);
+                console.log('✅ Agente creado en Supabase');
+            } else {
+                // Fallback a localStorage
+                newAgent.id = 'agent-' + Date.now();
+                agents.push(newAgent);
+                localStorage.setItem('agentsDB', JSON.stringify(agents));
+            }
+        }
         
-        agents.push(newAgent);
+        // Recargar lista
+        if (typeof loadAgents === 'function') {
+            loadAgents();
+        }
+        if (typeof loadAgentsTable === 'function') {
+            loadAgentsTable();
+        }
+        
+        // Cerrar modal
+        closeAgentModal();
+        
+        alert(agentId ? 'Agente actualizado correctamente' : 'Agente creado correctamente');
+        
+    } catch (error) {
+        console.error('❌ Error guardando agente:', error);
+        alert('Error al guardar el agente: ' + error.message);
     }
-    
-    localStorage.setItem('agentsDB', JSON.stringify(agents));
-    
-    // Recargar lista
-    loadAgents();
-    
-    // Cerrar modal
-    closeAgentModal();
-    
-    alert(agentId ? 'Agente actualizado correctamente' : 'Agente creado correctamente');
 }
 
-function deleteAgent(agentId) {
+async function deleteAgent(agentId) {
     if (!confirm('¿Estás seguro de que deseas eliminar este agente?')) {
         return;
     }
     
-    const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
-    const filteredAgents = agents.filter(a => a.id !== agentId);
-    
-    if (filteredAgents.length === agents.length) {
-        alert('Agente no encontrado');
-        return;
+    try {
+        if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+            console.log('☁️ Eliminando agente de Supabase...');
+            await window.supabaseClient.deleteAgent(agentId);
+            console.log('✅ Agente eliminado de Supabase');
+        } else {
+            // Fallback a localStorage
+            const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+            const filteredAgents = agents.filter(a => a.id !== agentId && a.id != agentId);
+            
+            if (filteredAgents.length === agents.length) {
+                alert('Agente no encontrado');
+                return;
+            }
+            
+            localStorage.setItem('agentsDB', JSON.stringify(filteredAgents));
+        }
+        
+        // Recargar lista
+        if (typeof loadAgents === 'function') {
+            loadAgents();
+        }
+        if (typeof loadAgentsTable === 'function') {
+            loadAgentsTable();
+        }
+        
+        alert('Agente eliminado correctamente');
+        
+    } catch (error) {
+        console.error('❌ Error eliminando agente:', error);
+        alert('Error al eliminar el agente: ' + error.message);
     }
-    
-    localStorage.setItem('agentsDB', JSON.stringify(filteredAgents));
-    
-    // Recargar lista
-    loadAgents();
     
     alert('Agente eliminado correctamente');
 }
