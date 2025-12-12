@@ -12163,32 +12163,32 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         async function initReservationsDB() {
             console.log('Inicializando base de datos de reservas...');
             
-            // Verificar si ya existen reservas en localStorage
-            const existingReservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
-            
-            if (existingReservations.length === 0) {
-                console.log('🔄 No hay reservas en localStorage, intentando cargar desde Supabase...');
-                
-                // Intentar cargar desde Supabase primero
-                try {
-                    if (window.supabaseClient && window.supabaseClient.isInitialized()) {
-                        const supabaseReservations = await window.supabaseClient.getReservations();
-                        if (supabaseReservations && supabaseReservations.length > 0) {
-                            localStorage.setItem('reservationsDB', JSON.stringify(supabaseReservations));
-                            console.log(`✅ ${supabaseReservations.length} reservas cargadas desde Supabase`);
-                            return;
-                        }
+            // SIEMPRE intentar cargar desde Supabase primero cuando está disponible
+            try {
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    console.log('☁️ Supabase disponible, cargando reservas desde la nube...');
+                    const supabaseReservations = await window.supabaseClient.getReservations();
+                    if (supabaseReservations && supabaseReservations.length > 0) {
+                        localStorage.setItem('reservationsDB', JSON.stringify(supabaseReservations));
+                        console.log(`✅ ${supabaseReservations.length} reservas cargadas desde Supabase`);
+                        return;
+                    } else {
+                        console.log('ℹ️ No hay reservas en Supabase. El sistema está listo para agregar reservas reales.');
+                        localStorage.setItem('reservationsDB', JSON.stringify([]));
+                        return;
                     }
-                } catch (error) {
-                    console.error('❌ Error al cargar reservas desde Supabase:', error);
                 }
-                
-                // Si no hay reservas en Supabase, dejar vacío (NO agregar reservas de ejemplo)
-                console.log('ℹ️ No hay reservas en Supabase. El sistema está listo para agregar reservas reales.');
-                localStorage.setItem('reservationsDB', JSON.stringify([]));
-                
+            } catch (error) {
+                console.error('❌ Error al cargar reservas desde Supabase:', error);
+            }
+            
+            // Solo usar localStorage como fallback si Supabase no está disponible
+            const existingReservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+            if (existingReservations.length > 0) {
+                console.log(`💾 Usando ${existingReservations.length} reservas de localStorage (modo offline)`);
             } else {
-                console.log(`ℹ️ Ya existen ${existingReservations.length} reservas en la base de datos`);
+                console.log('ℹ️ No hay reservas disponibles');
+                localStorage.setItem('reservationsDB', JSON.stringify([]));
             }
         }
 
