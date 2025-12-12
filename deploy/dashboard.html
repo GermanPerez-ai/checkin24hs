@@ -12631,6 +12631,21 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             // Obtener todas las reservas
             let reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
             
+            // DEBUG: Mostrar estructura de la primera reserva
+            if (reservations.length > 0) {
+                console.log('🔍 DEBUG - Primera reserva:', JSON.stringify(reservations[0], null, 2));
+                console.log('🔍 DEBUG - Campos de monto disponibles:', {
+                    totalAmount: reservations[0].totalAmount,
+                    total_amount: reservations[0].total_amount,
+                    amount: reservations[0].amount,
+                    price: reservations[0].price
+                });
+                console.log('🔍 DEBUG - Campos de fecha disponibles:', {
+                    checkIn: reservations[0].checkIn,
+                    check_in: reservations[0].check_in
+                });
+            }
+            
             if (!reservations || reservations.length === 0) {
                 // Restaurar estilos por defecto
                 monthlySalesContent.style.display = 'flex';
@@ -12641,12 +12656,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 return;
             }
             
-            // Aplicar filtro de hotel
+            // Aplicar filtro de hotel (buscar en camelCase y snake_case)
             if (filterHotelId && filterHotelId !== 'all') {
                 reservations = reservations.filter(reservation => {
-                    return reservation.hotelId === filterHotelId || 
-                           reservation.hotelId === parseInt(filterHotelId) ||
-                           (reservation.hotelId && reservation.hotelId.toString() === filterHotelId.toString());
+                    const hotelId = reservation.hotelId || reservation.hotel_id;
+                    return hotelId === filterHotelId || 
+                           hotelId === parseInt(filterHotelId) ||
+                           (hotelId && hotelId.toString() === filterHotelId.toString());
                 });
                 console.log(`🏨 Filtrado por hotel ${filterHotelId}: ${reservations.length} reservas`);
             }
@@ -12665,6 +12681,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                    parseFloat(reservation.price) || 0;
                 
                 if (!checkInDate || totalAmount <= 0) {
+                    console.log('⚠️ Reserva saltada:', { checkInDate, totalAmount, reservation: reservation.reservation_code || reservation.reservationCode });
                     return; // Saltar reservas sin fecha de check-in o sin monto
                 }
                 
