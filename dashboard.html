@@ -991,6 +991,107 @@
                 bottom: 15px !important;
                 font-size: 12px !important;
             }
+            
+            /* ===== MODALES RESPONSIVOS ===== */
+            .modal {
+                padding: 10px !important;
+            }
+            
+            .modal-content {
+                width: 95% !important;
+                max-width: 100% !important;
+                margin: 10px auto !important;
+                padding: 15px !important;
+                max-height: 90vh !important;
+                overflow-y: auto !important;
+                border-radius: 12px !important;
+            }
+            
+            .modal-content h2,
+            .modal-content .modal-title {
+                font-size: 1.2rem !important;
+                margin-bottom: 15px !important;
+            }
+            
+            .modal-content form {
+                padding: 0 !important;
+            }
+            
+            .modal-content .form-group {
+                margin-bottom: 12px !important;
+            }
+            
+            .modal-content input,
+            .modal-content select,
+            .modal-content textarea {
+                width: 100% !important;
+                padding: 12px !important;
+                font-size: 16px !important; /* Evita zoom en iOS */
+                box-sizing: border-box !important;
+            }
+            
+            .modal-content label {
+                font-size: 0.9rem !important;
+                margin-bottom: 5px !important;
+                display: block !important;
+            }
+            
+            .modal-content button[type="submit"],
+            .modal-content .btn-primary,
+            .modal-content .form-button {
+                width: 100% !important;
+                padding: 14px !important;
+                font-size: 1rem !important;
+                margin-top: 10px !important;
+            }
+            
+            .modal-content .form-row {
+                flex-direction: column !important;
+                gap: 10px !important;
+            }
+            
+            .modal-content .form-section {
+                margin-bottom: 15px !important;
+                padding: 10px !important;
+            }
+            
+            .modal-content .close,
+            .modal-content .close-btn {
+                font-size: 28px !important;
+                padding: 5px 10px !important;
+            }
+            
+            /* Botones de acción en modales */
+            .modal-content .modal-actions,
+            .modal-content .form-actions {
+                flex-direction: column !important;
+                gap: 10px !important;
+            }
+            
+            .modal-content .modal-actions button,
+            .modal-content .form-actions button {
+                width: 100% !important;
+            }
+        }
+        
+        /* Extra pequeño (teléfonos muy pequeños) */
+        @media (max-width: 480px) {
+            .modal-content {
+                width: 98% !important;
+                padding: 12px !important;
+                margin: 5px auto !important;
+            }
+            
+            .modal-content h2,
+            .modal-content .modal-title {
+                font-size: 1.1rem !important;
+            }
+            
+            .modal-content input,
+            .modal-content select,
+            .modal-content textarea {
+                padding: 10px !important;
+            }
         }
         
         /* Estilos para botones de acción */
@@ -4711,9 +4812,122 @@
 
 
         // Función para editar hotel
-        function editHotel(hotelId) {
-            // Implementar lógica para editar hotel
-            console.log('Editando hotel:', hotelId);
+        async function editHotel(hotelId) {
+            console.log('✏️ Editando hotel:', hotelId);
+            
+            // Buscar hotel en Supabase primero
+            let hotel = null;
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    const hotels = await window.supabaseClient.getHotels();
+                    hotel = hotels.find(h => h.id === hotelId || h.id == hotelId);
+                } catch (error) {
+                    console.error('Error cargando hotel de Supabase:', error);
+                }
+            }
+            
+            // Fallback a localStorage
+            if (!hotel) {
+                const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                hotel = hotels.find(h => h.id === hotelId || h.id == hotelId);
+            }
+            
+            if (!hotel) {
+                alert('❌ Hotel no encontrado');
+                return;
+            }
+            
+            // Crear modal de edición
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.id = 'editHotelModalDynamic';
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; padding: 10px; box-sizing: border-box;';
+            
+            const hotelName = hotel.name || hotel.hotel_name || '';
+            const hotelLocation = hotel.location || hotel.address || '';
+            const hotelPrice = hotel.price || hotel.base_price || '';
+            const hotelRating = hotel.rating || hotel.stars || 0;
+            const hotelStatus = hotel.status || 'Activo';
+            
+            modal.innerHTML = `
+                <div class="modal-content" style="background: white; padding: 20px; border-radius: 15px; max-width: 500px; width: 95%; max-height: 85vh; overflow-y: auto; margin: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="margin: 0; color: #333;">✏️ Editar Hotel</h2>
+                        <button onclick="document.getElementById('editHotelModalDynamic').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+                    </div>
+                    <form id="editHotelForm" onsubmit="saveHotelChanges(event, '${hotelId}')">
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Nombre del Hotel *</label>
+                            <input type="text" id="editHotelName" value="${hotelName}" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Ubicación</label>
+                            <input type="text" id="editHotelLocation" value="${hotelLocation}" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Precio Base (USD)</label>
+                            <input type="number" id="editHotelPrice" value="${hotelPrice}" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Calificación (1-5)</label>
+                            <input type="number" id="editHotelRating" value="${hotelRating}" min="0" max="5" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Estado</label>
+                            <select id="editHotelStatus" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+                                <option value="Activo" ${hotelStatus === 'Activo' ? 'selected' : ''}>Activo</option>
+                                <option value="Inactivo" ${hotelStatus === 'Inactivo' ? 'selected' : ''}>Inactivo</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button type="button" onclick="document.getElementById('editHotelModalDynamic').remove()" style="padding: 10px 20px; border: 1px solid #ddd; border-radius: 8px; cursor: pointer;">Cancelar</button>
+                            <button type="submit" style="padding: 10px 20px; background: #4caf50; color: white; border: none; border-radius: 8px; cursor: pointer;">Guardar Cambios</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+        }
+        
+        async function saveHotelChanges(event, hotelId) {
+            event.preventDefault();
+            
+            const updates = {
+                name: document.getElementById('editHotelName').value,
+                location: document.getElementById('editHotelLocation').value,
+                price: parseFloat(document.getElementById('editHotelPrice').value) || 0,
+                rating: parseInt(document.getElementById('editHotelRating').value) || 0,
+                status: document.getElementById('editHotelStatus').value,
+                updated_at: new Date().toISOString()
+            };
+            
+            console.log('💾 Guardando cambios del hotel:', hotelId, updates);
+            
+            try {
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    await window.supabaseClient.updateHotel(hotelId, updates);
+                    console.log('✅ Hotel actualizado en Supabase');
+                    alert('✅ Hotel actualizado correctamente');
+                    document.getElementById('editHotelModalDynamic').remove();
+                    loadHotelsTable();
+                    return;
+                }
+            } catch (error) {
+                console.error('Error actualizando hotel:', error);
+            }
+            
+            // Fallback localStorage
+            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            const index = hotels.findIndex(h => h.id === hotelId || h.id == hotelId);
+            if (index !== -1) {
+                hotels[index] = { ...hotels[index], ...updates };
+                localStorage.setItem('hotelsDB', JSON.stringify(hotels));
+                alert('✅ Hotel actualizado correctamente');
+                document.getElementById('editHotelModalDynamic').remove();
+                loadHotelsTable();
+            }
         }
 
         // Función para cerrar modal de edición
@@ -5875,17 +6089,115 @@
         }
 
         // Función para eliminar hotel
-        function deleteHotel(hotelId) {
-            if (confirm('¿Estás seguro de que quieres eliminar este hotel?')) {
-                // Implementar eliminación
-                console.log('Eliminando hotel:', hotelId);
+        async function deleteHotel(hotelId) {
+            if (!confirm('¿Estás seguro de que quieres eliminar este hotel? Esta acción no se puede deshacer.')) {
+                return;
+            }
+            
+            console.log('🗑️ Eliminando hotel:', hotelId);
+            
+            try {
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    await window.supabaseClient.deleteHotel(hotelId);
+                    console.log('✅ Hotel eliminado de Supabase');
+                    alert('✅ Hotel eliminado correctamente');
+                    loadHotelsTable();
+                    updateHotelsStats();
+                    return;
+                }
+            } catch (error) {
+                console.error('Error eliminando hotel:', error);
+            }
+            
+            // Fallback localStorage
+            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            const index = hotels.findIndex(h => h.id === hotelId || h.id == hotelId);
+            if (index !== -1) {
+                hotels.splice(index, 1);
+                localStorage.setItem('hotelsDB', JSON.stringify(hotels));
+                alert('✅ Hotel eliminado correctamente');
+                loadHotelsTable();
+                updateHotelsStats();
             }
         }
 
         // Función para ver hotel
-        function viewHotel(hotelId) {
-            // Implementar vista de hotel
-            console.log('Viendo hotel:', hotelId);
+        async function viewHotel(hotelId) {
+            console.log('👁️ Viendo hotel:', hotelId);
+            
+            // Buscar hotel en Supabase primero
+            let hotel = null;
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    const hotels = await window.supabaseClient.getHotels();
+                    hotel = hotels.find(h => h.id === hotelId || h.id == hotelId);
+                } catch (error) {
+                    console.error('Error cargando hotel:', error);
+                }
+            }
+            
+            // Fallback localStorage
+            if (!hotel) {
+                const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                hotel = hotels.find(h => h.id === hotelId || h.id == hotelId);
+            }
+            
+            if (!hotel) {
+                alert('❌ Hotel no encontrado');
+                return;
+            }
+            
+            // Obtener valores soportando ambos formatos
+            const hotelName = hotel.name || hotel.hotel_name || 'Sin nombre';
+            const hotelLocation = hotel.location || hotel.address || 'Sin ubicación';
+            const hotelPrice = hotel.price || hotel.base_price || 0;
+            const hotelRating = hotel.rating || hotel.stars || 0;
+            const hotelStatus = hotel.status || 'Activo';
+            const hotelDescription = hotel.description || '';
+            
+            // Crear modal de vista
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; padding: 10px; box-sizing: border-box;';
+            
+            // Generar estrellas
+            let stars = '';
+            for (let i = 0; i < 5; i++) {
+                stars += i < hotelRating ? '⭐' : '☆';
+            }
+            
+            modal.innerHTML = `
+                <div class="modal-content" style="background: white; padding: 20px; border-radius: 15px; max-width: 500px; width: 95%; max-height: 85vh; overflow-y: auto; margin: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="margin: 0; color: #333;">🏨 ${hotelName}</h2>
+                        <button onclick="this.closest('.modal').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <p style="margin: 8px 0;"><strong>📍 Ubicación:</strong> ${hotelLocation}</p>
+                        <p style="margin: 8px 0;"><strong>💰 Precio:</strong> $${hotelPrice} USD</p>
+                        <p style="margin: 8px 0;"><strong>⭐ Calificación:</strong> ${stars} (${hotelRating}/5)</p>
+                        <p style="margin: 8px 0;"><strong>📊 Estado:</strong> 
+                            <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; background: ${hotelStatus === 'Activo' ? '#e8f5e9' : '#ffebee'}; color: ${hotelStatus === 'Activo' ? '#2e7d32' : '#c62828'};">
+                                ${hotelStatus}
+                            </span>
+                        </p>
+                        ${hotelDescription ? `<p style="margin: 8px 0;"><strong>📝 Descripción:</strong> ${hotelDescription}</p>` : ''}
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                        <button onclick="this.closest('.modal').remove(); editHotel('${hotelId}')" style="padding: 10px 20px; background: #2196f3; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                            ✏️ Editar
+                        </button>
+                        <button onclick="this.closest('.modal').remove()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 8px; cursor: pointer;">
+                            Cerrar
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
         }
 
         // Función para exportar hoteles
@@ -8701,58 +9013,7 @@
             console.log('✅ Función addNewHotel completada');
         }
 
-        // Función para actualizar hotel
-        function updateHotel(hotelId, updatedData) {
-            // Implementar actualización
-            console.log('Actualizando hotel:', hotelId);
-        }
-
-        // Función para eliminar hotel
-        function deleteHotel(hotelId) {
-            // Solo admin_total puede eliminar
-            if (!isAdminTotal()) {
-                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
-                return;
-            }
-            
-            console.log('🗑️ Eliminando hotel:', hotelId);
-            
-            if (!confirm('¿Estás seguro de que quieres eliminar este hotel? Esta acción no se puede deshacer.')) {
-                return;
-            }
-            
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-            const hotelIndex = hotels.findIndex(h => h.id === hotelId);
-            
-            if (hotelIndex === -1) {
-                console.error('❌ Hotel no encontrado:', hotelId);
-                alert('❌ Hotel no encontrado');
-                return;
-            }
-            
-            const deletedHotel = hotels[hotelIndex];
-            hotels.splice(hotelIndex, 1);
-            
-            localStorage.setItem('hotelsDB', JSON.stringify(hotels));
-            
-            console.log('✅ Hotel eliminado correctamente:', deletedHotel.name);
-            alert(`✅ Hotel "${deletedHotel.name}" eliminado correctamente`);
-            
-            // Notificar a index.html sobre el cambio
-            window.dispatchEvent(new StorageEvent('storage', {
-                key: 'hotelsDB',
-                newValue: JSON.stringify(hotels),
-                oldValue: JSON.stringify([...hotels, deletedHotel])
-            }));
-            
-            // Actualizar la tabla y estadísticas
-            if (typeof loadHotelsTable === 'function') {
-                loadHotelsTable();
-            }
-            if (typeof updateHotelsStats === 'function') {
-                updateHotelsStats();
-            }
-        }
+        // Nota: Las funciones editHotel, deleteHotel y viewHotel están definidas arriba con soporte para Supabase
 
         // Función para obtener hotel por ID
         function getHotelById(hotelId) {
@@ -10145,6 +10406,18 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 if (document.getElementById('hotels-section')?.style.display !== 'none') {
                     if (typeof loadHotelsTable === 'function') {
                         loadHotelsTable();
+                    }
+                }
+            });
+            
+            // Suscripción a cambios en gastos
+            window.supabaseClient.subscribeToExpenses((payload) => {
+                console.log('🔄 Cambio en gastos detectado:', payload.eventType);
+                
+                // Recargar datos de gastos si la sección está visible
+                if (document.getElementById('expenses-section')?.style.display !== 'none') {
+                    if (typeof loadExpensesData === 'function') {
+                        loadExpensesData();
                     }
                 }
             });
@@ -12028,8 +12301,155 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Función para editar usuario
-        function editUser(userId) {
-            alert('Funcionalidad de edición en desarrollo');
+        async function editUser(userId) {
+            console.log('✏️ Editando usuario:', userId);
+            
+            // Primero buscar en allUsersData (datos que se muestran en la tabla)
+            let user = null;
+            if (typeof allUsersData !== 'undefined' && allUsersData.length > 0) {
+                user = allUsersData.find(u => u.id === userId || u.id == userId);
+            }
+            
+            // Si no se encuentra, buscar en Supabase
+            if (!user && window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    const users = await window.supabaseClient.getUsers();
+                    user = users.find(u => u.id === userId || u.id == userId);
+                } catch (error) {
+                    console.error('Error cargando usuario de Supabase:', error);
+                }
+            }
+            
+            // Fallback a localStorage (checkin24hs_users y clientesDB)
+            if (!user) {
+                const dashboardUsers = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+                const clientesUsers = JSON.parse(localStorage.getItem('clientesDB') || '[]');
+                const allLocalUsers = [...dashboardUsers, ...clientesUsers];
+                user = allLocalUsers.find(u => u.id === userId || u.id == userId);
+            }
+            
+            if (!user) {
+                alert('❌ Usuario no encontrado');
+                return;
+            }
+            
+            // Obtener valores soportando ambos formatos
+            const userName = user.name || user.nombre || '';
+            const userEmail = user.email || '';
+            const userPhone = user.phone || user.telefono || '';
+            const userStatus = user.status || user.estado || 'Activo';
+            const userType = user.type || user.tipo || 'cliente_reserva';
+            
+            // Crear modal de edición
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.id = 'editUserModalDynamic';
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; padding: 10px; box-sizing: border-box;';
+            
+            modal.innerHTML = `
+                <div class="modal-content" style="background: white; padding: 20px; border-radius: 15px; max-width: 500px; width: 95%; max-height: 85vh; overflow-y: auto; margin: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2 style="margin: 0; color: #333;">✏️ Editar Usuario</h2>
+                        <button onclick="document.getElementById('editUserModalDynamic').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+                    </div>
+                    <form id="editUserForm" onsubmit="saveUserChanges(event, '${userId}')">
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Nombre *</label>
+                            <input type="text" id="editUserName" value="${userName}" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Email *</label>
+                            <input type="email" id="editUserEmail" value="${userEmail}" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Teléfono</label>
+                            <input type="tel" id="editUserPhone" value="${userPhone}" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Tipo de Usuario</label>
+                            <select id="editUserType" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+                                <option value="cliente_reserva" ${userType === 'cliente_reserva' ? 'selected' : ''}>Cliente - Reserva</option>
+                                <option value="cliente_cotizacion" ${userType === 'cliente_cotizacion' ? 'selected' : ''}>Cliente - Cotización</option>
+                                <option value="agente" ${userType === 'agente' ? 'selected' : ''}>Agente</option>
+                            </select>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Estado</label>
+                            <select id="editUserStatus" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+                                <option value="Activo" ${userStatus === 'Activo' ? 'selected' : ''}>Activo</option>
+                                <option value="Inactivo" ${userStatus === 'Inactivo' ? 'selected' : ''}>Inactivo</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button type="button" onclick="document.getElementById('editUserModalDynamic').remove()" style="padding: 10px 20px; border: 1px solid #ddd; border-radius: 8px; cursor: pointer;">Cancelar</button>
+                            <button type="submit" style="padding: 10px 20px; background: #4caf50; color: white; border: none; border-radius: 8px; cursor: pointer;">Guardar Cambios</button>
+                        </div>
+                    </form>
+                </div>
+            `;
+            
+            document.body.appendChild(modal);
+            modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+        }
+        
+        async function saveUserChanges(event, userId) {
+            event.preventDefault();
+            
+            const updates = {
+                name: document.getElementById('editUserName').value,
+                email: document.getElementById('editUserEmail').value,
+                phone: document.getElementById('editUserPhone').value,
+                type: document.getElementById('editUserType').value,
+                status: document.getElementById('editUserStatus').value,
+                updated_at: new Date().toISOString()
+            };
+            
+            console.log('💾 Guardando cambios del usuario:', userId, updates);
+            
+            try {
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    await window.supabaseClient.updateUser(userId, updates);
+                    console.log('✅ Usuario actualizado en Supabase');
+                    alert('✅ Usuario actualizado correctamente');
+                    document.getElementById('editUserModalDynamic').remove();
+                    loadUsersTable();
+                    return;
+                }
+            } catch (error) {
+                console.error('Error actualizando usuario:', error);
+            }
+            
+            // Fallback localStorage - buscar en ambos storages
+            let updated = false;
+            
+            // Intentar en checkin24hs_users
+            const dashboardUsers = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+            const dashIndex = dashboardUsers.findIndex(u => u.id === userId || u.id == userId);
+            if (dashIndex !== -1) {
+                dashboardUsers[dashIndex] = { ...dashboardUsers[dashIndex], ...updates };
+                localStorage.setItem('checkin24hs_users', JSON.stringify(dashboardUsers));
+                updated = true;
+            }
+            
+            // Intentar también en clientesDB
+            const clientesUsers = JSON.parse(localStorage.getItem('clientesDB') || '[]');
+            const clientIndex = clientesUsers.findIndex(u => u.id === userId || u.id == userId);
+            if (clientIndex !== -1) {
+                clientesUsers[clientIndex] = { ...clientesUsers[clientIndex], ...updates };
+                localStorage.setItem('clientesDB', JSON.stringify(clientesUsers));
+                updated = true;
+            }
+            
+            if (updated) {
+                alert('✅ Usuario actualizado correctamente');
+                document.getElementById('editUserModalDynamic').remove();
+                // Recargar datos
+                if (typeof loadUsersData === 'function') {
+                    loadUsersData();
+                }
+            } else {
+                alert('❌ No se pudo actualizar el usuario');
+            }
         }
 
         // Función para formatear fecha
@@ -12288,39 +12708,49 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             if (searchFilter && searchFilter.trim() !== '') {
                 const filter = searchFilter.trim().toLowerCase();
                 reservations = reservations.filter(reservation => {
-                    // Buscar en código de reserva
-                    const code = (reservation.reservationCode || reservation.code || '').toLowerCase();
+                    // Buscar en código de reserva (snake_case y camelCase)
+                    const code = (reservation.reservation_code || reservation.reservationCode || reservation.code || '').toLowerCase();
                     
                     // Buscar en email del cliente
-                    const email = (reservation.clientEmail || reservation.email || '').toLowerCase();
+                    const email = (reservation.client_email || reservation.clientEmail || reservation.email || '').toLowerCase();
                     
                     // Buscar en nombre del cliente
-                    const clientName = (reservation.clientName || reservation.name || '').toLowerCase();
-                    
-                    // Buscar en nombre y apellido por separado
-                    const firstName = (reservation.clientFirstName || reservation.firstName || '').toLowerCase();
-                    const lastName = (reservation.clientLastName || reservation.lastName || '').toLowerCase();
-                    const fullName = `${firstName} ${lastName}`.trim().toLowerCase();
+                    const clientName = (reservation.client_name || reservation.clientName || reservation.name || '').toLowerCase();
                     
                     // Buscar en nombre del hotel
-                    const hotelName = (reservation.hotelName || reservation.hotel || '').toLowerCase();
+                    const hotelName = (reservation.hotel_name || reservation.hotelName || reservation.hotel || '').toLowerCase();
                     
                     // Buscar en teléfono
-                    const phone = (reservation.clientPhone || reservation.phone || '').toLowerCase();
+                    const phone = (reservation.client_phone || reservation.clientPhone || reservation.phone || '').toLowerCase();
                     
                     // Buscar en ID de reserva
                     const id = (reservation.id || '').toString().toLowerCase();
                     
-                    // Verificar si el término de búsqueda está en alguno de estos campos
+                    // Buscar en estado
+                    const status = (reservation.status || '').toLowerCase();
+                    
+                    // Buscar en agente
+                    const agentName = (reservation.agent_name || reservation.agentName || '').toLowerCase();
+                    
+                    // Buscar en total (como string)
+                    const total = (reservation.total_amount || reservation.totalAmount || '').toString();
+                    
+                    // Buscar en fechas
+                    const checkIn = (reservation.check_in || reservation.checkIn || '').toLowerCase();
+                    const checkOut = (reservation.check_out || reservation.checkOut || '').toLowerCase();
+                    
+                    // Verificar búsqueda parcial o exacta en cualquier campo
                     return code.includes(filter) ||
                            email.includes(filter) ||
                            clientName.includes(filter) ||
-                           firstName.includes(filter) ||
-                           lastName.includes(filter) ||
-                           fullName.includes(filter) ||
                            hotelName.includes(filter) ||
                            phone.includes(filter) ||
-                           id.includes(filter);
+                           id.includes(filter) ||
+                           status.includes(filter) ||
+                           agentName.includes(filter) ||
+                           total.includes(filter) ||
+                           checkIn.includes(filter) ||
+                           checkOut.includes(filter);
                 });
                 console.log(`🔍 Filtradas ${reservations.length} reservas que contienen "${searchFilter}"`);
             } else {
@@ -12658,7 +13088,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             reservations.forEach(reservation => {
                 // Obtener fecha de check-in
                 const checkInDate = reservation.checkIn;
-                const totalAmount = parseFloat(reservation.totalAmount) || 0;
+                // Buscar monto en diferentes campos posibles
+                const totalAmount = parseFloat(reservation.totalAmount) || 
+                                   parseFloat(reservation.total_amount) || 
+                                   parseFloat(reservation.amount) || 
+                                   parseFloat(reservation.price) || 0;
                 
                 if (!checkInDate || totalAmount <= 0) {
                     return; // Saltar reservas sin fecha de check-in o sin monto
@@ -13205,17 +13639,34 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Función para editar reserva
-        function editReservation(reservationId) {
+        async function editReservation(reservationId) {
             console.log('✏️ Editando reserva:', reservationId);
             
-            const reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
-            const reservation = reservations.find(r => r.id === reservationId);
+            // Buscar primero en Supabase, luego en localStorage
+            let reservations = [];
+            let reservation = null;
+            
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    reservations = await window.supabaseClient.getReservations();
+                } catch (error) {
+                    console.error('Error cargando reservas de Supabase:', error);
+                    reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+                }
+            } else {
+                reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+            }
+            
+            // Buscar la reserva por ID (puede ser UUID string)
+            reservation = reservations.find(r => r.id === reservationId || r.id == reservationId);
             
             if (!reservation) {
                 console.error('❌ Reserva no encontrada:', reservationId);
                 alert('❌ Reserva no encontrada');
                 return;
             }
+            
+            console.log('📋 Datos de reserva encontrada:', reservation);
             
             // Función auxiliar para normalizar fechas al formato YYYY-MM-DD
             // Evita problemas de zona horaria parseando manualmente
@@ -13271,24 +13722,24 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 }
             };
             
-            // Llenar el formulario con los datos de la reserva
-            document.getElementById('editClientName').value = reservation.clientName || '';
-            document.getElementById('editClientEmail').value = reservation.clientEmail || '';
-            document.getElementById('editClientPhone').value = reservation.clientPhone || '';
-            document.getElementById('editReservationCode').value = reservation.reservationCode || '';
-            document.getElementById('editCheckIn').value = normalizeDate(reservation.checkIn);
-            document.getElementById('editCheckOut').value = normalizeDate(reservation.checkOut);
-            document.getElementById('editReservationDate').value = normalizeDate(reservation.reservationDate);
-            document.getElementById('editTotalAmount').value = reservation.totalAmount || 0;
+            // Llenar el formulario con los datos de la reserva (soportar camelCase y snake_case)
+            document.getElementById('editClientName').value = reservation.client_name || reservation.clientName || '';
+            document.getElementById('editClientEmail').value = reservation.client_email || reservation.clientEmail || '';
+            document.getElementById('editClientPhone').value = reservation.client_phone || reservation.clientPhone || '';
+            document.getElementById('editReservationCode').value = reservation.reservation_code || reservation.reservationCode || '';
+            document.getElementById('editCheckIn').value = normalizeDate(reservation.check_in || reservation.checkIn);
+            document.getElementById('editCheckOut').value = normalizeDate(reservation.check_out || reservation.checkOut);
+            document.getElementById('editReservationDate').value = normalizeDate(reservation.reservation_date || reservation.reservationDate);
+            document.getElementById('editTotalAmount').value = reservation.total_amount || reservation.totalAmount || 0;
             
             // Cargar hoteles en el select y seleccionar el correcto
-            loadHotelsForEdit(reservation.hotelId);
+            loadHotelsForEdit(reservation.hotel_id || reservation.hotelId);
             
             // Cargar agentes en el select y seleccionar el correcto
-            loadAgentsForEdit(reservation.agentName);
+            loadAgentsForEdit(reservation.agent_name || reservation.agentName);
             
             // Actualizar el título del modal
-            document.getElementById('editReservationTitle').textContent = `Editar Reserva - ${reservation.reservationCode || reservation.id}`;
+            document.getElementById('editReservationTitle').textContent = `Editar Reserva - ${reservation.reservation_code || reservation.reservationCode || reservation.id}`;
             
             // Guardar el ID de la reserva en el formulario
             document.getElementById('editReservationForm').dataset.reservationId = reservationId;
@@ -13325,11 +13776,25 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Función para ver detalles de reserva
-        function viewReservation(reservationId) {
+        async function viewReservation(reservationId) {
             console.log('👁️ Viendo detalles de reserva:', reservationId);
             
-            const reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
-            const reservation = reservations.find(r => r.id === reservationId);
+            // Buscar en Supabase primero, luego en localStorage
+            let reservations = [];
+            let reservation = null;
+            
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    reservations = await window.supabaseClient.getReservations();
+                } catch (error) {
+                    console.error('Error cargando reservas de Supabase:', error);
+                    reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+                }
+            } else {
+                reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+            }
+            
+            reservation = reservations.find(r => r.id === reservationId || r.id == reservationId);
             
             if (!reservation) {
                 console.error('❌ Reserva no encontrada:', reservationId);
@@ -13337,50 +13802,49 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 return;
             }
             
+            // Obtener valores soportando ambos formatos (snake_case y camelCase)
+            const clientName = reservation.client_name || reservation.clientName || 'N/A';
+            const clientEmail = reservation.client_email || reservation.clientEmail || 'N/A';
+            const clientPhone = reservation.client_phone || reservation.clientPhone || 'N/A';
+            const hotelName = reservation.hotel_name || reservation.hotelName || 'N/A';
+            const checkIn = reservation.check_in || reservation.checkIn || 'N/A';
+            const checkOut = reservation.check_out || reservation.checkOut || 'N/A';
+            const status = reservation.status || 'N/A';
+            const totalAmount = reservation.total_amount || reservation.totalAmount || 0;
+            const reservationCode = reservation.reservation_code || reservation.reservationCode || reservation.id;
+            const agentName = reservation.agent_name || reservation.agentName || 'Sin asignar';
+            
             // Crear modal de detalles
             const modal = document.createElement('div');
             modal.className = 'modal';
-            modal.style.cssText = `
-                position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0,0,0,0.5);
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                z-index: 1000;
-            `;
+            modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; padding: 10px; box-sizing: border-box;';
             
             modal.innerHTML = `
-                <div style="background: white; padding: 30px; border-radius: 15px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                <div class="modal-content" style="background: white; padding: 20px; border-radius: 15px; max-width: 600px; width: 95%; max-height: 85vh; overflow-y: auto; margin: auto;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h2 style="margin: 0; color: #333;">📅 ${reservation.reservationCode || `Reserva #${reservation.id}`}</h2>
+                        <h2 style="margin: 0; color: #333;">📅 ${reservationCode}</h2>
                         <button onclick="this.closest('.modal').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
                     </div>
                     
                     <div style="margin-bottom: 20px;">
                         <h3>👤 Información del Cliente</h3>
-                        <p><strong>Nombre:</strong> ${reservation.clientName}</p>
-                        <p><strong>Email:</strong> ${reservation.clientEmail}</p>
-                        <p><strong>Teléfono:</strong> ${reservation.clientPhone}</p>
+                        <p><strong>Nombre:</strong> ${clientName}</p>
+                        <p><strong>Email:</strong> ${clientEmail}</p>
+                        <p><strong>Teléfono:</strong> ${clientPhone}</p>
                     </div>
                     
                     <div style="margin-bottom: 20px;">
                         <h3>🏨 Información de la Reserva</h3>
-                        <p><strong>Hotel:</strong> ${reservation.hotelName}</p>
-                        <p><strong>Entrada:</strong> ${formatDate(reservation.checkIn)}</p>
-                        <p><strong>Salida:</strong> ${formatDate(reservation.checkOut)}</p>
-                        <p><strong>Habitación:</strong> ${reservation.roomType}</p>
-                        <p><strong>Huéspedes:</strong> ${reservation.guests} personas (${reservation.adults} adultos, ${reservation.children} niños)</p>
+                        <p><strong>Hotel:</strong> ${hotelName}</p>
+                        <p><strong>Entrada:</strong> ${formatDate(checkIn)}</p>
+                        <p><strong>Salida:</strong> ${formatDate(checkOut)}</p>
+                        <p><strong>Agente:</strong> ${agentName}</p>
                     </div>
                     
                     <div style="margin-bottom: 20px;">
                         <h3>💰 Información de Pago</h3>
-                        <p><strong>Estado:</strong> <span class="status-${reservation.status.toLowerCase()}">${reservation.status}</span></p>
-                        <p><strong>Pago:</strong> ${reservation.paymentStatus}</p>
-                        <p><strong>Total:</strong> $${reservation.totalAmount.toLocaleString()} USD</p>
+                        <p><strong>Estado:</strong> <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; background: ${status === 'Confirmada' ? '#e8f5e9' : status === 'Cancelada' ? '#ffebee' : status === 'Modificada' ? '#e3f2fd' : '#fff3e0'}; color: ${status === 'Confirmada' ? '#2e7d32' : status === 'Cancelada' ? '#c62828' : status === 'Modificada' ? '#1565c0' : '#e65100'};">${status}</span></p>
+                        <p><strong>Total:</strong> $${totalAmount.toLocaleString()} USD</p>
                     </div>
                     
                     <div style="text-align: center;">
@@ -13911,18 +14375,28 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Función para cargar agentes en el select de edición
-        function loadAgentsForEdit(selectedAgentName = '') {
+        async function loadAgentsForEdit(selectedAgentName = '') {
             const agentSelect = document.getElementById('editAgentSelect');
             if (!agentSelect) return;
             
             // Limpiar opciones existentes
             agentSelect.innerHTML = '<option value="">Seleccionar agente...</option>';
             
-            // Obtener agentes del localStorage
-            const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+            // Obtener agentes de Supabase primero, luego localStorage
+            let agents = [];
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    agents = await window.supabaseClient.getAgents();
+                } catch (error) {
+                    console.error('Error cargando agentes de Supabase:', error);
+                    agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+                }
+            } else {
+                agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+            }
             
             // Filtrar solo agentes activos
-            const activeAgents = agents.filter(agent => agent.active !== false);
+            const activeAgents = agents.filter(agent => agent.status !== 'Inactivo' && agent.active !== false);
             
             if (activeAgents.length === 0) {
                 const option = document.createElement('option');
@@ -13957,7 +14431,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Función para cancelar una reserva
-        function cancelReservation() {
+        async function cancelReservation() {
             const form = document.getElementById('editReservationForm');
             const reservationId = form.dataset.reservationId;
             
@@ -13972,9 +14446,34 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 return;
             }
             
-            // Obtener reservas existentes
+            console.log('🚫 Cancelando reserva:', reservationId);
+            
+            // Datos a actualizar
+            const updates = {
+                status: 'Cancelada',
+                updated_at: new Date().toISOString()
+            };
+            
+            try {
+                // Intentar actualizar en Supabase primero
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    await window.supabaseClient.updateReservation(reservationId, updates);
+                    console.log('✅ Reserva cancelada en Supabase');
+                    alert('✅ Reserva cancelada correctamente');
+                    
+                    // Cerrar modal y recargar tabla
+                    closeEditReservationModal();
+                    loadReservationsTable();
+                    updateReservationsStats();
+                    return;
+                }
+            } catch (error) {
+                console.error('❌ Error cancelando en Supabase:', error);
+            }
+            
+            // Fallback a localStorage
             const reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
-            const reservationIndex = reservations.findIndex(r => r.id === reservationId);
+            const reservationIndex = reservations.findIndex(r => r.id === reservationId || r.id == reservationId);
             
             if (reservationIndex !== -1) {
                 // Cambiar el estado a "Cancelada"
@@ -14005,7 +14504,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Función para guardar cambios de la reserva
-        function saveReservationChanges(event) {
+        async function saveReservationChanges(event) {
             event.preventDefault();
             
             console.log('💾 Guardando cambios de la reserva...');
@@ -14032,7 +14531,6 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }
             
             // Asegurar que las fechas estén en formato YYYY-MM-DD
-            // Los inputs type="date" ya devuelven este formato, pero por seguridad lo validamos
             if (!/^\d{4}-\d{2}-\d{2}$/.test(checkIn) || !/^\d{4}-\d{2}-\d{2}$/.test(checkOut)) {
                 console.error('Formato de fecha inválido:', { checkIn, checkOut });
                 alert('❌ Error: Formato de fecha inválido. Por favor, selecciona las fechas nuevamente.');
@@ -14045,9 +14543,37 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 return;
             }
             
-            // Obtener reservas existentes
+            // Datos a actualizar (usando snake_case para Supabase)
+            const updates = {
+                check_in: checkIn,
+                check_out: checkOut,
+                total_amount: totalAmount,
+                status: 'Modificada',
+                updated_at: new Date().toISOString()
+            };
+            
+            console.log('📦 Actualizando reserva:', reservationId, updates);
+            
+            try {
+                // Intentar actualizar en Supabase primero
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    await window.supabaseClient.updateReservation(reservationId, updates);
+                    console.log('✅ Reserva actualizada en Supabase');
+                    alert('✅ Reserva actualizada correctamente');
+                    
+                    // Cerrar modal y recargar tabla
+                    closeEditReservationModal();
+                    loadReservationsTable();
+                    updateReservationsStats();
+                    return;
+                }
+            } catch (error) {
+                console.error('❌ Error actualizando en Supabase:', error);
+            }
+            
+            // Fallback a localStorage
             const reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
-            const reservationIndex = reservations.findIndex(r => r.id === reservationId);
+            const reservationIndex = reservations.findIndex(r => r.id === reservationId || r.id == reservationId);
             
             if (reservationIndex !== -1) {
                 // Obtener la reserva actual para mantener datos no editables
@@ -15166,16 +15692,16 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             if (pendingImageFile) {
                 try {
-                    showLoading();
+                    console.log('📤 Subiendo imagen...');
                     const imageResult = await uploadExpenseImage(pendingImageFile);
                     if (imageResult) {
                         imageUrl = imageResult.url;
                         imageName = imageResult.name;
+                        console.log('✅ Imagen subida:', imageUrl);
                     }
-                    hideLoading();
                 } catch (error) {
-                    hideLoading();
-                    console.error('Error subiendo imagen:', error);
+                    console.error('❌ Error subiendo imagen:', error);
+                    alert('⚠️ Error al subir la imagen, pero se guardará el gasto sin imagen');
                 }
             }
             

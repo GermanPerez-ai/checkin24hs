@@ -7,7 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="icon" type="image/svg+xml" href="logo-checkin24hs-circular-olive.svg">
+    <link rel="icon" type="image/png" href="logo.png">
     <style>
         * {
             margin: 0;
@@ -1360,6 +1360,12 @@
         body.authenticated .dashboard-content {
             display: flex;
         }
+        
+        /* Animación de spin para carga */
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
     </style>
     <!-- SheetJS library for Excel import/export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1379,7 +1385,7 @@
     <div class="login-container" id="loginContainer">
         <div class="login-card">
             <div class="login-logo">
-                <img src="logo-checkin24hs-circular-olive.svg" alt="Checkin24hs" onerror="this.style.display='none'">
+                <img src="logo.png" alt="Checkin24hs" style="height: 40px; width: auto;" onerror="this.style.display='none'">
             </div>
             <div class="login-header">
                 <h1>Panel de Administración</h1>
@@ -1441,6 +1447,10 @@
                 <span class="material-icons">event</span>
                 Reservas
             </a>
+            <a href="#" class="menu-item" onclick="window.showSection('flexi', event)">
+                <span class="material-icons">card_giftcard</span>
+                Programa Flexi
+            </a>
             <a href="#" class="menu-item" onclick="window.showSection('users', event)">
                 <span class="material-icons">people</span>
                 Usuarios
@@ -1452,6 +1462,10 @@
             <a href="#" class="menu-item" onclick="window.showSection('expenses', event)">
                 <span class="material-icons">account_balance_wallet</span>
                 Gastos
+            </a>
+            <a href="#" class="menu-item" onclick="window.showSection('agents', event)">
+                <span class="material-icons">support_agent</span>
+                Agentes
             </a>
             <a href="#" class="menu-item" onclick="window.showSection('administrators', event)" id="adminMenuLink" style="display: none;">
                 <span class="material-icons">admin_panel_settings</span>
@@ -1467,6 +1481,7 @@
             <button class="mobile-menu-btn" onclick="toggleSidebar()">
                 <span class="material-icons">menu</span>
             </button>
+            <img src="logo.png" alt="Checkin24hs" style="height: 40px; margin-right: 12px;" onerror="this.style.display='none'">
             <h1>Panel de Administración</h1>
             <div class="user-menu">
                 <button class="user-button" onclick="toggleUserMenu()">
@@ -1692,6 +1707,14 @@
                     <button class="form-button secondary" onclick="refreshHotels()">
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">refresh</span>
                         Actualizar
+                    </button>
+                    <button class="form-button" style="background: #ff9800; color: white;" onclick="showHotelPromotions()">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">local_offer</span>
+                        Promociones
+                    </button>
+                    <button class="form-button" style="background: #4caf50; color: white;" onclick="showMarketingTools()">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">campaign</span>
+                        Marketing
                     </button>
                 </div>
 
@@ -2129,6 +2152,56 @@
         </div>
     </div>
 
+    <!-- Edit Agent Modal -->
+    <div id="editAgentModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 505px; width: 85%;">
+            <div class="modal-header">
+                <h2>✏️ Editar Agente</h2>
+                <button onclick="closeEditAgentModal()" class="close-btn">&times;</button>
+            </div>
+            <form id="editAgentForm" onsubmit="saveEditedAgent(event)">
+                <input type="hidden" id="editAgentId" name="agentId">
+                <div class="form-grid">
+                    <div class="form-section">
+                        <h3>📋 Información del Agente</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="editAgentCode">Código de Agente</label>
+                                <input type="text" id="editAgentCode" name="agentCode" readonly>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="editAgentName">Nombre *</label>
+                                <input type="text" id="editAgentName" name="agentName" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="editAgentAgency">Agencia *</label>
+                                <input type="text" id="editAgentAgency" name="agentAgency" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="editAgentStatus">Estado *</label>
+                                <select id="editAgentStatus" name="agentStatus" required>
+                                    <option value="Activo">Activo</option>
+                                    <option value="Inactivo">Inactivo</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" onclick="closeEditAgentModal()" class="btn btn-secondary">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar Cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Import Reservations Modal -->
     <div id="importReservationsModal" class="modal" style="display: none;">
         <div class="modal-content" style="max-width: 500px; width: 90%;">
@@ -2160,6 +2233,211 @@
             </div>
         </div>
     </div>
+
+    <!-- Flexi Program Section -->
+            <div id="flexi-section" style="display: none;">
+                <h2 class="page-title">🎫 Programa Flexi - Gestión de Vouchers</h2>
+                
+                <!-- Action Buttons -->
+                <div style="margin-bottom: 24px; display: flex; gap: 12px; flex-wrap: wrap;">
+                    <button class="form-button" onclick="openNewFlexiProgramModal()" style="background: #9c27b0; color: white;">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">add_circle</span>
+                        Nuevo Programa
+                    </button>
+                    <button class="form-button" onclick="openEmitVoucherModal()" style="background: #4caf50; color: white;">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">card_giftcard</span>
+                        Emitir Voucher
+                    </button>
+                    <button class="form-button" onclick="openRegisterCanjeModal()" style="background: #ff9800; color: white;">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">swap_horiz</span>
+                        Registrar Canje
+                    </button>
+                    <button class="form-button secondary" onclick="exportFlexiVouchers()">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">download</span>
+                        Exportar
+                    </button>
+                    <button class="form-button secondary" onclick="refreshFlexiData()">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">refresh</span>
+                        Actualizar
+                    </button>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="stats-grid" style="margin-bottom: 24px;">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon" style="background-color: #9c27b0;">
+                                <span class="material-icons">card_giftcard</span>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="totalFlexiVouchers">0</h3>
+                                <p>Vouchers Totales</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon" style="background-color: #4caf50;">
+                                <span class="material-icons">check_circle</span>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="activeFlexiVouchers">0</h3>
+                                <p>Activos</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon" style="background-color: #ff9800;">
+                                <span class="material-icons">hourglass_empty</span>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="partialFlexiVouchers">0</h3>
+                                <p>Parcialmente Usados</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon" style="background-color: #2196f3;">
+                                <span class="material-icons">done_all</span>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="usedFlexiVouchers">0</h3>
+                                <p>Completamente Usados</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon" style="background-color: #f44336;">
+                                <span class="material-icons">event_busy</span>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="expiredFlexiVouchers">0</h3>
+                                <p>Vencidos</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon" style="background-color: #607d8b;">
+                                <span class="material-icons">confirmation_number</span>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="totalCuposDisponibles">0</h3>
+                                <p>Cupos Disponibles</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Info Card: Cómo funciona el Programa Flexi -->
+                <div class="activity-card" style="margin-bottom: 24px; background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%); border-left: 4px solid #9c27b0;">
+                    <h3 class="card-title" style="color: #7b1fa2; margin-bottom: 12px;">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">info</span>
+                        ¿Cómo funciona el Programa Flexi?
+                    </h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px;">
+                        <div style="background: white; padding: 16px; border-radius: 8px;">
+                            <h4 style="color: #9c27b0; margin-bottom: 8px;">🗓️ Paso 1: Elegir Fechas</h4>
+                            <p style="color: #666; font-size: 14px;">El cliente selecciona fechas de Check-in y Check-out dentro del Periodo de Uso del voucher.</p>
+                        </div>
+                        <div style="background: white; padding: 16px; border-radius: 8px;">
+                            <h4 style="color: #9c27b0; margin-bottom: 8px;">📞 Paso 2: Solicitar Canje</h4>
+                            <p style="color: #666; font-size: 14px;">El cliente contacta al equipo con: Código de Voucher, Hotel, Fechas y Número de Personas.</p>
+                        </div>
+                        <div style="background: white; padding: 16px; border-radius: 8px;">
+                            <h4 style="color: #9c27b0; margin-bottom: 8px;">✅ Paso 3: Confirmación</h4>
+                            <p style="color: #666; font-size: 14px;">El equipo verifica disponibilidad, registra el canje y envía confirmación al cliente.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Programs Table -->
+                <div class="activity-card" style="margin-bottom: 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h3 class="card-title" style="margin: 0;">📋 Programas Flexi Disponibles</h3>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 16px;">
+                            <thead>
+                                <tr style="background-color: #f3e5f5; border-bottom: 2px solid #ce93d8;">
+                                    <th style="padding: 12px; text-align: left; font-weight: 500;">Hotel</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Cupos/Voucher</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Precio USD</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Periodo de Uso</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Estado</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="flexiProgramsTableBody">
+                                <!-- Los programas se cargarán dinámicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Vouchers Table -->
+                <div class="activity-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h3 class="card-title" style="margin: 0;">🎫 Vouchers Emitidos</h3>
+                        <div style="position: relative; width: 300px;">
+                            <input 
+                                type="text" 
+                                id="flexiVoucherSearchInput" 
+                                placeholder="Buscar por código, cliente, hotel..." 
+                                style="width: 100%; padding: 10px 40px 10px 15px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: border-color 0.3s;"
+                                onkeyup="filterFlexiVouchers(this.value)"
+                            >
+                            <span style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: #666; pointer-events: none;">🔍</span>
+                        </div>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 16px;">
+                            <thead>
+                                <tr style="background-color: #f5f5f5; border-bottom: 2px solid #e0e0e0;">
+                                    <th style="padding: 12px; text-align: left; font-weight: 500;">Código Voucher</th>
+                                    <th style="padding: 12px; text-align: left; font-weight: 500;">Cliente</th>
+                                    <th style="padding: 12px; text-align: left; font-weight: 500;">Hotel</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Cupos</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Periodo de Uso</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Estado</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="flexiVouchersTableBody">
+                                <!-- Los vouchers se cargarán dinámicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Canjes History Table -->
+                <div class="activity-card" style="margin-top: 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h3 class="card-title" style="margin: 0;">📜 Historial de Canjes</h3>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 16px;">
+                            <thead>
+                                <tr style="background-color: #fff3e0; border-bottom: 2px solid #ffcc80;">
+                                    <th style="padding: 12px; text-align: left; font-weight: 500;">Voucher</th>
+                                    <th style="padding: 12px; text-align: left; font-weight: 500;">Cliente</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Fechas Estadía</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Personas</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Cupos Usados</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Estado</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="flexiCanjesTableBody">
+                                <!-- Los canjes se cargarán dinámicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
 
     <!-- Users Section -->
             <div id="users-section" style="display: none;">
@@ -2276,6 +2554,83 @@
                 </div>
             </div>
 
+            <!-- Agents Section -->
+            <div id="agents-section" style="display: none;">
+                <h2 class="page-title">👥 Gestión de Agentes</h2>
+                
+                <!-- Action Buttons -->
+                <div style="margin-bottom: 24px; display: flex; gap: 12px; flex-wrap: wrap;">
+                    <button class="form-button" style="background: #4caf50; color: white;" onclick="addNewAgent()">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">person_add</span>
+                        Nuevo Agente
+                    </button>
+                    <button class="form-button secondary" onclick="refreshAgents()">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">refresh</span>
+                        Actualizar
+                    </button>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="stats-grid" style="margin-bottom: 24px;">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon" style="background-color: #4caf50;">
+                                <span class="material-icons">support_agent</span>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="totalAgents">0</h3>
+                                <p>Total Agentes</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon" style="background-color: #2196f3;">
+                                <span class="material-icons">check_circle</span>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="activeAgents">0</h3>
+                                <p>Activos</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon" style="background-color: #f44336;">
+                                <span class="material-icons">cancel</span>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="inactiveAgents">0</h3>
+                                <p>Inactivos</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agents Table -->
+                <div class="activity-card">
+                    <h3 class="card-title">Lista de Agentes</h3>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th style="padding: 12px; text-align: left; font-weight: 500;">Código</th>
+                                    <th style="padding: 12px; text-align: left; font-weight: 500;">Nombre</th>
+                                    <th style="padding: 12px; text-align: left; font-weight: 500;">Agencia</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Estado</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Reservas</th>
+                                    <th style="padding: 12px; text-align: left; font-weight: 500;">Fecha Creación</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="agentsTableBody">
+                                <!-- Los agentes se cargarán dinámicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- Administrators Section -->
             <div id="administrators-section" style="display: none;">
                 <h2 class="page-title">Gestión de Administradores</h2>
@@ -2290,6 +2645,32 @@
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">refresh</span>
                         Actualizar
                     </button>
+                </div>
+
+                <!-- Backup & Sync Section -->
+                <div class="activity-card" style="margin-bottom: 24px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <h3 class="card-title" style="color: white; margin-bottom: 16px;">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">backup</span>
+                        Backup y Sincronización
+                    </h3>
+                    <p style="margin-bottom: 16px; opacity: 0.9;">Crea un punto de restauración de todos los datos del sistema o restaura desde un backup anterior.</p>
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                        <button class="form-button" style="background: #4caf50; color: white;" onclick="createFullBackup()">
+                            <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">cloud_download</span>
+                            Crear Backup Completo
+                        </button>
+                        <button class="form-button" style="background: #ff9800; color: white;" onclick="showRestoreBackupModal()">
+                            <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">cloud_upload</span>
+                            Restaurar Backup
+                        </button>
+                        <button class="form-button" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3);" onclick="checkSyncStatus()">
+                            <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">sync</span>
+                            Estado de Sincronización
+                        </button>
+                    </div>
+                    <div id="syncStatusIndicator" style="margin-top: 16px; padding: 12px; background: rgba(255,255,255,0.1); border-radius: 8px; display: none;">
+                        <span id="syncStatusText"></span>
+                    </div>
                 </div>
 
                 <!-- Stats Cards -->
@@ -2946,11 +3327,55 @@
                     <label class="form-label">USD</label>
                     <input type="number" id="expenseUSD" class="form-input" step="0.01" min="0" placeholder="0.00" readonly style="background-color: #f5f5f5;">
                 </div>
+                
+                <!-- Campo de Imagen/Comprobante -->
+                <div class="form-group">
+                    <label class="form-label">📷 Comprobante (opcional)</label>
+                    <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+                        <button type="button" class="form-button secondary" onclick="document.getElementById('expenseImageFile').click()" style="flex: 1;">
+                            <span class="material-icons" style="vertical-align: middle; margin-right: 4px;">upload_file</span>
+                            Subir Archivo
+                        </button>
+                        <button type="button" class="form-button secondary" onclick="openCameraCapture()" style="flex: 1;">
+                            <span class="material-icons" style="vertical-align: middle; margin-right: 4px;">photo_camera</span>
+                            Tomar Foto
+                        </button>
+                    </div>
+                    <input type="file" id="expenseImageFile" accept="image/*" style="display: none;" onchange="previewExpenseImage(this)">
+                    <div id="expenseImagePreview" style="display: none; margin-top: 12px; position: relative;">
+                        <img id="expenseImagePreviewImg" src="" alt="Preview" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 2px solid #ddd;">
+                        <button type="button" onclick="removeExpenseImage()" style="position: absolute; top: -8px; right: -8px; background: #f44336; color: white; border: none; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                            <span class="material-icons" style="font-size: 18px;">close</span>
+                        </button>
+                    </div>
+                    <input type="hidden" id="expenseImageUrl">
+                    <input type="hidden" id="expenseImageName">
+                </div>
+                
                 <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
                     <button type="button" class="form-button secondary" onclick="closeExpenseModal()">Cancelar</button>
                     <button type="submit" class="form-button">Guardar</button>
                 </div>
             </form>
+        </div>
+    </div>
+    
+    <!-- Modal de Captura de Cámara -->
+    <div id="cameraModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px;">
+            <span class="close" onclick="closeCameraModal()">&times;</span>
+            <h2 class="modal-title">📷 Capturar Comprobante</h2>
+            <div style="text-align: center;">
+                <video id="cameraVideo" autoplay playsinline style="width: 100%; max-height: 300px; border-radius: 8px; background: #000;"></video>
+                <canvas id="cameraCanvas" style="display: none;"></canvas>
+            </div>
+            <div style="display: flex; gap: 12px; justify-content: center; margin-top: 16px;">
+                <button type="button" class="form-button secondary" onclick="closeCameraModal()">Cancelar</button>
+                <button type="button" class="form-button" onclick="capturePhoto()" style="background: #4caf50;">
+                    <span class="material-icons" style="vertical-align: middle; margin-right: 4px;">camera</span>
+                    Capturar
+                </button>
+            </div>
         </div>
     </div>
 
@@ -3438,6 +3863,13 @@
             if (body) {
                 body.classList.add('authenticated');
             }
+            
+            // Inicializar sincronización en tiempo real después de un pequeño delay
+            setTimeout(() => {
+                if (typeof initRealtimeSubscriptions === 'function') {
+                    initRealtimeSubscriptions();
+                }
+            }, 1000);
         }
 
         // Manejar el login
@@ -3696,6 +4128,14 @@
                 setTimeout(() => {
                     if (typeof loadExpensesData === 'function') {
                         loadExpensesData();
+                    }
+                }, 100);
+            }
+            
+            if (section === 'agents') {
+                setTimeout(() => {
+                    if (typeof loadAgentsTable === 'function') {
+                        loadAgentsTable();
                     }
                 }, 100);
             }
@@ -6387,6 +6827,12 @@
         
         // Función para eliminar una cotización
         function deleteQuote(quoteId) {
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
+            
             console.log('🗑️ Eliminando cotización:', quoteId);
             
             if (!confirm('¿Estás seguro de que quieres eliminar esta cotización?')) {
@@ -6462,6 +6908,12 @@
         // Función para limpiar todas las cotizaciones
         function clearAllQuotes() {
             console.log('🗑️ Limpiando todas las cotizaciones...');
+            
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
             
             if (!confirm('¿Estás seguro de que quieres eliminar TODAS las cotizaciones? Esta acción no se puede deshacer.')) {
                 return;
@@ -7803,6 +8255,12 @@
         
         // Función para eliminar promoción
         function deletePromotion(hotelId, promoIndex) {
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
+            
             if (confirm('¿Estás seguro de que quieres eliminar esta promoción?')) {
                 const promotions = JSON.parse(localStorage.getItem(`promotions_${hotelId}`) || '[]');
                 promotions.splice(promoIndex, 1);
@@ -8251,6 +8709,12 @@
 
         // Función para eliminar hotel
         function deleteHotel(hotelId) {
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
+            
             console.log('🗑️ Eliminando hotel:', hotelId);
             
             if (!confirm('¿Estás seguro de que quieres eliminar este hotel? Esta acción no se puede deshacer.')) {
@@ -9262,6 +9726,249 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             });
         }
 
+        // ===== SISTEMA DE SINCRONIZACIÓN EN TIEMPO REAL =====
+        
+        // Mostrar notificación de actualización
+        function showRealtimeNotification(message, type = 'info') {
+            // Crear notificación
+            const notification = document.createElement('div');
+            notification.className = 'realtime-notification';
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${type === 'info' ? '#2196f3' : type === 'success' ? '#4caf50' : '#ff9800'};
+                color: white;
+                padding: 16px 24px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                z-index: 10000;
+                animation: slideIn 0.3s ease-out;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                max-width: 400px;
+            `;
+            
+            notification.innerHTML = `
+                <span class="material-icons" style="font-size: 24px;">sync</span>
+                <div>
+                    <strong style="display: block; margin-bottom: 4px;">Actualización en tiempo real</strong>
+                    <span style="font-size: 0.9rem;">${message}</span>
+                </div>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Agregar animación CSS si no existe
+            if (!document.getElementById('realtime-notification-styles')) {
+                const style = document.createElement('style');
+                style.id = 'realtime-notification-styles';
+                style.textContent = `
+                    @keyframes slideIn {
+                        from { transform: translateX(100%); opacity: 0; }
+                        to { transform: translateX(0); opacity: 1; }
+                    }
+                    @keyframes slideOut {
+                        from { transform: translateX(0); opacity: 1; }
+                        to { transform: translateX(100%); opacity: 0; }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+            
+            // Remover después de 4 segundos
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-in';
+                setTimeout(() => notification.remove(), 300);
+            }, 4000);
+        }
+        
+        // Inicializar suscripciones en tiempo real
+        function initRealtimeSubscriptions() {
+            if (!window.supabaseClient || !window.supabaseClient.isInitialized()) {
+                console.warn('⚠️ Supabase no está listo para tiempo real');
+                return;
+            }
+            
+            console.log('🔄 Iniciando sincronización en tiempo real...');
+            
+            // Variable para evitar recargas múltiples
+            let reloadTimeout = null;
+            
+            function scheduleReload(sectionId, message) {
+                if (reloadTimeout) clearTimeout(reloadTimeout);
+                reloadTimeout = setTimeout(() => {
+                    // Recargar la sección correspondiente
+                    switch(sectionId) {
+                        case 'hotels':
+                            if (typeof loadHotelsTable === 'function') loadHotelsTable();
+                            break;
+                        case 'reservations':
+                            if (typeof loadReservations === 'function') loadReservations();
+                            break;
+                        case 'quotes':
+                            if (typeof loadQuotes === 'function') loadQuotes();
+                            break;
+                        case 'users':
+                            if (typeof loadUsersData === 'function') loadUsersData();
+                            break;
+                        case 'expenses':
+                            if (typeof loadExpenses === 'function') loadExpenses();
+                            break;
+                    }
+                    showRealtimeNotification(message, 'info');
+                }, 500);
+            }
+            
+            // Suscribirse a cambios en hoteles
+            window.supabaseClient.subscribeToHotels((payload) => {
+                const action = payload.eventType === 'INSERT' ? 'agregó' : 
+                               payload.eventType === 'UPDATE' ? 'actualizó' : 'eliminó';
+                scheduleReload('hotels', `Se ${action} un hotel`);
+            });
+            
+            // Suscribirse a cambios en reservaciones
+            window.supabaseClient.subscribeToReservations((payload) => {
+                const action = payload.eventType === 'INSERT' ? 'agregó' : 
+                               payload.eventType === 'UPDATE' ? 'actualizó' : 'eliminó';
+                scheduleReload('reservations', `Se ${action} una reserva`);
+            });
+            
+            // Suscribirse a cambios en cotizaciones
+            window.supabaseClient.subscribeToQuotes((payload) => {
+                const action = payload.eventType === 'INSERT' ? 'agregó' : 
+                               payload.eventType === 'UPDATE' ? 'actualizó' : 'eliminó';
+                scheduleReload('quotes', `Se ${action} una cotización`);
+            });
+            
+            // Suscribirse a cambios en usuarios
+            window.supabaseClient.subscribeToUsers((payload) => {
+                const action = payload.eventType === 'INSERT' ? 'agregó' : 
+                               payload.eventType === 'UPDATE' ? 'actualizó' : 'eliminó';
+                scheduleReload('users', `Se ${action} un usuario`);
+            });
+            
+            // Suscribirse a cambios en gastos
+            window.supabaseClient.subscribeToExpenses((payload) => {
+                const action = payload.eventType === 'INSERT' ? 'agregó' : 
+                               payload.eventType === 'UPDATE' ? 'actualizó' : 'eliminó';
+                scheduleReload('expenses', `Se ${action} un gasto`);
+            });
+            
+            // Suscribirse a cambios en agentes
+            window.supabaseClient.subscribeToAgents((payload) => {
+                const action = payload.eventType === 'INSERT' ? 'agregó' : 
+                               payload.eventType === 'UPDATE' ? 'actualizó' : 'eliminó';
+                // Recargar reservaciones ya que los agentes se usan ahí
+                scheduleReload('reservations', `Se ${action} un agente`);
+            });
+            
+            console.log('✅ Sincronización en tiempo real activa');
+            
+            // Mostrar indicador de conexión en tiempo real
+            showRealtimeIndicator();
+        }
+        
+        // Mostrar indicador de conexión en tiempo real en la UI
+        function showRealtimeIndicator() {
+            // Agregar indicador al header si no existe
+            if (!document.getElementById('realtime-indicator')) {
+                const header = document.querySelector('.dashboard-header') || document.querySelector('.main-header');
+                if (header) {
+                    const indicator = document.createElement('div');
+                    indicator.id = 'realtime-indicator';
+                    indicator.style.cssText = `
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        background: rgba(76, 175, 80, 0.2);
+                        padding: 6px 12px;
+                        border-radius: 20px;
+                        font-size: 0.85rem;
+                        color: #4caf50;
+                        margin-left: auto;
+                    `;
+                    indicator.innerHTML = `
+                        <span style="width: 8px; height: 8px; background: #4caf50; border-radius: 50%; animation: pulse 2s infinite;"></span>
+                        <span>Tiempo real</span>
+                    `;
+                    
+                    // Agregar animación de pulso
+                    if (!document.getElementById('pulse-animation')) {
+                        const style = document.createElement('style');
+                        style.id = 'pulse-animation';
+                        style.textContent = `
+                            @keyframes pulse {
+                                0%, 100% { opacity: 1; }
+                                50% { opacity: 0.5; }
+                            }
+                        `;
+                        document.head.appendChild(style);
+                    }
+                    
+                    header.appendChild(indicator);
+                }
+            }
+        }
+        
+        // Hacer funciones globales
+        window.initRealtimeSubscriptions = initRealtimeSubscriptions;
+        window.showRealtimeNotification = showRealtimeNotification;
+        
+        // ===== FUNCIONES DE FECHA/HORA ARGENTINA =====
+        
+        // Obtener fecha actual de Argentina en formato YYYY-MM-DD
+        function getArgentinaDateString() {
+            return new Date().toLocaleDateString('en-CA', { 
+                timeZone: 'America/Argentina/Buenos_Aires' 
+            });
+        }
+        
+        // Obtener fecha y hora de Argentina formateada
+        function getArgentinaDateTime() {
+            return new Date().toLocaleString('es-AR', { 
+                timeZone: 'America/Argentina/Buenos_Aires',
+                day: '2-digit',
+                month: '2-digit', 
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+        
+        // Formatear fecha para mostrar (de string a formato legible)
+        function formatDateArgentina(dateString) {
+            if (!dateString) return '-';
+            const date = new Date(dateString + 'T12:00:00');
+            return date.toLocaleDateString('es-AR', { 
+                timeZone: 'America/Argentina/Buenos_Aires',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric'
+            });
+        }
+        
+        // Formatear fecha y hora para mostrar
+        function formatDateTimeArgentina(dateString) {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            return date.toLocaleString('es-AR', { 
+                timeZone: 'America/Argentina/Buenos_Aires',
+                day: '2-digit',
+                month: '2-digit',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+        
+        // Hacer funciones globales
+        window.getArgentinaDateString = getArgentinaDateString;
+        window.getArgentinaDateTime = getArgentinaDateTime;
+        window.formatDateArgentina = formatDateArgentina;
+        window.formatDateTimeArgentina = formatDateTimeArgentina;
+
         // Event listener para cuando el DOM esté listo
         // IMPORTANTE: Este código se ejecuta DESPUÉS de la verificación de autenticación
         document.addEventListener('DOMContentLoaded', function() {
@@ -9361,6 +10068,15 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                     console.log('🔄 Cambio detectado en usuarios, actualizando dashboard...');
                     loadUsersData();
                 }
+                if (e.key === 'agentsDB') {
+                    console.log('🔄 Cambio detectado en agentes, actualizando dashboard...');
+                    if (typeof loadAgentsTable === 'function' && document.getElementById('agents-section')?.style.display !== 'none') {
+                        loadAgentsTable();
+                    }
+                    if (typeof loadAgentsForNewReservation === 'function') {
+                        loadAgentsForNewReservation();
+                    }
+                }
             });
             
             // Sincronización automática cada 30 segundos
@@ -9369,7 +10085,71 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 loadUsersData();
             }, 30000);
             
+            // Configurar suscripciones en tiempo real de Supabase
+            setupRealtimeSubscriptions();
+            
             console.log('✅ Sincronización automática configurada');
+        }
+        
+        // Configurar suscripciones en tiempo real de Supabase
+        function setupRealtimeSubscriptions() {
+            if (!window.supabaseClient || !window.supabaseClient.isInitialized()) {
+                console.log('⚠️ Supabase no inicializado, no se pueden configurar suscripciones en tiempo real');
+                return;
+            }
+            
+            console.log('🔄 Configurando suscripciones en tiempo real...');
+            
+            // Suscripción a cambios en agentes
+            window.supabaseClient.subscribeToAgents((payload) => {
+                console.log('🔄 Cambio en agentes detectado:', payload.eventType);
+                
+                // Recargar tabla de agentes si está visible
+                if (document.getElementById('agents-section')?.style.display !== 'none') {
+                    if (typeof loadAgentsTable === 'function') {
+                        loadAgentsTable();
+                    }
+                }
+                
+                // Actualizar select de agentes
+                if (typeof loadAgentsForNewReservation === 'function') {
+                    loadAgentsForNewReservation();
+                }
+            });
+            
+            // Suscripción a cambios en reservas
+            window.supabaseClient.subscribeToReservations((payload) => {
+                console.log('🔄 Cambio en reservas detectado:', payload.eventType);
+                
+                // Recargar tabla de reservas si está visible
+                if (document.getElementById('reservations-section')?.style.display !== 'none') {
+                    if (typeof loadReservationsTable === 'function') {
+                        loadReservationsTable();
+                    }
+                    if (typeof updateReservationsStats === 'function') {
+                        updateReservationsStats();
+                    }
+                }
+                
+                // También actualizar el dashboard
+                if (typeof updateStats === 'function') {
+                    updateStats();
+                }
+            });
+            
+            // Suscripción a cambios en hoteles
+            window.supabaseClient.subscribeToHotels((payload) => {
+                console.log('🔄 Cambio en hoteles detectado:', payload.eventType);
+                
+                // Recargar tabla de hoteles si está visible
+                if (document.getElementById('hotels-section')?.style.display !== 'none') {
+                    if (typeof loadHotelsTable === 'function') {
+                        loadHotelsTable();
+                    }
+                }
+            });
+            
+            console.log('✅ Suscripciones en tiempo real configuradas');
         }
 
         // Función para abrir base de datos de usuarios
@@ -9737,11 +10517,16 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         function showHotelPromotions() {
             console.log('🏨 Mostrando promociones de hoteles...');
             
-            // Mostrar sección de hoteles y cambiar a pestaña de promociones
-            window.showSection('hotels', null);
-            setTimeout(() => {
-                showHotelsTab('promotions');
-            }, 100);
+            // Obtener hoteles del localStorage
+            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            
+            if (hotels.length === 0) {
+                alert('No hay hoteles registrados. Primero agregue al menos un hotel.');
+                return;
+            }
+            
+            // Mostrar modal de promociones
+            showHotelPromotionsModal(hotels);
         }
         
         // Función para cambiar entre pestañas de Hoteles
@@ -10598,6 +11383,12 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         
         // Función para eliminar campaña
         function deleteCampaign(campaignId) {
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
+            
             if (confirm('¿Estás seguro de que quieres eliminar esta campaña?')) {
                 const campaigns = JSON.parse(localStorage.getItem('marketing_campaigns') || '[]');
                 const updatedCampaigns = campaigns.filter(c => c.id !== campaignId);
@@ -11261,6 +12052,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         
         // Función para eliminar usuario
         async function deleteUser(userId) {
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
+            
             if (confirm('¿Estás seguro de que quieres eliminar este usuario?')) {
                 try {
                     // Eliminar de Supabase si está inicializado
@@ -11301,6 +12098,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         
         // Función para eliminar todos los usuarios
         async function deleteAllUsers() {
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
+            
             if (confirm('⚠️ ¿Estás seguro de que quieres eliminar TODOS los usuarios registrados?\n\nEsta acción eliminará todos los usuarios de la aplicación móvil (index.html) y no se puede deshacer.')) {
                 try {
                     // Obtener usuarios antes de eliminar para intentar eliminarlos de Supabase
@@ -11548,30 +12351,41 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }
 
             reservations.forEach(reservation => {
+                // Normalizar campos (soportar snake_case de Supabase y camelCase de localStorage)
+                const clientName = reservation.client_name || reservation.clientName || 'Sin nombre';
+                const clientEmail = reservation.client_email || reservation.clientEmail || '';
+                const hotelName = reservation.hotel_name || reservation.hotelName || 'Sin hotel';
+                const checkIn = reservation.check_in || reservation.checkIn || '';
+                const checkOut = reservation.check_out || reservation.checkOut || '';
+                const reservationCode = reservation.reservation_code || reservation.reservationCode || 'N/A';
+                const totalAmount = reservation.total_amount || reservation.totalAmount || 0;
+                const status = reservation.status || 'Pendiente';
+                const paymentStatus = reservation.payment_status || reservation.paymentStatus || '';
+                
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td style="font-weight: 500; color: #1976d2;">
-                        <strong>${reservation.reservationCode || 'N/A'}</strong>
+                        <strong>${reservationCode}</strong>
                     </td>
                     <td>
                         <div>
-                            <div class="hotel-name">${reservation.clientName}</div>
-                            <div class="hotel-location">${reservation.clientEmail}</div>
+                            <div class="hotel-name">${clientName}</div>
+                            <div class="hotel-location">${clientEmail}</div>
                         </div>
                     </td>
-                    <td>${reservation.hotelName}</td>
+                    <td>${hotelName}</td>
                     <td style="text-align: center;">
                         <div>
-                            <div><strong>Entrada:</strong> ${formatDate(reservation.checkIn)}</div>
-                            <div><strong>Salida:</strong> ${formatDate(reservation.checkOut)}</div>
+                            <div><strong>Entrada:</strong> ${formatDate(checkIn)}</div>
+                            <div><strong>Salida:</strong> ${formatDate(checkOut)}</div>
                         </div>
                     </td>
                     <td style="text-align: center;">
-                        <span class="status-${reservation.status.toLowerCase()}">${reservation.status}</span>
+                        <span class="status-${status.toLowerCase()}">${status}</span>
                     </td>
                     <td style="text-align: center;">
-                        <strong>$${reservation.totalAmount.toLocaleString()}</strong>
-                        ${reservation.paymentStatus ? `<div style="font-size: 0.8em; color: #666;">${reservation.paymentStatus}</div>` : ''}
+                        <strong>$${Number(totalAmount).toLocaleString()}</strong>
+                        ${paymentStatus ? `<div style="font-size: 0.8em; color: #666;">${paymentStatus}</div>` : ''}
                     </td>
                     <td style="text-align: center;">
                         <button onclick="viewReservation('${reservation.id}')" class="action-btn view" title="Ver">
@@ -11844,7 +12658,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             reservations.forEach(reservation => {
                 // Obtener fecha de check-in
                 const checkInDate = reservation.checkIn;
-                const totalAmount = parseFloat(reservation.totalAmount) || 0;
+                // Buscar monto en diferentes campos posibles
+                const totalAmount = parseFloat(reservation.totalAmount) || 
+                                   parseFloat(reservation.total_amount) || 
+                                   parseFloat(reservation.amount) || 
+                                   parseFloat(reservation.price) || 0;
                 
                 if (!checkInDate || totalAmount <= 0) {
                     return; // Saltar reservas sin fecha de check-in o sin monto
@@ -12487,6 +13305,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
         // Función para eliminar reserva
         function deleteReservation(reservationId) {
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
+            
             if (confirm('¿Estás seguro de que quieres eliminar esta reserva?')) {
                 console.log('🗑️ Eliminando reserva:', reservationId);
                 
@@ -12955,6 +13779,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
         // Función para eliminar todas las reservas
         function deleteAllReservations() {
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
+            
             console.log('🗑️ Eliminando todas las reservas...');
             
             // Obtener cantidad de reservas
@@ -13111,7 +13941,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             activeAgents.forEach(agent => {
                 const option = document.createElement('option');
                 option.value = agent.name; // Usar el nombre como valor
-                option.textContent = `${agent.code} - ${agent.name} (${agent.agency})`;
+                // Soportar ambas estructuras de tabla (code/agency o role)
+                const agentCode = agent.code || '';
+                const agentAgency = agent.agency || agent.role || '';
+                option.textContent = agentCode ? `${agentCode} - ${agent.name} (${agentAgency})` : `${agent.name} (${agentAgency})`;
                 option.selected = agent.name === selectedAgentName;
                 agentSelect.appendChild(option);
             });
@@ -13269,22 +14102,41 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Función auxiliar para obtener nombre del hotel por ID
-        function getHotelNameById(hotelId) {
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+        async function getHotelNameById(hotelId) {
+            let hotels = [];
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    hotels = await window.supabaseClient.getHotels();
+                } catch (error) {
+                    hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                }
+            } else {
+                hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            }
             const hotel = hotels.find(h => h.id === hotelId);
             return hotel ? hotel.name : 'Hotel no encontrado';
         }
 
         // Función para cargar hoteles en el select de nueva reserva
-        function loadHotelsForNewReservation() {
+        async function loadHotelsForNewReservation() {
             const hotelSelect = document.getElementById('newHotelSelect');
             if (!hotelSelect) return;
             
             // Limpiar opciones existentes
             hotelSelect.innerHTML = '<option value="">Seleccionar hotel...</option>';
             
-            // Obtener hoteles del localStorage
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            // Obtener hoteles de Supabase (tienen UUIDs válidos)
+            let hotels = [];
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    hotels = await window.supabaseClient.getHotels();
+                } catch (error) {
+                    console.error('Error cargando hoteles de Supabase:', error);
+                    hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                }
+            } else {
+                hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            }
             
             hotels.forEach(hotel => {
                 const option = document.createElement('option');
@@ -13297,18 +14149,28 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Función para cargar agentes en el select de nueva reserva
-        function loadAgentsForNewReservation() {
+        async function loadAgentsForNewReservation() {
             const agentSelect = document.getElementById('newAgentSelect');
             if (!agentSelect) return;
             
             // Limpiar opciones existentes
             agentSelect.innerHTML = '<option value="">Seleccionar agente...</option>';
             
-            // Obtener agentes del localStorage
-            const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+            // Obtener agentes de Supabase
+            let agents = [];
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    agents = await window.supabaseClient.getAgents();
+                } catch (error) {
+                    console.error('Error cargando agentes de Supabase:', error);
+                    agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+                }
+            } else {
+                agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+            }
             
             // Filtrar solo agentes activos
-            const activeAgents = agents.filter(agent => agent.active !== false);
+            const activeAgents = agents.filter(agent => agent.status !== 'Inactivo' && agent.active !== false);
             
             if (activeAgents.length === 0) {
                 const option = document.createElement('option');
@@ -13323,7 +14185,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             activeAgents.forEach(agent => {
                 const option = document.createElement('option');
                 option.value = agent.name; // Usar el nombre como valor
-                option.textContent = `${agent.code} - ${agent.name} (${agent.agency})`;
+                // Soportar ambas estructuras de tabla (code/agency o role)
+                const agentCode = agent.code || '';
+                const agentAgency = agent.agency || agent.role || '';
+                option.textContent = agentCode ? `${agentCode} - ${agent.name} (${agentAgency})` : `${agent.name} (${agentAgency})`;
                 agentSelect.appendChild(option);
             });
             
@@ -13377,7 +14242,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Función para guardar nuevo agente
-        function saveNewAgent(event) {
+        async function saveNewAgent(event) {
             event.preventDefault();
             
             console.log('💾 Guardando nuevo agente...');
@@ -13389,7 +14254,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             const agentData = {
                 code: formData.get('agentCode'),
                 name: formData.get('agentName'),
-                agency: formData.get('agentAgency')
+                agency: formData.get('agentAgency'),
+                status: 'Activo',
+                commission_rate: 0
             };
             
             // Validar campos requeridos
@@ -13398,52 +14265,350 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 return;
             }
             
-            // Obtener agentes existentes
-            const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
-            
-            // Verificar si el código ya existe
-            const existingAgent = agents.find(a => a.code === agentData.code);
-            if (existingAgent) {
-                alert('❌ Ya existe un agente con este código. Se generará un nuevo código.');
-                agentData.code = generateAgentCode();
-                document.getElementById('newAgentCode').value = agentData.code;
+            try {
+                let newAgent;
+                
+                // Intentar guardar en Supabase primero
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    console.log('☁️ Guardando agente en Supabase...');
+                    newAgent = await window.supabaseClient.createAgent(agentData);
+                    console.log('✅ Agente guardado en Supabase:', newAgent);
+                } else {
+                    // Fallback a localStorage
+                    console.log('💾 Guardando agente en localStorage...');
+                    const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+                    
+                    // Verificar si el código ya existe
+                    const existingAgent = agents.find(a => a.code === agentData.code);
+                    if (existingAgent) {
+                        alert('❌ Ya existe un agente con este código. Se generará un nuevo código.');
+                        agentData.code = generateAgentCode();
+                        document.getElementById('newAgentCode').value = agentData.code;
+                    }
+                    
+                    newAgent = {
+                        id: 'agent-' + Date.now(),
+                        ...agentData,
+                        active: true,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    };
+                    
+                    agents.push(newAgent);
+                    localStorage.setItem('agentsDB', JSON.stringify(agents));
+                }
+                
+                console.log('✅ Nuevo agente guardado:', newAgent);
+                
+                // Cerrar modal
+                closeNewAgentModal();
+                
+                // Mostrar mensaje de éxito
+                alert('✅ Agente creado exitosamente');
+                
+            } catch (error) {
+                console.error('❌ Error guardando agente:', error);
+                alert('❌ Error al guardar el agente: ' + error.message);
             }
-            
-            // Generar ID único
-            const agentId = 'agent-' + Date.now();
-            
-            // Crear nuevo agente
-            const newAgent = {
-                id: agentId,
-                ...agentData,
-                active: true,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            };
-            
-            // Agregar a la lista
-            agents.push(newAgent);
-            
-            // Guardar en localStorage
-            localStorage.setItem('agentsDB', JSON.stringify(agents));
-            
-            console.log('✅ Nuevo agente guardado:', newAgent);
-            
-            // Cerrar modal
-            closeNewAgentModal();
-            
-            // Mostrar mensaje de éxito
-            alert('✅ Agente creado exitosamente');
             
             // Recargar agentes en el select de reservas si está abierto
             const agentSelect = document.getElementById('newAgentSelect');
             if (agentSelect) {
                 loadAgentsForNewReservation();
             }
+            
+            // Recargar tabla de agentes si está visible
+            if (document.getElementById('agents-section')?.style.display !== 'none') {
+                loadAgentsTable();
+            }
+        }
+
+        // ============================================
+        // GESTIÓN DE AGENTES
+        // ============================================
+
+        // Función para cargar tabla de agentes
+        async function loadAgentsTable() {
+            console.log('📋 Cargando tabla de agentes...');
+            
+            const tbody = document.getElementById('agentsTableBody');
+            if (!tbody) {
+                console.log('⚠️ Tabla de agentes no encontrada');
+                return;
+            }
+            
+            // Mostrar loading
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px;"><span class="material-icons" style="animation: spin 1s linear infinite;">sync</span> Cargando agentes...</td></tr>';
+            
+            try {
+                // Obtener agentes de Supabase
+                let agents = [];
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    console.log('☁️ Cargando agentes desde Supabase...');
+                    agents = await window.supabaseClient.getAgents();
+                    console.log(`✅ ${agents.length} agentes cargados de Supabase`);
+                } else {
+                    console.log('💾 Cargando agentes desde localStorage...');
+                    agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+                }
+                
+                // Actualizar estadísticas
+                updateAgentsStats(agents);
+                
+                if (agents.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px; color: #666;">No hay agentes registrados. Haz clic en "Nuevo Agente" para crear uno.</td></tr>';
+                    return;
+                }
+                
+                // Obtener reservas para contar por agente
+                let reservations = [];
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    try {
+                        reservations = await window.supabaseClient.getReservations();
+                    } catch (e) {
+                        reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+                    }
+                } else {
+                    reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+                }
+                
+                // Ordenar por fecha de creación (más recientes primero)
+                const sortedAgents = agents.sort((a, b) => {
+                    const dateA = new Date(a.created_at || 0);
+                    const dateB = new Date(b.created_at || 0);
+                    return dateB - dateA;
+                });
+                
+                tbody.innerHTML = sortedAgents.map(agent => {
+                    const createdDate = agent.created_at ? new Date(agent.created_at).toLocaleDateString('es-ES') : 'N/A';
+                    const isActive = agent.status !== 'Inactivo' && agent.active !== false;
+                    
+                    // Contar reservas del agente
+                    const agentReservations = reservations.filter(r => 
+                        r.agent_name === agent.name || 
+                        r.agentName === agent.name || 
+                        r.agent === agent.name
+                    ).length;
+                    
+                    // Soportar ambas estructuras de tabla
+                    const agentCode = agent.code || 'N/A';
+                    const agentAgency = agent.agency || agent.role || 'Sin agencia';
+                    
+                    return `
+                        <tr>
+                            <td style="padding: 12px;"><strong>${agentCode}</strong></td>
+                            <td style="padding: 12px;">${agent.name || 'Sin nombre'}</td>
+                            <td style="padding: 12px;">${agentAgency}</td>
+                            <td style="padding: 12px; text-align: center;">
+                                <span style="
+                                    display: inline-block;
+                                    padding: 4px 12px;
+                                    border-radius: 20px;
+                                    font-size: 12px;
+                                    font-weight: 500;
+                                    background: ${isActive ? '#e8f5e9' : '#ffebee'};
+                                    color: ${isActive ? '#2e7d32' : '#c62828'};
+                                ">${isActive ? 'Activo' : 'Inactivo'}</span>
+                            </td>
+                            <td style="padding: 12px; text-align: center;">
+                                <span style="
+                                    display: inline-block;
+                                    padding: 4px 12px;
+                                    border-radius: 20px;
+                                    font-size: 12px;
+                                    background: #e3f2fd;
+                                    color: #1565c0;
+                                ">${agentReservations}</span>
+                            </td>
+                            <td style="padding: 12px;">${createdDate}</td>
+                            <td style="padding: 12px; text-align: center;">
+                                <button onclick="editAgent('${agent.id}')" style="
+                                    background: #2196f3;
+                                    color: white;
+                                    border: none;
+                                    padding: 6px 12px;
+                                    border-radius: 4px;
+                                    cursor: pointer;
+                                    margin-right: 4px;
+                                " title="Editar agente">
+                                    <span class="material-icons" style="font-size: 16px; vertical-align: middle;">edit</span>
+                                </button>
+                                <button onclick="deleteAgent('${agent.id}', '${agent.name}')" style="
+                                    background: #f44336;
+                                    color: white;
+                                    border: none;
+                                    padding: 6px 12px;
+                                    border-radius: 4px;
+                                    cursor: pointer;
+                                " title="Eliminar agente">
+                                    <span class="material-icons" style="font-size: 16px; vertical-align: middle;">delete</span>
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+                
+                console.log(`✅ ${agents.length} agentes mostrados en la tabla`);
+                
+            } catch (error) {
+                console.error('❌ Error cargando agentes:', error);
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px; color: #f44336;">Error al cargar agentes. Intenta actualizar la página.</td></tr>';
+            }
+        }
+
+        // Función para actualizar estadísticas de agentes
+        function updateAgentsStats(agents) {
+            const totalAgents = agents.length;
+            const activeAgents = agents.filter(a => a.status !== 'Inactivo' && a.active !== false).length;
+            const inactiveAgents = totalAgents - activeAgents;
+            
+            const totalEl = document.getElementById('totalAgents');
+            const activeEl = document.getElementById('activeAgents');
+            const inactiveEl = document.getElementById('inactiveAgents');
+            
+            if (totalEl) totalEl.textContent = totalAgents;
+            if (activeEl) activeEl.textContent = activeAgents;
+            if (inactiveEl) inactiveEl.textContent = inactiveAgents;
+        }
+
+        // Función para editar agente
+        async function editAgent(agentId) {
+            console.log('✏️ Editando agente:', agentId);
+            
+            try {
+                // Obtener agentes
+                let agents = [];
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    agents = await window.supabaseClient.getAgents();
+                } else {
+                    agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+                }
+                
+                const agent = agents.find(a => a.id === agentId || a.id == agentId);
+                
+                if (!agent) {
+                    console.error('❌ Agente no encontrado:', agentId);
+                    alert('❌ Agente no encontrado');
+                    return;
+                }
+                
+                // Rellenar formulario de edición (soportar ambas estructuras)
+                document.getElementById('editAgentId').value = agent.id;
+                document.getElementById('editAgentCode').value = agent.code || '';
+                document.getElementById('editAgentName').value = agent.name || '';
+                document.getElementById('editAgentAgency').value = agent.agency || agent.role || '';
+                document.getElementById('editAgentStatus').value = (agent.status === 'Inactivo' || agent.active === false) ? 'Inactivo' : 'Activo';
+                
+                // Mostrar modal
+                document.getElementById('editAgentModal').style.display = 'block';
+                
+            } catch (error) {
+                console.error('❌ Error al cargar agente para edición:', error);
+                alert('❌ Error al cargar los datos del agente');
+            }
+        }
+
+        // Función para cerrar modal de edición de agente
+        function closeEditAgentModal() {
+            const modal = document.getElementById('editAgentModal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        // Función para guardar agente editado
+        async function saveEditedAgent(event) {
+            event.preventDefault();
+            
+            const agentId = document.getElementById('editAgentId').value;
+            const updates = {
+                name: document.getElementById('editAgentName').value,
+                agency: document.getElementById('editAgentAgency').value,
+                status: document.getElementById('editAgentStatus').value,
+                active: document.getElementById('editAgentStatus').value === 'Activo'
+            };
+            
+            console.log('💾 Guardando cambios del agente:', agentId, updates);
+            
+            try {
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    await window.supabaseClient.updateAgent(agentId, updates);
+                    console.log('✅ Agente actualizado en Supabase');
+                } else {
+                    // Fallback a localStorage
+                    const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+                    const index = agents.findIndex(a => a.id === agentId || a.id == agentId);
+                    if (index !== -1) {
+                        agents[index] = { ...agents[index], ...updates, updated_at: new Date().toISOString() };
+                        localStorage.setItem('agentsDB', JSON.stringify(agents));
+                    }
+                }
+                
+                // Cerrar modal
+                closeEditAgentModal();
+                
+                // Mostrar mensaje de éxito
+                alert('✅ Agente actualizado correctamente');
+                
+                // Recargar tabla
+                loadAgentsTable();
+                
+                // También actualizar el select de agentes si está abierto
+                if (document.getElementById('newAgentSelect')) {
+                    loadAgentsForNewReservation();
+                }
+                
+            } catch (error) {
+                console.error('❌ Error actualizando agente:', error);
+                alert('❌ Error al actualizar el agente: ' + error.message);
+            }
+        }
+
+        // Función para eliminar agente
+        async function deleteAgent(agentId, agentName) {
+            if (!confirm(`¿Estás seguro de que deseas eliminar al agente "${agentName}"?\n\nEsta acción no se puede deshacer.`)) {
+                return;
+            }
+            
+            console.log('🗑️ Eliminando agente:', agentId);
+            
+            try {
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    await window.supabaseClient.deleteAgent(agentId);
+                    console.log('✅ Agente eliminado de Supabase');
+                } else {
+                    // Fallback a localStorage
+                    const agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+                    const filtered = agents.filter(a => a.id !== agentId && a.id != agentId);
+                    localStorage.setItem('agentsDB', JSON.stringify(filtered));
+                }
+                
+                // Mostrar mensaje de éxito
+                alert('✅ Agente eliminado correctamente');
+                
+                // Recargar tabla
+                loadAgentsTable();
+                
+                // También actualizar el select de agentes si está abierto
+                if (document.getElementById('newAgentSelect')) {
+                    loadAgentsForNewReservation();
+                }
+                
+            } catch (error) {
+                console.error('❌ Error eliminando agente:', error);
+                alert('❌ Error al eliminar el agente: ' + error.message);
+            }
+        }
+
+        // Función para refrescar agentes
+        async function refreshAgents() {
+            console.log('🔄 Actualizando lista de agentes...');
+            await loadAgentsTable();
+            alert('✅ Lista de agentes actualizada');
         }
 
         // Función para guardar nueva reserva
-        function saveNewReservation(event) {
+        async function saveNewReservation(event) {
             event.preventDefault();
             
             console.log('💾 Guardando nueva reserva...');
@@ -13452,67 +14617,94 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             // Obtener datos del formulario
             const formData = new FormData(form);
+            const reservationCode = formData.get('reservationCode') || generateReservationCode();
+            const hotelId = formData.get('hotelId');
+            const hotelName = await getHotelNameById(hotelId);
+            
+            // Datos para Supabase (snake_case)
             const reservationData = {
-                clientName: formData.get('clientName'),
-                clientEmail: formData.get('clientEmail'),
-                clientPhone: formData.get('clientPhone'),
-                hotelId: formData.get('hotelId'),
-                hotelName: getHotelNameById(formData.get('hotelId')),
-                reservationCode: formData.get('reservationCode'),
-                checkIn: formData.get('checkIn'),
-                checkOut: formData.get('checkOut'),
-                reservationDate: formData.get('reservationDate'),
-                agentName: formData.get('agentName'),
-                status: formData.get('status'),
-                totalAmount: parseInt(formData.get('totalAmount'))
+                reservation_code: reservationCode,
+                client_name: formData.get('clientName'),
+                client_email: formData.get('clientEmail'),
+                client_phone: formData.get('clientPhone'),
+                hotel_id: hotelId,
+                hotel_name: hotelName,
+                check_in: formData.get('checkIn'),
+                check_out: formData.get('checkOut'),
+                reservation_date: formData.get('reservationDate') || new Date().toISOString().split('T')[0],
+                agent_name: formData.get('agentName') || '',
+                status: 'Confirmada',
+                total_amount: parseInt(formData.get('totalAmount')) || 0
             };
             
             // Validar campos requeridos
-            if (!reservationData.clientName || !reservationData.clientEmail || !reservationData.clientPhone || !reservationData.hotelId || 
-                !reservationData.checkIn || !reservationData.checkOut) {
+            if (!reservationData.client_name || !reservationData.client_email || !reservationData.client_phone || !reservationData.hotel_id || 
+                !reservationData.check_in || !reservationData.check_out) {
                 alert('❌ Por favor completa todos los campos requeridos');
                 return;
             }
             
             // Validar fechas
-            if (reservationData.checkOut <= reservationData.checkIn) {
+            if (reservationData.check_out <= reservationData.check_in) {
                 alert('❌ La fecha de salida debe ser posterior a la fecha de entrada');
                 return;
             }
             
-            // Generar ID y código únicos
-            const reservationId = 'res-' + Date.now();
-            const reservationCode = reservationData.reservationCode || generateReservationCode();
-            
-            // Crear nueva reserva - El estado siempre es "Confirmada" por defecto
-            const newReservation = {
-                id: reservationId,
-                reservationCode: reservationCode,
-                ...reservationData,
-                status: 'Confirmada', // Siempre confirmada al crear
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            };
-            
-            // Obtener reservas existentes
-            const reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
-            reservations.push(newReservation);
-            
-            // Guardar en localStorage
-            localStorage.setItem('reservationsDB', JSON.stringify(reservations));
-            
-            // Guardar o actualizar usuario en Gestión de Usuarios
-            saveUserFromReservation(reservationData);
-            
-            console.log('✅ Nueva reserva creada:', newReservation);
-            alert(`✅ Reserva ${reservationCode} creada correctamente`);
-            
-            // Cerrar modal
-            closeNewReservationModal();
-            
-            // Actualizar tabla y estadísticas
-            loadReservationsTable();
-            updateReservationsStats();
+            try {
+                let newReservation;
+                
+                // Intentar guardar en Supabase primero
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    console.log('☁️ Guardando reserva en Supabase...');
+                    newReservation = await window.supabaseClient.createReservation(reservationData);
+                    console.log('✅ Reserva guardada en Supabase:', newReservation);
+                } else {
+                    // Fallback a localStorage (con formato camelCase para compatibilidad)
+                    console.log('💾 Guardando reserva en localStorage...');
+                    newReservation = {
+                        id: 'res-' + Date.now(),
+                        reservationCode: reservationCode,
+                        clientName: reservationData.client_name,
+                        clientEmail: reservationData.client_email,
+                        clientPhone: reservationData.client_phone,
+                        hotelId: reservationData.hotel_id,
+                        hotelName: reservationData.hotel_name,
+                        checkIn: reservationData.check_in,
+                        checkOut: reservationData.check_out,
+                        reservationDate: reservationData.reservation_date,
+                        agentName: reservationData.agent_name,
+                        status: reservationData.status,
+                        totalAmount: reservationData.total_amount,
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    };
+                    
+                    const reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+                    reservations.push(newReservation);
+                    localStorage.setItem('reservationsDB', JSON.stringify(reservations));
+                }
+                
+                // Guardar o actualizar usuario en Gestión de Usuarios
+                saveUserFromReservation({
+                    clientName: reservationData.client_name,
+                    clientEmail: reservationData.client_email,
+                    clientPhone: reservationData.client_phone
+                });
+                
+                console.log('✅ Nueva reserva creada:', newReservation);
+                alert(`✅ Reserva ${reservationCode} creada correctamente`);
+                
+                // Cerrar modal
+                closeNewReservationModal();
+                
+                // Actualizar tabla y estadísticas
+                loadReservationsTable();
+                updateReservationsStats();
+                
+            } catch (error) {
+                console.error('❌ Error guardando reserva:', error);
+                alert('❌ Error al guardar la reserva: ' + error.message);
+            }
         }
 
         // Función para guardar usuario desde una reserva
@@ -13792,7 +14984,23 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         function addNewExpense() {
             document.getElementById('expenseModalTitle').textContent = 'Agregar Gasto';
             document.getElementById('expenseForm').reset();
-            document.getElementById('expenseDate').value = new Date().toISOString().split('T')[0];
+            // IMPORTANTE: Limpiar el expenseId para evitar sobrescribir gastos existentes
+            delete document.getElementById('expenseForm').dataset.expenseId;
+            
+            // Usar fecha de Argentina
+            const argentinaDate = new Date().toLocaleDateString('en-CA', { 
+                timeZone: 'America/Argentina/Buenos_Aires' 
+            });
+            document.getElementById('expenseDate').value = argentinaDate;
+            
+            // Limpiar campos de tipo de cambio y USD
+            document.getElementById('expenseExchangeRate').value = '';
+            document.getElementById('expenseUSD').value = '';
+            
+            // Limpiar campos de imagen
+            removeExpenseImage();
+            pendingImageFile = null;
+            
             // Cargar categorías al abrir el modal
             updateExpenseCategories();
             document.getElementById('expenseModal').style.display = 'block';
@@ -13802,6 +15010,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         function closeExpenseModal() {
             document.getElementById('expenseModal').style.display = 'none';
             document.getElementById('expenseForm').reset();
+            // Limpiar el expenseId al cerrar
+            delete document.getElementById('expenseForm').dataset.expenseId;
+            // Limpiar campos de imagen
+            removeExpenseImage();
+            pendingImageFile = null;
         }
 
         // Función para calcular USD automáticamente
@@ -13818,15 +15031,157 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }
         }
         
+        // ============================================
+        // FUNCIONES DE IMAGEN PARA GASTOS
+        // ============================================
+        
+        let cameraStream = null;
+        let pendingImageFile = null;
+        
+        // Preview de imagen desde archivo
+        function previewExpenseImage(input) {
+            const file = input.files[0];
+            if (file) {
+                pendingImageFile = file;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('expenseImagePreviewImg').src = e.target.result;
+                    document.getElementById('expenseImagePreview').style.display = 'block';
+                    document.getElementById('expenseImageName').value = file.name;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        // Eliminar imagen
+        function removeExpenseImage() {
+            document.getElementById('expenseImagePreview').style.display = 'none';
+            document.getElementById('expenseImagePreviewImg').src = '';
+            document.getElementById('expenseImageFile').value = '';
+            document.getElementById('expenseImageUrl').value = '';
+            document.getElementById('expenseImageName').value = '';
+            pendingImageFile = null;
+        }
+        
+        // Abrir cámara
+        async function openCameraCapture() {
+            try {
+                cameraStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' } 
+                });
+                document.getElementById('cameraVideo').srcObject = cameraStream;
+                document.getElementById('cameraModal').style.display = 'flex';
+            } catch (error) {
+                console.error('Error accediendo a la cámara:', error);
+                alert('❌ No se pudo acceder a la cámara. Verifica los permisos.');
+            }
+        }
+        
+        // Cerrar cámara
+        function closeCameraModal() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                cameraStream = null;
+            }
+            document.getElementById('cameraModal').style.display = 'none';
+        }
+        
+        // Capturar foto
+        function capturePhoto() {
+            const video = document.getElementById('cameraVideo');
+            const canvas = document.getElementById('cameraCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
+            
+            // Convertir a blob
+            canvas.toBlob(function(blob) {
+                const timestamp = Date.now();
+                const file = new File([blob], `comprobante_${timestamp}.jpg`, { type: 'image/jpeg' });
+                pendingImageFile = file;
+                
+                // Mostrar preview
+                document.getElementById('expenseImagePreviewImg').src = canvas.toDataURL('image/jpeg');
+                document.getElementById('expenseImagePreview').style.display = 'block';
+                document.getElementById('expenseImageName').value = file.name;
+                
+                closeCameraModal();
+            }, 'image/jpeg', 0.8);
+        }
+        
+        // Subir imagen a Supabase Storage
+        async function uploadExpenseImage(file) {
+            if (!file) return null;
+            
+            if (!window.supabaseClient || !window.supabaseClient.isInitialized()) {
+                console.warn('⚠️ Supabase no disponible, guardando imagen como base64');
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve({ url: reader.result, name: file.name });
+                    reader.readAsDataURL(file);
+                });
+            }
+            
+            try {
+                const timestamp = Date.now();
+                const fileName = `${timestamp}_${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+                
+                const { data, error } = await window.supabaseClient.client.storage
+                    .from('expense-images')
+                    .upload(fileName, file);
+                
+                if (error) throw error;
+                
+                // Obtener URL pública
+                const { data: urlData } = window.supabaseClient.client.storage
+                    .from('expense-images')
+                    .getPublicUrl(fileName);
+                
+                return { url: urlData.publicUrl, name: fileName };
+            } catch (error) {
+                console.error('❌ Error subiendo imagen:', error);
+                // Fallback a base64
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve({ url: reader.result, name: file.name });
+                    reader.readAsDataURL(file);
+                });
+            }
+        }
+        
         // Guardar gasto
         async function saveExpense(event) {
             event.preventDefault();
             
             const expenseId = document.getElementById('expenseForm').dataset.expenseId;
             
-            const amount = parseFloat(document.getElementById('expenseAmount').value);
-            const exchangeRate = parseFloat(document.getElementById('expenseExchangeRate').value);
-            const usd = exchangeRate > 0 ? amount / exchangeRate : 0;
+            const amount = parseFloat(document.getElementById('expenseAmount').value) || 0;
+            const exchangeRateValue = document.getElementById('expenseExchangeRate').value;
+            const exchangeRate = exchangeRateValue ? parseFloat(exchangeRateValue) : null;
+            const usd = (exchangeRate && exchangeRate > 0) ? amount / exchangeRate : null;
+            
+            console.log('💾 Guardando gasto:', { amount, exchangeRate, usd });
+            
+            // Subir imagen si existe
+            let imageUrl = document.getElementById('expenseImageUrl').value || null;
+            let imageName = document.getElementById('expenseImageName').value || null;
+            
+            if (pendingImageFile) {
+                try {
+                    showLoading();
+                    const imageResult = await uploadExpenseImage(pendingImageFile);
+                    if (imageResult) {
+                        imageUrl = imageResult.url;
+                        imageName = imageResult.name;
+                    }
+                    hideLoading();
+                } catch (error) {
+                    hideLoading();
+                    console.error('Error subiendo imagen:', error);
+                }
+            }
             
             const expenseData = {
                 date: document.getElementById('expenseDate').value,
@@ -13835,25 +15190,42 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 subcategory: document.getElementById('expenseSubcategory').value || '',
                 description: document.getElementById('expenseDescription').value,
                 amount: amount,
-                exchange_rate: exchangeRate || null,
-                usd_amount: parseFloat(usd.toFixed(2)) || null
+                exchange_rate: exchangeRate,
+                usd_amount: usd ? parseFloat(usd.toFixed(2)) : null,
+                image_url: imageUrl,
+                image_name: imageName,
+                // También guardar con nombres alternativos para compatibilidad
+                exchangeRate: exchangeRate,
+                usd: usd ? parseFloat(usd.toFixed(2)) : null
             };
+            
+            console.log('📦 Datos del gasto:', expenseData);
             
             try {
                 // Intentar guardar en Supabase primero
                 if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                     try {
                         if (expenseId) {
-                            await window.supabaseClient.updateExpense(expenseId, expenseData);
-                            console.log('✅ Gasto actualizado en Supabase');
-                            alert('✅ Gasto actualizado correctamente (guardado en la nube)');
+                            // Usar el ID tal como está (puede ser UUID o número)
+                            console.log('🔄 Actualizando gasto con ID:', expenseId);
+                            
+                            const result = await window.supabaseClient.updateExpense(expenseId, expenseData);
+                            
+                            if (result) {
+                                console.log('✅ Gasto actualizado en Supabase:', result);
+                                alert('✅ Gasto actualizado correctamente');
+                            } else {
+                                throw new Error('No se recibió respuesta de Supabase');
+                            }
                         } else {
+                            console.log('➕ Creando nuevo gasto...');
                             await window.supabaseClient.createExpense(expenseData);
                             console.log('✅ Gasto guardado en Supabase');
-                            alert('✅ Gasto guardado correctamente (guardado en la nube)');
+                            alert('✅ Gasto guardado correctamente');
                         }
                     } catch (error) {
-                        console.warn('⚠️ Error guardando en Supabase, guardando en localStorage:', error);
+                        console.error('❌ Error guardando en Supabase:', error);
+                        alert('❌ Error: ' + error.message);
                         // Fallback a localStorage
                         const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
                         const expense = {
@@ -13949,15 +15321,28 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 const typeLabel = expense.type === 'fixed' ? 'Fijo' : 'Variable';
                 const typeColor = expense.type === 'fixed' ? '#1976d2' : '#f57c00';
                 
+                // Normalizar nombres de campos (Supabase usa snake_case, localStorage usa camelCase)
+                const exchangeRate = expense.exchange_rate || expense.exchangeRate || null;
+                const usdAmount = expense.usd_amount || expense.usd || null;
+                
+                // Formatear fecha en zona horaria Argentina
+                const expenseDate = new Date(expense.date + 'T12:00:00');
+                const formattedDate = expenseDate.toLocaleDateString('es-AR', { 
+                    timeZone: 'America/Argentina/Buenos_Aires',
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                });
+                
                 row.innerHTML = `
-                    <td>${new Date(expense.date).toLocaleDateString('es-ES')}</td>
+                    <td>${formattedDate}</td>
                     <td>${categoryName}</td>
                     <td>${expense.subcategory || '-'}</td>
                     <td><span style="background: ${typeColor}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">${typeLabel}</span></td>
                     <td>${expense.description}</td>
-                    <td style="font-weight: 600; color: #d32f2f;">$${expense.amount.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                    <td>${expense.exchangeRate ? expense.exchangeRate.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</td>
-                    <td style="font-weight: 600; color: #1976d2;">${expense.usd ? '$' + expense.usd.toLocaleString('es-ES', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</td>
+                    <td style="font-weight: 600; color: #d32f2f;">$${expense.amount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>${exchangeRate ? exchangeRate.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</td>
+                    <td style="font-weight: 600; color: #1976d2;">${usdAmount ? '$' + usdAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</td>
                     <td>
                         <button onclick="editExpense('${expense.id}')" style="background: #1976d2; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-right: 4px;">
                             <span class="material-icons" style="font-size: 16px; vertical-align: middle;">edit</span>
@@ -13972,14 +15357,28 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Editar gasto
-        function editExpense(expenseId) {
-            const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
-            const expense = expenses.find(e => e.id === expenseId);
+        async function editExpense(expenseId) {
+            // Intentar obtener de Supabase primero, luego localStorage
+            let expenses = [];
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    expenses = await window.supabaseClient.getExpenses();
+                } catch (error) {
+                    expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+                }
+            } else {
+                expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+            }
+            
+            const expense = expenses.find(e => e.id === expenseId || e.id === parseInt(expenseId));
             
             if (!expense) {
                 alert('❌ Gasto no encontrado');
                 return;
             }
+            
+            // Limpiar imagen pendiente
+            pendingImageFile = null;
             
             document.getElementById('expenseModalTitle').textContent = 'Editar Gasto';
             document.getElementById('expenseForm').dataset.expenseId = expenseId;
@@ -13991,9 +15390,23 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 document.getElementById('expenseSubcategory').value = expense.subcategory || '';
                 document.getElementById('expenseDescription').value = expense.description;
                 document.getElementById('expenseAmount').value = expense.amount;
-                document.getElementById('expenseExchangeRate').value = expense.exchangeRate || '';
+                // Normalizar nombres de campos (Supabase usa snake_case)
+                const exchangeRate = expense.exchange_rate || expense.exchangeRate || '';
+                document.getElementById('expenseExchangeRate').value = exchangeRate;
                 // Calcular USD automáticamente al cargar
                 calculateUSD();
+                
+                // Cargar imagen existente si hay
+                const imageUrl = expense.image_url || expense.imageUrl || '';
+                const imageName = expense.image_name || expense.imageName || '';
+                if (imageUrl) {
+                    document.getElementById('expenseImageUrl').value = imageUrl;
+                    document.getElementById('expenseImageName').value = imageName;
+                    document.getElementById('expenseImagePreviewImg').src = imageUrl;
+                    document.getElementById('expenseImagePreview').style.display = 'block';
+                } else {
+                    removeExpenseImage();
+                }
             }, 100);
             
             document.getElementById('expenseModal').style.display = 'block';
@@ -14001,6 +15414,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
         // Eliminar gasto
         async function deleteExpense(expenseId) {
+            // Solo admin_total puede eliminar
+            if (!isAdminTotal()) {
+                alert('⛔ No tienes permisos para eliminar. Solo los administradores pueden realizar esta acción.');
+                return;
+            }
+            
             if (!confirm('¿Estás seguro de que quieres eliminar este gasto?')) return;
             
             try {
@@ -14696,6 +16115,262 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             loadAdminsTable();
         }
 
+        // ============================================
+        // FUNCIONES DE BACKUP Y RESTAURACIÓN
+        // ============================================
+        
+        async function createFullBackup() {
+            try {
+                showLoading();
+                console.log('💾 Creando backup completo...');
+                
+                // Recopilar todos los datos
+                const backupData = {
+                    version: '2.0',
+                    timestamp: new Date().toISOString(),
+                    createdBy: getCurrentUserName() || 'Sistema',
+                    data: {}
+                };
+                
+                // Obtener datos de Supabase si está disponible
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    try {
+                        backupData.data.hotels = await window.supabaseClient.getHotels();
+                        backupData.data.reservations = await window.supabaseClient.getReservations();
+                        backupData.data.quotes = await window.supabaseClient.getQuotes();
+                        backupData.data.expenses = await window.supabaseClient.getExpenses();
+                        backupData.data.agents = await window.supabaseClient.getAgents();
+                        backupData.source = 'supabase';
+                    } catch (e) {
+                        console.warn('⚠️ Error obteniendo datos de Supabase, usando localStorage');
+                    }
+                }
+                
+                // Fallback a localStorage
+                if (!backupData.data.hotels) {
+                    backupData.data.hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                    backupData.data.reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+                    backupData.data.quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
+                    backupData.data.expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+                    backupData.data.agents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+                    backupData.data.users = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+                    backupData.data.admins = JSON.parse(localStorage.getItem('dashboard_admin_users') || '[]');
+                    backupData.source = 'localStorage';
+                }
+                
+                // Crear y descargar archivo
+                const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const date = new Date().toISOString().split('T')[0];
+                const time = new Date().toTimeString().split(' ')[0].replace(/:/g, '-');
+                a.href = url;
+                a.download = `backup_checkin24hs_${date}_${time}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                hideLoading();
+                
+                // Resumen del backup
+                const summary = `
+✅ BACKUP CREADO EXITOSAMENTE
+
+📊 Resumen:
+• Hoteles: ${backupData.data.hotels?.length || 0}
+• Reservas: ${backupData.data.reservations?.length || 0}
+• Cotizaciones: ${backupData.data.quotes?.length || 0}
+• Gastos: ${backupData.data.expenses?.length || 0}
+• Agentes: ${backupData.data.agents?.length || 0}
+
+📁 Archivo: backup_checkin24hs_${date}_${time}.json
+🔄 Fuente: ${backupData.source === 'supabase' ? 'Supabase (nube)' : 'LocalStorage (local)'}
+                `;
+                alert(summary);
+                
+            } catch (error) {
+                hideLoading();
+                console.error('❌ Error creando backup:', error);
+                alert('❌ Error al crear el backup: ' + error.message);
+            }
+        }
+        
+        function showRestoreBackupModal() {
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.id = 'restoreBackupModal';
+            modal.style.display = 'flex';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 500px;">
+                    <div class="modal-header">
+                        <h2>🔄 Restaurar Backup</h2>
+                        <button class="close-btn" onclick="this.closest('.modal').remove()">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <div style="background: #fff3e0; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                            <p style="color: #e65100; font-weight: 500;">
+                                <span class="material-icons" style="vertical-align: middle;">warning</span>
+                                ATENCIÓN: Esta acción reemplazará todos los datos actuales con los del backup.
+                            </p>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Seleccionar archivo de backup (.json)</label>
+                            <input type="file" id="backupFileInput" accept=".json" class="form-control" style="padding: 12px;">
+                        </div>
+                        <div id="backupPreview" style="display: none; margin-top: 16px; padding: 16px; background: #f5f5f5; border-radius: 8px;">
+                            <h4 style="margin-bottom: 8px;">📋 Contenido del backup:</h4>
+                            <div id="backupPreviewContent"></div>
+                        </div>
+                    </div>
+                    <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end;">
+                        <button class="form-button secondary" onclick="this.closest('.modal').remove()">Cancelar</button>
+                        <button class="form-button" id="restoreBackupBtn" style="background: #f44336; color: white;" onclick="executeRestoreBackup()" disabled>
+                            <span class="material-icons" style="vertical-align: middle; margin-right: 4px;">restore</span>
+                            Restaurar
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            // Manejar selección de archivo
+            document.getElementById('backupFileInput').addEventListener('change', previewBackupFile);
+        }
+        
+        let pendingBackupData = null;
+        
+        function previewBackupFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    pendingBackupData = data;
+                    
+                    // Mostrar preview
+                    const preview = document.getElementById('backupPreview');
+                    const content = document.getElementById('backupPreviewContent');
+                    
+                    content.innerHTML = `
+                        <p><strong>📅 Fecha:</strong> ${new Date(data.timestamp).toLocaleString('es-AR')}</p>
+                        <p><strong>👤 Creado por:</strong> ${data.createdBy || 'Desconocido'}</p>
+                        <p><strong>🔄 Versión:</strong> ${data.version || '1.0'}</p>
+                        <hr style="margin: 12px 0;">
+                        <p>🏨 Hoteles: <strong>${data.data?.hotels?.length || 0}</strong></p>
+                        <p>📋 Reservas: <strong>${data.data?.reservations?.length || 0}</strong></p>
+                        <p>💰 Cotizaciones: <strong>${data.data?.quotes?.length || 0}</strong></p>
+                        <p>💵 Gastos: <strong>${data.data?.expenses?.length || 0}</strong></p>
+                        <p>👥 Agentes: <strong>${data.data?.agents?.length || 0}</strong></p>
+                    `;
+                    
+                    preview.style.display = 'block';
+                    document.getElementById('restoreBackupBtn').disabled = false;
+                    
+                } catch (error) {
+                    alert('❌ El archivo no es un backup válido');
+                    pendingBackupData = null;
+                }
+            };
+            reader.readAsText(file);
+        }
+        
+        async function executeRestoreBackup() {
+            if (!pendingBackupData) {
+                alert('❌ No hay backup seleccionado');
+                return;
+            }
+            
+            if (!confirm('⚠️ ¿Estás SEGURO de que deseas restaurar este backup?\n\nTodos los datos actuales serán reemplazados.')) {
+                return;
+            }
+            
+            try {
+                showLoading();
+                console.log('🔄 Restaurando backup...');
+                
+                const data = pendingBackupData.data;
+                
+                // Guardar en localStorage como fallback
+                if (data.hotels) localStorage.setItem('hotelsDB', JSON.stringify(data.hotels));
+                if (data.reservations) localStorage.setItem('reservationsDB', JSON.stringify(data.reservations));
+                if (data.quotes) localStorage.setItem('quotesDB', JSON.stringify(data.quotes));
+                if (data.expenses) localStorage.setItem('expensesDB', JSON.stringify(data.expenses));
+                if (data.agents) localStorage.setItem('agentsDB', JSON.stringify(data.agents));
+                if (data.users) localStorage.setItem('checkin24hs_users', JSON.stringify(data.users));
+                if (data.admins) localStorage.setItem('dashboard_admin_users', JSON.stringify(data.admins));
+                
+                // Si Supabase está disponible, sincronizar con la nube
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    console.log('☁️ Sincronizando con Supabase...');
+                    // Nota: La sincronización completa con Supabase requiere borrar y recrear registros
+                    // Por ahora solo actualizamos localStorage
+                }
+                
+                hideLoading();
+                
+                // Cerrar modal
+                const modal = document.getElementById('restoreBackupModal');
+                if (modal) modal.remove();
+                
+                alert('✅ Backup restaurado exitosamente.\n\nLa página se recargará para aplicar los cambios.');
+                
+                // Recargar página
+                window.location.reload();
+                
+            } catch (error) {
+                hideLoading();
+                console.error('❌ Error restaurando backup:', error);
+                alert('❌ Error al restaurar: ' + error.message);
+            }
+        }
+        
+        async function checkSyncStatus() {
+            const indicator = document.getElementById('syncStatusIndicator');
+            const statusText = document.getElementById('syncStatusText');
+            
+            indicator.style.display = 'block';
+            statusText.innerHTML = '⏳ Verificando estado de sincronización...';
+            
+            try {
+                let status = [];
+                
+                // Verificar Supabase
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    status.push('✅ Supabase: Conectado');
+                    
+                    // Verificar datos
+                    const hotels = await window.supabaseClient.getHotels();
+                    const reservations = await window.supabaseClient.getReservations();
+                    const agents = await window.supabaseClient.getAgents();
+                    
+                    status.push(`📊 Datos en nube: ${hotels.length} hoteles, ${reservations.length} reservas, ${agents.length} agentes`);
+                    
+                    // Verificar Realtime
+                    if (window.supabaseClient.client.realtime) {
+                        status.push('✅ Realtime: Activo (sincronización en tiempo real)');
+                    } else {
+                        status.push('⚠️ Realtime: No disponible');
+                    }
+                } else {
+                    status.push('⚠️ Supabase: No conectado (usando localStorage)');
+                }
+                
+                // Verificar localStorage
+                const localHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                const localReservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+                const localAgents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+                status.push(`💾 Datos locales: ${localHotels.length} hoteles, ${localReservations.length} reservas, ${localAgents.length} agentes`);
+                
+                statusText.innerHTML = status.join('<br>');
+                
+            } catch (error) {
+                statusText.innerHTML = '❌ Error verificando sincronización: ' + error.message;
+            }
+        }
+
         // Mostrar/ocultar menú de administradores según el rol
         function updateAdminMenuVisibility() {
             const adminMenuLink = document.getElementById('adminMenuLink');
@@ -14816,18 +16491,1250 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             </form>
         </div>
     </div>
+
+    <!-- ==================== MODALES PROGRAMA FLEXI ==================== -->
     
-    <!-- Sistema Flor - Chatbot con aprendizaje -->
-    <script src="flor-knowledge-base.js"></script>
-    <script src="flor-ai-service.js"></script>
-    <script src="flor-learning-system.js"></script>
-    <script src="flor-agent.js"></script>
+    <!-- Modal Nuevo Programa Flexi -->
+    <div id="newFlexiProgramModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px; width: 90%;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%); color: white; padding: 20px; border-radius: 12px 12px 0 0;">
+                <h2 style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                    <span class="material-icons">add_circle</span>
+                    Nuevo Programa Flexi
+                </h2>
+                <button onclick="closeNewFlexiProgramModal()" class="close-btn" style="color: white; background: rgba(255,255,255,0.2); border: none; border-radius: 50%; width: 32px; height: 32px; cursor: pointer;">&times;</button>
+            </div>
+            <form id="newFlexiProgramForm" onsubmit="saveFlexiProgram(event)" style="padding: 24px;">
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500;">Hotel *</label>
+                    <select id="flexiProgramHotel" required style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
+                        <option value="">Seleccionar hotel...</option>
+                    </select>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500;">Cupos por Voucher *</label>
+                        <input type="number" id="flexiProgramCupos" min="1" required placeholder="Ej: 8" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
+                        <small style="color: #666; font-size: 12px;">Noches × Personas (ej: 4 noches × 2 personas = 8 cupos)</small>
+                    </div>
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500;">Precio USD *</label>
+                        <input type="number" id="flexiProgramPrecio" min="0" step="0.01" required placeholder="Ej: 1500" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500;">Inicio Periodo de Uso *</label>
+                        <input type="date" id="flexiProgramFechaInicio" required style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
+                    </div>
+                    <div class="form-group">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500;">Fin Periodo de Uso *</label>
+                        <input type="date" id="flexiProgramFechaFin" required style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
+                    </div>
+                </div>
+                <div class="form-group" style="margin-top: 16px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500;">Descripción</label>
+                    <textarea id="flexiProgramDescripcion" rows="3" placeholder="Descripción del programa (opcional)" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; resize: vertical;"></textarea>
+                </div>
+                <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; padding-top: 16px; border-top: 1px solid #e0e0e0;">
+                    <button type="button" onclick="closeNewFlexiProgramModal()" class="form-button secondary">Cancelar</button>
+                    <button type="submit" class="form-button" style="background: #9c27b0; color: white;">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
+                        Guardar Programa
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Emitir Voucher -->
+    <div id="emitVoucherModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 650px; width: 90%;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%); color: white; padding: 20px; border-radius: 12px 12px 0 0;">
+                <h2 style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                    <span class="material-icons">card_giftcard</span>
+                    Emitir Voucher Flexi
+                </h2>
+                <button onclick="closeEmitVoucherModal()" class="close-btn" style="color: white; background: rgba(255,255,255,0.2); border: none; border-radius: 50%; width: 32px; height: 32px; cursor: pointer;">&times;</button>
+            </div>
+            <form id="emitVoucherForm" onsubmit="saveFlexiVoucher(event)" style="padding: 24px;">
+                <div class="form-section" style="margin-bottom: 20px;">
+                    <h3 style="color: #4caf50; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                        <span class="material-icons">person</span>
+                        Información del Cliente
+                    </h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div class="form-group">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Nombre Completo *</label>
+                            <input type="text" id="voucherClienteNombre" required placeholder="Nombre del cliente" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
+                        </div>
+                        <div class="form-group">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Email *</label>
+                            <input type="email" id="voucherClienteEmail" required placeholder="email@ejemplo.com" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-top: 16px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500;">Teléfono *</label>
+                        <input type="tel" id="voucherClienteTelefono" required placeholder="+56 9 1234 5678" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
+                    </div>
+                </div>
+                
+                <div class="form-section">
+                    <h3 style="color: #4caf50; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                        <span class="material-icons">confirmation_number</span>
+                        Información del Voucher
+                    </h3>
+                    <div class="form-group" style="margin-bottom: 16px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500;">Programa Flexi *</label>
+                        <select id="voucherPrograma" required onchange="onProgramaChange()" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
+                            <option value="">Seleccionar programa...</option>
+                        </select>
+                    </div>
+                    <div id="voucherProgramaInfo" style="display: none; background: #e8f5e9; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; text-align: center;">
+                            <div>
+                                <strong style="color: #2e7d32;">Hotel</strong>
+                                <p id="voucherInfoHotel" style="margin: 4px 0 0 0;">-</p>
+                            </div>
+                            <div>
+                                <strong style="color: #2e7d32;">Cupos</strong>
+                                <p id="voucherInfoCupos" style="margin: 4px 0 0 0;">-</p>
+                            </div>
+                            <div>
+                                <strong style="color: #2e7d32;">Periodo</strong>
+                                <p id="voucherInfoPeriodo" style="margin: 4px 0 0 0;">-</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div class="form-group">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Código de Voucher</label>
+                            <input type="text" id="voucherCodigo" readonly style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; background: #f5f5f5; font-weight: bold; letter-spacing: 1px;">
+                            <small style="color: #666; font-size: 12px;">Se genera automáticamente</small>
+                        </div>
+                        <div class="form-group">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Fecha de Venta *</label>
+                            <input type="date" id="voucherFechaVenta" required style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-top: 16px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500;">Notas</label>
+                        <textarea id="voucherNotas" rows="2" placeholder="Notas adicionales (opcional)" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; resize: vertical;"></textarea>
+                    </div>
+                </div>
+                
+                <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; padding-top: 16px; border-top: 1px solid #e0e0e0;">
+                    <button type="button" onclick="closeEmitVoucherModal()" class="form-button secondary">Cancelar</button>
+                    <button type="submit" class="form-button" style="background: #4caf50; color: white;">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">card_giftcard</span>
+                        Emitir Voucher
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Registrar Canje -->
+    <div id="registerCanjeModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 650px; width: 90%;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%); color: white; padding: 20px; border-radius: 12px 12px 0 0;">
+                <h2 style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                    <span class="material-icons">swap_horiz</span>
+                    Registrar Canje de Cupos
+                </h2>
+                <button onclick="closeRegisterCanjeModal()" class="close-btn" style="color: white; background: rgba(255,255,255,0.2); border: none; border-radius: 50%; width: 32px; height: 32px; cursor: pointer;">&times;</button>
+            </div>
+            <form id="registerCanjeForm" onsubmit="saveFlexiCanje(event)" style="padding: 24px;">
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500;">Código de Voucher *</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="canjeVoucherCodigo" required placeholder="Ej: FLEXI-LLAO-2024-001" style="flex: 1; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; text-transform: uppercase;">
+                        <button type="button" onclick="buscarVoucherParaCanje()" class="form-button" style="background: #ff9800; color: white;">
+                            <span class="material-icons">search</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="canjeVoucherInfo" style="display: none; background: #fff3e0; padding: 16px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #ff9800;">
+                    <h4 style="margin: 0 0 12px 0; color: #e65100;">📋 Información del Voucher</h4>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                        <div>
+                            <strong>Cliente:</strong>
+                            <span id="canjeInfoCliente">-</span>
+                        </div>
+                        <div>
+                            <strong>Hotel:</strong>
+                            <span id="canjeInfoHotel">-</span>
+                        </div>
+                        <div>
+                            <strong>Cupos Disponibles:</strong>
+                            <span id="canjeInfoCuposDisponibles" style="font-weight: bold; color: #4caf50;">-</span>
+                        </div>
+                        <div>
+                            <strong>Periodo de Uso:</strong>
+                            <span id="canjeInfoPeriodo">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section" style="margin-bottom: 20px;">
+                    <h3 style="color: #ff9800; margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                        <span class="material-icons">event</span>
+                        Datos del Canje (Reserva)
+                    </h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div class="form-group">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Fecha Check-in *</label>
+                            <input type="date" id="canjeCheckIn" required style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
+                        </div>
+                        <div class="form-group">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Fecha Check-out *</label>
+                            <input type="date" id="canjeCheckOut" required style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px;">
+                        <div class="form-group">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Número de Personas *</label>
+                            <input type="number" id="canjePersonas" min="1" required placeholder="Ej: 2" onchange="calcularCuposCanje()" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
+                        </div>
+                        <div class="form-group">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Cupos a Usar</label>
+                            <input type="number" id="canjeCuposUsar" readonly style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; background: #fff3e0; font-weight: bold; color: #e65100;">
+                            <small style="color: #666; font-size: 12px;">Noches × Personas = Cupos</small>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-top: 16px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 500;">Notas del Canje</label>
+                        <textarea id="canjeNotas" rows="2" placeholder="Observaciones adicionales (opcional)" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; resize: vertical;"></textarea>
+                    </div>
+                </div>
+
+                <div id="canjeWarning" style="display: none; background: #ffebee; padding: 12px; border-radius: 8px; margin-bottom: 16px; border-left: 4px solid #f44336;">
+                    <span class="material-icons" style="vertical-align: middle; color: #f44336; margin-right: 8px;">warning</span>
+                    <span id="canjeWarningText" style="color: #c62828;"></span>
+                </div>
+                
+                <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; padding-top: 16px; border-top: 1px solid #e0e0e0;">
+                    <button type="button" onclick="closeRegisterCanjeModal()" class="form-button secondary">Cancelar</button>
+                    <button type="submit" id="btnRegistrarCanje" class="form-button" style="background: #ff9800; color: white;">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">check_circle</span>
+                        Registrar Canje
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Ver Detalles Voucher -->
+    <div id="voucherDetailModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 700px; width: 90%;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #673ab7 0%, #512da8 100%); color: white; padding: 20px; border-radius: 12px 12px 0 0;">
+                <h2 style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                    <span class="material-icons">visibility</span>
+                    Detalles del Voucher
+                </h2>
+                <button onclick="closeVoucherDetailModal()" class="close-btn" style="color: white; background: rgba(255,255,255,0.2); border: none; border-radius: 50%; width: 32px; height: 32px; cursor: pointer;">&times;</button>
+            </div>
+            <div id="voucherDetailContent" style="padding: 24px;">
+                <!-- Contenido se carga dinámicamente -->
+            </div>
+            <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; padding: 16px 24px; border-top: 1px solid #e0e0e0;">
+                <button type="button" onclick="closeVoucherDetailModal()" class="form-button secondary">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Anular Canje -->
+    <div id="anularCanjeModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 500px; width: 90%;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%); color: white; padding: 20px; border-radius: 12px 12px 0 0;">
+                <h2 style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                    <span class="material-icons">undo</span>
+                    Anular Canje
+                </h2>
+                <button onclick="closeAnularCanjeModal()" class="close-btn" style="color: white; background: rgba(255,255,255,0.2); border: none; border-radius: 50%; width: 32px; height: 32px; cursor: pointer;">&times;</button>
+            </div>
+            <div style="padding: 24px;">
+                <input type="hidden" id="anularCanjeId">
+                <div style="background: #ffebee; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                    <p style="margin: 0; color: #c62828;">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">warning</span>
+                        <strong>¿Estás seguro de anular este canje?</strong>
+                    </p>
+                    <p style="margin: 12px 0 0 0; color: #666;" id="anularCanjeInfo"></p>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 16px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 500;">Motivo de Anulación *</label>
+                    <select id="anularCanjeMotivo" required style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;">
+                        <option value="">Seleccionar motivo...</option>
+                        <option value="cancelacion_cliente">Cancelación solicitada por cliente (>7 días)</option>
+                        <option value="cambio_fechas">Cambio de fechas (permitido 1 vez)</option>
+                        <option value="error_registro">Error en registro</option>
+                        <option value="otro">Otro</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="anularCanjeReintegrar" checked style="width: 18px; height: 18px;">
+                        <span>Reintegrar cupos al voucher</span>
+                    </label>
+                    <small style="color: #666; font-size: 12px; display: block; margin-top: 4px;">
+                        Si se anula con menos de 7 días de antelación, los cupos se pierden según política.
+                    </small>
+                </div>
+                
+                <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; padding-top: 16px; border-top: 1px solid #e0e0e0;">
+                    <button type="button" onclick="closeAnularCanjeModal()" class="form-button secondary">Cancelar</button>
+                    <button type="button" onclick="confirmarAnularCanje()" class="form-button" style="background: #f44336; color: white;">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">delete</span>
+                        Confirmar Anulación
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== FIN MODALES PROGRAMA FLEXI ==================== -->
+
+    <!-- ==================== SCRIPT PROGRAMA FLEXI ==================== -->
+    <script>
+    // =====================================================
+    // PROGRAMA FLEXI - Sistema de Gestión de Vouchers
+    // =====================================================
+
+    // Almacenamiento de datos
+    let flexiPrograms = [];
+    let flexiVouchers = [];
+    let flexiCanjes = [];
+    let currentVoucherForCanje = null;
+
+    // =====================================================
+    // INICIALIZACIÓN Y CARGA DE DATOS
+    // =====================================================
+
+    function initFlexiData() {
+        console.log('🎫 Inicializando Programa Flexi...');
+        loadFlexiDataFromStorage();
+        updateFlexiStats();
+        renderFlexiProgramsTable();
+        renderFlexiVouchersTable();
+        renderFlexiCanjesTable();
+        checkExpiredVouchers();
+    }
+
+    function loadFlexiDataFromStorage() {
+        try {
+            const storedPrograms = localStorage.getItem('flexi_programs');
+            const storedVouchers = localStorage.getItem('flexi_vouchers');
+            const storedCanjes = localStorage.getItem('flexi_canjes');
+            
+            flexiPrograms = storedPrograms ? JSON.parse(storedPrograms) : [];
+            flexiVouchers = storedVouchers ? JSON.parse(storedVouchers) : [];
+            flexiCanjes = storedCanjes ? JSON.parse(storedCanjes) : [];
+            
+            console.log(`✅ Datos Flexi cargados: ${flexiPrograms.length} programas, ${flexiVouchers.length} vouchers, ${flexiCanjes.length} canjes`);
+        } catch (error) {
+            console.error('❌ Error cargando datos Flexi:', error);
+            flexiPrograms = [];
+            flexiVouchers = [];
+            flexiCanjes = [];
+        }
+    }
+
+    function saveFlexiDataToStorage() {
+        try {
+            localStorage.setItem('flexi_programs', JSON.stringify(flexiPrograms));
+            localStorage.setItem('flexi_vouchers', JSON.stringify(flexiVouchers));
+            localStorage.setItem('flexi_canjes', JSON.stringify(flexiCanjes));
+            console.log('💾 Datos Flexi guardados');
+        } catch (error) {
+            console.error('❌ Error guardando datos Flexi:', error);
+        }
+    }
+
+    function refreshFlexiData() {
+        loadFlexiDataFromStorage();
+        updateFlexiStats();
+        renderFlexiProgramsTable();
+        renderFlexiVouchersTable();
+        renderFlexiCanjesTable();
+        checkExpiredVouchers();
+        showNotification('✅ Datos actualizados correctamente', 'success');
+    }
+
+    // =====================================================
+    // ESTADÍSTICAS
+    // =====================================================
+
+    function updateFlexiStats() {
+        const today = new Date().toISOString().split('T')[0];
+        
+        // Contar vouchers por estado
+        let active = 0, partial = 0, used = 0, expired = 0;
+        let totalCuposDisponibles = 0;
+        
+        flexiVouchers.forEach(v => {
+            if (v.estado === 'Vencido' || v.fechaFinUso < today) {
+                expired++;
+            } else if (v.cuposDisponibles === 0) {
+                used++;
+            } else if (v.cuposDisponibles < v.cuposIniciales) {
+                partial++;
+                totalCuposDisponibles += v.cuposDisponibles;
+            } else {
+                active++;
+                totalCuposDisponibles += v.cuposDisponibles;
+            }
+        });
+        
+        document.getElementById('totalFlexiVouchers').textContent = flexiVouchers.length;
+        document.getElementById('activeFlexiVouchers').textContent = active;
+        document.getElementById('partialFlexiVouchers').textContent = partial;
+        document.getElementById('usedFlexiVouchers').textContent = used;
+        document.getElementById('expiredFlexiVouchers').textContent = expired;
+        document.getElementById('totalCuposDisponibles').textContent = totalCuposDisponibles;
+    }
+
+    // =====================================================
+    // VERIFICACIÓN DE VENCIMIENTO (RF-ADM-008)
+    // =====================================================
+
+    function checkExpiredVouchers() {
+        const today = new Date().toISOString().split('T')[0];
+        let updated = false;
+        
+        flexiVouchers.forEach(voucher => {
+            if (voucher.estado !== 'Vencido' && voucher.fechaFinUso < today) {
+                voucher.estado = 'Vencido';
+                updated = true;
+                console.log(`⏰ Voucher ${voucher.codigo} marcado como vencido`);
+            }
+        });
+        
+        if (updated) {
+            saveFlexiDataToStorage();
+            updateFlexiStats();
+            renderFlexiVouchersTable();
+        }
+    }
+
+    // =====================================================
+    // PROGRAMAS FLEXI (RF-ADM-001)
+    // =====================================================
+
+    function openNewFlexiProgramModal() {
+        document.getElementById('newFlexiProgramForm').reset();
+        loadHotelsForFlexiProgram();
+        document.getElementById('newFlexiProgramModal').style.display = 'flex';
+    }
+
+    function closeNewFlexiProgramModal() {
+        document.getElementById('newFlexiProgramModal').style.display = 'none';
+    }
+
+    function loadHotelsForFlexiProgram() {
+        const select = document.getElementById('flexiProgramHotel');
+        select.innerHTML = '<option value="">Seleccionar hotel...</option>';
+        
+        // Cargar hoteles desde el almacenamiento
+        const hoteles = JSON.parse(localStorage.getItem('hotels') || '[]');
+        hoteles.forEach(hotel => {
+            if (hotel.status === 'active' || hotel.estado === 'Activo') {
+                const option = document.createElement('option');
+                option.value = hotel.id || hotel.nombre;
+                option.textContent = hotel.nombre || hotel.name;
+                select.appendChild(option);
+            }
+        });
+    }
+
+    function saveFlexiProgram(event) {
+        event.preventDefault();
+        
+        const hotelSelect = document.getElementById('flexiProgramHotel');
+        const hotelId = hotelSelect.value;
+        const hotelName = hotelSelect.options[hotelSelect.selectedIndex].text;
+        
+        const program = {
+            id: 'PROG-' + Date.now(),
+            hotelId: hotelId,
+            hotelName: hotelName,
+            cuposPorVoucher: parseInt(document.getElementById('flexiProgramCupos').value),
+            precioUSD: parseFloat(document.getElementById('flexiProgramPrecio').value),
+            fechaInicio: document.getElementById('flexiProgramFechaInicio').value,
+            fechaFin: document.getElementById('flexiProgramFechaFin').value,
+            descripcion: document.getElementById('flexiProgramDescripcion').value,
+            estado: 'Activo',
+            fechaCreacion: new Date().toISOString()
+        };
+        
+        flexiPrograms.push(program);
+        saveFlexiDataToStorage();
+        renderFlexiProgramsTable();
+        closeNewFlexiProgramModal();
+        showNotification('✅ Programa Flexi creado exitosamente', 'success');
+    }
+
+    function renderFlexiProgramsTable() {
+        const tbody = document.getElementById('flexiProgramsTableBody');
+        if (!tbody) return;
+        
+        if (flexiPrograms.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 40px; color: #666;">
+                        <span class="material-icons" style="font-size: 48px; color: #e0e0e0;">inventory_2</span>
+                        <p style="margin-top: 16px;">No hay programas Flexi configurados</p>
+                        <button onclick="openNewFlexiProgramModal()" class="form-button" style="background: #9c27b0; color: white; margin-top: 12px;">
+                            <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">add</span>
+                            Crear Primer Programa
+                        </button>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = flexiPrograms.map(program => {
+            const estadoBadge = program.estado === 'Activo' 
+                ? '<span style="background: #e8f5e9; color: #2e7d32; padding: 4px 12px; border-radius: 20px; font-size: 12px;">Activo</span>'
+                : '<span style="background: #ffebee; color: #c62828; padding: 4px 12px; border-radius: 20px; font-size: 12px;">Inactivo</span>';
+            
+            return `
+                <tr style="border-bottom: 1px solid #e0e0e0;">
+                    <td style="padding: 12px; font-weight: 500;">${program.hotelName}</td>
+                    <td style="padding: 12px; text-align: center;">${program.cuposPorVoucher} cupos</td>
+                    <td style="padding: 12px; text-align: center; font-weight: bold; color: #4caf50;">$${program.precioUSD.toLocaleString()}</td>
+                    <td style="padding: 12px; text-align: center;">${formatDateRange(program.fechaInicio, program.fechaFin)}</td>
+                    <td style="padding: 12px; text-align: center;">${estadoBadge}</td>
+                    <td style="padding: 12px; text-align: center;">
+                        <button onclick="editFlexiProgram('${program.id}')" class="form-button secondary" style="padding: 6px 12px; font-size: 12px;">
+                            <span class="material-icons" style="font-size: 16px;">edit</span>
+                        </button>
+                        <button onclick="deleteFlexiProgram('${program.id}')" class="form-button" style="padding: 6px 12px; font-size: 12px; background: #f44336; color: white;">
+                            <span class="material-icons" style="font-size: 16px;">delete</span>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function editFlexiProgram(programId) {
+        // TODO: Implementar edición de programa
+        showNotification('⚠️ Función de edición en desarrollo', 'warning');
+    }
+
+    function deleteFlexiProgram(programId) {
+        if (confirm('¿Estás seguro de eliminar este programa? Esta acción no se puede deshacer.')) {
+            flexiPrograms = flexiPrograms.filter(p => p.id !== programId);
+            saveFlexiDataToStorage();
+            renderFlexiProgramsTable();
+            showNotification('✅ Programa eliminado', 'success');
+        }
+    }
+
+    // =====================================================
+    // EMISIÓN DE VOUCHERS (RF-ADM-002/003)
+    // =====================================================
+
+    function openEmitVoucherModal() {
+        document.getElementById('emitVoucherForm').reset();
+        document.getElementById('voucherProgramaInfo').style.display = 'none';
+        loadProgramsForVoucher();
+        generateVoucherCode();
+        document.getElementById('voucherFechaVenta').value = new Date().toISOString().split('T')[0];
+        document.getElementById('emitVoucherModal').style.display = 'flex';
+    }
+
+    function closeEmitVoucherModal() {
+        document.getElementById('emitVoucherModal').style.display = 'none';
+    }
+
+    function loadProgramsForVoucher() {
+        const select = document.getElementById('voucherPrograma');
+        select.innerHTML = '<option value="">Seleccionar programa...</option>';
+        
+        flexiPrograms.filter(p => p.estado === 'Activo').forEach(program => {
+            const option = document.createElement('option');
+            option.value = program.id;
+            option.textContent = `${program.hotelName} - ${program.cuposPorVoucher} cupos - $${program.precioUSD}`;
+            option.dataset.program = JSON.stringify(program);
+            select.appendChild(option);
+        });
+    }
+
+    function onProgramaChange() {
+        const select = document.getElementById('voucherPrograma');
+        const infoDiv = document.getElementById('voucherProgramaInfo');
+        
+        if (select.value && select.selectedOptions[0].dataset.program) {
+            const program = JSON.parse(select.selectedOptions[0].dataset.program);
+            document.getElementById('voucherInfoHotel').textContent = program.hotelName;
+            document.getElementById('voucherInfoCupos').textContent = program.cuposPorVoucher + ' cupos';
+            document.getElementById('voucherInfoPeriodo').textContent = formatDateRange(program.fechaInicio, program.fechaFin);
+            infoDiv.style.display = 'block';
+            
+            // Regenerar código con prefijo del hotel
+            const hotelPrefix = program.hotelName.substring(0, 4).toUpperCase().replace(/\s/g, '');
+            const year = new Date().getFullYear();
+            const sequence = String(flexiVouchers.filter(v => v.hotelName === program.hotelName).length + 1).padStart(3, '0');
+            document.getElementById('voucherCodigo').value = `FLEXI-${hotelPrefix}-${year}-${sequence}`;
+        } else {
+            infoDiv.style.display = 'none';
+        }
+    }
+
+    function generateVoucherCode() {
+        const timestamp = Date.now().toString(36).toUpperCase();
+        document.getElementById('voucherCodigo').value = `FLEXI-${timestamp}`;
+    }
+
+    function saveFlexiVoucher(event) {
+        event.preventDefault();
+        
+        const select = document.getElementById('voucherPrograma');
+        if (!select.value) {
+            showNotification('⚠️ Debes seleccionar un programa', 'warning');
+            return;
+        }
+        
+        const program = JSON.parse(select.selectedOptions[0].dataset.program);
+        
+        const voucher = {
+            id: 'VCH-' + Date.now(),
+            codigo: document.getElementById('voucherCodigo').value,
+            programaId: program.id,
+            hotelId: program.hotelId,
+            hotelName: program.hotelName,
+            clienteNombre: document.getElementById('voucherClienteNombre').value,
+            clienteEmail: document.getElementById('voucherClienteEmail').value,
+            clienteTelefono: document.getElementById('voucherClienteTelefono').value,
+            cuposIniciales: program.cuposPorVoucher,
+            cuposDisponibles: program.cuposPorVoucher,
+            precioUSD: program.precioUSD,
+            fechaVenta: document.getElementById('voucherFechaVenta').value,
+            fechaInicioUso: program.fechaInicio,
+            fechaFinUso: program.fechaFin,
+            estado: 'Activo',
+            notas: document.getElementById('voucherNotas').value,
+            fechaCreacion: new Date().toISOString()
+        };
+        
+        flexiVouchers.push(voucher);
+        saveFlexiDataToStorage();
+        updateFlexiStats();
+        renderFlexiVouchersTable();
+        closeEmitVoucherModal();
+        showNotification(`✅ Voucher ${voucher.codigo} emitido exitosamente`, 'success');
+    }
+
+    function renderFlexiVouchersTable() {
+        const tbody = document.getElementById('flexiVouchersTableBody');
+        if (!tbody) return;
+        
+        if (flexiVouchers.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 40px; color: #666;">
+                        <span class="material-icons" style="font-size: 48px; color: #e0e0e0;">card_giftcard</span>
+                        <p style="margin-top: 16px;">No hay vouchers emitidos</p>
+                        <button onclick="openEmitVoucherModal()" class="form-button" style="background: #4caf50; color: white; margin-top: 12px;">
+                            <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">add</span>
+                            Emitir Primer Voucher
+                        </button>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = flexiVouchers.map(voucher => {
+            const estadoBadge = getEstadoBadge(voucher);
+            const cuposDisplay = `<span style="font-weight: bold; color: ${voucher.cuposDisponibles > 0 ? '#4caf50' : '#f44336'};">${voucher.cuposDisponibles}</span>/${voucher.cuposIniciales}`;
+            
+            return `
+                <tr style="border-bottom: 1px solid #e0e0e0;">
+                    <td style="padding: 12px; font-family: monospace; font-weight: bold; color: #9c27b0;">${voucher.codigo}</td>
+                    <td style="padding: 12px;">
+                        <div style="font-weight: 500;">${voucher.clienteNombre}</div>
+                        <div style="font-size: 12px; color: #666;">${voucher.clienteEmail}</div>
+                    </td>
+                    <td style="padding: 12px;">${voucher.hotelName}</td>
+                    <td style="padding: 12px; text-align: center;">${cuposDisplay}</td>
+                    <td style="padding: 12px; text-align: center; font-size: 12px;">${formatDateRange(voucher.fechaInicioUso, voucher.fechaFinUso)}</td>
+                    <td style="padding: 12px; text-align: center;">${estadoBadge}</td>
+                    <td style="padding: 12px; text-align: center;">
+                        <button onclick="viewVoucherDetail('${voucher.id}')" class="form-button secondary" style="padding: 6px 12px; font-size: 12px;" title="Ver detalles">
+                            <span class="material-icons" style="font-size: 16px;">visibility</span>
+                        </button>
+                        ${voucher.cuposDisponibles > 0 && voucher.estado !== 'Vencido' ? `
+                        <button onclick="quickCanje('${voucher.id}')" class="form-button" style="padding: 6px 12px; font-size: 12px; background: #ff9800; color: white;" title="Registrar canje">
+                            <span class="material-icons" style="font-size: 16px;">swap_horiz</span>
+                        </button>
+                        ` : ''}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    function getEstadoBadge(voucher) {
+        const today = new Date().toISOString().split('T')[0];
+        
+        if (voucher.estado === 'Vencido' || voucher.fechaFinUso < today) {
+            return '<span style="background: #ffebee; color: #c62828; padding: 4px 12px; border-radius: 20px; font-size: 12px;">Vencido</span>';
+        } else if (voucher.cuposDisponibles === 0) {
+            return '<span style="background: #e3f2fd; color: #1565c0; padding: 4px 12px; border-radius: 20px; font-size: 12px;">Usado</span>';
+        } else if (voucher.cuposDisponibles < voucher.cuposIniciales) {
+            return '<span style="background: #fff3e0; color: #e65100; padding: 4px 12px; border-radius: 20px; font-size: 12px;">Parcial</span>';
+        }
+        return '<span style="background: #e8f5e9; color: #2e7d32; padding: 4px 12px; border-radius: 20px; font-size: 12px;">Activo</span>';
+    }
+
+    function filterFlexiVouchers(searchTerm) {
+        const tbody = document.getElementById('flexiVouchersTableBody');
+        const rows = tbody.querySelectorAll('tr');
+        const term = searchTerm.toLowerCase();
+        
+        rows.forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(term) ? '' : 'none';
+        });
+    }
+
+    // =====================================================
+    // CANJE DE CUPOS (RF-ADM-004, RF-ADM-005)
+    // =====================================================
+
+    function openRegisterCanjeModal() {
+        document.getElementById('registerCanjeForm').reset();
+        document.getElementById('canjeVoucherInfo').style.display = 'none';
+        document.getElementById('canjeWarning').style.display = 'none';
+        currentVoucherForCanje = null;
+        document.getElementById('registerCanjeModal').style.display = 'flex';
+    }
+
+    function closeRegisterCanjeModal() {
+        document.getElementById('registerCanjeModal').style.display = 'none';
+        currentVoucherForCanje = null;
+    }
+
+    function quickCanje(voucherId) {
+        const voucher = flexiVouchers.find(v => v.id === voucherId);
+        if (voucher) {
+            openRegisterCanjeModal();
+            document.getElementById('canjeVoucherCodigo').value = voucher.codigo;
+            buscarVoucherParaCanje();
+        }
+    }
+
+    function buscarVoucherParaCanje() {
+        const codigo = document.getElementById('canjeVoucherCodigo').value.toUpperCase().trim();
+        const voucher = flexiVouchers.find(v => v.codigo.toUpperCase() === codigo);
+        const infoDiv = document.getElementById('canjeVoucherInfo');
+        const warningDiv = document.getElementById('canjeWarning');
+        
+        if (!voucher) {
+            infoDiv.style.display = 'none';
+            warningDiv.style.display = 'block';
+            document.getElementById('canjeWarningText').textContent = 'Voucher no encontrado. Verifica el código.';
+            currentVoucherForCanje = null;
+            return;
+        }
+        
+        const today = new Date().toISOString().split('T')[0];
+        
+        // Verificar estado
+        if (voucher.estado === 'Vencido' || voucher.fechaFinUso < today) {
+            infoDiv.style.display = 'none';
+            warningDiv.style.display = 'block';
+            document.getElementById('canjeWarningText').textContent = 'Este voucher está vencido y no puede ser canjeado.';
+            currentVoucherForCanje = null;
+            return;
+        }
+        
+        if (voucher.cuposDisponibles <= 0) {
+            infoDiv.style.display = 'none';
+            warningDiv.style.display = 'block';
+            document.getElementById('canjeWarningText').textContent = 'Este voucher no tiene cupos disponibles.';
+            currentVoucherForCanje = null;
+            return;
+        }
+        
+        // Mostrar información del voucher
+        currentVoucherForCanje = voucher;
+        document.getElementById('canjeInfoCliente').textContent = voucher.clienteNombre;
+        document.getElementById('canjeInfoHotel').textContent = voucher.hotelName;
+        document.getElementById('canjeInfoCuposDisponibles').textContent = voucher.cuposDisponibles + ' cupos';
+        document.getElementById('canjeInfoPeriodo').textContent = formatDateRange(voucher.fechaInicioUso, voucher.fechaFinUso);
+        
+        // Establecer fechas mínimas y máximas
+        document.getElementById('canjeCheckIn').min = voucher.fechaInicioUso;
+        document.getElementById('canjeCheckIn').max = voucher.fechaFinUso;
+        document.getElementById('canjeCheckOut').min = voucher.fechaInicioUso;
+        document.getElementById('canjeCheckOut').max = voucher.fechaFinUso;
+        
+        infoDiv.style.display = 'block';
+        warningDiv.style.display = 'none';
+    }
+
+    function calcularCuposCanje() {
+        const checkIn = document.getElementById('canjeCheckIn').value;
+        const checkOut = document.getElementById('canjeCheckOut').value;
+        const personas = parseInt(document.getElementById('canjePersonas').value) || 0;
+        
+        if (checkIn && checkOut && personas > 0) {
+            const noches = Math.ceil((new Date(checkOut) - new Date(checkIn)) / (1000 * 60 * 60 * 24));
+            const cupos = noches * personas;
+            document.getElementById('canjeCuposUsar').value = cupos;
+            
+            // Validar contra cupos disponibles
+            const warningDiv = document.getElementById('canjeWarning');
+            if (currentVoucherForCanje && cupos > currentVoucherForCanje.cuposDisponibles) {
+                warningDiv.style.display = 'block';
+                document.getElementById('canjeWarningText').textContent = `Los cupos necesarios (${cupos}) exceden los disponibles (${currentVoucherForCanje.cuposDisponibles}).`;
+            } else if (noches <= 0) {
+                warningDiv.style.display = 'block';
+                document.getElementById('canjeWarningText').textContent = 'La fecha de check-out debe ser posterior a la de check-in.';
+            } else {
+                warningDiv.style.display = 'none';
+            }
+        }
+    }
+
+    // Calcular cupos cuando cambian las fechas
+    document.addEventListener('DOMContentLoaded', function() {
+        const checkInInput = document.getElementById('canjeCheckIn');
+        const checkOutInput = document.getElementById('canjeCheckOut');
+        
+        if (checkInInput) checkInInput.addEventListener('change', calcularCuposCanje);
+        if (checkOutInput) checkOutInput.addEventListener('change', calcularCuposCanje);
+    });
+
+    function saveFlexiCanje(event) {
+        event.preventDefault();
+        
+        if (!currentVoucherForCanje) {
+            showNotification('⚠️ Debes buscar y seleccionar un voucher válido', 'warning');
+            return;
+        }
+        
+        const cuposUsar = parseInt(document.getElementById('canjeCuposUsar').value);
+        
+        if (cuposUsar > currentVoucherForCanje.cuposDisponibles) {
+            showNotification('⚠️ Los cupos necesarios exceden los disponibles', 'error');
+            return;
+        }
+        
+        const checkIn = document.getElementById('canjeCheckIn').value;
+        const checkOut = document.getElementById('canjeCheckOut').value;
+        
+        // Validar fechas dentro del periodo de uso
+        if (checkIn < currentVoucherForCanje.fechaInicioUso || checkOut > currentVoucherForCanje.fechaFinUso) {
+            showNotification('⚠️ Las fechas deben estar dentro del periodo de uso del voucher', 'error');
+            return;
+        }
+        
+        const canje = {
+            id: 'CANJE-' + Date.now(),
+            voucherId: currentVoucherForCanje.id,
+            voucherCodigo: currentVoucherForCanje.codigo,
+            clienteNombre: currentVoucherForCanje.clienteNombre,
+            hotelName: currentVoucherForCanje.hotelName,
+            checkIn: checkIn,
+            checkOut: checkOut,
+            personas: parseInt(document.getElementById('canjePersonas').value),
+            cuposUsados: cuposUsar,
+            notas: document.getElementById('canjeNotas').value,
+            estado: 'Confirmado',
+            fechaRegistro: new Date().toISOString()
+        };
+        
+        // Actualizar cupos disponibles del voucher (RF-ADM-005)
+        const voucherIndex = flexiVouchers.findIndex(v => v.id === currentVoucherForCanje.id);
+        if (voucherIndex !== -1) {
+            flexiVouchers[voucherIndex].cuposDisponibles -= cuposUsar;
+            
+            // Actualizar estado del voucher
+            if (flexiVouchers[voucherIndex].cuposDisponibles === 0) {
+                flexiVouchers[voucherIndex].estado = 'Usado';
+            } else {
+                flexiVouchers[voucherIndex].estado = 'Parcial';
+            }
+        }
+        
+        flexiCanjes.push(canje);
+        saveFlexiDataToStorage();
+        updateFlexiStats();
+        renderFlexiVouchersTable();
+        renderFlexiCanjesTable();
+        closeRegisterCanjeModal();
+        showNotification(`✅ Canje registrado: ${cuposUsar} cupos usados`, 'success');
+    }
+
+    function renderFlexiCanjesTable() {
+        const tbody = document.getElementById('flexiCanjesTableBody');
+        if (!tbody) return;
+        
+        if (flexiCanjes.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 40px; color: #666;">
+                        <span class="material-icons" style="font-size: 48px; color: #e0e0e0;">history</span>
+                        <p style="margin-top: 16px;">No hay canjes registrados</p>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = flexiCanjes.map(canje => {
+            const estadoBadge = canje.estado === 'Confirmado'
+                ? '<span style="background: #e8f5e9; color: #2e7d32; padding: 4px 12px; border-radius: 20px; font-size: 12px;">Confirmado</span>'
+                : canje.estado === 'Anulado'
+                ? '<span style="background: #ffebee; color: #c62828; padding: 4px 12px; border-radius: 20px; font-size: 12px;">Anulado</span>'
+                : '<span style="background: #fff3e0; color: #e65100; padding: 4px 12px; border-radius: 20px; font-size: 12px;">No-Show</span>';
+            
+            return `
+                <tr style="border-bottom: 1px solid #e0e0e0; ${canje.estado === 'Anulado' ? 'opacity: 0.6;' : ''}">
+                    <td style="padding: 12px; font-family: monospace; color: #9c27b0;">${canje.voucherCodigo}</td>
+                    <td style="padding: 12px;">${canje.clienteNombre}</td>
+                    <td style="padding: 12px; text-align: center;">${formatDateRange(canje.checkIn, canje.checkOut)}</td>
+                    <td style="padding: 12px; text-align: center;">${canje.personas}</td>
+                    <td style="padding: 12px; text-align: center; font-weight: bold; color: #ff9800;">${canje.cuposUsados}</td>
+                    <td style="padding: 12px; text-align: center;">${estadoBadge}</td>
+                    <td style="padding: 12px; text-align: center;">
+                        ${canje.estado === 'Confirmado' ? `
+                        <button onclick="openAnularCanjeModal('${canje.id}')" class="form-button" style="padding: 6px 12px; font-size: 12px; background: #f44336; color: white;" title="Anular canje">
+                            <span class="material-icons" style="font-size: 16px;">undo</span>
+                        </button>
+                        <button onclick="marcarNoShow('${canje.id}')" class="form-button secondary" style="padding: 6px 12px; font-size: 12px;" title="Marcar No-Show">
+                            <span class="material-icons" style="font-size: 16px;">person_off</span>
+                        </button>
+                        ` : '-'}
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    // =====================================================
+    // ANULACIÓN DE CANJES (RF-ADM-006)
+    // =====================================================
+
+    function openAnularCanjeModal(canjeId) {
+        const canje = flexiCanjes.find(c => c.id === canjeId);
+        if (!canje) return;
+        
+        document.getElementById('anularCanjeId').value = canjeId;
+        document.getElementById('anularCanjeInfo').textContent = 
+            `Voucher: ${canje.voucherCodigo} | Fechas: ${formatDateRange(canje.checkIn, canje.checkOut)} | Cupos: ${canje.cuposUsados}`;
+        document.getElementById('anularCanjeMotivo').value = '';
+        document.getElementById('anularCanjeReintegrar').checked = true;
+        document.getElementById('anularCanjeModal').style.display = 'flex';
+    }
+
+    function closeAnularCanjeModal() {
+        document.getElementById('anularCanjeModal').style.display = 'none';
+    }
+
+    function confirmarAnularCanje() {
+        const canjeId = document.getElementById('anularCanjeId').value;
+        const motivo = document.getElementById('anularCanjeMotivo').value;
+        const reintegrar = document.getElementById('anularCanjeReintegrar').checked;
+        
+        if (!motivo) {
+            showNotification('⚠️ Debes seleccionar un motivo de anulación', 'warning');
+            return;
+        }
+        
+        const canjeIndex = flexiCanjes.findIndex(c => c.id === canjeId);
+        if (canjeIndex === -1) return;
+        
+        const canje = flexiCanjes[canjeIndex];
+        
+        // Anular el canje
+        flexiCanjes[canjeIndex].estado = 'Anulado';
+        flexiCanjes[canjeIndex].motivoAnulacion = motivo;
+        flexiCanjes[canjeIndex].fechaAnulacion = new Date().toISOString();
+        
+        // Reintegrar cupos si corresponde
+        if (reintegrar) {
+            const voucherIndex = flexiVouchers.findIndex(v => v.id === canje.voucherId);
+            if (voucherIndex !== -1) {
+                flexiVouchers[voucherIndex].cuposDisponibles += canje.cuposUsados;
+                
+                // Actualizar estado del voucher
+                if (flexiVouchers[voucherIndex].cuposDisponibles === flexiVouchers[voucherIndex].cuposIniciales) {
+                    flexiVouchers[voucherIndex].estado = 'Activo';
+                } else {
+                    flexiVouchers[voucherIndex].estado = 'Parcial';
+                }
+            }
+        }
+        
+        saveFlexiDataToStorage();
+        updateFlexiStats();
+        renderFlexiVouchersTable();
+        renderFlexiCanjesTable();
+        closeAnularCanjeModal();
+        
+        const msg = reintegrar 
+            ? `✅ Canje anulado y ${canje.cuposUsados} cupos reintegrados`
+            : `✅ Canje anulado (cupos no reintegrados)`;
+        showNotification(msg, 'success');
+    }
+
+    function marcarNoShow(canjeId) {
+        if (!confirm('¿Marcar este canje como No-Show? Los cupos NO se reintegrarán según la política.')) {
+            return;
+        }
+        
+        const canjeIndex = flexiCanjes.findIndex(c => c.id === canjeId);
+        if (canjeIndex === -1) return;
+        
+        flexiCanjes[canjeIndex].estado = 'No-Show';
+        flexiCanjes[canjeIndex].fechaNoShow = new Date().toISOString();
+        
+        saveFlexiDataToStorage();
+        renderFlexiCanjesTable();
+        showNotification('⚠️ Canje marcado como No-Show. Los cupos se perdieron.', 'warning');
+    }
+
+    // =====================================================
+    // VER DETALLES DEL VOUCHER
+    // =====================================================
+
+    function viewVoucherDetail(voucherId) {
+        const voucher = flexiVouchers.find(v => v.id === voucherId);
+        if (!voucher) return;
+        
+        const canjesDelVoucher = flexiCanjes.filter(c => c.voucherId === voucherId);
+        
+        const content = document.getElementById('voucherDetailContent');
+        content.innerHTML = `
+            <div style="display: grid; gap: 20px;">
+                <!-- Información del Voucher -->
+                <div style="background: #f3e5f5; padding: 20px; border-radius: 12px;">
+                    <h3 style="margin: 0 0 16px 0; color: #7b1fa2;">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">card_giftcard</span>
+                        ${voucher.codigo}
+                    </h3>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                        <div><strong>Hotel:</strong> ${voucher.hotelName}</div>
+                        <div><strong>Estado:</strong> ${getEstadoBadge(voucher)}</div>
+                        <div><strong>Cupos:</strong> <span style="font-weight: bold; color: ${voucher.cuposDisponibles > 0 ? '#4caf50' : '#f44336'};">${voucher.cuposDisponibles}/${voucher.cuposIniciales}</span></div>
+                        <div><strong>Precio:</strong> $${voucher.precioUSD.toLocaleString()} USD</div>
+                        <div><strong>Periodo de Uso:</strong> ${formatDateRange(voucher.fechaInicioUso, voucher.fechaFinUso)}</div>
+                        <div><strong>Fecha de Venta:</strong> ${formatDate(voucher.fechaVenta)}</div>
+                    </div>
+                </div>
+                
+                <!-- Información del Cliente -->
+                <div style="background: #e8f5e9; padding: 20px; border-radius: 12px;">
+                    <h3 style="margin: 0 0 16px 0; color: #2e7d32;">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">person</span>
+                        Cliente
+                    </h3>
+                    <div style="display: grid; gap: 8px;">
+                        <div><strong>Nombre:</strong> ${voucher.clienteNombre}</div>
+                        <div><strong>Email:</strong> ${voucher.clienteEmail}</div>
+                        <div><strong>Teléfono:</strong> ${voucher.clienteTelefono}</div>
+                    </div>
+                </div>
+                
+                <!-- Historial de Canjes -->
+                <div style="background: #fff3e0; padding: 20px; border-radius: 12px;">
+                    <h3 style="margin: 0 0 16px 0; color: #e65100;">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">history</span>
+                        Historial de Canjes (${canjesDelVoucher.length})
+                    </h3>
+                    ${canjesDelVoucher.length > 0 ? `
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="border-bottom: 2px solid #ffcc80;">
+                                    <th style="padding: 8px; text-align: left;">Fechas</th>
+                                    <th style="padding: 8px; text-align: center;">Personas</th>
+                                    <th style="padding: 8px; text-align: center;">Cupos</th>
+                                    <th style="padding: 8px; text-align: center;">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${canjesDelVoucher.map(c => `
+                                    <tr style="border-bottom: 1px solid #ffe0b2;">
+                                        <td style="padding: 8px;">${formatDateRange(c.checkIn, c.checkOut)}</td>
+                                        <td style="padding: 8px; text-align: center;">${c.personas}</td>
+                                        <td style="padding: 8px; text-align: center;">${c.cuposUsados}</td>
+                                        <td style="padding: 8px; text-align: center;">
+                                            ${c.estado === 'Confirmado' ? '✅' : c.estado === 'Anulado' ? '❌' : '🚫'}
+                                            ${c.estado}
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    ` : '<p style="color: #666; margin: 0;">No hay canjes registrados para este voucher.</p>'}
+                </div>
+                
+                ${voucher.notas ? `
+                <div style="background: #f5f5f5; padding: 16px; border-radius: 8px;">
+                    <strong>Notas:</strong> ${voucher.notas}
+                </div>
+                ` : ''}
+            </div>
+        `;
+        
+        document.getElementById('voucherDetailModal').style.display = 'flex';
+    }
+
+    function closeVoucherDetailModal() {
+        document.getElementById('voucherDetailModal').style.display = 'none';
+    }
+
+    // =====================================================
+    // EXPORTAR DATOS
+    // =====================================================
+
+    function exportFlexiVouchers() {
+        if (flexiVouchers.length === 0) {
+            showNotification('⚠️ No hay vouchers para exportar', 'warning');
+            return;
+        }
+        
+        const data = flexiVouchers.map(v => ({
+            'Código': v.codigo,
+            'Hotel': v.hotelName,
+            'Cliente': v.clienteNombre,
+            'Email': v.clienteEmail,
+            'Teléfono': v.clienteTelefono,
+            'Cupos Iniciales': v.cuposIniciales,
+            'Cupos Disponibles': v.cuposDisponibles,
+            'Precio USD': v.precioUSD,
+            'Fecha Venta': v.fechaVenta,
+            'Inicio Uso': v.fechaInicioUso,
+            'Fin Uso': v.fechaFinUso,
+            'Estado': v.estado
+        }));
+        
+        // Crear CSV
+        const headers = Object.keys(data[0]);
+        const csv = [
+            headers.join(','),
+            ...data.map(row => headers.map(h => `"${row[h]}"`).join(','))
+        ].join('\n');
+        
+        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `Vouchers_Flexi_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+        
+        showNotification('✅ Vouchers exportados correctamente', 'success');
+    }
+
+    // =====================================================
+    // UTILIDADES
+    // =====================================================
+
+    function formatDate(dateStr) {
+        if (!dateStr) return '-';
+        const date = new Date(dateStr + 'T00:00:00');
+        return date.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    function formatDateRange(start, end) {
+        return `${formatDate(start)} - ${formatDate(end)}`;
+    }
+
+    function showNotification(message, type = 'info') {
+        // Usar la función de notificación existente del dashboard o crear una simple
+        if (typeof window.showToast === 'function') {
+            window.showToast(message, type);
+        } else {
+            // Crear notificación temporal
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 16px 24px;
+                border-radius: 8px;
+                background: ${type === 'success' ? '#4caf50' : type === 'error' ? '#f44336' : type === 'warning' ? '#ff9800' : '#2196f3'};
+                color: white;
+                font-weight: 500;
+                z-index: 10000;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+                animation: slideIn 0.3s ease;
+            `;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+    }
+
+    // =====================================================
+    // INICIALIZACIÓN AL CARGAR
+    // =====================================================
+
+    // Inicializar cuando se muestre la sección Flexi
+    const originalShowSection = window.showSection;
+    if (originalShowSection) {
+        window.showSection = function(section, event) {
+            originalShowSection(section, event);
+            if (section === 'flexi') {
+                setTimeout(() => {
+                    initFlexiData();
+                }, 100);
+            }
+        };
+    }
+
+    // También inicializar al cargar la página por si ya estamos en la sección
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(() => {
+            if (document.getElementById('flexi-section') && 
+                document.getElementById('flexi-section').style.display !== 'none') {
+                initFlexiData();
+            }
+        }, 500);
+    });
+
+    // Agregar estilos de animación
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+    `;
+    document.head.appendChild(style);
+
+    console.log('🎫 Módulo Programa Flexi cargado correctamente');
+    </script>
+    <!-- ==================== FIN SCRIPT PROGRAMA FLEXI ==================== -->
     
-    <!-- Widget Chatbot Flor -->
-    <script src="flor-widget.js"></script>
+    <!-- Sistema Flor - Chatbot con aprendizaje (deshabilitado - integrado en WhatsApp server) -->
+    <!-- <script src="flor-knowledge-base.js"></script> -->
+    <!-- <script src="flor-ai-service.js"></script> -->
+    <!-- <script src="flor-learning-system.js"></script> -->
+    <!-- <script src="flor-agent.js"></script> -->
     
-    <!-- Script de Migración (cargar después de todo lo demás) -->
-    <script src="migrate-to-supabase.js"></script>
+    <!-- Widget Chatbot Flor (deshabilitado) -->
+    <!-- <script src="flor-widget.js"></script> -->
+    
+    <!-- Script de Migración (no necesario - ya migrado) -->
+    <!-- <script src="migrate-to-supabase.js"></script> -->
     
     <!-- Verificar conexión con Supabase al cargar -->
     <script>
