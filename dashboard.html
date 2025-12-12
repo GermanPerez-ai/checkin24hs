@@ -14232,49 +14232,80 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     // Guardar en localStorage como backup
                     localStorage.setItem('reservationsDB', JSON.stringify(existingReservations));
                     
-                    // Subir a Supabase si está disponible
+                    // Subir SOLO las reservas nuevas/actualizadas a Supabase (no todas)
                     let syncSuccess = false;
-                    if (window.supabaseClient && window.supabaseClient.isInitialized()) {
-                        console.log('☁️ Subiendo ' + added + ' reservas importadas a Supabase...');
+                    const totalToSync = added + updated;
+                    
+                    if (window.supabaseClient && window.supabaseClient.isInitialized() && totalToSync > 0) {
+                        console.log(`☁️ Subiendo ${totalToSync} reservas importadas a Supabase...`);
                         
                         let syncErrors = 0;
                         let syncCount = 0;
                         
-                        // Subir TODAS las reservas del array existingReservations a Supabase
-                        for (const reservation of existingReservations) {
-                            try {
-                                // Convertir a formato snake_case para Supabase
-                                const supabaseReservation = {
-                                    reservation_code: reservation.reservationCode,
-                                    client_name: reservation.clientName,
-                                    client_email: reservation.clientEmail || '',
-                                    client_phone: reservation.clientPhone || '',
-                                    hotel_id: reservation.hotelId || null,
-                                    hotel_name: reservation.hotelName,
-                                    check_in: reservation.checkIn,
-                                    check_out: reservation.checkOut,
-                                    reservation_date: reservation.reservationDate || reservation.checkIn,
-                                    agent_name: reservation.agentName || '',
-                                    status: reservation.status || 'Confirmada',
-                                    total_amount: reservation.totalAmount || 0
-                                };
-                                
-                                await window.supabaseClient.createReservation(supabaseReservation);
-                                syncCount++;
-                                
-                                // Log progreso cada 10 reservas
-                                if (syncCount % 10 === 0) {
-                                    console.log(`📤 Progreso: ${syncCount}/${existingReservations.length} reservas subidas`);
-                                }
-                            } catch (error) {
-                                // Si ya existe la reserva (código duplicado), contar como OK
-                                if (error.message && error.message.includes('duplicate')) {
-                                    syncCount++;
-                                } else {
-                                    console.error('Error sincronizando reserva:', reservation.reservationCode, error);
-                                    syncErrors++;
+                        // Preparar SOLO las reservas que se procesaron en esta importación
+                        const reservationsToSync = [];
+                        jsonData.forEach((row, index) => {
+                            const reservationCode = (row['Código'] || row['Codigo'] || '').toString().trim();
+                            const clientName = (row['Cliente'] || '').toString().trim();
+                            const checkIn = (row['Fecha Entrada'] || row['FechaEntrada'] || '').toString().trim();
+                            const checkOut = (row['Fecha Salida'] || row['FechaSalida'] || '').toString().trim();
+                            
+                            // Solo incluir si tiene datos válidos
+                            if (reservationCode && clientName && checkIn && checkOut) {
+                                const reservation = reservationsMap.get(reservationCode);
+                                if (reservation) {
+                                    reservationsToSync.push(reservation);
                                 }
                             }
+                        });
+                        
+                        console.log(`📋 ${reservationsToSync.length} reservas válidas para sincronizar`);
+                        
+                        // Subir en lotes de 10 para mayor velocidad
+                        const batchSize = 10;
+                        for (let i = 0; i < reservationsToSync.length; i += batchSize) {
+                            const batch = reservationsToSync.slice(i, i + batchSize);
+                            
+                            // Procesar el lote en paralelo
+                            const promises = batch.map(async (reservation) => {
+                                try {
+                                    // Validar que tenga datos requeridos
+                                    if (!reservation.reservationCode || !reservation.clientName) {
+                                        console.warn('⚠️ Reserva sin datos requeridos, saltando:', reservation);
+                                        return { success: false, skipped: true };
+                                    }
+                                    
+                                    // Convertir a formato snake_case para Supabase
+                                    const supabaseReservation = {
+                                        reservation_code: reservation.reservationCode,
+                                        client_name: reservation.clientName,
+                                        client_email: reservation.clientEmail || '',
+                                        client_phone: reservation.clientPhone || '',
+                                        hotel_id: reservation.hotelId || null,
+                                        hotel_name: reservation.hotelName || '',
+                                        check_in: reservation.checkIn,
+                                        check_out: reservation.checkOut,
+                                        reservation_date: reservation.reservationDate || reservation.checkIn,
+                                        agent_name: reservation.agentName || '',
+                                        status: reservation.status || 'Confirmada',
+                                        total_amount: parseFloat(reservation.totalAmount) || 0
+                                    };
+                                    
+                                    await window.supabaseClient.createReservation(supabaseReservation);
+                                    return { success: true };
+                                } catch (error) {
+                                    console.error('Error sincronizando reserva:', reservation.reservationCode, error.message);
+                                    return { success: false, error: error.message };
+                                }
+                            });
+                            
+                            const results = await Promise.all(promises);
+                            const successCount = results.filter(r => r.success).length;
+                            syncCount += successCount;
+                            syncErrors += results.filter(r => !r.success && !r.skipped).length;
+                            
+                            // Log progreso
+                            console.log(`📤 Progreso: ${Math.min(i + batchSize, reservationsToSync.length)}/${reservationsToSync.length} procesadas (${syncCount} OK)`);
                         }
                         
                         if (syncErrors > 0) {
@@ -14283,6 +14314,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             console.log(`✅ ${syncCount} reservas sincronizadas con Supabase exitosamente`);
                             syncSuccess = true;
                         }
+                    } else if (totalToSync === 0) {
+                        console.log('ℹ️ No hay reservas nuevas para sincronizar');
                     }
                     
                     // Mostrar resumen
