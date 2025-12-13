@@ -15363,53 +15363,76 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }
         }
 
-        // Función para guardar usuario desde una reserva
-        function saveUserFromReservation(reservationData) {
+        // Función para guardar usuario desde una reserva (con deduplicación por email Y teléfono)
+        async function saveUserFromReservation(reservationData) {
             try {
-                console.log('💾 Guardando usuario desde reserva:', reservationData.clientEmail);
+                const email = (reservationData.clientEmail || reservationData.client_email || '').trim();
+                const phone = (reservationData.clientPhone || reservationData.client_phone || '').trim();
+                const name = (reservationData.clientName || reservationData.client_name || '').trim();
                 
-                // Obtener usuarios existentes
+                // Si no hay email ni teléfono, no guardar
+                if (!email && !phone) {
+                    console.log('⚠️ Usuario sin email ni teléfono, no se guarda');
+                    return null;
+                }
+                
+                console.log('💾 Guardando usuario desde reserva:', { name, email, phone });
+                
+                // Usar Supabase si está disponible
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    const result = await window.supabaseClient.upsertUser({ name, email, phone });
+                    return result;
+                }
+                
+                // Fallback a localStorage con deduplicación mejorada
                 const users = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
-                console.log(`👥 Usuarios existentes antes: ${users.length}`);
+                console.log(`👥 Usuarios existentes: ${users.length}`);
                 
-                // Verificar si el usuario ya existe por email
-                const existingUserIndex = users.findIndex(user => 
-                    user.email && user.email.toLowerCase() === reservationData.clientEmail.toLowerCase()
-                );
+                // Buscar usuario existente por email O teléfono
+                const existingIndex = users.findIndex(user => {
+                    const emailMatch = email && user.email && user.email.toLowerCase() === email.toLowerCase();
+                    const phoneMatch = phone && user.phone && user.phone === phone;
+                    return emailMatch || phoneMatch;
+                });
             
-                if (existingUserIndex !== -1) {
-                    // Actualizar usuario existente
-                    const existingUser = users[existingUserIndex];
-                    // Actualizar datos si están disponibles
-                    if (reservationData.clientName && !existingUser.name) {
-                        existingUser.name = reservationData.clientName;
+                if (existingIndex !== -1) {
+                    // Actualizar usuario existente - agregar campos faltantes
+                    const existingUser = users[existingIndex];
+                    let updated = false;
+                    
+                    if (!existingUser.email && email) {
+                        existingUser.email = email;
+                        updated = true;
                     }
-                    if (reservationData.clientPhone && !existingUser.phone) {
-                        existingUser.phone = reservationData.clientPhone;
+                    if (!existingUser.phone && phone) {
+                        existingUser.phone = phone;
+                        updated = true;
                     }
-                    // Actualizar última actividad
+                    if (!existingUser.name && name) {
+                        existingUser.name = name;
+                        updated = true;
+                    }
+                    
                     existingUser.last_activity = new Date().toISOString();
                     existingUser.updatedAt = new Date().toISOString();
+                    users[existingIndex] = existingUser;
                     
-                    users[existingUserIndex] = existingUser;
-                    console.log('🔄 Usuario actualizado desde reserva:', existingUser.email);
-            } else {
-                    // Calcular nuevo ID
-                    let newId = 1;
-                    if (users.length > 0) {
-                        const numericIds = users.map(u => {
-                            const id = parseInt(u.id);
-                            return isNaN(id) ? 0 : id;
-                        }).filter(id => id > 0);
-                        newId = numericIds.length > 0 ? Math.max(...numericIds) + 1 : users.length + 1;
-            }
-            
+                    if (updated) {
+                        console.log('🔄 Usuario actualizado con campos faltantes:', existingUser.email || existingUser.phone);
+                    } else {
+                        console.log('ℹ️ Usuario ya existe, sin cambios:', existingUser.email || existingUser.phone);
+                    }
+                    
+                    localStorage.setItem('checkin24hs_users', JSON.stringify(users));
+                    return existingUser;
+                } else {
                     // Crear nuevo usuario
+                    const maxId = users.reduce((max, u) => Math.max(max, parseInt(u.id) || 0), 0);
                     const newUser = {
-                        id: newId,
-                        name: reservationData.clientName,
-                        email: reservationData.clientEmail,
-                        phone: reservationData.clientPhone || '',
+                        id: maxId + 1,
+                        name: name,
+                        email: email || null,
+                        phone: phone || null,
                         status: 'active',
                         is_active: true,
                         createdAt: new Date().toISOString(),
@@ -15421,15 +15444,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     };
                     
                     users.push(newUser);
-                    console.log('✅ Nuevo usuario creado desde reserva:', newUser.email, newUser);
-            }
-            
-                // Guardar usuarios actualizados
-                localStorage.setItem('checkin24hs_users', JSON.stringify(users));
-                console.log(`💾 Usuarios guardados en checkin24hs_users: ${users.length} usuarios`);
+                    localStorage.setItem('checkin24hs_users', JSON.stringify(users));
+                    console.log('✅ Nuevo usuario creado:', newUser.email || newUser.phone);
+                    return newUser;
+                }
                 
             } catch (error) {
                 console.error('❌ Error al guardar usuario desde reserva:', error);
+                return null;
             }
         }
         

@@ -1204,6 +1204,322 @@ class SupabaseClient {
     }
 
     // ============================================
+    // USUARIOS (CLIENTES)
+    // ============================================
+    
+    async getUsers() {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado, usando localStorage como fallback');
+            return JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+        }
+
+        try {
+            const { data, error } = await this.client
+                .from('users')
+                .select('*')
+                .order('created_at', { ascending: false });
+            
+            if (error) throw error;
+            
+            console.log(`☁️ Usuarios cargados de Supabase: ${data ? data.length : 0} registros`);
+            
+            // Sincronizar con localStorage
+            if (data && data.length > 0) {
+                localStorage.setItem('checkin24hs_users', JSON.stringify(data));
+            }
+            
+            return data || [];
+        } catch (error) {
+            console.error('❌ Error obteniendo usuarios:', error);
+            return JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+        }
+    }
+
+    // Buscar usuario por email O teléfono (para evitar duplicados)
+    async findUserByEmailOrPhone(email, phone) {
+        if (!this.isInitialized()) {
+            // Fallback a localStorage
+            const users = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+            return users.find(u => {
+                const emailMatch = email && u.email && u.email.toLowerCase() === email.toLowerCase();
+                const phoneMatch = phone && u.phone && u.phone === phone;
+                return emailMatch || phoneMatch;
+            }) || null;
+        }
+
+        try {
+            let query = this.client.from('users').select('*');
+            
+            // Construir OR query
+            const conditions = [];
+            if (email && email.trim()) {
+                conditions.push(`email.ilike.${email.toLowerCase()}`);
+            }
+            if (phone && phone.trim()) {
+                conditions.push(`phone.eq.${phone}`);
+            }
+            
+            if (conditions.length === 0) {
+                return null;
+            }
+            
+            const { data, error } = await this.client
+                .from('users')
+                .select('*')
+                .or(conditions.join(','))
+                .limit(1)
+                .single();
+            
+            if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+                throw error;
+            }
+            
+            return data || null;
+        } catch (error) {
+            console.error('❌ Error buscando usuario:', error);
+            return null;
+        }
+    }
+
+    // Crear o actualizar usuario (upsert con lógica de deduplicación)
+    async upsertUser(userData) {
+        const email = userData.email?.trim().toLowerCase() || '';
+        const phone = userData.phone?.trim() || '';
+        const name = userData.name?.trim() || '';
+        
+        // Si no hay email ni teléfono, no guardar
+        if (!email && !phone) {
+            console.log('⚠️ Usuario sin email ni teléfono, no se guarda');
+            return null;
+        }
+        
+        if (!this.isInitialized()) {
+            // Fallback a localStorage con lógica de deduplicación
+            return this.upsertUserLocal(userData);
+        }
+
+        try {
+            // Buscar si ya existe por email o teléfono
+            const existingUser = await this.findUserByEmailOrPhone(email, phone);
+            
+            if (existingUser) {
+                // Actualizar usuario existente - agregar campos faltantes
+                const updates = {};
+                
+                if (!existingUser.email && email) {
+                    updates.email = email;
+                }
+                if (!existingUser.phone && phone) {
+                    updates.phone = phone;
+                }
+                if (!existingUser.name && name) {
+                    updates.name = name;
+                }
+                updates.last_activity = new Date().toISOString();
+                updates.updated_at = new Date().toISOString();
+                
+                if (Object.keys(updates).length > 2) { // Más que solo last_activity y updated_at
+                    const { data, error } = await this.client
+                        .from('users')
+                        .update(updates)
+                        .eq('id', existingUser.id)
+                        .select()
+                        .single();
+                    
+                    if (error) throw error;
+                    console.log('🔄 Usuario actualizado en Supabase:', data.id);
+                    return data;
+                }
+                
+                console.log('ℹ️ Usuario ya existe, sin cambios necesarios:', existingUser.id);
+                return existingUser;
+            } else {
+                // Crear nuevo usuario
+                const newUser = {
+                    name: name,
+                    email: email || null,
+                    phone: phone || null,
+                    status: 'active',
+                    is_active: true,
+                    last_activity: new Date().toISOString(),
+                    rewards_points: 0,
+                    tipo_cuenta: 'cliente_reserva'
+                };
+                
+                const { data, error } = await this.client
+                    .from('users')
+                    .insert([newUser])
+                    .select()
+                    .single();
+                
+                if (error) throw error;
+                
+                console.log('✅ Nuevo usuario creado en Supabase:', data.id);
+                return data;
+            }
+        } catch (error) {
+            console.error('❌ Error en upsertUser:', error);
+            // Fallback a localStorage
+            return this.upsertUserLocal(userData);
+        }
+    }
+
+    // Versión local de upsertUser para fallback
+    upsertUserLocal(userData) {
+        const users = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+        const email = userData.email?.trim().toLowerCase() || '';
+        const phone = userData.phone?.trim() || '';
+        const name = userData.name?.trim() || '';
+        
+        // Buscar usuario existente por email o teléfono
+        const existingIndex = users.findIndex(u => {
+            const emailMatch = email && u.email && u.email.toLowerCase() === email.toLowerCase();
+            const phoneMatch = phone && u.phone && u.phone === phone;
+            return emailMatch || phoneMatch;
+        });
+        
+        if (existingIndex !== -1) {
+            // Actualizar usuario existente
+            const existing = users[existingIndex];
+            if (!existing.email && email) existing.email = email;
+            if (!existing.phone && phone) existing.phone = phone;
+            if (!existing.name && name) existing.name = name;
+            existing.last_activity = new Date().toISOString();
+            existing.updatedAt = new Date().toISOString();
+            users[existingIndex] = existing;
+            console.log('🔄 Usuario actualizado en localStorage:', existing.id);
+        } else {
+            // Crear nuevo
+            const maxId = users.reduce((max, u) => Math.max(max, parseInt(u.id) || 0), 0);
+            const newUser = {
+                id: maxId + 1,
+                name: name,
+                email: email || null,
+                phone: phone || null,
+                status: 'active',
+                is_active: true,
+                createdAt: new Date().toISOString(),
+                created_at: new Date().toISOString(),
+                last_activity: new Date().toISOString(),
+                rewards_points: 0,
+                tipoCuenta: 'cliente_reserva'
+            };
+            users.push(newUser);
+            console.log('✅ Nuevo usuario creado en localStorage:', newUser.id);
+        }
+        
+        localStorage.setItem('checkin24hs_users', JSON.stringify(users));
+        return users[existingIndex !== -1 ? existingIndex : users.length - 1];
+    }
+
+    // Limpiar usuarios duplicados en localStorage
+    cleanDuplicateUsers() {
+        const users = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+        console.log(`🧹 Limpiando duplicados de ${users.length} usuarios...`);
+        
+        const uniqueUsers = [];
+        const seenEmails = new Set();
+        const seenPhones = new Set();
+        
+        // Ordenar por fecha de creación (más recientes primero) para mantener los más recientes
+        users.sort((a, b) => {
+            const dateA = new Date(a.created_at || a.createdAt || 0);
+            const dateB = new Date(b.created_at || b.createdAt || 0);
+            return dateB - dateA;
+        });
+        
+        for (const user of users) {
+            const email = user.email?.trim().toLowerCase() || '';
+            const phone = user.phone?.trim() || '';
+            
+            // Si no tiene ni email ni teléfono, saltar
+            if (!email && !phone) continue;
+            
+            // Verificar si ya vimos este email o teléfono
+            const emailExists = email && seenEmails.has(email);
+            const phoneExists = phone && seenPhones.has(phone);
+            
+            if (!emailExists && !phoneExists) {
+                uniqueUsers.push(user);
+                if (email) seenEmails.add(email);
+                if (phone) seenPhones.add(phone);
+            } else {
+                // Usuario duplicado - buscar el original y agregar campos faltantes
+                const originalIndex = uniqueUsers.findIndex(u => {
+                    const eMatch = email && u.email && u.email.toLowerCase() === email;
+                    const pMatch = phone && u.phone && u.phone === phone;
+                    return eMatch || pMatch;
+                });
+                
+                if (originalIndex !== -1) {
+                    const original = uniqueUsers[originalIndex];
+                    // Agregar campos faltantes
+                    if (!original.email && email) {
+                        original.email = user.email;
+                        seenEmails.add(email);
+                    }
+                    if (!original.phone && phone) {
+                        original.phone = user.phone;
+                        seenPhones.add(phone);
+                    }
+                    if (!original.name && user.name) {
+                        original.name = user.name;
+                    }
+                    uniqueUsers[originalIndex] = original;
+                }
+            }
+        }
+        
+        // Reasignar IDs consecutivos
+        uniqueUsers.forEach((user, index) => {
+            user.id = index + 1;
+        });
+        
+        localStorage.setItem('checkin24hs_users', JSON.stringify(uniqueUsers));
+        console.log(`✅ Limpieza completada: ${users.length} → ${uniqueUsers.length} usuarios (${users.length - uniqueUsers.length} duplicados eliminados)`);
+        
+        return {
+            before: users.length,
+            after: uniqueUsers.length,
+            removed: users.length - uniqueUsers.length
+        };
+    }
+
+    // Sincronizar usuarios locales con Supabase
+    async syncUsersToSupabase() {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no inicializado');
+            return;
+        }
+        
+        // Primero limpiar duplicados locales
+        const cleanResult = this.cleanDuplicateUsers();
+        console.log(`🧹 Duplicados locales limpiados:`, cleanResult);
+        
+        const localUsers = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+        console.log(`☁️ Sincronizando ${localUsers.length} usuarios a Supabase...`);
+        
+        let synced = 0;
+        let errors = 0;
+        
+        for (const user of localUsers) {
+            try {
+                await this.upsertUser({
+                    name: user.name,
+                    email: user.email,
+                    phone: user.phone
+                });
+                synced++;
+            } catch (error) {
+                errors++;
+            }
+        }
+        
+        console.log(`✅ Sincronización completada: ${synced} OK, ${errors} errores`);
+        return { synced, errors };
+    }
+
+    // ============================================
     // MÉTODO DE PRUEBA DE CONEXIÓN
     // ============================================
     
