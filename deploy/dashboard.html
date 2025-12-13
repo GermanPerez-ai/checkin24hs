@@ -55,14 +55,15 @@
         .menu-item {
             display: flex;
             align-items: center;
-            padding: 12px 16px;
+            padding: 10px 12px;
             cursor: pointer;
             transition: all 0.3s ease;
             color: white;
             text-decoration: none;
             position: relative;
             flex-wrap: nowrap;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
+            gap: 10px;
         }
 
         .menu-item:hover {
@@ -75,15 +76,14 @@
         }
 
         .menu-item .material-icons {
-            margin-right: 12px;
-            font-size: 22px;
-            min-width: 36px;
-            width: 36px;
-            height: 36px;
+            font-size: 20px;
+            min-width: 32px;
+            width: 32px;
+            height: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 10px;
+            border-radius: 8px;
             background: linear-gradient(145deg, rgba(255,255,255,0.25), rgba(255,255,255,0.05));
             box-shadow: 
                 3px 3px 6px rgba(0,0,0,0.3),
@@ -94,11 +94,13 @@
             flex-shrink: 0;
         }
         
-        .menu-item span:not(.material-icons) {
+        .menu-item .menu-text,
+        .menu-item span:not(.material-icons):not(.menu-text) {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
             font-size: 0.9rem;
+            flex: 1;
         }
 
         .menu-item:hover .material-icons {
@@ -1651,7 +1653,7 @@
             </a>
             <a href="#" class="menu-item" onclick="window.showSection('administrators', event)" id="adminMenuLink" style="display: none;">
                 <span class="material-icons">admin_panel_settings</span>
-                Administradores
+                <span class="menu-text">Administradores</span>
             </a>
         </div>
     </div>
