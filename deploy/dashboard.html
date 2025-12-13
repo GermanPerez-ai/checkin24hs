@@ -19071,51 +19071,54 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             const testMessage = 'Responde solo con: OK';
             
             if (provider === 'gemini') {
-                // Google Gemini API - Probar varios modelos
-                let modelToUse = model || 'gemini-1.5-flash-latest';
+                // Primero listar modelos disponibles
+                console.log('📋 Listando modelos disponibles...');
+                const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
                 
-                // Lista de modelos a probar en orden
-                const modelsToTry = [
-                    modelToUse,
-                    'gemini-1.5-flash-latest',
-                    'gemini-1.5-pro-latest', 
-                    'gemini-pro'
-                ];
-                
-                let lastError = null;
-                for (const tryModel of modelsToTry) {
-                    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${tryModel}:generateContent?key=${apiKey}`;
-                    console.log('🔗 Probando modelo:', tryModel);
+                try {
+                    const listResponse = await fetch(listUrl);
+                    const listData = await listResponse.json();
                     
-                    try {
-                        response = await fetch(geminiUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                contents: [{ parts: [{ text: testMessage }] }],
-                                generationConfig: { maxOutputTokens: 50 }
-                            })
-                        });
-                        
-                        if (response.ok) {
-                            console.log('✅ Modelo funcionando:', tryModel);
-                            // Actualizar el campo del modelo con el que funciona
-                            if (document.getElementById('ai-model')) {
-                                document.getElementById('ai-model').value = tryModel;
-                            }
-                            break;
-                        } else {
-                            const errData = await response.json().catch(() => ({}));
-                            lastError = errData.error?.message || response.statusText;
-                            console.log('❌ Modelo falló:', tryModel, lastError);
-                        }
-                    } catch (e) {
-                        lastError = e.message;
+                    if (listData.error) {
+                        alert('❌ Error con API Key:\n\n' + listData.error.message + '\n\n💡 Ve a Google AI Studio y crea una NUEVA API Key en un nuevo proyecto.');
+                        return;
                     }
-                }
-                
-                if (!response?.ok && lastError) {
-                    alert('❌ Ningún modelo disponible.\n\nError: ' + lastError + '\n\n💡 Crea una nueva API Key en Google AI Studio');
+                    
+                    // Buscar modelos que soporten generateContent
+                    const availableModels = listData.models?.filter(m => 
+                        m.supportedGenerationMethods?.includes('generateContent')
+                    ).map(m => m.name.replace('models/', '')) || [];
+                    
+                    console.log('✅ Modelos disponibles:', availableModels);
+                    
+                    if (availableModels.length === 0) {
+                        alert('❌ No hay modelos disponibles para esta API Key.\n\n💡 Crea una nueva API Key en Google AI Studio.');
+                        return;
+                    }
+                    
+                    // Usar el primer modelo disponible o el especificado si existe
+                    let modelToUse = availableModels.includes(model) ? model : availableModels[0];
+                    console.log('🎯 Usando modelo:', modelToUse);
+                    
+                    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${apiKey}`;
+                    
+                    response = await fetch(geminiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: testMessage }] }],
+                            generationConfig: { maxOutputTokens: 50 }
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        // Actualizar el campo del modelo con el que funciona
+                        if (document.getElementById('ai-model')) {
+                            document.getElementById('ai-model').value = modelToUse;
+                        }
+                    }
+                } catch (e) {
+                    alert('❌ Error de conexión: ' + e.message);
                     return;
                 }
             } else if (provider === 'openai') {
