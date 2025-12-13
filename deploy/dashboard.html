@@ -75,6 +75,30 @@
             font-size: 20px;
         }
 
+        /* Flor Tabs */
+        .flor-tab {
+            padding: 10px 20px;
+            border: none;
+            background: #f5f5f5;
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+        .flor-tab:hover {
+            background: #e0e0e0;
+        }
+        .flor-tab.active {
+            background: #1976d2;
+            color: white;
+        }
+        .flor-tab-content {
+            display: none;
+        }
+        .flor-tab-content.active {
+            display: block;
+        }
+
         /* Main Content */
         .main-content {
             margin-left: 240px;
@@ -1568,6 +1592,18 @@
                 <span class="material-icons">support_agent</span>
                 Agentes
             </a>
+            <a href="#" class="menu-item" onclick="window.showSection('interactions', event)">
+                <span class="material-icons">chat</span>
+                Interacciones
+            </a>
+            <a href="#" class="menu-item" onclick="window.showSection('chats', event)">
+                <span class="material-icons">forum</span>
+                Chats
+            </a>
+            <a href="#" class="menu-item" onclick="window.showSection('flor-config', event)">
+                <span class="material-icons">smart_toy</span>
+                Flor IA
+            </a>
             <a href="#" class="menu-item" onclick="window.showSection('administrators', event)" id="adminMenuLink" style="display: none;">
                 <span class="material-icons">admin_panel_settings</span>
                 Administradores
@@ -2725,6 +2761,323 @@
                                 <!-- Los agentes se cargarán dinámicamente -->
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Interactions Section -->
+            <div id="interactions-section" style="display: none;">
+                <h2 class="page-title">Interacciones con Flor</h2>
+                
+                <div class="stat-card" style="margin-bottom: 24px;">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; padding: 16px;">
+                        <h3 style="margin: 0; font-size: 1.2rem;">Historial de Conversaciones</h3>
+                        <button class="form-button secondary" onclick="loadInteractions()">
+                            <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">refresh</span>
+                            Actualizar
+                        </button>
+                    </div>
+                    <div style="padding: 16px; background: #e3f2fd; border-left: 4px solid #1976d2; margin: 16px; border-radius: 4px;">
+                        <strong>ℹ️ Cómo funciona el aprendizaje de Flor:</strong>
+                        <ul style="margin: 8px 0 0 20px; color: #666;">
+                            <li>Flor guarda automáticamente cada interacción con los usuarios</li>
+                            <li>Analiza patrones en las conversaciones para mejorar sus respuestas</li>
+                            <li>Identifica palabras clave comunes y respuestas exitosas</li>
+                            <li>Actualiza su base de conocimiento automáticamente</li>
+                        </ul>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background: #f5f5f5;">
+                                    <th style="padding: 12px; text-align: left;">Fecha</th>
+                                    <th style="padding: 12px; text-align: left;">Cliente</th>
+                                    <th style="padding: 12px; text-align: center;">Mensajes</th>
+                                    <th style="padding: 12px; text-align: left;">Resuelto por</th>
+                                    <th style="padding: 12px; text-align: center;">Estado</th>
+                                    <th style="padding: 12px; text-align: center;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="interactionsTableBody">
+                                <tr>
+                                    <td colspan="6" style="text-align: center; padding: 40px; color: #666;">
+                                        <span class="material-icons" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 16px;">chat</span>
+                                        No hay interacciones registradas aún
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chats Section -->
+            <div id="chats-section" style="display: none;">
+                <h2 class="page-title">Chats Activos</h2>
+                
+                <div style="display: grid; grid-template-columns: 320px 1fr; gap: 20px; height: calc(100vh - 200px);">
+                    <!-- Lista de Chats -->
+                    <div class="stat-card" style="overflow-y: auto;">
+                        <div style="padding: 16px; border-bottom: 1px solid #e0e0e0;">
+                            <h3 style="margin: 0 0 12px 0; font-size: 1.1rem;">Conversaciones</h3>
+                            <button class="form-button secondary" onclick="loadChats()" style="width: 100%;">
+                                <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">refresh</span>
+                                Actualizar
+                            </button>
+                        </div>
+                        <div id="chatsList" style="padding: 8px;">
+                            <div style="text-align: center; padding: 40px 16px; color: #666;">
+                                <span class="material-icons" style="font-size: 36px; color: #ccc;">forum</span>
+                                <p style="margin-top: 12px;">No hay chats activos</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Área de Chat -->
+                    <div class="stat-card" style="display: flex; flex-direction: column;">
+                        <div id="chatHeader" style="padding: 16px; border-bottom: 1px solid #e0e0e0; background: #f5f5f5;">
+                            <h3 style="margin: 0; font-size: 1.1rem;">Selecciona un chat para ver la conversación</h3>
+                        </div>
+                        <div id="chatMessages" style="flex: 1; overflow-y: auto; padding: 16px; background: #fafafa;">
+                            <p style="text-align: center; color: #666; margin-top: 60px;">
+                                <span class="material-icons" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 16px;">question_answer</span>
+                                Selecciona un chat de la lista para comenzar
+                            </p>
+                        </div>
+                        <div id="chatInputContainer" style="padding: 16px; border-top: 1px solid #e0e0e0; display: none;">
+                            <div style="display: flex; gap: 8px;">
+                                <input type="text" id="chatMessageInput" placeholder="Escribe tu respuesta..." 
+                                       style="flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem;"
+                                       onkeypress="if(event.key === 'Enter') sendChatMessage()">
+                                <button class="form-button" style="background: #1976d2; color: white; padding: 12px 24px;" onclick="sendChatMessage()">
+                                    <span class="material-icons" style="vertical-align: middle;">send</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Flor Configuration Section -->
+            <div id="flor-config-section" style="display: none;">
+                <h2 class="page-title">Configuración de Flor IA</h2>
+                
+                <!-- Tabs -->
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; border-bottom: 2px solid #e0e0e0; padding-bottom: 8px;">
+                    <button class="flor-tab active" onclick="showFlorTab('general')" data-tab="general">⚙️ General</button>
+                    <button class="flor-tab" onclick="showFlorTab('knowledge')" data-tab="knowledge">📚 Conocimiento</button>
+                    <button class="flor-tab" onclick="showFlorTab('responses')" data-tab="responses">💬 Respuestas</button>
+                    <button class="flor-tab" onclick="showFlorTab('policies')" data-tab="policies">📋 Políticas</button>
+                    <button class="flor-tab" onclick="showFlorTab('ai')" data-tab="ai">🤖 IA</button>
+                    <button class="flor-tab" onclick="showFlorTab('whatsapp')" data-tab="whatsapp" style="background: #25D366; color: white;">📱 WhatsApp</button>
+                </div>
+
+                <!-- General Tab -->
+                <div id="flor-tab-general" class="flor-tab-content active">
+                    <div class="stat-card" style="padding: 24px;">
+                        <h3 style="margin: 0 0 20px 0;">Configuración General</h3>
+                        <div style="display: grid; gap: 16px; max-width: 600px;">
+                            <div>
+                                <label style="display: block; font-weight: 500; margin-bottom: 8px;">Nombre del Agente</label>
+                                <input type="text" id="flor-name" value="Flor" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+                            </div>
+                            <div>
+                                <label style="display: block; font-weight: 500; margin-bottom: 8px;">Rol</label>
+                                <input type="text" id="flor-role" value="Asistente Virtual de Reservas" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+                            </div>
+                            <div>
+                                <label style="display: block; font-weight: 500; margin-bottom: 8px;">Mensaje de Bienvenida</label>
+                                <textarea id="flor-greeting" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">¡Hola! Soy Flor, tu asistente virtual de Checkin24hs. ¿En qué puedo ayudarte hoy?</textarea>
+                            </div>
+                            <div>
+                                <label style="display: block; font-weight: 500; margin-bottom: 8px;">Personalidad</label>
+                                <input type="text" id="flor-personality" value="Amable, eficiente y profesional" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+                            </div>
+                            <button class="form-button" style="background: #4caf50; color: white; width: fit-content;" onclick="saveFlorGeneral()">
+                                <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
+                                Guardar Configuración
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Knowledge Tab -->
+                <div id="flor-tab-knowledge" class="flor-tab-content" style="display: none;">
+                    <div class="stat-card" style="padding: 24px;">
+                        <h3 style="margin: 0 0 20px 0;">Base de Conocimiento por Hotel</h3>
+                        <p style="color: #666; margin-bottom: 20px;">Configure la información específica para cada hotel. Flor usará esta información para responder consultas.</p>
+                        <div style="margin-bottom: 24px;">
+                            <label style="font-weight: 500; margin-bottom: 8px; display: block;">🏨 Seleccionar Hotel:</label>
+                            <select id="knowledge-hotel-selector" style="width: 100%; max-width: 400px; padding: 12px; border: 1px solid #ddd; border-radius: 8px;" onchange="loadSelectedHotelKnowledge()">
+                                <option value="">-- Seleccione un hotel --</option>
+                            </select>
+                        </div>
+                        <div id="hotels-knowledge-list">
+                            <p style="color: #666; text-align: center; padding: 40px;">Seleccione un hotel para ver/editar su base de conocimiento</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Responses Tab -->
+                <div id="flor-tab-responses" class="flor-tab-content" style="display: none;">
+                    <div class="stat-card" style="padding: 24px;">
+                        <h3 style="margin: 0 0 20px 0;">Respuestas Predefinidas</h3>
+                        <div style="display: grid; gap: 16px; max-width: 600px;">
+                            <div>
+                                <label style="display: block; font-weight: 500; margin-bottom: 8px;">Cuando no entiende</label>
+                                <textarea id="response-no-entendido" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">Lo siento, no he podido entender tu consulta. ¿Podrías reformularla o prefieres que te conecte con un agente humano?</textarea>
+                            </div>
+                            <div>
+                                <label style="display: block; font-weight: 500; margin-bottom: 8px;">Transferir a humano</label>
+                                <textarea id="response-transferir" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">Entendido, voy a transferirte con uno de nuestros agentes. Por favor espera un momento.</textarea>
+                            </div>
+                            <div>
+                                <label style="display: block; font-weight: 500; margin-bottom: 8px;">Despedida</label>
+                                <textarea id="response-despedida" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">¡Gracias por contactarnos! Si tienes más preguntas, estaré aquí para ayudarte. ¡Hasta pronto!</textarea>
+                            </div>
+                            <button class="form-button" style="background: #4caf50; color: white; width: fit-content;" onclick="saveFlorResponses()">
+                                <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
+                                Guardar Respuestas
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Policies Tab -->
+                <div id="flor-tab-policies" class="flor-tab-content" style="display: none;">
+                    <div class="stat-card" style="padding: 24px;">
+                        <h3 style="margin: 0 0 20px 0;">Políticas por Hotel</h3>
+                        <div style="margin-bottom: 24px;">
+                            <label style="font-weight: 500; margin-bottom: 8px; display: block;">🏨 Seleccionar Hotel:</label>
+                            <select id="policy-hotel-select" style="width: 100%; max-width: 400px; padding: 12px; border: 1px solid #ddd; border-radius: 8px;" onchange="loadHotelPolicies()">
+                                <option value="">-- Seleccione un hotel --</option>
+                            </select>
+                        </div>
+                        <div id="hotel-policies-form" style="display: none; max-width: 600px;">
+                            <div style="margin-bottom: 20px;">
+                                <label style="display: block; font-weight: 500; margin-bottom: 8px;">Condiciones para la Reserva</label>
+                                <textarea id="policy-condiciones-reserva" rows="5" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;" placeholder="Ej: Se requiere un depósito del 30% para confirmar..."></textarea>
+                            </div>
+                            <div style="margin-bottom: 20px;">
+                                <label style="display: block; font-weight: 500; margin-bottom: 8px;">Políticas de Cancelación</label>
+                                <textarea id="policy-cancelacion-modificacion" rows="5" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;" placeholder="Ej: Cancelación gratuita hasta 72 horas antes..."></textarea>
+                            </div>
+                            <button class="form-button" style="background: #4caf50; color: white;" onclick="saveFlorPolicies()">
+                                <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
+                                Guardar Políticas
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Tab -->
+                <div id="flor-tab-ai" class="flor-tab-content" style="display: none;">
+                    <div class="stat-card" style="padding: 24px;">
+                        <h3 style="margin: 0 0 8px 0;">🤖 Configuración de Inteligencia Artificial</h3>
+                        <p style="color: #666; margin-bottom: 24px;">Conecta Flor con una API de IA para respuestas más naturales e inteligentes.</p>
+                        
+                        <div style="max-width: 600px;">
+                            <div style="margin-bottom: 20px;">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="ai-enabled" onchange="toggleAIConfig()">
+                                    <span style="font-weight: 500;">Habilitar respuestas con IA</span>
+                                </label>
+                            </div>
+
+                            <div id="ai-config-fields" style="display: none;">
+                                <div style="margin-bottom: 16px;">
+                                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">Proveedor</label>
+                                    <select id="ai-provider" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+                                        <option value="openai">OpenAI (GPT-4) - Pago</option>
+                                        <option value="gemini">Google Gemini - GRATIS</option>
+                                        <option value="claude">Claude (Anthropic) - Pago</option>
+                                    </select>
+                                </div>
+                                <div style="margin-bottom: 16px;">
+                                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">API Key</label>
+                                    <input type="password" id="ai-api-key" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;" placeholder="Tu API key...">
+                                </div>
+                                <div style="margin-bottom: 16px;">
+                                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">Modelo</label>
+                                    <input type="text" id="ai-model" value="gpt-4o-mini" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+                                </div>
+                                <div style="display: flex; gap: 12px;">
+                                    <button class="form-button" style="background: #4caf50; color: white;" onclick="saveAIConfig()">
+                                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
+                                        Guardar
+                                    </button>
+                                    <button class="form-button secondary" onclick="testAIConfig()">
+                                        Probar Conexión
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- WhatsApp Tab -->
+                <div id="flor-tab-whatsapp" class="flor-tab-content" style="display: none;">
+                    <div class="stat-card" style="padding: 24px; margin-bottom: 24px;">
+                        <h3 style="margin: 0 0 8px 0;">📱 Integración con WhatsApp</h3>
+                        <p style="color: #666; margin-bottom: 24px;">Conecta Flor con WhatsApp para responder automáticamente a tus clientes.</p>
+                        
+                        <!-- Estado de Conexión -->
+                        <div id="whatsapp-status-card" style="background: #f5f5f5; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <div id="whatsapp-status-indicator" style="width: 16px; height: 16px; border-radius: 50%; background: #9e9e9e;"></div>
+                                <div>
+                                    <strong id="whatsapp-status-text">Verificando conexión...</strong>
+                                    <p id="whatsapp-status-detail" style="color: #666; font-size: 0.85rem; margin: 4px 0 0 0;">Conectando con el servidor...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="max-width: 500px;">
+                            <div style="margin-bottom: 16px;">
+                                <label style="display: block; font-weight: 500; margin-bottom: 8px;">URL del Servidor WhatsApp</label>
+                                <input type="text" id="whatsapp-server-url" value="http://localhost:3001" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;" placeholder="http://tu-servidor:3001">
+                            </div>
+                            <button class="form-button" style="background: #25D366; color: white;" onclick="checkWhatsAppConnection()">
+                                <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">sync</span>
+                                Verificar Conexión
+                            </button>
+                        </div>
+
+                        <!-- QR Code Section -->
+                        <div id="whatsapp-qr-section" style="display: none; background: #fff3e0; border-radius: 8px; padding: 24px; margin-top: 24px; text-align: center;">
+                            <h4 style="margin-bottom: 16px; color: #e65100;">📲 Escanea el código QR</h4>
+                            <p style="color: #666; margin-bottom: 16px;">Abre WhatsApp → Dispositivos vinculados → Vincular dispositivo</p>
+                            <div id="whatsapp-qr-container" style="display: inline-block; background: white; padding: 16px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                <div id="whatsapp-qr-code" style="font-family: monospace; white-space: pre; font-size: 8px; line-height: 1;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Info Conectado -->
+                        <div id="whatsapp-info-section" style="display: none; background: #e8f5e9; border-radius: 8px; padding: 24px; margin-top: 24px;">
+                            <h4 style="margin-bottom: 16px; color: #2e7d32;">✅ WhatsApp Conectado</h4>
+                            <div style="display: grid; gap: 8px;">
+                                <div><strong>Número:</strong> <span id="whatsapp-phone-number">-</span></div>
+                                <div><strong>Nombre:</strong> <span id="whatsapp-user-name">-</span></div>
+                            </div>
+                            <button class="form-button" style="background: #ef5350; color: white; margin-top: 16px;" onclick="disconnectWhatsApp()">
+                                🔌 Desconectar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Auto Reply Config -->
+                    <div class="stat-card" style="padding: 24px;">
+                        <h3 style="margin: 0 0 20px 0;">🤖 Respuestas Automáticas</h3>
+                        <div style="max-width: 500px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 16px;">
+                                <input type="checkbox" id="whatsapp-auto-reply" onchange="saveWhatsAppConfig()">
+                                <span style="font-weight: 500;">Habilitar respuestas automáticas de Flor</span>
+                            </label>
+                            <button class="form-button" style="background: #4caf50; color: white;" onclick="saveWhatsAppConfig()">
+                                <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
+                                Guardar Configuración
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -18471,6 +18824,439 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     console.log('🎫 Módulo Programa Flexi cargado correctamente');
     </script>
     <!-- ==================== FIN SCRIPT PROGRAMA FLEXI ==================== -->
+
+    <!-- ==================== SCRIPT FLOR IA / INTERACCIONES / CHATS ==================== -->
+    <script>
+    // =====================================================
+    // MÓDULO FLOR IA - INTERACCIONES Y CHATS
+    // =====================================================
+
+    // Función para mostrar tabs de Flor
+    window.showFlorTab = function(tabName) {
+        console.log('📑 Cambiando a tab Flor:', tabName);
+        
+        // Ocultar todos los tabs
+        document.querySelectorAll('.flor-tab-content').forEach(tab => {
+            tab.style.display = 'none';
+            tab.classList.remove('active');
+        });
+        
+        // Desactivar todos los botones de tab
+        document.querySelectorAll('.flor-tab').forEach(btn => {
+            btn.classList.remove('active');
+            // Reset color for non-whatsapp tabs
+            if (btn.dataset.tab !== 'whatsapp') {
+                btn.style.background = '#f5f5f5';
+                btn.style.color = '#333';
+            }
+        });
+        
+        // Mostrar tab seleccionado
+        const tabContent = document.getElementById('flor-tab-' + tabName);
+        if (tabContent) {
+            tabContent.style.display = 'block';
+            tabContent.classList.add('active');
+        }
+        
+        // Activar botón
+        const tabBtn = document.querySelector(`.flor-tab[data-tab="${tabName}"]`);
+        if (tabBtn) {
+            tabBtn.classList.add('active');
+            if (tabName !== 'whatsapp') {
+                tabBtn.style.background = '#1976d2';
+                tabBtn.style.color = 'white';
+            }
+        }
+        
+        // Cargar datos específicos del tab
+        if (tabName === 'knowledge' || tabName === 'policies') {
+            loadHotelsForFlor();
+        }
+        if (tabName === 'whatsapp') {
+            checkWhatsAppConnection();
+        }
+    };
+
+    // Cargar hoteles para selectores de Flor
+    function loadHotelsForFlor() {
+        const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+        const selectors = ['knowledge-hotel-selector', 'policy-hotel-select'];
+        
+        selectors.forEach(selectorId => {
+            const selector = document.getElementById(selectorId);
+            if (selector) {
+                selector.innerHTML = '<option value="">-- Seleccione un hotel --</option>';
+                hotels.forEach(hotel => {
+                    const option = document.createElement('option');
+                    option.value = hotel.id;
+                    option.textContent = hotel.name || hotel.nombre || 'Hotel sin nombre';
+                    selector.appendChild(option);
+                });
+            }
+        });
+    }
+
+    // Guardar configuración general de Flor
+    window.saveFlorGeneral = function() {
+        const config = {
+            name: document.getElementById('flor-name')?.value || 'Flor',
+            role: document.getElementById('flor-role')?.value || 'Asistente Virtual',
+            greeting: document.getElementById('flor-greeting')?.value || '',
+            personality: document.getElementById('flor-personality')?.value || ''
+        };
+        localStorage.setItem('flor_general_config', JSON.stringify(config));
+        alert('✅ Configuración general guardada');
+        console.log('💾 Configuración Flor guardada:', config);
+    };
+
+    // Cargar configuración general
+    function loadFlorGeneral() {
+        const config = JSON.parse(localStorage.getItem('flor_general_config') || '{}');
+        if (config.name) document.getElementById('flor-name').value = config.name;
+        if (config.role) document.getElementById('flor-role').value = config.role;
+        if (config.greeting) document.getElementById('flor-greeting').value = config.greeting;
+        if (config.personality) document.getElementById('flor-personality').value = config.personality;
+    }
+
+    // Guardar respuestas predefinidas
+    window.saveFlorResponses = function() {
+        const responses = {
+            noEntendido: document.getElementById('response-no-entendido')?.value || '',
+            transferir: document.getElementById('response-transferir')?.value || '',
+            despedida: document.getElementById('response-despedida')?.value || ''
+        };
+        localStorage.setItem('flor_responses', JSON.stringify(responses));
+        alert('✅ Respuestas guardadas');
+    };
+
+    // Guardar políticas de hotel
+    window.saveFlorPolicies = function() {
+        const hotelId = document.getElementById('policy-hotel-select')?.value;
+        if (!hotelId) {
+            alert('⚠️ Selecciona un hotel primero');
+            return;
+        }
+        
+        const policies = JSON.parse(localStorage.getItem('flor_policies') || '{}');
+        policies[hotelId] = {
+            condicionesReserva: document.getElementById('policy-condiciones-reserva')?.value || '',
+            cancelacionModificacion: document.getElementById('policy-cancelacion-modificacion')?.value || ''
+        };
+        localStorage.setItem('flor_policies', JSON.stringify(policies));
+        alert('✅ Políticas guardadas para el hotel');
+    };
+
+    // Cargar políticas de hotel
+    window.loadHotelPolicies = function() {
+        const hotelId = document.getElementById('policy-hotel-select')?.value;
+        const form = document.getElementById('hotel-policies-form');
+        
+        if (!hotelId) {
+            if (form) form.style.display = 'none';
+            return;
+        }
+        
+        if (form) form.style.display = 'block';
+        
+        const policies = JSON.parse(localStorage.getItem('flor_policies') || '{}');
+        const hotelPolicies = policies[hotelId] || {};
+        
+        document.getElementById('policy-condiciones-reserva').value = hotelPolicies.condicionesReserva || '';
+        document.getElementById('policy-cancelacion-modificacion').value = hotelPolicies.cancelacionModificacion || '';
+    };
+
+    // Toggle AI Config
+    window.toggleAIConfig = function() {
+        const enabled = document.getElementById('ai-enabled')?.checked;
+        const fields = document.getElementById('ai-config-fields');
+        if (fields) {
+            fields.style.display = enabled ? 'block' : 'none';
+        }
+    };
+
+    // Guardar configuración de IA
+    window.saveAIConfig = function() {
+        const config = {
+            enabled: document.getElementById('ai-enabled')?.checked || false,
+            provider: document.getElementById('ai-provider')?.value || 'openai',
+            apiKey: document.getElementById('ai-api-key')?.value || '',
+            model: document.getElementById('ai-model')?.value || 'gpt-4o-mini'
+        };
+        localStorage.setItem('flor_ai_config', JSON.stringify(config));
+        alert('✅ Configuración de IA guardada');
+    };
+
+    // Probar conexión IA
+    window.testAIConfig = function() {
+        alert('🔄 Probando conexión con la API de IA...\n\nEsta función requiere implementar la llamada a la API seleccionada.');
+    };
+
+    // Verificar conexión WhatsApp
+    window.checkWhatsAppConnection = function() {
+        const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://localhost:3001';
+        const statusIndicator = document.getElementById('whatsapp-status-indicator');
+        const statusText = document.getElementById('whatsapp-status-text');
+        const statusDetail = document.getElementById('whatsapp-status-detail');
+        
+        if (statusText) statusText.textContent = 'Verificando conexión...';
+        if (statusDetail) statusDetail.textContent = 'Conectando con ' + serverUrl;
+        
+        fetch(serverUrl + '/status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.connected || data.status === 'connected') {
+                    if (statusIndicator) statusIndicator.style.background = '#4caf50';
+                    if (statusText) statusText.textContent = '✅ Conectado';
+                    if (statusDetail) statusDetail.textContent = 'WhatsApp está funcionando correctamente';
+                    
+                    document.getElementById('whatsapp-qr-section').style.display = 'none';
+                    document.getElementById('whatsapp-info-section').style.display = 'block';
+                    
+                    if (data.phone) document.getElementById('whatsapp-phone-number').textContent = data.phone;
+                    if (data.name) document.getElementById('whatsapp-user-name').textContent = data.name;
+                } else if (data.qr) {
+                    if (statusIndicator) statusIndicator.style.background = '#ff9800';
+                    if (statusText) statusText.textContent = '📲 Esperando escaneo QR';
+                    if (statusDetail) statusDetail.textContent = 'Escanea el código QR con tu teléfono';
+                    
+                    document.getElementById('whatsapp-qr-section').style.display = 'block';
+                    document.getElementById('whatsapp-info-section').style.display = 'none';
+                    document.getElementById('whatsapp-qr-code').textContent = data.qr;
+                } else {
+                    if (statusIndicator) statusIndicator.style.background = '#9e9e9e';
+                    if (statusText) statusText.textContent = '⚠️ Desconectado';
+                    if (statusDetail) statusDetail.textContent = 'Servidor disponible pero WhatsApp no conectado';
+                }
+            })
+            .catch(error => {
+                console.error('Error verificando WhatsApp:', error);
+                if (statusIndicator) statusIndicator.style.background = '#f44336';
+                if (statusText) statusText.textContent = '❌ Error de conexión';
+                if (statusDetail) statusDetail.textContent = 'No se pudo conectar con el servidor';
+            });
+    };
+
+    // Guardar config WhatsApp
+    window.saveWhatsAppConfig = function() {
+        const config = {
+            serverUrl: document.getElementById('whatsapp-server-url')?.value || '',
+            autoReply: document.getElementById('whatsapp-auto-reply')?.checked || false
+        };
+        localStorage.setItem('flor_whatsapp_config', JSON.stringify(config));
+        alert('✅ Configuración de WhatsApp guardada');
+    };
+
+    // Desconectar WhatsApp
+    window.disconnectWhatsApp = function() {
+        if (!confirm('¿Estás seguro de desconectar WhatsApp?')) return;
+        
+        const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://localhost:3001';
+        fetch(serverUrl + '/disconnect', { method: 'POST' })
+            .then(() => {
+                alert('WhatsApp desconectado');
+                checkWhatsAppConnection();
+            })
+            .catch(error => {
+                console.error('Error desconectando:', error);
+                alert('Error al desconectar');
+            });
+    };
+
+    // Cargar interacciones
+    window.loadInteractions = function() {
+        console.log('📋 Cargando interacciones...');
+        const interactions = JSON.parse(localStorage.getItem('flor_interactions') || '[]');
+        const tbody = document.getElementById('interactionsTableBody');
+        
+        if (!tbody) return;
+        
+        if (interactions.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" style="text-align: center; padding: 40px; color: #666;">
+                        <span class="material-icons" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 16px;">chat</span>
+                        No hay interacciones registradas aún
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = interactions.map(interaction => `
+            <tr>
+                <td style="padding: 12px;">${new Date(interaction.date).toLocaleString()}</td>
+                <td style="padding: 12px;">${interaction.client || 'Desconocido'}</td>
+                <td style="padding: 12px; text-align: center;">${interaction.messageCount || 0}</td>
+                <td style="padding: 12px;">${interaction.resolvedBy || 'Flor'}</td>
+                <td style="padding: 12px; text-align: center;">
+                    <span style="background: ${interaction.status === 'resolved' ? '#4caf50' : '#ff9800'}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.85rem;">
+                        ${interaction.status === 'resolved' ? 'Resuelto' : 'Pendiente'}
+                    </span>
+                </td>
+                <td style="padding: 12px; text-align: center;">
+                    <button onclick="viewInteraction('${interaction.id}')" style="background: #1976d2; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                        Ver
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+    };
+
+    // Cargar chats activos
+    window.loadChats = function() {
+        console.log('💬 Cargando chats activos...');
+        const chats = JSON.parse(localStorage.getItem('flor_active_chats') || '[]');
+        const chatsList = document.getElementById('chatsList');
+        
+        if (!chatsList) return;
+        
+        if (chats.length === 0) {
+            chatsList.innerHTML = `
+                <div style="text-align: center; padding: 40px 16px; color: #666;">
+                    <span class="material-icons" style="font-size: 36px; color: #ccc;">forum</span>
+                    <p style="margin-top: 12px;">No hay chats activos</p>
+                </div>
+            `;
+            return;
+        }
+        
+        chatsList.innerHTML = chats.map(chat => `
+            <div onclick="selectChat('${chat.id}')" style="padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='white'">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <strong>${chat.clientName || chat.phone || 'Cliente'}</strong>
+                    <span style="font-size: 0.75rem; color: #999;">${new Date(chat.lastMessage).toLocaleTimeString()}</span>
+                </div>
+                <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${chat.lastText || 'Sin mensajes'}</p>
+            </div>
+        `).join('');
+    };
+
+    // Seleccionar chat
+    window.selectChat = function(chatId) {
+        console.log('💬 Chat seleccionado:', chatId);
+        const chats = JSON.parse(localStorage.getItem('flor_active_chats') || '[]');
+        const chat = chats.find(c => c.id === chatId);
+        
+        if (!chat) return;
+        
+        const header = document.getElementById('chatHeader');
+        const messages = document.getElementById('chatMessages');
+        const inputContainer = document.getElementById('chatInputContainer');
+        
+        if (header) {
+            header.innerHTML = `<h3 style="margin: 0; font-size: 1.1rem;">${chat.clientName || chat.phone || 'Cliente'}</h3>`;
+        }
+        
+        if (messages && chat.messages) {
+            messages.innerHTML = chat.messages.map(msg => `
+                <div style="margin-bottom: 12px; display: flex; justify-content: ${msg.fromClient ? 'flex-start' : 'flex-end'};">
+                    <div style="max-width: 70%; padding: 10px 14px; border-radius: 12px; background: ${msg.fromClient ? '#e3f2fd' : '#1976d2'}; color: ${msg.fromClient ? '#333' : 'white'};">
+                        ${msg.text}
+                        <div style="font-size: 0.7rem; margin-top: 4px; opacity: 0.7;">${new Date(msg.time).toLocaleTimeString()}</div>
+                    </div>
+                </div>
+            `).join('');
+            messages.scrollTop = messages.scrollHeight;
+        }
+        
+        if (inputContainer) {
+            inputContainer.style.display = 'block';
+            inputContainer.dataset.chatId = chatId;
+        }
+    };
+
+    // Enviar mensaje en chat
+    window.sendChatMessage = function() {
+        const input = document.getElementById('chatMessageInput');
+        const container = document.getElementById('chatInputContainer');
+        
+        if (!input || !input.value.trim()) return;
+        
+        const chatId = container?.dataset.chatId;
+        const message = input.value.trim();
+        
+        console.log('📤 Enviando mensaje a chat:', chatId, message);
+        
+        // Aquí iría la lógica para enviar el mensaje vía WhatsApp API
+        alert('Mensaje enviado: ' + message + '\n\n(Requiere integración con servidor WhatsApp)');
+        
+        input.value = '';
+    };
+
+    // Cargar conocimiento del hotel seleccionado
+    window.loadSelectedHotelKnowledge = function() {
+        const hotelId = document.getElementById('knowledge-hotel-selector')?.value;
+        const container = document.getElementById('hotels-knowledge-list');
+        
+        if (!hotelId || !container) {
+            container.innerHTML = '<p style="color: #666; text-align: center; padding: 40px;">Seleccione un hotel para ver/editar su base de conocimiento</p>';
+            return;
+        }
+        
+        const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+        const hotel = hotels.find(h => h.id === hotelId);
+        const knowledge = JSON.parse(localStorage.getItem('flor_hotel_knowledge') || '{}');
+        const hotelKnowledge = knowledge[hotelId] || {};
+        
+        container.innerHTML = `
+            <div style="background: #f9f9f9; padding: 20px; border-radius: 8px;">
+                <h4 style="margin: 0 0 16px 0;">🏨 ${hotel?.name || 'Hotel'}</h4>
+                <div style="display: grid; gap: 16px;">
+                    <div>
+                        <label style="display: block; font-weight: 500; margin-bottom: 8px;">Descripción General</label>
+                        <textarea id="knowledge-description" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">${hotelKnowledge.description || ''}</textarea>
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: 500; margin-bottom: 8px;">Servicios y Amenidades</label>
+                        <textarea id="knowledge-amenities" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">${hotelKnowledge.amenities || ''}</textarea>
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: 500; margin-bottom: 8px;">Información de Tarifas</label>
+                        <textarea id="knowledge-pricing" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">${hotelKnowledge.pricing || ''}</textarea>
+                    </div>
+                    <button class="form-button" style="background: #4caf50; color: white; width: fit-content;" onclick="saveHotelKnowledge('${hotelId}')">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
+                        Guardar Conocimiento
+                    </button>
+                </div>
+            </div>
+        `;
+    };
+
+    // Guardar conocimiento del hotel
+    window.saveHotelKnowledge = function(hotelId) {
+        const knowledge = JSON.parse(localStorage.getItem('flor_hotel_knowledge') || '{}');
+        knowledge[hotelId] = {
+            description: document.getElementById('knowledge-description')?.value || '',
+            amenities: document.getElementById('knowledge-amenities')?.value || '',
+            pricing: document.getElementById('knowledge-pricing')?.value || ''
+        };
+        localStorage.setItem('flor_hotel_knowledge', JSON.stringify(knowledge));
+        alert('✅ Conocimiento del hotel guardado');
+    };
+
+    // Inicializar cuando se carga la sección
+    const florOriginalShowSection = window.showSection;
+    if (florOriginalShowSection) {
+        window.showSection = function(section, event) {
+            florOriginalShowSection(section, event);
+            
+            if (section === 'flor-config') {
+                loadFlorGeneral();
+                loadHotelsForFlor();
+            }
+            if (section === 'interactions') {
+                loadInteractions();
+            }
+            if (section === 'chats') {
+                loadChats();
+            }
+        };
+    }
+
+    console.log('🤖 Módulo Flor IA / Interacciones / Chats cargado correctamente');
+    </script>
+    <!-- ==================== FIN SCRIPT FLOR IA ==================== -->
     
     <!-- Sistema Flor - Chatbot con aprendizaje (deshabilitado - integrado en WhatsApp server) -->
     <!-- <script src="flor-knowledge-base.js"></script> -->
