@@ -3047,8 +3047,8 @@
                                 </div>
                                 <div style="margin-bottom: 16px;">
                                     <label style="display: block; font-weight: 500; margin-bottom: 8px;">Modelo</label>
-                                    <input type="text" id="ai-model" value="gemini-1.5-flash" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
-                                    <p id="ai-model-help" style="font-size: 0.8rem; color: #666; margin-top: 4px;">Modelos Gemini: gemini-1.5-flash (rápido), gemini-1.5-pro (potente)</p>
+                                    <input type="text" id="ai-model" value="gemini-pro" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+                                    <p id="ai-model-help" style="font-size: 0.8rem; color: #666; margin-top: 4px;">Modelos Gemini: gemini-pro (estable), gemini-1.5-flash-latest, gemini-1.5-pro-latest</p>
                                 </div>
                                 <div style="display: flex; gap: 12px;">
                                     <button class="form-button" style="background: #4caf50; color: white;" onclick="saveAIConfig()">
@@ -19030,7 +19030,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         const modelHelp = document.getElementById('ai-model-help');
         
         const models = {
-            gemini: { default: 'gemini-1.5-flash', help: 'Modelos Gemini: gemini-1.5-flash (rápido), gemini-1.5-pro (potente)' },
+            gemini: { default: 'gemini-pro', help: 'Modelos Gemini: gemini-pro (estable), gemini-1.5-flash-latest, gemini-1.5-pro-latest' },
             openai: { default: 'gpt-4o-mini', help: 'Modelos OpenAI: gpt-4o-mini (económico), gpt-4o (potente), gpt-4-turbo' },
             claude: { default: 'claude-3-haiku-20240307', help: 'Modelos Claude: claude-3-haiku (rápido), claude-3-sonnet, claude-3-opus (potente)' }
         };
@@ -19071,8 +19071,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             const testMessage = 'Responde solo con: OK';
             
             if (provider === 'gemini') {
-                // Google Gemini API
-                const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                // Google Gemini API - usar v1 para modelos 1.5
+                const apiVersion = model.includes('1.5') ? 'v1beta' : 'v1beta';
+                const geminiUrl = `https://generativelanguage.googleapis.com/${apiVersion}/models/${model}:generateContent?key=${apiKey}`;
                 response = await fetch(geminiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
