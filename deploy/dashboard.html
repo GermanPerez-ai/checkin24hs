@@ -3719,6 +3719,21 @@
                             <span id="budgetVarianceSubtitle">Real vs Presupuestado</span>
                         </div>
                     </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #4caf50, #2e7d32);">
+                                <span class="material-icons">attach_money</span>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="totalExpensesUSD" style="color: #2e7d32;">$0</h3>
+                                <p>Acumulado en Dólares (USD)</p>
+                            </div>
+                        </div>
+                        <div class="stat-trend">
+                            <span class="material-icons">currency_exchange</span>
+                            <span id="totalExpensesUSDSubtitle">Tipo de cambio: $1 USD</span>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Controles de Gastos -->
@@ -17454,6 +17469,34 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             const variance = monthlyBudget > 0 ? ((monthlyExpenses - monthlyBudget) / monthlyBudget) * 100 : 0;
             document.getElementById('budgetVariance').textContent = `${variance >= 0 ? '+' : ''}${variance.toFixed(1)}%`;
             document.getElementById('budgetVarianceSubtitle').textContent = `Real: $${monthlyExpenses.toLocaleString('es-ES')} vs Presupuesto: $${monthlyBudget.toLocaleString('es-ES')}`;
+            
+            // Calcular acumulado en dólares (USD)
+            // Los gastos en USD se identifican por currency = 'USD' o se convierten con tipo de cambio
+            const exchangeRate = parseFloat(localStorage.getItem('exchangeRateUSD') || '1050'); // Tipo de cambio ARS/USD
+            
+            // Gastos directamente en USD
+            const expensesInUSD = expenses
+                .filter(e => e.currency === 'USD')
+                .reduce((sum, e) => sum + e.amount, 0);
+            
+            // Gastos en pesos convertidos a USD
+            const expensesInARS = expenses
+                .filter(e => e.currency !== 'USD')
+                .reduce((sum, e) => sum + e.amount, 0);
+            const convertedToUSD = expensesInARS / exchangeRate;
+            
+            // Total acumulado en USD
+            const totalUSD = expensesInUSD + convertedToUSD;
+            
+            const totalExpensesUSDEl = document.getElementById('totalExpensesUSD');
+            const totalExpensesUSDSubtitleEl = document.getElementById('totalExpensesUSDSubtitle');
+            
+            if (totalExpensesUSDEl) {
+                totalExpensesUSDEl.textContent = `$${totalUSD.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD`;
+            }
+            if (totalExpensesUSDSubtitleEl) {
+                totalExpensesUSDSubtitleEl.textContent = `TC: $${exchangeRate.toLocaleString('es-AR')} | USD directo: $${expensesInUSD.toLocaleString('en-US', {maximumFractionDigits: 2})}`;
+            }
         }
 
         // Actualizar gráficos de gastos
