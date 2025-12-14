@@ -14477,14 +14477,18 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 monthlyExpenses[monthKey].total += totalAmount;
                 monthlyExpenses[monthKey].count += 1;
                 
-                // Sumar gasto en USD (si está en USD o convertir)
-                const exchangeRate = parseFloat(localStorage.getItem('exchangeRateUSD') || '1050');
-                if (expense.currency === 'USD') {
-                    monthlyExpenses[monthKey].totalUSD += totalAmount;
-                } else {
-                    // Convertir de ARS a USD
-                    monthlyExpenses[monthKey].totalUSD += totalAmount / exchangeRate;
+                // Sumar gasto en USD usando el tipo de cambio del momento del gasto
+                const expenseExchangeRate = parseFloat(expense.exchangeRate || expense.exchange_rate) || 0;
+                const expenseUSD = parseFloat(expense.usd || expense.usd_amount) || 0;
+                
+                if (expenseUSD > 0) {
+                    // Si ya tiene USD calculado, usarlo directamente
+                    monthlyExpenses[monthKey].totalUSD += expenseUSD;
+                } else if (expenseExchangeRate > 0) {
+                    // Si tiene tipo de cambio, calcular USD
+                    monthlyExpenses[monthKey].totalUSD += totalAmount / expenseExchangeRate;
                 }
+                // Si no tiene tipo de cambio ni USD, no sumar (quedará en 0)
             });
             
             // Calcular rango de meses: 4 anteriores + mes actual + 4 siguientes
@@ -14592,7 +14596,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         <td style="padding: 10px; color: #333; font-weight: 500;">${monthName} ${expense.year}</td>
                         <td style="padding: 10px; text-align: right; color: #666;">${expense.count}</td>
                         <td style="padding: 10px; text-align: right; color: #d32f2f; font-weight: 600;">$${expense.total.toLocaleString('es-AR')}</td>
-                        <td style="padding: 10px; text-align: right; color: #2e7d32; font-weight: 600;">$${totalUSD.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD</td>
+                        <td style="padding: 10px; text-align: right; color: #2e7d32; font-weight: 600;">$${totalUSD.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     </tr>
                 `;
             });
