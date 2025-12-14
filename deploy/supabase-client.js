@@ -912,9 +912,16 @@ class SupabaseClient {
             const adminData = { ...admin };
             adminData.updated_at = new Date().toISOString();
             
+            // Si tiene ID, usar upsert con conflicto en id
+            // Si no tiene ID, intentar por username
+            const conflictColumn = adminData.id ? 'id' : 'username';
+            
             const { data, error } = await this.client
                 .from('dashboard_admins')
-                .upsert([adminData], { onConflict: 'username' })
+                .upsert([adminData], { 
+                    onConflict: conflictColumn,
+                    ignoreDuplicates: false 
+                })
                 .select()
                 .single();
             
