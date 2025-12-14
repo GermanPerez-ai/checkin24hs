@@ -2712,6 +2712,10 @@
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">sync</span>
                         Desde Reservas
                     </button>
+                    <button class="form-button" style="background: #e91e63; color: white;" onclick="removeDuplicateUsers()">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">filter_alt</span>
+                        Quitar Duplicados
+                    </button>
                     <button class="form-button" style="background: #4caf50; color: white;" onclick="showMarketingTools()">
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">campaign</span>
                         Herramientas Marketing
@@ -13758,6 +13762,74 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     console.error('❌ Error al eliminar usuarios:', error);
                     alert('❌ Error al eliminar usuarios');
                 }
+            }
+        }
+
+        // Función para eliminar usuarios duplicados
+        async function removeDuplicateUsers() {
+            try {
+                let users = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+                const originalCount = users.length;
+                
+                if (users.length === 0) {
+                    alert('ℹ️ No hay usuarios para procesar');
+                    return;
+                }
+                
+                // Crear mapa para detectar duplicados por nombre (case insensitive)
+                const uniqueUsers = [];
+                const seenNames = new Set();
+                
+                users.forEach(user => {
+                    const name = (user.name || '').toLowerCase().trim();
+                    if (name && !seenNames.has(name)) {
+                        seenNames.add(name);
+                        uniqueUsers.push(user);
+                    }
+                });
+                
+                const duplicatesRemoved = originalCount - uniqueUsers.length;
+                
+                if (duplicatesRemoved === 0) {
+                    alert('✅ No se encontraron usuarios duplicados');
+                    return;
+                }
+                
+                // Guardar usuarios únicos
+                localStorage.setItem('checkin24hs_users', JSON.stringify(uniqueUsers));
+                
+                // Actualizar en Supabase - eliminar todos y reinsertar únicos
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    console.log('☁️ Actualizando usuarios únicos en Supabase...');
+                    // Primero eliminar todos los usuarios de la tabla
+                    await window.supabaseClient.client.from('users').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+                    
+                    // Insertar usuarios únicos
+                    for (const user of uniqueUsers) {
+                        try {
+                            await window.supabaseClient.client.from('users').insert({
+                                name: user.name,
+                                email: user.email || null,
+                                phone: user.phone || null,
+                                is_active: true,
+                                created_at: user.created_at || new Date().toISOString(),
+                                updated_at: new Date().toISOString(),
+                                tipo_cuenta: 'cliente_reserva'
+                            });
+                        } catch (e) {
+                            // Ignorar errores de inserción
+                        }
+                    }
+                }
+                
+                // Recargar tabla
+                loadUsersData();
+                
+                alert(`✅ Duplicados eliminados:\n- Usuarios originales: ${originalCount}\n- Duplicados removidos: ${duplicatesRemoved}\n- Usuarios únicos: ${uniqueUsers.length}`);
+                
+            } catch (error) {
+                console.error('❌ Error al eliminar duplicados:', error);
+                alert('❌ Error al eliminar duplicados: ' + error.message);
             }
         }
 
