@@ -2069,6 +2069,64 @@
                     </div>
                 </div>
 
+                <!-- Filtros Avanzados de Reservas -->
+                <div class="activity-card" style="margin-bottom: 16px; padding: 16px; background: linear-gradient(135deg, #e3f2fd, #f5f5f5);">
+                    <h4 style="margin: 0 0 12px 0; color: #1976d2;">🔍 Filtros de Búsqueda</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
+                        <div>
+                            <label style="display: block; font-size: 12px; color: #666; margin-bottom: 4px;">Código de Reserva</label>
+                            <input type="text" id="filterReservationCode" placeholder="Ej: 589704504" 
+                                style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;"
+                                onkeyup="applyReservationFilters()">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 12px; color: #666; margin-bottom: 4px;">Nombre Cliente</label>
+                            <input type="text" id="filterClientName" placeholder="Nombre o apellido" 
+                                style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;"
+                                onkeyup="applyReservationFilters()">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 12px; color: #666; margin-bottom: 4px;">Fecha Entrada (desde)</label>
+                            <input type="date" id="filterCheckInFrom" 
+                                style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;"
+                                onchange="applyReservationFilters()">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 12px; color: #666; margin-bottom: 4px;">Fecha Entrada (hasta)</label>
+                            <input type="date" id="filterCheckInTo" 
+                                style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;"
+                                onchange="applyReservationFilters()">
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 12px; color: #666; margin-bottom: 4px;">Estado</label>
+                            <select id="filterStatus" 
+                                style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;"
+                                onchange="applyReservationFilters()">
+                                <option value="">Todos</option>
+                                <option value="CONFIRMADA">Confirmada</option>
+                                <option value="Modificada">Modificada</option>
+                                <option value="CANCELADA">Cancelada</option>
+                                <option value="PENDIENTE">Pendiente</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display: block; font-size: 12px; color: #666; margin-bottom: 4px;">Hotel</label>
+                            <select id="filterHotel" 
+                                style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;"
+                                onchange="applyReservationFilters()">
+                                <option value="">Todos los hoteles</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div style="margin-top: 12px; display: flex; gap: 10px;">
+                        <button type="button" onclick="clearReservationFilters()" 
+                            style="padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                            🗑️ Limpiar Filtros
+                        </button>
+                        <span id="filterResultsCount" style="padding: 8px; color: #666; font-size: 13px;"></span>
+                    </div>
+                </div>
+
                 <!-- Reservations Table -->
                 <div class="activity-card">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -2077,7 +2135,7 @@
                             <input 
                                 type="text" 
                                 id="reservationSearchInput" 
-                                placeholder="Buscar por código, email, nombre, apellido, hotel..." 
+                                placeholder="Búsqueda rápida..." 
                                 style="width: 100%; padding: 10px 40px 10px 15px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: border-color 0.3s;"
                                 onkeyup="filterReservationsByCode(this.value)"
                                 oninput="filterReservationsByCode(this.value)"
@@ -13628,8 +13686,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             console.log(`📋 Encontradas ${reservations.length} reservas`);
             
-            // Guardar todas las reservas en variable global
+            // Guardar todas las reservas en variables globales (para filtros)
             allReservationsData = reservations;
+            allReservationsForFilter = reservations;
+            
+            // Cargar hoteles en el filtro
+            loadHotelsForReservationFilter();
             
             // Si se cargaron datos frescos de Supabase, actualizar las estadísticas
             if (loadedFromSupabase) {
@@ -13639,10 +13701,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 }
             }
             
-            // Ordenar reservas por fecha (más recientes primero)
+            // Ordenar reservas por fecha de check-in (más recientes primero)
             reservations.sort((a, b) => {
-                const dateA = new Date(a.checkIn || a.createdAt || 0);
-                const dateB = new Date(b.checkIn || b.createdAt || 0);
+                const dateA = new Date(a.check_in || a.checkIn || a.createdAt || 0);
+                const dateB = new Date(b.check_in || b.checkIn || b.createdAt || 0);
                 return dateB - dateA; // Más reciente primero
             });
             
@@ -14827,33 +14889,201 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             });
         }
 
+        // Variable global para almacenar todas las reservas (para filtros)
+        let allReservationsForFilter = [];
+        
+        // Función para aplicar filtros avanzados de reservas
+        function applyReservationFilters() {
+            const codeFilter = document.getElementById('filterReservationCode')?.value?.toLowerCase() || '';
+            const nameFilter = document.getElementById('filterClientName')?.value?.toLowerCase() || '';
+            const checkInFrom = document.getElementById('filterCheckInFrom')?.value || '';
+            const checkInTo = document.getElementById('filterCheckInTo')?.value || '';
+            const statusFilter = document.getElementById('filterStatus')?.value || '';
+            const hotelFilter = document.getElementById('filterHotel')?.value || '';
+            
+            let filtered = allReservationsForFilter.filter(r => {
+                // Filtro por código
+                const code = (r.reservation_code || r.reservationCode || '').toLowerCase();
+                if (codeFilter && !code.includes(codeFilter)) return false;
+                
+                // Filtro por nombre
+                const clientName = (r.client_name || r.clientName || '').toLowerCase();
+                if (nameFilter && !clientName.includes(nameFilter)) return false;
+                
+                // Filtro por fecha de entrada (desde)
+                const checkIn = r.check_in || r.checkIn || '';
+                if (checkInFrom && checkIn < checkInFrom) return false;
+                
+                // Filtro por fecha de entrada (hasta)
+                if (checkInTo && checkIn > checkInTo) return false;
+                
+                // Filtro por estado
+                const status = (r.status || '').toUpperCase();
+                if (statusFilter && !status.includes(statusFilter.toUpperCase())) return false;
+                
+                // Filtro por hotel
+                const hotelName = (r.hotel_name || r.hotelName || '').toLowerCase();
+                if (hotelFilter && !hotelName.toLowerCase().includes(hotelFilter.toLowerCase())) return false;
+                
+                return true;
+            });
+            
+            // Actualizar tabla con resultados filtrados
+            renderReservationsTable(filtered);
+            
+            // Mostrar contador de resultados
+            const countSpan = document.getElementById('filterResultsCount');
+            if (countSpan) {
+                countSpan.textContent = `📊 ${filtered.length} de ${allReservationsForFilter.length} reservas`;
+            }
+        }
+        
+        // Función para limpiar filtros
+        function clearReservationFilters() {
+            document.getElementById('filterReservationCode').value = '';
+            document.getElementById('filterClientName').value = '';
+            document.getElementById('filterCheckInFrom').value = '';
+            document.getElementById('filterCheckInTo').value = '';
+            document.getElementById('filterStatus').value = '';
+            document.getElementById('filterHotel').value = '';
+            document.getElementById('reservationSearchInput').value = '';
+            
+            renderReservationsTable(allReservationsForFilter);
+            
+            const countSpan = document.getElementById('filterResultsCount');
+            if (countSpan) {
+                countSpan.textContent = '';
+            }
+        }
+        
+        // Función para cargar hoteles en el filtro
+        function loadHotelsForReservationFilter() {
+            const filterHotel = document.getElementById('filterHotel');
+            if (!filterHotel) return;
+            
+            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            filterHotel.innerHTML = '<option value="">Todos los hoteles</option>';
+            hotels.forEach(hotel => {
+                const option = document.createElement('option');
+                option.value = hotel.name;
+                option.textContent = hotel.name;
+                filterHotel.appendChild(option);
+            });
+        }
+        
+        // Función para renderizar tabla de reservas
+        function renderReservationsTable(reservations) {
+            const tbody = document.getElementById('reservationsTableBody');
+            if (!tbody) return;
+            
+            tbody.innerHTML = '';
+            
+            if (reservations.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px; color: #666;">No se encontraron reservas con los filtros aplicados</td></tr>';
+                return;
+            }
+            
+            reservations.forEach(reservation => {
+                const code = reservation.reservation_code || reservation.reservationCode || '';
+                const clientName = reservation.client_name || reservation.clientName || '';
+                const hotelName = reservation.hotel_name || reservation.hotelName || '';
+                const checkIn = reservation.check_in || reservation.checkIn || '';
+                const checkOut = reservation.check_out || reservation.checkOut || '';
+                const status = reservation.status || '';
+                const total = reservation.total_amount || reservation.totalAmount || 0;
+                const id = reservation.id || '';
+                
+                // Formatear fechas
+                const formatDate = (dateStr) => {
+                    if (!dateStr) return '';
+                    const date = new Date(dateStr);
+                    return date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+                };
+                
+                // Color del estado
+                let statusColor = '#4caf50';
+                let statusBg = '#e8f5e9';
+                if (status.toUpperCase().includes('CANCEL')) {
+                    statusColor = '#f44336';
+                    statusBg = '#ffebee';
+                } else if (status.toUpperCase().includes('MODIF')) {
+                    statusColor = '#ff9800';
+                    statusBg = '#fff3e0';
+                } else if (status.toUpperCase().includes('PEND')) {
+                    statusColor = '#2196f3';
+                    statusBg = '#e3f2fd';
+                }
+                
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td style="padding: 12px; font-family: monospace; font-size: 12px;">${code}</td>
+                    <td style="padding: 12px;">${clientName}</td>
+                    <td style="padding: 12px;">${hotelName}</td>
+                    <td style="padding: 12px; text-align: center;">
+                        <strong>Entrada:</strong> ${formatDate(checkIn)}<br>
+                        <strong>Salida:</strong> ${formatDate(checkOut)}
+                    </td>
+                    <td style="padding: 12px; text-align: center;">
+                        <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; background: ${statusBg}; color: ${statusColor}; font-weight: 500;">
+                            ${status}
+                        </span>
+                    </td>
+                    <td style="padding: 12px; text-align: center; font-weight: 600;">$${total.toLocaleString()}</td>
+                    <td style="padding: 12px; text-align: center;">
+                        <button onclick="viewReservation('${id}')" class="action-btn view" title="Ver">
+                            <span class="material-icons">visibility</span>
+                        </button>
+                        <button onclick="editReservation('${id}')" class="action-btn edit" title="Editar">
+                            <span class="material-icons">edit</span>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
         // Función para exportar reservas a Excel
-        function exportReservations() {
+        async function exportReservations() {
             console.log('📤 Exportando reservas a Excel...');
             
             try {
-                // Obtener reservas del localStorage
-                const reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+                // Intentar obtener reservas de Supabase primero
+                let reservations = [];
+                
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    try {
+                        reservations = await window.supabaseClient.getReservations();
+                        console.log(`✅ ${reservations.length} reservas cargadas de Supabase para exportar`);
+                    } catch (error) {
+                        console.warn('⚠️ Error cargando de Supabase, usando localStorage:', error);
+                        reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+                    }
+                } else {
+                    reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+                }
                 
                 if (reservations.length === 0) {
                     alert('⚠️ No hay reservas para exportar');
                     return;
                 }
                 
-                // Preparar datos para Excel
+                // Preparar datos para Excel (soportar ambos formatos de campos)
                 const excelData = reservations.map(reservation => {
                     return {
-                        'Código': reservation.reservationCode || '',
-                        'Cliente': reservation.clientName || '',
-                        'Email': reservation.clientEmail || '',
-                        'Teléfono': reservation.clientPhone || '',
-                        'Hotel': reservation.hotelName || '',
-                        'Fecha Entrada': reservation.checkIn || '',
-                        'Fecha Salida': reservation.checkOut || '',
-                        'Fecha Registro': reservation.reservationDate || '',
-                        'Agente': reservation.agentName || '',
+                        'Código': reservation.reservation_code || reservation.reservationCode || '',
+                        'Cliente': reservation.client_name || reservation.clientName || '',
+                        'Email': reservation.client_email || reservation.clientEmail || '',
+                        'Teléfono': reservation.client_phone || reservation.clientPhone || '',
+                        'Hotel': reservation.hotel_name || reservation.hotelName || '',
+                        'Fecha Entrada': reservation.check_in || reservation.checkIn || '',
+                        'Fecha Salida': reservation.check_out || reservation.checkOut || '',
+                        'Fecha Registro': reservation.reservation_date || reservation.reservationDate || '',
+                        'Agente': reservation.agent_name || reservation.agentName || '',
                         'Estado': reservation.status || '',
-                        'Total': reservation.totalAmount || 0
+                        'Total': reservation.total_amount || reservation.totalAmount || 0,
+                        'Adultos': reservation.adults || '',
+                        'Niños': reservation.children || '',
+                        'Notas': reservation.notes || ''
                     };
                 });
                 
