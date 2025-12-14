@@ -2118,10 +2118,18 @@
                             </select>
                         </div>
                     </div>
-                    <div style="margin-top: 12px; display: flex; gap: 10px;">
+                    <div style="margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
                         <button type="button" onclick="clearReservationFilters()" 
                             style="padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
                             🗑️ Limpiar Filtros
+                        </button>
+                        <button type="button" onclick="filterTodayReservations()" 
+                            style="padding: 8px 16px; background: #4caf50; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                            📅 Ver Check-in de Hoy
+                        </button>
+                        <button type="button" onclick="filterFutureReservations()" 
+                            style="padding: 8px 16px; background: #2196f3; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;">
+                            🔮 Ver Reservas Futuras
                         </button>
                         <span id="filterResultsCount" style="padding: 8px; color: #666; font-size: 13px;"></span>
                     </div>
@@ -14892,6 +14900,46 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         // Variable global para almacenar todas las reservas (para filtros)
         let allReservationsForFilter = [];
         
+        // Función auxiliar para normalizar fechas a formato comparable (YYYY-MM-DD)
+        function normalizeDate(dateStr) {
+            if (!dateStr) return '';
+            
+            // Si ya es Date object
+            if (dateStr instanceof Date) {
+                return dateStr.toISOString().split('T')[0];
+            }
+            
+            // Si es string, intentar parsear
+            const dateString = String(dateStr).trim();
+            
+            // Formato ISO: 2025-12-14 o 2025-12-14T...
+            if (/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
+                return dateString.substring(0, 10);
+            }
+            
+            // Formato DD/MM/YYYY
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateString)) {
+                const [day, month, year] = dateString.split('/');
+                return `${year}-${month}-${day}`;
+            }
+            
+            // Formato DD-MM-YYYY
+            if (/^\d{2}-\d{2}-\d{4}$/.test(dateString)) {
+                const [day, month, year] = dateString.split('-');
+                return `${year}-${month}-${day}`;
+            }
+            
+            // Intentar parsear con Date
+            try {
+                const date = new Date(dateString);
+                if (!isNaN(date.getTime())) {
+                    return date.toISOString().split('T')[0];
+                }
+            } catch (e) {}
+            
+            return dateString;
+        }
+        
         // Función para aplicar filtros avanzados de reservas
         function applyReservationFilters() {
             const codeFilter = document.getElementById('filterReservationCode')?.value?.toLowerCase() || '';
@@ -14900,6 +14948,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             const checkInTo = document.getElementById('filterCheckInTo')?.value || '';
             const statusFilter = document.getElementById('filterStatus')?.value || '';
             const hotelFilter = document.getElementById('filterHotel')?.value || '';
+            
+            console.log('🔍 Aplicando filtros:', { codeFilter, nameFilter, checkInFrom, checkInTo, statusFilter, hotelFilter });
             
             let filtered = allReservationsForFilter.filter(r => {
                 // Filtro por código
@@ -14910,12 +14960,16 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 const clientName = (r.client_name || r.clientName || '').toLowerCase();
                 if (nameFilter && !clientName.includes(nameFilter)) return false;
                 
-                // Filtro por fecha de entrada (desde)
-                const checkIn = r.check_in || r.checkIn || '';
-                if (checkInFrom && checkIn < checkInFrom) return false;
+                // Filtro por fecha de entrada (desde) - usando normalización
+                const checkInRaw = r.check_in || r.checkIn || '';
+                const checkIn = normalizeDate(checkInRaw);
+                const filterFrom = normalizeDate(checkInFrom);
+                const filterTo = normalizeDate(checkInTo);
+                
+                if (filterFrom && checkIn && checkIn < filterFrom) return false;
                 
                 // Filtro por fecha de entrada (hasta)
-                if (checkInTo && checkIn > checkInTo) return false;
+                if (filterTo && checkIn && checkIn > filterTo) return false;
                 
                 // Filtro por estado
                 const status = (r.status || '').toUpperCase();
@@ -14927,6 +14981,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 
                 return true;
             });
+            
+            console.log(`📊 Filtro aplicado: ${filtered.length} de ${allReservationsForFilter.length} reservas`);
             
             // Actualizar tabla con resultados filtrados
             renderReservationsTable(filtered);
@@ -14953,6 +15009,84 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             const countSpan = document.getElementById('filterResultsCount');
             if (countSpan) {
                 countSpan.textContent = '';
+            }
+        }
+        
+        // Función para filtrar reservas con check-in de hoy
+        function filterTodayReservations() {
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+            
+            console.log(`📅 Filtrando reservas con check-in de hoy: ${todayStr}`);
+            
+            const todayReservations = allReservationsForFilter.filter(r => {
+                const checkInRaw = r.check_in || r.checkIn || '';
+                const checkIn = normalizeDate(checkInRaw);
+                
+                const isToday = checkIn === todayStr;
+                if (isToday) {
+                    console.log(`✅ Check-in hoy: ${r.reservation_code || r.reservationCode} - ${r.client_name || r.clientName} - $${r.total_amount || r.totalAmount}`);
+                }
+                return isToday;
+            });
+            
+            console.log(`📊 Reservas con check-in hoy: ${todayReservations.length}`);
+            
+            // Limpiar otros filtros y establecer fecha de hoy
+            document.getElementById('filterReservationCode').value = '';
+            document.getElementById('filterClientName').value = '';
+            document.getElementById('filterCheckInFrom').value = todayStr;
+            document.getElementById('filterCheckInTo').value = todayStr;
+            document.getElementById('filterStatus').value = '';
+            document.getElementById('filterHotel').value = '';
+            
+            renderReservationsTable(todayReservations);
+            
+            const countSpan = document.getElementById('filterResultsCount');
+            if (countSpan) {
+                countSpan.textContent = `📅 ${todayReservations.length} reserva(s) con check-in hoy (${todayStr})`;
+            }
+            
+            if (todayReservations.length === 0) {
+                alert(`ℹ️ No hay reservas con check-in para hoy (${todayStr})`);
+            }
+        }
+        
+        // Función para filtrar reservas futuras
+        function filterFutureReservations() {
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0]; // YYYY-MM-DD
+            
+            console.log(`🔮 Filtrando reservas futuras desde: ${todayStr}`);
+            
+            const futureReservations = allReservationsForFilter.filter(r => {
+                const checkInRaw = r.check_in || r.checkIn || '';
+                const checkIn = normalizeDate(checkInRaw);
+                return checkIn && checkIn >= todayStr;
+            });
+            
+            // Ordenar por fecha de check-in
+            futureReservations.sort((a, b) => {
+                const dateA = normalizeDate(a.check_in || a.checkIn || '');
+                const dateB = normalizeDate(b.check_in || b.checkIn || '');
+                return dateA.localeCompare(dateB);
+            });
+            
+            console.log(`📊 Reservas futuras: ${futureReservations.length}`);
+            
+            // Limpiar otros filtros
+            document.getElementById('filterReservationCode').value = '';
+            document.getElementById('filterClientName').value = '';
+            document.getElementById('filterCheckInFrom').value = todayStr;
+            document.getElementById('filterCheckInTo').value = '';
+            document.getElementById('filterStatus').value = '';
+            document.getElementById('filterHotel').value = '';
+            
+            renderReservationsTable(futureReservations);
+            
+            const countSpan = document.getElementById('filterResultsCount');
+            if (countSpan) {
+                countSpan.textContent = `🔮 ${futureReservations.length} reserva(s) futuras desde ${todayStr}`;
             }
         }
         
