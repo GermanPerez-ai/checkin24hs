@@ -163,6 +163,52 @@ class SupabaseClient {
         }
     }
 
+    // Upsert hotel (crear o actualizar)
+    async upsertHotel(hotel) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado, guardando en localStorage');
+            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            const existingIndex = hotels.findIndex(h => h.id === hotel.id || h.name === hotel.name);
+            if (existingIndex !== -1) {
+                hotels[existingIndex] = { ...hotels[existingIndex], ...hotel };
+            } else {
+                hotel.id = hotel.id || 'hotel-' + Date.now();
+                hotels.push(hotel);
+            }
+            localStorage.setItem('hotelsDB', JSON.stringify(hotels));
+            return hotel;
+        }
+
+        try {
+            // Preparar datos para upsert
+            const hotelData = { ...hotel };
+            hotelData.updated_at = new Date().toISOString();
+            
+            const { data, error } = await this.client
+                .from('hotels')
+                .upsert([hotelData], { onConflict: 'id' })
+                .select()
+                .single();
+            
+            if (error) throw error;
+            
+            // Sincronizar con localStorage
+            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            const existingIndex = hotels.findIndex(h => h.id === data.id);
+            if (existingIndex !== -1) {
+                hotels[existingIndex] = data;
+            } else {
+                hotels.push(data);
+            }
+            localStorage.setItem('hotelsDB', JSON.stringify(hotels));
+            
+            return data;
+        } catch (error) {
+            console.error('❌ Error en upsert hotel:', error);
+            throw error;
+        }
+    }
+
     async deleteHotel(id) {
         if (!this.isInitialized()) {
             console.warn('⚠️ Supabase no está inicializado, eliminando de localStorage');

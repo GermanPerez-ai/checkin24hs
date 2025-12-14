@@ -3470,6 +3470,10 @@
                             <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">sync</span>
                             Estado de Sincronización
                         </button>
+                        <button class="form-button" style="background: linear-gradient(135deg, #4caf50, #2e7d32); color: white;" onclick="syncAllTablesToSupabase()">
+                            <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">cloud_sync</span>
+                            Sincronizar TODO
+                        </button>
                     </div>
                     <div id="syncStatusIndicator" style="margin-top: 16px; padding: 12px; background: rgba(255,255,255,0.1); border-radius: 8px; display: none;">
                         <span id="syncStatusText"></span>
@@ -16715,7 +16719,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     
                     if (updated) {
                         console.log('🔄 Usuario actualizado con campos faltantes:', existingUser.email || existingUser.phone);
-                    } else {
+            } else {
                         console.log('ℹ️ Usuario ya existe, sin cambios:', existingUser.email || existingUser.phone);
                     }
                     
@@ -16743,7 +16747,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     localStorage.setItem('checkin24hs_users', JSON.stringify(users));
                     console.log('✅ Nuevo usuario creado:', newUser.email || newUser.phone);
                     return newUser;
-                }
+            }
                 
             } catch (error) {
                 console.error('❌ Error al guardar usuario desde reserva:', error);
@@ -17980,20 +17984,20 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     admins = getAdminUsers();
                 }
 
-                if (adminId) {
-                    // Editar
-                    const adminIndex = admins.findIndex(a => a.id === adminId);
-                    if (adminIndex === -1) {
-                        alert('❌ Administrador no encontrado');
-                        return;
-                    }
+            if (adminId) {
+                // Editar
+                const adminIndex = admins.findIndex(a => a.id === adminId);
+                if (adminIndex === -1) {
+                    alert('❌ Administrador no encontrado');
+                    return;
+                }
 
-                    // Verificar que el username no esté en uso por otro admin
-                    const usernameExists = admins.some(a => a.username.toLowerCase() === username.toLowerCase() && a.id !== adminId);
-                    if (usernameExists) {
-                        alert('❌ El nombre de usuario ya está en uso');
-                        return;
-                    }
+                // Verificar que el username no esté en uso por otro admin
+                const usernameExists = admins.some(a => a.username.toLowerCase() === username.toLowerCase() && a.id !== adminId);
+                if (usernameExists) {
+                    alert('❌ El nombre de usuario ya está en uso');
+                    return;
+                }
 
                     const updates = {
                         username: username,
@@ -18003,13 +18007,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         status: status,
                         updated_at: new Date().toISOString()
                     };
-                    
-                    if (password && password.length >= 6) {
+                
+                if (password && password.length >= 6) {
                         updates.password_hash = password;
-                    } else if (password && password.length > 0) {
-                        alert('❌ La contraseña debe tener al menos 6 caracteres');
-                        return;
-                    }
+                } else if (password && password.length > 0) {
+                    alert('❌ La contraseña debe tener al menos 6 caracteres');
+                    return;
+                }
 
                     if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                         console.log('☁️ Actualizando administrador en Supabase...');
@@ -18018,34 +18022,34 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     } else {
                         // Fallback a localStorage
                         admins[adminIndex] = { ...admins[adminIndex], ...updates };
-                        saveAdminUsers(admins);
+                saveAdminUsers(admins);
                     }
                     
-                    alert('✅ Administrador actualizado correctamente');
-                } else {
-                    // Nuevo
-                    if (!password || password.length < 6) {
-                        alert('❌ La contraseña debe tener al menos 6 caracteres');
-                        return;
-                    }
+                alert('✅ Administrador actualizado correctamente');
+            } else {
+                // Nuevo
+                if (!password || password.length < 6) {
+                    alert('❌ La contraseña debe tener al menos 6 caracteres');
+                    return;
+                }
 
-                    // Verificar que el username no esté en uso
-                    const usernameExists = admins.some(a => a.username.toLowerCase() === username.toLowerCase());
-                    if (usernameExists) {
-                        alert('❌ El nombre de usuario ya está en uso');
-                        return;
-                    }
+                // Verificar que el username no esté en uso
+                const usernameExists = admins.some(a => a.username.toLowerCase() === username.toLowerCase());
+                if (usernameExists) {
+                    alert('❌ El nombre de usuario ya está en uso');
+                    return;
+                }
 
-                    const newAdmin = {
-                        username: username,
+                const newAdmin = {
+                    username: username,
                         password_hash: password,
-                        name: name,
-                        email: email,
-                        role: role,
-                        status: status,
+                    name: name,
+                    email: email,
+                    role: role,
+                    status: status,
                         created_at: new Date().toISOString(),
                         last_login: null
-                    };
+                };
 
                     if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                         console.log('☁️ Creando administrador en Supabase...');
@@ -18054,15 +18058,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     } else {
                         // Fallback a localStorage
                         newAdmin.id = 'admin-' + Date.now();
-                        admins.push(newAdmin);
-                        saveAdminUsers(admins);
+                admins.push(newAdmin);
+                saveAdminUsers(admins);
                     }
                     
-                    alert('✅ Administrador creado correctamente');
-                }
+                alert('✅ Administrador creado correctamente');
+            }
 
-                closeAdminModal();
-                loadAdminsTable();
+            closeAdminModal();
+            loadAdminsTable();
                 
             } catch (error) {
                 console.error('❌ Error guardando administrador:', error);
@@ -18154,19 +18158,19 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     console.log('✅ Contraseña actualizada en Supabase');
                 } else {
                     // Fallback a localStorage
-                    const admins = getAdminUsers();
-                    const admin = admins.find(a => a.id === adminId);
-                    if (!admin) {
-                        alert('❌ Administrador no encontrado');
-                        return;
-                    }
-                    admin.password = password;
+            const admins = getAdminUsers();
+            const admin = admins.find(a => a.id === adminId);
+            if (!admin) {
+                alert('❌ Administrador no encontrado');
+                return;
+            }
+            admin.password = password;
                     admin.password_hash = password;
-                    saveAdminUsers(admins);
+            saveAdminUsers(admins);
                 }
 
-                closeResetPasswordModal();
-                alert('✅ Contraseña reseteada correctamente');
+            closeResetPasswordModal();
+            alert('✅ Contraseña reseteada correctamente');
             } catch (error) {
                 console.error('❌ Error al resetear contraseña:', error);
                 alert('Error al resetear contraseña: ' + error.message);
@@ -18413,12 +18417,25 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                     status.push('✅ Supabase: Conectado');
                     
-                    // Verificar datos
+                    // Verificar datos de todas las tablas
                     const hotels = await window.supabaseClient.getHotels();
                     const reservations = await window.supabaseClient.getReservations();
                     const agents = await window.supabaseClient.getAgents();
                     
-                    status.push(`📊 Datos en nube: ${hotels.length} hoteles, ${reservations.length} reservas, ${agents.length} agentes`);
+                    let users = [], quotes = [], expenses = [], admins = [];
+                    try { users = await window.supabaseClient.getUsers() || []; } catch(e) {}
+                    try { quotes = await window.supabaseClient.getQuotes() || []; } catch(e) {}
+                    try { expenses = await window.supabaseClient.getExpenses() || []; } catch(e) {}
+                    try { admins = await window.supabaseClient.getAdmins() || []; } catch(e) {}
+                    
+                    status.push(`<strong>📊 DATOS EN SUPABASE:</strong>`);
+                    status.push(`&nbsp;&nbsp;🏨 Hoteles: ${hotels.length}`);
+                    status.push(`&nbsp;&nbsp;📅 Reservas: ${reservations.length}`);
+                    status.push(`&nbsp;&nbsp;👥 Agentes: ${agents.length}`);
+                    status.push(`&nbsp;&nbsp;👤 Usuarios: ${users.length}`);
+                    status.push(`&nbsp;&nbsp;📋 Cotizaciones: ${quotes.length}`);
+                    status.push(`&nbsp;&nbsp;💰 Gastos: ${expenses.length}`);
+                    status.push(`&nbsp;&nbsp;🔐 Administradores: ${admins.length}`);
                     
                     // Verificar Realtime
                     if (window.supabaseClient.client.realtime) {
@@ -18434,12 +18451,169 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 const localHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
                 const localReservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
                 const localAgents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
-                status.push(`💾 Datos locales: ${localHotels.length} hoteles, ${localReservations.length} reservas, ${localAgents.length} agentes`);
+                const localUsers = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+                const localQuotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
+                const localExpenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+                const localAdmins = JSON.parse(localStorage.getItem('dashboard_admin_users') || '[]');
+                
+                status.push(`<strong>💾 DATOS LOCALES:</strong>`);
+                status.push(`&nbsp;&nbsp;🏨 Hoteles: ${localHotels.length}`);
+                status.push(`&nbsp;&nbsp;📅 Reservas: ${localReservations.length}`);
+                status.push(`&nbsp;&nbsp;👥 Agentes: ${localAgents.length}`);
+                status.push(`&nbsp;&nbsp;👤 Usuarios: ${localUsers.length}`);
+                status.push(`&nbsp;&nbsp;📋 Cotizaciones: ${localQuotes.length}`);
+                status.push(`&nbsp;&nbsp;💰 Gastos: ${localExpenses.length}`);
+                status.push(`&nbsp;&nbsp;🔐 Administradores: ${localAdmins.length}`);
                 
                 statusText.innerHTML = status.join('<br>');
                 
             } catch (error) {
                 statusText.innerHTML = '❌ Error verificando sincronización: ' + error.message;
+            }
+        }
+        
+        // Función para sincronizar TODAS las tablas a Supabase
+        async function syncAllTablesToSupabase() {
+            const indicator = document.getElementById('syncStatusIndicator');
+            const statusText = document.getElementById('syncStatusText');
+            
+            indicator.style.display = 'block';
+            
+            if (!window.supabaseClient || !window.supabaseClient.isInitialized()) {
+                statusText.innerHTML = '❌ Error: Supabase no está conectado';
+                return;
+            }
+            
+            const results = {
+                hotels: { synced: 0, errors: 0 },
+                reservations: { synced: 0, errors: 0 },
+                agents: { synced: 0, errors: 0 },
+                users: { synced: 0, errors: 0 },
+                quotes: { synced: 0, errors: 0 },
+                expenses: { synced: 0, errors: 0 },
+                admins: { synced: 0, errors: 0 }
+            };
+            
+            try {
+                // 1. SINCRONIZAR HOTELES
+                statusText.innerHTML = '🏨 Sincronizando hoteles...';
+                const localHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                for (const hotel of localHotels) {
+                    try {
+                        await window.supabaseClient.upsertHotel(hotel);
+                        results.hotels.synced++;
+                    } catch (e) {
+                        console.error('Error sync hotel:', e);
+                        results.hotels.errors++;
+                    }
+                }
+                
+                // 2. SINCRONIZAR RESERVAS
+                statusText.innerHTML = '📅 Sincronizando reservas...';
+                const localReservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+                for (const reservation of localReservations) {
+                    try {
+                        await window.supabaseClient.createReservation(reservation);
+                        results.reservations.synced++;
+                    } catch (e) {
+                        results.reservations.errors++;
+                    }
+                }
+                
+                // 3. SINCRONIZAR AGENTES
+                statusText.innerHTML = '👥 Sincronizando agentes...';
+                const localAgents = JSON.parse(localStorage.getItem('agentsDB') || '[]');
+                for (const agent of localAgents) {
+                    try {
+                        if (agent.id) {
+                            await window.supabaseClient.updateAgent(agent.id, agent);
+                        } else {
+                            await window.supabaseClient.createAgent(agent);
+                        }
+                        results.agents.synced++;
+                    } catch (e) {
+                        results.agents.errors++;
+                    }
+                }
+                
+                // 4. SINCRONIZAR USUARIOS
+                statusText.innerHTML = '👤 Sincronizando usuarios...';
+                const localUsers = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+                for (const user of localUsers) {
+                    try {
+                        if (typeof window.supabaseClient.upsertUser === 'function') {
+                            await window.supabaseClient.upsertUser(user);
+                        } else if (typeof window.supabaseClient.createUser === 'function') {
+                            await window.supabaseClient.createUser(user);
+                        }
+                        results.users.synced++;
+                    } catch (e) {
+                        results.users.errors++;
+                    }
+                }
+                
+                // 5. SINCRONIZAR COTIZACIONES
+                statusText.innerHTML = '📋 Sincronizando cotizaciones...';
+                const localQuotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
+                for (const quote of localQuotes) {
+                    try {
+                        if (typeof window.supabaseClient.createQuote === 'function') {
+                            await window.supabaseClient.createQuote(quote);
+                        }
+                        results.quotes.synced++;
+                    } catch (e) {
+                        results.quotes.errors++;
+                    }
+                }
+                
+                // 6. SINCRONIZAR GASTOS
+                statusText.innerHTML = '💰 Sincronizando gastos...';
+                const localExpenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+                for (const expense of localExpenses) {
+                    try {
+                        if (typeof window.supabaseClient.createExpense === 'function') {
+                            await window.supabaseClient.createExpense(expense);
+                        }
+                        results.expenses.synced++;
+                    } catch (e) {
+                        results.expenses.errors++;
+                    }
+                }
+                
+                // 7. SINCRONIZAR ADMINISTRADORES
+                statusText.innerHTML = '🔐 Sincronizando administradores...';
+                const localAdmins = JSON.parse(localStorage.getItem('dashboard_admin_users') || '[]');
+                for (const admin of localAdmins) {
+                    try {
+                        if (typeof window.supabaseClient.createAdmin === 'function') {
+                            await window.supabaseClient.createAdmin(admin);
+                        }
+                        results.admins.synced++;
+                    } catch (e) {
+                        results.admins.errors++;
+                    }
+                }
+                
+                // Mostrar resumen
+                let summary = ['<strong>✅ SINCRONIZACIÓN COMPLETADA</strong>', ''];
+                summary.push(`🏨 Hoteles: ${results.hotels.synced} sincronizados${results.hotels.errors > 0 ? `, ${results.hotels.errors} errores` : ''}`);
+                summary.push(`📅 Reservas: ${results.reservations.synced} sincronizadas${results.reservations.errors > 0 ? `, ${results.reservations.errors} errores` : ''}`);
+                summary.push(`👥 Agentes: ${results.agents.synced} sincronizados${results.agents.errors > 0 ? `, ${results.agents.errors} errores` : ''}`);
+                summary.push(`👤 Usuarios: ${results.users.synced} sincronizados${results.users.errors > 0 ? `, ${results.users.errors} errores` : ''}`);
+                summary.push(`📋 Cotizaciones: ${results.quotes.synced} sincronizadas${results.quotes.errors > 0 ? `, ${results.quotes.errors} errores` : ''}`);
+                summary.push(`💰 Gastos: ${results.expenses.synced} sincronizados${results.expenses.errors > 0 ? `, ${results.expenses.errors} errores` : ''}`);
+                summary.push(`🔐 Administradores: ${results.admins.synced} sincronizados${results.admins.errors > 0 ? `, ${results.admins.errors} errores` : ''}`);
+                
+                statusText.innerHTML = summary.join('<br>');
+                
+                // Refrescar datos
+                setTimeout(() => {
+                    loadAdminsTable();
+                }, 1000);
+                
+            } catch (error) {
+                statusText.innerHTML = '❌ Error en sincronización: ' + error.message;
+                console.error('Error sync:', error);
             }
         }
 
