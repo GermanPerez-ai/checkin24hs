@@ -4497,6 +4497,7 @@
                         id: 'admin-001',
                         username: 'admin',
                         password: 'admin123',
+                        password_hash: 'admin123',
                         name: 'Administrador',
                         role: 'admin_total', // admin_total o usuario
                         email: 'admin@checkin24hs.com',
@@ -4506,11 +4507,24 @@
                     },
                     {
                         id: 'admin-002',
-                        username: 'german',
-                        password: 'Checkin24hs2025',
+                        username: 'German',
+                        password: '123456',
+                        password_hash: '123456',
                         name: 'German Perez',
                         role: 'admin_total',
                         email: 'german@checkin24hs.com',
+                        createdAt: new Date().toISOString(),
+                        status: 'active',
+                        lastLogin: null
+                    },
+                    {
+                        id: 'admin-003',
+                        username: 'Axel',
+                        password: '123456',
+                        password_hash: '123456',
+                        name: 'Axel',
+                        role: 'admin_total',
+                        email: 'axel@checkin24hs.com',
                         createdAt: new Date().toISOString(),
                         status: 'active',
                         lastLogin: null
@@ -4652,15 +4666,37 @@
             loginButton.disabled = true;
             loginButton.textContent = 'Iniciando sesión...';
             
-            // Simular delay de autenticación (para mejor UX)
-            setTimeout(() => {
-                // Buscar usuario en localStorage
+            // Autenticación - buscar en localStorage y Supabase
+            setTimeout(async () => {
+                let user = null;
+                
+                // Primero buscar en localStorage
                 const adminUsers = getAdminUsers();
-                const user = adminUsers.find(u => 
+                user = adminUsers.find(u => 
                     u.username.toLowerCase() === username.toLowerCase() && 
                     (u.password === password || u.password_hash === password) &&
                     u.status === 'active'
                 );
+                
+                // Si no se encontró en localStorage, buscar en Supabase
+                if (!user && window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    try {
+                        console.log('🔍 Buscando usuario en Supabase...');
+                        const admins = await window.supabaseClient.getAdmins();
+                        user = admins.find(u => 
+                            u.username.toLowerCase() === username.toLowerCase() && 
+                            (u.password === password || u.password_hash === password) &&
+                            u.status === 'active'
+                        );
+                        if (user) {
+                            console.log('✅ Usuario encontrado en Supabase');
+                            // Sincronizar con localStorage
+                            localStorage.setItem('dashboard_admin_users', JSON.stringify(admins));
+                        }
+                    } catch (error) {
+                        console.error('Error consultando Supabase:', error);
+                    }
+                }
                 
                 if (user) {
                     // Actualizar último login
