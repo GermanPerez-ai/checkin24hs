@@ -432,11 +432,23 @@
     </div>
 
     <!-- Scripts -->
-    <script src="flor-knowledge-base.js"></script>
-    <script src="flor-ai-service.js"></script>
-    <script src="flor-multimodal-service.js"></script>
-    <script src="flor-learning-system.js"></script>
-    <script src="flor-agent.js"></script>
+    <script src="flor-knowledge-base.js?v=3.0.0"></script>
+    <script src="flor-ai-service.js?v=3.0.0"></script>
+    <script src="flor-multimodal-service.js?v=3.0.0"></script>
+    <script src="flor-learning-system.js?v=3.0.0"></script>
+    <script src="flor-agent.js?v=3.0.0"></script>
+    <script>
+        // Limpiar hoteles fantasma automáticamente
+        (function cleanPhantomHotels() {
+            const phantomHotels = ['hotel-termas-chillan', 'hotel-puyehue', 'hotel-corralco', 'hotel-futangue', 'hotel-aguas-calientes'];
+            const hotelsDB = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            const cleanedHotels = hotelsDB.filter(h => !phantomHotels.includes(h.id));
+            if (cleanedHotels.length !== hotelsDB.length) {
+                localStorage.setItem('hotelsDB', JSON.stringify(cleanedHotels));
+                console.log('🧹 Hoteles fantasma eliminados. Quedaron:', cleanedHotels.map(h => h.name));
+            }
+        })();
+    </script>
     <script>
         // Inicializar el chatbot
         const agent = new FlorAgent();

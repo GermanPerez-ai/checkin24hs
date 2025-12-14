@@ -1,6 +1,25 @@
 // Base de Conocimiento para el Agente de Conversación "Flor"
 // Checkin24hs - Agente de Atención al Cliente
 
+// Limpiar hoteles fantasma automáticamente al cargar
+(function cleanPhantomHotels() {
+    const phantomHotelIds = ['hotel-termas-chillan', 'hotel-puyehue', 'hotel-corralco', 'hotel-futangue', 'hotel-aguas-calientes'];
+    const phantomHotelNames = ['Hotel Termas Chillán', 'Hotel Terma de Puyehue', 'Hotel Corralco Resort', 'Hotel Futangue', 'Cabañas Termas de Aguas Calientes'];
+    try {
+        const hotelsDB = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+        const cleanedHotels = hotelsDB.filter(h => 
+            !phantomHotelIds.includes(h.id) && 
+            !phantomHotelNames.includes(h.name)
+        );
+        if (cleanedHotels.length !== hotelsDB.length) {
+            localStorage.setItem('hotelsDB', JSON.stringify(cleanedHotels));
+            console.log('🧹 Hoteles fantasma eliminados automáticamente. Quedaron:', cleanedHotels.map(h => h.name));
+        }
+    } catch (e) {
+        console.error('Error limpiando hoteles fantasma:', e);
+    }
+})();
+
 const FlorKnowledgeBase = {
     // Información del Agente
     agent: {
