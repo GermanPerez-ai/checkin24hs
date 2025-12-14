@@ -16953,9 +16953,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 let users = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
                 console.log(`👥 Usuarios existentes: ${users.length}`);
                 
-                const existingEmails = new Set(users.map(user => 
-                    user.email ? user.email.toLowerCase() : ''
-                ));
+                // Crear set de identificadores existentes (emails y nombres)
+                const existingEmails = new Set();
+                users.forEach(user => {
+                    if (user.email) existingEmails.add(user.email.toLowerCase());
+                    if (user.name) existingEmails.add(user.name.toLowerCase().trim());
+                });
                 
                 let newUsersCount = 0;
                 let updatedUsersCount = 0;
@@ -16977,25 +16980,26 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         phone: clientPhone
                     });
                     
-                    if (!clientEmail) {
-                        console.warn('⚠️ Reserva sin email de cliente:', reservationCode);
-                return;
-            }
-            
-                    const email = clientEmail.toLowerCase();
-                    console.log(`📧 Email procesado: ${email}`);
-            
-                    // Si ya procesamos este email en esta ejecución, solo actualizar actividad
-                    if (processedEmails.has(email)) {
-                        console.log(`🔄 Email ${email} ya procesado, actualizando actividad...`);
-                        updateUserActivity(reservation.clientEmail);
-                return;
-            }
-            
-                    processedEmails.add(email);
-                    console.log(`✅ Email ${email} agregado a procesados`);
+                    // Usar nombre como identificador si no hay email
+                    const identifier = clientEmail ? clientEmail.toLowerCase() : (clientName ? clientName.toLowerCase().trim() : '');
                     
-                    if (!existingEmails.has(email)) {
+                    if (!identifier) {
+                        console.warn('⚠️ Reserva sin email ni nombre:', reservationCode);
+                return;
+            }
+            
+                    console.log(`📧 Identificador procesado: ${identifier}`);
+            
+                    // Si ya procesamos este identificador en esta ejecución, saltar
+                    if (processedEmails.has(identifier)) {
+                        console.log(`🔄 Identificador ${identifier} ya procesado`);
+                return;
+            }
+            
+                    processedEmails.add(identifier);
+                    console.log(`✅ Identificador ${identifier} agregado a procesados`);
+                    
+                    if (!existingEmails.has(identifier)) {
                         console.log(`🆕 Email ${email} no existe, creando nuevo usuario...`);
                         // Calcular nuevo ID
                         let newId = 1;
@@ -17024,14 +17028,18 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         };
                         
                         users.push(newUser);
-                        existingEmails.add(email);
+                        existingEmails.add(identifier);
                         newUsersCount++;
-                        console.log('✅ Nuevo usuario creado desde reserva:', newUser.email, newUser);
+                        console.log('✅ Nuevo usuario creado desde reserva:', newUser.name || newUser.email, newUser);
                         } else {
                         // Actualizar última actividad si el usuario ya existe
-                        const userIndex = users.findIndex(user => 
-                            user.email && user.email.toLowerCase() === email
-                        );
+                        const userIndex = users.findIndex(user => {
+                            if (clientEmail && user.email) {
+                                return user.email.toLowerCase() === identifier;
+                            }
+                            // Si no hay email, buscar por nombre
+                            return user.name && user.name.toLowerCase().trim() === identifier;
+                        });
                         if (userIndex !== -1) {
                             users[userIndex].last_activity = reservation.updatedAt || reservation.updated_at || new Date().toISOString();
                             users[userIndex].updatedAt = new Date().toISOString();
@@ -17057,23 +17065,34 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     console.log('☁️ Sincronizando usuarios a Supabase...');
                     for (const user of users) {
                         try {
-                            // Usar upsert para evitar duplicados
-                            const { error } = await window.supabaseClient.client
-                                .from('users')
-                                .upsert({
-                                    id: typeof user.id === 'number' ? undefined : user.id,
-                                    name: user.name,
-                                    email: user.email,
-                                    phone: user.phone,
-                                    is_active: true,
-                                    created_at: user.created_at || new Date().toISOString(),
-                                    updated_at: new Date().toISOString(),
-                                    last_activity: user.last_activity,
-                                    tipo_cuenta: user.tipoCuenta || 'cliente_reserva'
-                                }, { onConflict: 'email' });
+                            // Usar insert (upsert puede fallar con email vacío)
+                            const userData = {
+                                name: user.name,
+                                email: user.email || null,
+                                phone: user.phone || null,
+                                is_active: true,
+                                created_at: user.created_at || new Date().toISOString(),
+                                updated_at: new Date().toISOString(),
+                                last_activity: user.last_activity,
+                                tipo_cuenta: user.tipoCuenta || 'cliente_reserva'
+                            };
                             
-                            if (error && !error.message.includes('duplicate')) {
-                                console.warn('⚠️ Error sincronizando usuario:', user.email, error);
+                            // Solo hacer upsert si tiene email, sino insert normal
+                            let error;
+                            if (user.email) {
+                                const result = await window.supabaseClient.client
+                                    .from('users')
+                                    .upsert(userData, { onConflict: 'email' });
+                                error = result.error;
+                            } else {
+                                const result = await window.supabaseClient.client
+                                    .from('users')
+                                    .insert(userData);
+                                error = result.error;
+                            }
+                            
+                            if (error && !error.message?.includes('duplicate')) {
+                                console.warn('⚠️ Error sincronizando usuario:', user.name, error);
                             }
                         } catch (e) {
                             console.warn('⚠️ Error sincronizando usuario:', user.email, e);
