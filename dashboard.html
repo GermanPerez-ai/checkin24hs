@@ -2716,6 +2716,10 @@
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">filter_alt</span>
                         Quitar Duplicados
                     </button>
+                    <button class="form-button" style="background: #673ab7; color: white;" onclick="mergeDuplicateUsers()">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">merge</span>
+                        Fusionar Duplicados
+                    </button>
                     <button class="form-button" style="background: #4caf50; color: white;" onclick="showMarketingTools()">
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">campaign</span>
                         Herramientas Marketing
@@ -13830,6 +13834,141 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             } catch (error) {
                 console.error('❌ Error al eliminar duplicados:', error);
                 alert('❌ Error al eliminar duplicados: ' + error.message);
+            }
+        }
+
+        // Función para fusionar usuarios duplicados por email o teléfono
+        async function mergeDuplicateUsers() {
+            try {
+                let users = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+                const originalCount = users.length;
+                
+                if (users.length === 0) {
+                    alert('ℹ️ No hay usuarios para procesar');
+                    return;
+                }
+                
+                // Mapas para detectar duplicados
+                const emailMap = new Map(); // email -> array de usuarios
+                const phoneMap = new Map(); // phone -> array de usuarios
+                
+                // Agrupar usuarios por email y teléfono
+                users.forEach(user => {
+                    const email = (user.email || '').toLowerCase().trim();
+                    const phone = (user.phone || '').replace(/\D/g, ''); // Solo dígitos
+                    
+                    if (email) {
+                        if (!emailMap.has(email)) emailMap.set(email, []);
+                        emailMap.get(email).push(user);
+                    }
+                    
+                    if (phone && phone.length >= 8) { // Solo teléfonos válidos
+                        if (!phoneMap.has(phone)) phoneMap.set(phone, []);
+                        phoneMap.get(phone).push(user);
+                    }
+                });
+                
+                // Función para fusionar dos usuarios
+                const mergeUsers = (user1, user2) => {
+                    return {
+                        id: user1.id,
+                        name: user1.name || user2.name,
+                        email: user1.email || user2.email,
+                        phone: user1.phone || user2.phone,
+                        status: user1.status || user2.status || 'active',
+                        is_active: user1.is_active !== false && user2.is_active !== false,
+                        createdAt: user1.createdAt || user2.createdAt || new Date().toISOString(),
+                        created_at: user1.created_at || user2.created_at || new Date().toISOString(),
+                        last_activity: user1.last_activity > user2.last_activity ? user1.last_activity : user2.last_activity,
+                        rewards_points: Math.max(user1.rewards_points || 0, user2.rewards_points || 0),
+                        tipoCuenta: user1.tipoCuenta || user2.tipoCuenta || 'cliente_reserva',
+                        totalQuotes: (user1.totalQuotes || 0) + (user2.totalQuotes || 0),
+                        birthDay: user1.birthDay || user2.birthDay,
+                        birthMonth: user1.birthMonth || user2.birthMonth
+                    };
+                };
+                
+                // Rastrear usuarios ya fusionados
+                const mergedIds = new Set();
+                const mergedUsers = [];
+                let mergeCount = 0;
+                
+                // Fusionar por email
+                emailMap.forEach((usersWithEmail, email) => {
+                    if (usersWithEmail.length > 1) {
+                        let merged = usersWithEmail[0];
+                        for (let i = 1; i < usersWithEmail.length; i++) {
+                            merged = mergeUsers(merged, usersWithEmail[i]);
+                            mergedIds.add(usersWithEmail[i].id);
+                            mergeCount++;
+                        }
+                        mergedIds.add(usersWithEmail[0].id);
+                        mergedUsers.push(merged);
+                        console.log(`🔗 Fusionados ${usersWithEmail.length} usuarios con email: ${email}`);
+                    }
+                });
+                
+                // Fusionar por teléfono (solo si no fueron fusionados por email)
+                phoneMap.forEach((usersWithPhone, phone) => {
+                    const unfusedUsers = usersWithPhone.filter(u => !mergedIds.has(u.id));
+                    if (unfusedUsers.length > 1) {
+                        let merged = unfusedUsers[0];
+                        for (let i = 1; i < unfusedUsers.length; i++) {
+                            merged = mergeUsers(merged, unfusedUsers[i]);
+                            mergedIds.add(unfusedUsers[i].id);
+                            mergeCount++;
+                        }
+                        mergedIds.add(unfusedUsers[0].id);
+                        mergedUsers.push(merged);
+                        console.log(`🔗 Fusionados ${unfusedUsers.length} usuarios con teléfono: ${phone}`);
+                    }
+                });
+                
+                // Agregar usuarios que no fueron fusionados
+                users.forEach(user => {
+                    if (!mergedIds.has(user.id)) {
+                        mergedUsers.push(user);
+                    }
+                });
+                
+                if (mergeCount === 0) {
+                    alert('✅ No se encontraron usuarios para fusionar\n\nNo hay usuarios con el mismo email o teléfono.');
+                    return;
+                }
+                
+                // Guardar usuarios fusionados
+                localStorage.setItem('checkin24hs_users', JSON.stringify(mergedUsers));
+                
+                // Actualizar en Supabase
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    console.log('☁️ Actualizando usuarios fusionados en Supabase...');
+                    await window.supabaseClient.client.from('users').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+                    
+                    for (const user of mergedUsers) {
+                        try {
+                            await window.supabaseClient.client.from('users').insert({
+                                name: user.name,
+                                email: user.email || null,
+                                phone: user.phone || null,
+                                is_active: true,
+                                created_at: user.created_at || new Date().toISOString(),
+                                updated_at: new Date().toISOString(),
+                                tipo_cuenta: user.tipoCuenta || 'cliente_reserva'
+                            });
+                        } catch (e) {
+                            // Ignorar errores
+                        }
+                    }
+                }
+                
+                // Recargar tabla
+                loadUsersData();
+                
+                alert(`✅ Usuarios fusionados:\n- Usuarios originales: ${originalCount}\n- Fusiones realizadas: ${mergeCount}\n- Usuarios resultantes: ${mergedUsers.length}\n\nLos datos complementarios fueron combinados.`);
+                
+            } catch (error) {
+                console.error('❌ Error al fusionar usuarios:', error);
+                alert('❌ Error al fusionar usuarios: ' + error.message);
             }
         }
 
