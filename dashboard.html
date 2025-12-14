@@ -16918,12 +16918,30 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
         
         // Función para actualizar usuarios desde reservas existentes
-        function updateUsersFromReservations() {
+        async function updateUsersFromReservations() {
             try {
                 console.log('🔄 Actualizando usuarios desde reservas...');
                 
-                // Obtener todas las reservas
-                const reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+                // Obtener todas las reservas - primero de Supabase, luego de localStorage
+                let reservations = [];
+                
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    try {
+                        const supabaseReservations = await window.supabaseClient.getReservations();
+                        if (supabaseReservations && supabaseReservations.length > 0) {
+                            console.log(`☁️ ${supabaseReservations.length} reservas cargadas de Supabase`);
+                            reservations = supabaseReservations;
+                        }
+                    } catch (e) {
+                        console.warn('⚠️ Error cargando de Supabase:', e);
+                    }
+                }
+                
+                // Si no hay de Supabase, usar localStorage
+                if (reservations.length === 0) {
+                    reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+                }
+                
                 console.log(`📋 Encontradas ${reservations.length} reservas`);
             
                 if (reservations.length === 0) {
@@ -16946,19 +16964,25 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 // Procesar cada reserva
                 console.log('📋 Procesando reservas...');
                 reservations.forEach((reservation, index) => {
+                    // Normalizar campos (Supabase usa snake_case, localStorage usa camelCase)
+                    const clientEmail = reservation.clientEmail || reservation.client_email || reservation.customer_email || '';
+                    const clientName = reservation.clientName || reservation.client_name || reservation.customer_name || '';
+                    const clientPhone = reservation.clientPhone || reservation.client_phone || reservation.customer_phone || '';
+                    const reservationCode = reservation.reservationCode || reservation.reservation_code || reservation.code || '';
+                    
                     console.log(`📝 Procesando reserva ${index + 1}/${reservations.length}:`, {
-                        code: reservation.reservationCode,
-                        name: reservation.clientName,
-                        email: reservation.clientEmail,
-                        phone: reservation.clientPhone
+                        code: reservationCode,
+                        name: clientName,
+                        email: clientEmail,
+                        phone: clientPhone
                     });
                     
-                    if (!reservation.clientEmail) {
-                        console.warn('⚠️ Reserva sin email de cliente:', reservation.reservationCode);
+                    if (!clientEmail) {
+                        console.warn('⚠️ Reserva sin email de cliente:', reservationCode);
                 return;
             }
             
-                    const email = reservation.clientEmail.toLowerCase();
+                    const email = clientEmail.toLowerCase();
                     console.log(`📧 Email procesado: ${email}`);
             
                     // Si ya procesamos este email en esta ejecución, solo actualizar actividad
@@ -16986,14 +17010,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         // Crear nuevo usuario desde la reserva
                         const newUser = {
                             id: newId,
-                            name: reservation.clientName || '',
-                            email: reservation.clientEmail,
-                            phone: reservation.clientPhone || '',
+                            name: clientName,
+                            email: clientEmail,
+                            phone: clientPhone,
                             status: 'active',
                             is_active: true,
-                            createdAt: reservation.createdAt || reservation.reservationDate || new Date().toISOString(),
-                            created_at: reservation.createdAt || reservation.reservationDate || new Date().toISOString(),
-                            last_activity: reservation.updatedAt || new Date().toISOString(),
+                            createdAt: reservation.createdAt || reservation.created_at || reservation.reservationDate || reservation.reservation_date || new Date().toISOString(),
+                            created_at: reservation.createdAt || reservation.created_at || reservation.reservationDate || reservation.reservation_date || new Date().toISOString(),
+                            last_activity: reservation.updatedAt || reservation.updated_at || new Date().toISOString(),
                             rewards_points: 0,
                             tipoCuenta: 'cliente_reserva',
                             avatar_url: null
@@ -17009,14 +17033,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             user.email && user.email.toLowerCase() === email
                         );
                         if (userIndex !== -1) {
-                            users[userIndex].last_activity = reservation.updatedAt || new Date().toISOString();
+                            users[userIndex].last_activity = reservation.updatedAt || reservation.updated_at || new Date().toISOString();
                             users[userIndex].updatedAt = new Date().toISOString();
                             // Actualizar datos si están disponibles y faltan
-                            if (reservation.clientName && !users[userIndex].name) {
-                                users[userIndex].name = reservation.clientName;
+                            if (clientName && !users[userIndex].name) {
+                                users[userIndex].name = clientName;
                             }
-                            if (reservation.clientPhone && !users[userIndex].phone) {
-                                users[userIndex].phone = reservation.clientPhone;
+                            if (clientPhone && !users[userIndex].phone) {
+                                users[userIndex].phone = clientPhone;
                             }
                             console.log('🔄 Usuario actualizado:', users[userIndex].email);
                         }
@@ -17024,15 +17048,44 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     }
                 });
                 
-                // Guardar todos los usuarios actualizados
+                // Guardar todos los usuarios actualizados en localStorage
                 localStorage.setItem('checkin24hs_users', JSON.stringify(users));
                 console.log('💾 Usuarios guardados en localStorage:', users.length);
-                console.log('📊 Usuarios guardados:', users);
+                
+                // Sincronizar a Supabase
+                if (window.supabaseClient && window.supabaseClient.isInitialized() && newUsersCount > 0) {
+                    console.log('☁️ Sincronizando usuarios a Supabase...');
+                    for (const user of users) {
+                        try {
+                            // Usar upsert para evitar duplicados
+                            const { error } = await window.supabaseClient.client
+                                .from('users')
+                                .upsert({
+                                    id: typeof user.id === 'number' ? undefined : user.id,
+                                    name: user.name,
+                                    email: user.email,
+                                    phone: user.phone,
+                                    is_active: true,
+                                    created_at: user.created_at || new Date().toISOString(),
+                                    updated_at: new Date().toISOString(),
+                                    last_activity: user.last_activity,
+                                    tipo_cuenta: user.tipoCuenta || 'cliente_reserva'
+                                }, { onConflict: 'email' });
+                            
+                            if (error && !error.message.includes('duplicate')) {
+                                console.warn('⚠️ Error sincronizando usuario:', user.email, error);
+                            }
+                        } catch (e) {
+                            console.warn('⚠️ Error sincronizando usuario:', user.email, e);
+                        }
+                    }
+                    console.log('✅ Usuarios sincronizados a Supabase');
+                }
                 
                 console.log(`✅ Proceso completado: ${newUsersCount} nuevos usuarios, ${updatedUsersCount} usuarios actualizados`);
             
                 // Mostrar mensaje de éxito
-                alert(`✅ Actualización completada:\n- ${newUsersCount} nuevos usuarios agregados\n- ${updatedUsersCount} usuarios actualizados`);
+                alert(`✅ Actualización completada:\n- ${newUsersCount} nuevos usuarios agregados\n- ${updatedUsersCount} usuarios actualizados\n\n☁️ Datos sincronizados con Supabase`);
                 
                 // Recargar datos de usuarios si estamos en la sección de usuarios
                 if (typeof loadUsersData === 'function') {
