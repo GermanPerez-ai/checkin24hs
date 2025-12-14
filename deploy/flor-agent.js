@@ -566,8 +566,8 @@ class FlorAgent {
 
         this.context.currentHotel = mentionedHotel;
         
-        // Verificar si tiene información de Flor IA
-        const florInfo = mentionedHotel.florInfo || {};
+        // Verificar si tiene información de Flor IA (soportar ambos formatos)
+        const florInfo = mentionedHotel.florInfo || mentionedHotel.flor_info || {};
         
         if (florInfo.transport) {
             let response = `📍 **Ubicación de ${mentionedHotel.name}:**\n\n`;
@@ -635,8 +635,8 @@ class FlorAgent {
         // Obtener información completa del hotel desde la base de conocimiento
         const hotelKnowledge = this.knowledgeBase.getHotelKnowledge(mentionedHotel.id);
         
-        // Verificar si tiene información de Flor IA cargada
-        const florInfo = mentionedHotel.florInfo || {};
+        // Verificar si tiene información de Flor IA cargada (soportar ambos formatos)
+        const florInfo = mentionedHotel.florInfo || mentionedHotel.flor_info || {};
         
         // Si tiene información de servicios o excursiones de Flor IA
         if (florInfo.services || florInfo.excursions) {
@@ -746,8 +746,8 @@ class FlorAgent {
 
         this.context.currentHotel = mentionedHotel;
         
-        // Verificar si tiene información de Flor IA
-        const florInfo = mentionedHotel.florInfo || {};
+        // Verificar si tiene información de Flor IA (soportar ambos formatos)
+        const florInfo = mentionedHotel.florInfo || mentionedHotel.flor_info || {};
         
         if (florInfo.prices) {
             let response = `💰 **Tarifas de ${mentionedHotel.name}:**\n\n`;

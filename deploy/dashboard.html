@@ -5629,8 +5629,8 @@ Ej:
                 document.getElementById('editHotelStatus').value = hotel.status || 'Activo';
                 document.getElementById('editHotelImage').value = hotel.mainImage || hotel.images?.[0] || '';
                 
-                // Cargar campos de Flor IA
-                const florInfo = hotel.florInfo || {};
+                // Cargar campos de Flor IA (soportar ambos formatos: camelCase y snake_case)
+                const florInfo = hotel.florInfo || hotel.flor_info || {};
                 document.getElementById('editHotelFlorDescription').value = florInfo.description || '';
                 document.getElementById('editHotelFlorServices').value = florInfo.services || '';
                 document.getElementById('editHotelFlorExcursions').value = florInfo.excursions || '';
@@ -5638,6 +5638,12 @@ Ej:
                 document.getElementById('editHotelFlorPolicies').value = florInfo.policies || '';
                 document.getElementById('editHotelFlorTransport').value = florInfo.transport || '';
                 document.getElementById('editHotelFlorContact').value = florInfo.contact || '';
+                
+                console.log('📋 Datos cargados del hotel:', {
+                    name: hotel.name,
+                    florInfo: florInfo,
+                    hotelId: hotelId
+                });
                 
                 // Configurar el modo de edición
                 const form = document.getElementById('editHotelForm');
@@ -6950,8 +6956,9 @@ Ej:
                 try {
                     const hotels = await window.supabaseClient.getHotels();
                     hotel = hotels.find(h => h.id === hotelId || h.id == hotelId);
+                    console.log('📡 Hotel cargado de Supabase:', hotel?.name);
                 } catch (error) {
-                    console.error('Error cargando hotel:', error);
+                    console.error('Error cargando hotel de Supabase:', error);
                 }
             }
             
@@ -6959,10 +6966,12 @@ Ej:
             if (!hotel) {
                 const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
                 hotel = hotels.find(h => h.id === hotelId || h.id == hotelId);
+                console.log('💾 Hotel cargado de localStorage:', hotel?.name);
             }
             
             if (!hotel) {
                 alert('❌ Hotel no encontrado');
+                console.error('Hotel no encontrado con ID:', hotelId);
                 return;
             }
             
@@ -6973,6 +6982,10 @@ Ej:
             const hotelRating = hotel.rating || hotel.stars || 0;
             const hotelStatus = hotel.status || 'Activo';
             const hotelDescription = hotel.description || '';
+            const hotelWebsite = hotel.website || '';
+            const hotelGoogleMaps = hotel.googleMaps || hotel.google_maps || '';
+            const florInfo = hotel.florInfo || hotel.flor_info || {};
+            const amenities = hotel.amenities || [];
             
             // Crear modal de vista
             const modal = document.createElement('div');
@@ -6985,8 +6998,35 @@ Ej:
                 stars += i < hotelRating ? '⭐' : '☆';
             }
             
+            // Generar sección de amenities
+            let amenitiesHtml = '';
+            if (amenities && amenities.length > 0) {
+                amenitiesHtml = `<p style="margin: 8px 0;"><strong>🏊 Amenities:</strong> ${Array.isArray(amenities) ? amenities.join(', ') : amenities}</p>`;
+            }
+            
+            // Generar sección de Flor IA
+            let florInfoHtml = '';
+            if (florInfo && Object.keys(florInfo).length > 0) {
+                florInfoHtml = `
+                    <div style="margin-top: 15px; padding: 15px; background: linear-gradient(135deg, #e8f5e9, #f3e5f5); border-radius: 10px;">
+                        <h4 style="margin: 0 0 10px 0; color: #7b1fa2;">🤖 Información para Flor IA</h4>
+                        ${florInfo.services ? `<p style="margin: 5px 0; font-size: 0.9rem;"><strong>Servicios:</strong> ${florInfo.services.substring(0, 100)}...</p>` : ''}
+                        ${florInfo.excursions ? `<p style="margin: 5px 0; font-size: 0.9rem;"><strong>Excursiones:</strong> ${florInfo.excursions.substring(0, 100)}...</p>` : ''}
+                        ${florInfo.prices ? `<p style="margin: 5px 0; font-size: 0.9rem;"><strong>Precios:</strong> ${florInfo.prices.substring(0, 100)}...</p>` : ''}
+                        <p style="margin: 5px 0; font-size: 0.8rem; color: #666;">✅ Flor puede responder sobre este hotel</p>
+                    </div>
+                `;
+            } else {
+                florInfoHtml = `
+                    <div style="margin-top: 15px; padding: 15px; background: #fff3e0; border-radius: 10px;">
+                        <h4 style="margin: 0 0 10px 0; color: #e65100;">⚠️ Sin información para Flor IA</h4>
+                        <p style="margin: 5px 0; font-size: 0.9rem;">Edita este hotel para agregar información que Flor pueda usar.</p>
+                    </div>
+                `;
+            }
+            
             modal.innerHTML = `
-                <div class="modal-content" style="background: white; padding: 20px; border-radius: 15px; max-width: 500px; width: 95%; max-height: 85vh; overflow-y: auto; margin: auto;">
+                <div class="modal-content" style="background: white; padding: 20px; border-radius: 15px; max-width: 600px; width: 95%; max-height: 85vh; overflow-y: auto; margin: auto;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                         <h2 style="margin: 0; color: #333;">🏨 ${hotelName}</h2>
                         <button onclick="this.closest('.modal').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
@@ -6994,7 +7034,7 @@ Ej:
                     
                     <div style="margin-bottom: 15px;">
                         <p style="margin: 8px 0;"><strong>📍 Ubicación:</strong> ${hotelLocation}</p>
-                        <p style="margin: 8px 0;"><strong>💰 Precio:</strong> $${hotelPrice} USD</p>
+                        <p style="margin: 8px 0;"><strong>💰 Precio:</strong> ${hotelPrice ? '$' + hotelPrice + ' USD' : 'No especificado'}</p>
                         <p style="margin: 8px 0;"><strong>⭐ Calificación:</strong> ${stars} (${hotelRating}/5)</p>
                         <p style="margin: 8px 0;"><strong>📊 Estado:</strong> 
                             <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; background: ${hotelStatus === 'Activo' ? '#e8f5e9' : '#ffebee'}; color: ${hotelStatus === 'Activo' ? '#2e7d32' : '#c62828'};">
@@ -7002,7 +7042,12 @@ Ej:
                             </span>
                         </p>
                         ${hotelDescription ? `<p style="margin: 8px 0;"><strong>📝 Descripción:</strong> ${hotelDescription}</p>` : ''}
+                        ${amenitiesHtml}
+                        ${hotelWebsite ? `<p style="margin: 8px 0;"><strong>🌐 Web:</strong> <a href="${hotelWebsite}" target="_blank">${hotelWebsite}</a></p>` : ''}
+                        ${hotelGoogleMaps ? `<p style="margin: 8px 0;"><strong>🗺️ Google Maps:</strong> <a href="${hotelGoogleMaps}" target="_blank">Ver ubicación</a></p>` : ''}
                     </div>
+                    
+                    ${florInfoHtml}
                     
                     <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
                         <button onclick="this.closest('.modal').remove(); editHotel('${hotelId}')" style="padding: 10px 20px; background: #2196f3; color: white; border: none; border-radius: 8px; cursor: pointer;">
@@ -10552,9 +10597,11 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         price: parseFloat(String(hotelData.price).replace(/[^0-9.-]/g, '')) || 0,
                         status: hotelData.status || 'Activo',
                         amenities: amenitiesData,
-                        images: imagesArray.length > 0 ? imagesArray : null, // Guardar todas las imágenes en el campo images
+                        images: imagesArray.length > 0 ? imagesArray : null,
                         coordinates: coordinatesData,
-                        google_maps: hotelData.googleMaps || null
+                        google_maps: hotelData.googleMaps || null,
+                        website: hotelData.website || null,
+                        flor_info: hotelData.florInfo || null // Información para Flor IA
                     };
                     
                     console.log('📤 Datos preparados para Supabase (nuevo hotel):', {
@@ -10650,9 +10697,11 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         price: parseFloat(String(hotelData.price).replace(/[^0-9.-]/g, '')) || 0,
                         status: hotelData.status || 'Activo',
                         amenities: amenitiesData,
-                        images: imagesArray.length > 0 ? imagesArray : null, // Guardar todas las imágenes en el campo images
+                        images: imagesArray.length > 0 ? imagesArray : null,
                         coordinates: coordinatesData,
-                        google_maps: hotelData.googleMaps || null
+                        google_maps: hotelData.googleMaps || null,
+                        website: hotelData.website || null,
+                        flor_info: hotelData.florInfo || null // Información para Flor IA
                     };
                     
                     console.log('📤 Datos preparados para Supabase:', {
@@ -10664,8 +10713,35 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                     // Intentar actualizar en Supabase primero
                     if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                         try {
-                            await window.supabaseClient.updateHotel(hotelId, updatesForSupabase);
+                            // Convertir hotelId a número si es necesario (Supabase usa IDs numéricos)
+                            const numericHotelId = isNaN(parseInt(hotelId)) ? hotelId : parseInt(hotelId);
+                            console.log('🔄 Actualizando hotel en Supabase, ID:', numericHotelId, 'Tipo:', typeof numericHotelId);
+                            
+                            await window.supabaseClient.updateHotel(numericHotelId, updatesForSupabase);
                             console.log('✅ Hotel actualizado en Supabase');
+                            
+                            // También actualizar localStorage para que Flor pueda usar los datos
+                            const existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                            const hotelIndex = existingHotels.findIndex(h => h.id == hotelId || h.id === numericHotelId);
+                            if (hotelIndex !== -1) {
+                                existingHotels[hotelIndex] = {
+                                    ...existingHotels[hotelIndex],
+                                    ...hotelData,
+                                    updatedAt: new Date().toISOString()
+                                };
+                                localStorage.setItem('hotelsDB', JSON.stringify(existingHotels));
+                                console.log('✅ localStorage también actualizado');
+                            } else {
+                                // Si no existe en localStorage, agregarlo
+                                existingHotels.push({
+                                    id: numericHotelId,
+                                    ...hotelData,
+                                    updatedAt: new Date().toISOString()
+                                });
+                                localStorage.setItem('hotelsDB', JSON.stringify(existingHotels));
+                                console.log('✅ Hotel agregado a localStorage');
+                            }
+                            
                             alert('✅ Hotel actualizado correctamente (guardado en la nube)');
                         } catch (error) {
                             console.warn('⚠️ Error actualizando en Supabase, actualizando en localStorage:', error);
