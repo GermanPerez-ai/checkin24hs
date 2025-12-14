@@ -177,18 +177,26 @@ Hoteles disponibles:
         // Agregar información de hoteles
         hotels.forEach(hotel => {
             const hotelKnowledge = knowledgeBase.getHotelKnowledge(hotel.id);
+            // Obtener información de Flor IA (soportar ambos formatos)
+            const florInfo = hotel.florInfo || hotel.flor_info || {};
+            
             prompt += `\n--- ${hotel.name} (${hotel.location}) ---\n`;
+            prompt += `Estado: ${hotel.status || 'Activo'}\n`;
+            prompt += `Calificación: ${hotel.rating || 'N/A'}/5\n`;
             
-            if (hotelKnowledge && hotelKnowledge.description) {
-                // Usar TODA la descripción completa
-                prompt += `DESCRIPCIÓN COMPLETA: ${hotelKnowledge.description}\n`;
+            // PRIORIZAR información de Flor IA si existe
+            if (florInfo.description) {
+                prompt += `DESCRIPCIÓN DETALLADA: ${florInfo.description}\n`;
+            } else if (hotelKnowledge && hotelKnowledge.description) {
+                prompt += `DESCRIPCIÓN: ${hotelKnowledge.description}\n`;
+            } else if (hotel.description) {
+                prompt += `DESCRIPCIÓN: ${hotel.description}\n`;
             }
             
-            if (hotelKnowledge && hotelKnowledge.address) {
-                prompt += `DIRECCIÓN: ${hotelKnowledge.address}\n`;
-            }
-            
-            if (hotelKnowledge && hotelKnowledge.servicesDetails) {
+            // Servicios e instalaciones de Flor IA
+            if (florInfo.services) {
+                prompt += `SERVICIOS E INSTALACIONES:\n${florInfo.services}\n`;
+            } else if (hotelKnowledge && hotelKnowledge.servicesDetails) {
                 const services = Object.values(hotelKnowledge.servicesDetails);
                 prompt += `SERVICIOS DISPONIBLES:\n`;
                 services.forEach(service => {
@@ -198,20 +206,57 @@ Hoteles disponibles:
                     if (service.included) prompt += ` [INCLUIDO]`;
                     prompt += `\n`;
                 });
+            } else if (hotel.amenities && hotel.amenities.length > 0) {
+                prompt += `AMENITIES: ${Array.isArray(hotel.amenities) ? hotel.amenities.join(', ') : hotel.amenities}\n`;
+            }
+            
+            // Excursiones y actividades de Flor IA
+            if (florInfo.excursions) {
+                prompt += `EXCURSIONES Y ACTIVIDADES:\n${florInfo.excursions}\n`;
+            }
+            
+            // Información de precios de Flor IA
+            if (florInfo.prices) {
+                prompt += `INFORMACIÓN DE PRECIOS Y TARIFAS:\n${florInfo.prices}\n`;
+            } else if (hotelKnowledge && hotelKnowledge.priceInfo && hotelKnowledge.priceInfo.message) {
+                prompt += `INFORMACIÓN DE PRECIOS: ${hotelKnowledge.priceInfo.message}\n`;
+            } else {
+                prompt += `INFORMACIÓN DE PRECIOS: Las tarifas son dinámicas y varían según fecha. Para una cotización precisa solicítela con: Fecha de Check-in, cantidad de noches y cantidad de personas. Las tarifas enviadas tienen validez de 24 horas.\n`;
+            }
+            
+            // Políticas de Flor IA
+            if (florInfo.policies) {
+                prompt += `POLÍTICAS DEL HOTEL:\n${florInfo.policies}\n`;
+            } else if (hotelKnowledge && hotelKnowledge.policies) {
+                prompt += `POLÍTICAS ESPECÍFICAS: ${JSON.stringify(hotelKnowledge.policies)}\n`;
+            }
+            
+            // Cómo llegar de Flor IA
+            if (florInfo.transport) {
+                prompt += `CÓMO LLEGAR / TRANSPORTE:\n${florInfo.transport}\n`;
+            }
+            
+            // Contacto de Flor IA
+            if (florInfo.contact) {
+                prompt += `CONTACTO: ${florInfo.contact}\n`;
+            }
+            
+            // Sitio web
+            if (hotel.website) {
+                prompt += `SITIO WEB OFICIAL: ${hotel.website}\n`;
+            }
+            
+            // Google Maps
+            if (hotel.googleMaps || hotel.google_maps) {
+                prompt += `GOOGLE MAPS: ${hotel.googleMaps || hotel.google_maps}\n`;
+            }
+            
+            if (hotelKnowledge && hotelKnowledge.address) {
+                prompt += `DIRECCIÓN: ${hotelKnowledge.address}\n`;
             }
             
             if (hotelKnowledge && hotelKnowledge.roomTypes && hotelKnowledge.roomTypes.length > 0) {
                 prompt += `TIPOS DE HABITACIONES: ${hotelKnowledge.roomTypes.join(', ')}\n`;
-            }
-            
-            if (hotelKnowledge && hotelKnowledge.priceInfo && hotelKnowledge.priceInfo.message) {
-                prompt += `INFORMACIÓN DE PRECIOS: ${hotelKnowledge.priceInfo.message}\n`;
-            } else if (hotelKnowledge && hotelKnowledge.priceRange) {
-                prompt += `INFORMACIÓN DE PRECIOS: Las tarifas son dinámicas y varían según fecha. Para una cotización precisa solicítela con: Fecha de Check-in, cantidad de noches y cantidad de personas. Las tarifas enviadas tienen validez de 24 horas.\n`;
-            }
-            
-            if (hotelKnowledge && hotelKnowledge.policies) {
-                prompt += `POLÍTICAS ESPECÍFICAS: ${JSON.stringify(hotelKnowledge.policies)}\n`;
             }
             
             if (hotelKnowledge && hotelKnowledge.additionalInfo) {
