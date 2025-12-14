@@ -492,10 +492,15 @@ class FlorAgent {
             return response;
         }
 
-        // Listar hoteles disponibles con información básica
-        let response = `🏨 **Nuestros Hoteles Disponibles**\n\nTrabajamos con ${hotels.length} hoteles de excelente calidad:\n\n`;
-        hotels.forEach((hotel, index) => {
-            const hotelKnowledge = this.knowledgeBase.getHotelKnowledge(hotel.id);
+        // Listar solo hoteles ACTIVOS
+        const activeHotels = hotels.filter(h => h.status !== 'Inactivo' && h.status !== 'Mantenimiento');
+        
+        if (activeHotels.length === 0) {
+            return "Disculpa, no tenemos hoteles disponibles en este momento. Déjame conectarte con un agente que podrá ayudarte mejor.";
+        }
+        
+        let response = `🏨 **Nuestros Hoteles Disponibles**\n\nTrabajamos con ${activeHotels.length} hotel${activeHotels.length > 1 ? 'es' : ''} de excelente calidad:\n\n`;
+        activeHotels.forEach((hotel, index) => {
             const rating = hotel.rating ? `⭐ ${hotel.rating}/5` : '';
             response += `${index + 1}. **${hotel.name}**\n`;
             response += `   📍 ${hotel.location} ${rating}\n\n`;
@@ -656,33 +661,63 @@ class FlorAgent {
     detectUnregisteredHotel(message, registeredHotels) {
         const messageLower = message.toLowerCase();
         
+        // Obtener solo hoteles activos
+        const activeHotels = registeredHotels.filter(h => h.status !== 'Inactivo' && h.status !== 'Mantenimiento');
+        
         // Lista de palabras que indican que están preguntando por un hotel específico
-        const hotelIndicators = ['hotel', 'resort', 'termas', 'cabañas', 'lodge', 'hostal', 'hostería'];
+        const hotelIndicators = ['hotel', 'resort', 'termas', 'cabañas', 'lodge', 'hostal', 'hostería', 'llao', 'info de', 'información de', 'informacion de', 'sobre el', 'sobre'];
         
-        // Verificar si menciona algún indicador de hotel
+        // Verificar si menciona algún indicador de hotel o nombre específico
         const mentionsHotelType = hotelIndicators.some(indicator => messageLower.includes(indicator));
-        if (!mentionsHotelType) return null;
         
-        // Verificar si el hotel mencionado está en nuestra lista
-        const foundRegistered = this.findHotelInMessage(message, registeredHotels);
-        if (foundRegistered) return null; // Si lo encontramos registrado, no es un hotel no registrado
+        // Verificar si el hotel mencionado está en nuestra lista de hoteles ACTIVOS
+        const foundRegistered = this.findHotelInMessage(message, activeHotels);
+        if (foundRegistered) return null; // Si lo encontramos registrado y activo, no es un hotel no registrado
         
-        // Intentar extraer el nombre del hotel mencionado
-        // Buscar patrones como "hotel [nombre]", "termas [nombre]", etc.
-        for (const indicator of hotelIndicators) {
-            const regex = new RegExp(`${indicator}\\s+([\\w\\s]+?)(?:\\?|\\.|,|$|\\s+(?:de|en|ubicado|donde|precio|costo|información|info))`, 'i');
-            const match = message.match(regex);
-            if (match && match[1]) {
-                const potentialHotelName = match[1].trim();
-                // Verificar que no sea una palabra muy corta o genérica
-                if (potentialHotelName.length > 3 && !['que', 'los', 'las', 'del', 'para'].includes(potentialHotelName.toLowerCase())) {
-                    // Verificar que no coincida con ninguno de nuestros hoteles
-                    const isRegistered = registeredHotels.some(h => 
-                        h.name.toLowerCase().includes(potentialHotelName.toLowerCase()) ||
-                        potentialHotelName.toLowerCase().includes(h.name.toLowerCase().replace('hotel ', ''))
-                    );
-                    if (!isRegistered) {
-                        return `${indicator.charAt(0).toUpperCase() + indicator.slice(1)} ${potentialHotelName}`;
+        // Si menciona algún indicador de hotel pero no encontramos coincidencia, es un hotel no registrado
+        if (mentionsHotelType) {
+            // Intentar extraer el nombre del hotel mencionado
+            // Patrones comunes: "hotel llao llao", "info de corralco", "termas de chillan"
+            const patterns = [
+                /(?:hotel|resort|termas|cabañas|lodge|hostal|hostería)\s+([a-záéíóúñü\s-]+)/i,
+                /(?:info(?:rmación)?|información)\s+(?:de|del|sobre)\s+(?:hotel\s+)?([a-záéíóúñü\s-]+)/i,
+                /(?:sobre|del?)\s+(?:hotel\s+)?([a-záéíóúñü\s-]+?)(?:\?|$)/i,
+                /([a-záéíóúñü]{4,})\s+(?:hotel|resort)/i
+            ];
+            
+            for (const pattern of patterns) {
+                const match = messageLower.match(pattern);
+                if (match && match[1]) {
+                    const potentialHotelName = match[1].trim();
+                    // Verificar que no sea una palabra genérica
+                    const genericWords = ['que', 'los', 'las', 'del', 'para', 'este', 'ese', 'cual', 'cuál', 'tienen', 'trabajan', 'hoteles'];
+                    if (potentialHotelName.length > 2 && !genericWords.includes(potentialHotelName)) {
+                        // Verificar que no coincida con ninguno de nuestros hoteles activos
+                        const isRegistered = activeHotels.some(h => {
+                            const hotelNameLower = h.name.toLowerCase();
+                            return hotelNameLower.includes(potentialHotelName) || 
+                                   potentialHotelName.includes(hotelNameLower.replace('hotel ', '').trim());
+                        });
+                        if (!isRegistered) {
+                            // Capitalizar primera letra
+                            const formattedName = potentialHotelName.split(' ')
+                                .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+                                .join(' ');
+                            return formattedName;
+                        }
+                    }
+                }
+            }
+            
+            // Si menciona "hotel" pero no pudimos extraer el nombre, probablemente es un hotel no registrado
+            if (messageLower.includes('hotel') || messageLower.includes('resort') || messageLower.includes('termas')) {
+                // Extraer palabras después de "hotel/resort/termas"
+                const simpleMatch = messageLower.match(/(?:hotel|resort|termas)\s+(\w+(?:\s+\w+)?)/i);
+                if (simpleMatch && simpleMatch[1]) {
+                    const name = simpleMatch[1].trim();
+                    const isRegistered = activeHotels.some(h => h.name.toLowerCase().includes(name));
+                    if (!isRegistered && name.length > 2) {
+                        return name.charAt(0).toUpperCase() + name.slice(1);
                     }
                 }
             }

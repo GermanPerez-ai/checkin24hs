@@ -9386,8 +9386,9 @@
                 console.log('📋 Hoteles existentes:', existingHotels.map(h => h.name));
             }
             
-            // Forzar la carga de hoteles por defecto si no hay suficientes
-            if (existingHotels.length < 6) {
+            // DESACTIVADO: Ya no agregar hoteles por defecto automáticamente
+            // El usuario debe agregar sus propios hoteles manualmente
+            if (false && existingHotels.length < 6) {
                 console.log(`🆕 Solo hay ${existingHotels.length} hoteles, agregando hoteles por defecto...`);
                 
                 // Limpiar localStorage para asegurar una carga limpia
