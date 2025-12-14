@@ -19830,17 +19830,41 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     </div>
                 </div>
                 
-                <!-- Información Extraída del Sitio Web -->
+                <!-- Acceso Automático a Sitio Web -->
+                <div style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); padding: 20px; border-radius: 12px; border-left: 4px solid #4caf50;">
+                    <h4 style="margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
+                        <span>🤖</span> Acceso Automático al Sitio Web
+                        <span style="font-size: 0.8rem; color: #2e7d32; font-weight: normal;">(Flor buscará información automáticamente)</span>
+                    </h4>
+                    ${hotel.website ? `
+                    <div style="background: white; padding: 16px; border-radius: 8px; border: 1px solid #a5d6a7;">
+                        <p style="margin: 0 0 12px 0; color: #1b5e20;">
+                            ✅ <strong>Sitio web configurado:</strong> <a href="${hotel.website}" target="_blank" style="color: #1976d2;">${hotel.website}</a>
+                        </p>
+                        <p style="margin: 0; font-size: 0.9rem; color: #2e7d32;">
+                            🔄 Cuando un cliente pregunte sobre este hotel, Flor utilizará la información del sitio web oficial para dar respuestas precisas y actualizadas.
+                        </p>
+                    </div>
+                    ` : `
+                    <div style="background: #fff3e0; padding: 16px; border-radius: 8px; border: 1px solid #ffcc80;">
+                        <p style="margin: 0; color: #e65100;">
+                            ⚠️ <strong>Sin sitio web configurado.</strong> Ve a <strong>Hoteles → Editar</strong> y agrega la URL del sitio web del hotel para que Flor pueda buscar información automáticamente.
+                        </p>
+                    </div>
+                    `}
+                </div>
+                
+                <!-- Información Adicional (Opcional) -->
                 <div style="background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%); padding: 20px; border-radius: 12px; border-left: 4px solid #ff9800;">
                     <h4 style="margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
-                        <span>🌐</span> Información del Sitio Web del Hotel
-                        <span style="font-size: 0.8rem; color: #e65100; font-weight: normal;">(Copiar información relevante de la web del hotel)</span>
+                        <span>📝</span> Información Adicional del Sitio Web
+                        <span style="font-size: 0.8rem; color: #e65100; font-weight: normal;">(Opcional - Solo si quieres agregar info específica)</span>
                     </h4>
-                    <p style="font-size: 0.9rem; color: #bf360c; margin-bottom: 16px;">
-                        💡 <strong>Instrucción:</strong> Visita el sitio web del hotel ${hotel.website ? `(<a href="${hotel.website}" target="_blank" style="color: #1976d2;">${hotel.website}</a>)` : ''} y copia aquí la información relevante que Flor debe conocer.
+                    <p style="font-size: 0.85rem; color: #bf360c; margin-bottom: 12px;">
+                        💡 Si hay información específica que Flor no puede encontrar en el sitio web, puedes agregarla aquí manualmente.
                     </p>
                     <div>
-                        <textarea id="knowledge-website-info" rows="6" style="width: 100%; padding: 12px; border: 1px solid #ffcc80; border-radius: 8px; background: white;" placeholder="Copia aquí información relevante del sitio web del hotel:&#10;- Descripción oficial del hotel&#10;- Servicios destacados&#10;- Políticas específicas&#10;- Promociones actuales&#10;- Información de contacto&#10;- Cualquier dato útil para responder consultas...">${extraKnowledge.websiteInfo || ''}</textarea>
+                        <textarea id="knowledge-website-info" rows="4" style="width: 100%; padding: 12px; border: 1px solid #ffcc80; border-radius: 8px; background: white;" placeholder="Información adicional opcional:&#10;- Promociones especiales no publicadas&#10;- Políticas internas&#10;- Datos de contacto directos&#10;- Cualquier información que no esté en la web...">${extraKnowledge.websiteInfo || ''}</textarea>
                     </div>
                 </div>
                 

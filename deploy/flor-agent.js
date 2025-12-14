@@ -444,10 +444,22 @@ class FlorAgent {
             return "Disculpa, no tengo información de hoteles disponible en este momento. Déjame conectarte con un agente que podrá ayudarte mejor.";
         }
 
+        // Verificar si menciona un hotel que NO tenemos registrado
+        const unregisteredHotel = this.detectUnregisteredHotel(message, hotels);
+        if (unregisteredHotel) {
+            return `Por el momento no estamos trabajando con "${unregisteredHotel}", pero esperamos poder incorporarlo a la brevedad. 😊\n\n¿Te gustaría información sobre alguno de nuestros hoteles disponibles?\n\n${hotels.filter(h => h.status !== 'Inactivo').map(h => `• **${h.name}** - ${h.location}`).join('\n')}`;
+        }
+
         // Buscar si menciona un hotel específico (usar la función mejorada)
         const mentionedHotel = this.findHotelInMessage(message, hotels);
 
         if (mentionedHotel) {
+            // Verificar si el hotel está inactivo o en mantenimiento
+            if (mentionedHotel.status === 'Inactivo' || mentionedHotel.status === 'Mantenimiento') {
+                const activeHotels = hotels.filter(h => h.status !== 'Inactivo' && h.status !== 'Mantenimiento');
+                return `El hotel **${mentionedHotel.name}** no está disponible actualmente${mentionedHotel.status === 'Mantenimiento' ? ' (en mantenimiento)' : ''}. 😊\n\n¿Te gustaría información sobre alguno de nuestros hoteles disponibles?\n\n${activeHotels.map(h => `• **${h.name}** - ${h.location}`).join('\n')}`;
+            }
+            
             this.context.currentHotel = mentionedHotel;
             
             // Obtener información completa del hotel desde la base de conocimiento
@@ -638,6 +650,45 @@ class FlorAgent {
         response += priceInfo.message || dynamicPriceMessage;
         
         return response;
+    }
+
+    // Detectar si el usuario menciona un hotel que NO está registrado
+    detectUnregisteredHotel(message, registeredHotels) {
+        const messageLower = message.toLowerCase();
+        
+        // Lista de palabras que indican que están preguntando por un hotel específico
+        const hotelIndicators = ['hotel', 'resort', 'termas', 'cabañas', 'lodge', 'hostal', 'hostería'];
+        
+        // Verificar si menciona algún indicador de hotel
+        const mentionsHotelType = hotelIndicators.some(indicator => messageLower.includes(indicator));
+        if (!mentionsHotelType) return null;
+        
+        // Verificar si el hotel mencionado está en nuestra lista
+        const foundRegistered = this.findHotelInMessage(message, registeredHotels);
+        if (foundRegistered) return null; // Si lo encontramos registrado, no es un hotel no registrado
+        
+        // Intentar extraer el nombre del hotel mencionado
+        // Buscar patrones como "hotel [nombre]", "termas [nombre]", etc.
+        for (const indicator of hotelIndicators) {
+            const regex = new RegExp(`${indicator}\\s+([\\w\\s]+?)(?:\\?|\\.|,|$|\\s+(?:de|en|ubicado|donde|precio|costo|información|info))`, 'i');
+            const match = message.match(regex);
+            if (match && match[1]) {
+                const potentialHotelName = match[1].trim();
+                // Verificar que no sea una palabra muy corta o genérica
+                if (potentialHotelName.length > 3 && !['que', 'los', 'las', 'del', 'para'].includes(potentialHotelName.toLowerCase())) {
+                    // Verificar que no coincida con ninguno de nuestros hoteles
+                    const isRegistered = registeredHotels.some(h => 
+                        h.name.toLowerCase().includes(potentialHotelName.toLowerCase()) ||
+                        potentialHotelName.toLowerCase().includes(h.name.toLowerCase().replace('hotel ', ''))
+                    );
+                    if (!isRegistered) {
+                        return `${indicator.charAt(0).toUpperCase() + indicator.slice(1)} ${potentialHotelName}`;
+                    }
+                }
+            }
+        }
+        
+        return null;
     }
 
     // Buscar hotel mencionado en el mensaje (mejorado para búsqueda parcial)

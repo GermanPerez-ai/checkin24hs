@@ -119,6 +119,17 @@ REGLAS CRÍTICAS PARA RESPONDER:
 3. NUNCA digas "no entendí" si puedes dar información útil sobre hoteles
 4. Si la pregunta es genérica, ofrece la lista de hoteles y pregunta cuál les interesa
 
+🌐 ACCESO A INFORMACIÓN WEB DE HOTELES:
+- Para cada hotel registrado, tienes acceso a su SITIO WEB OFICIAL
+- Cuando te pregunten sobre un hotel registrado, DEBES usar la información de su sitio web oficial para responder
+- Si el hotel tiene URL de sitio web, usa esa información como fuente principal y confiable
+- Responde con información precisa basándote en los datos del sitio web oficial del hotel
+
+⚠️ HOTELES NO REGISTRADOS O INACTIVOS:
+- Si el usuario pregunta por un hotel que NO está en la lista de hoteles registrados → Responde: "Por el momento no estamos trabajando con ese hotel, pero esperamos poder incorporarlo a la brevedad. ¿Te gustaría información sobre alguno de nuestros hoteles disponibles?"
+- Si el hotel está en estado "Inactivo" o "Mantenimiento" → Responde: "Ese hotel no está disponible actualmente. ¿Te gustaría ver nuestros hoteles disponibles?"
+- SOLO proporciona información de hoteles que estén ACTIVOS y REGISTRADOS en el sistema
+
 FORMATO Y PRESENTACIÓN DE TUS RESPUESTAS:
 IMPORTANTE: Debes estructurar tus respuestas de forma visual y atractiva usando Markdown.
 
@@ -212,13 +223,27 @@ Hoteles disponibles:
                 prompt += `\n📌 INFORMACIÓN DEL SITIO WEB OFICIAL DEL HOTEL:\n${hotelKnowledge.websiteInfo}\n`;
             }
             
-            // URL del sitio web
+            // URL del sitio web - IMPORTANTE para búsqueda de información
             if (hotel.website || (hotelKnowledge && hotelKnowledge.website)) {
-                prompt += `🌐 SITIO WEB: ${hotel.website || hotelKnowledge.website}\n`;
+                const websiteUrl = hotel.website || hotelKnowledge.website;
+                prompt += `\n🌐 SITIO WEB OFICIAL: ${websiteUrl}`;
+                prompt += `\n💡 INSTRUCCIÓN: Cuando el usuario pregunte sobre este hotel, usa la información del sitio web oficial (${websiteUrl}) como fuente principal. Si necesitas más detalles, puedes acceder a esa URL para obtener información actualizada.\n`;
             }
+            
+            // Estado del hotel
+            const hotelStatus = hotel.status || 'Activo';
+            prompt += `📊 ESTADO: ${hotelStatus}\n`;
             
             prompt += '\n';
         });
+        
+        // Agregar lista de hoteles registrados para validación
+        prompt += `\n=== LISTA DE HOTELES REGISTRADOS (ACTIVOS) ===\n`;
+        const activeHotels = hotels.filter(h => h.status !== 'Inactivo' && h.status !== 'Mantenimiento');
+        activeHotels.forEach(h => {
+            prompt += `✅ ${h.name} - ${h.location}${h.website ? ' (Web: ' + h.website + ')' : ''}\n`;
+        });
+        prompt += `\n⚠️ IMPORTANTE: Solo proporciona información de los hoteles listados arriba. Si preguntan por otro hotel, indica que no trabajamos con ese hotel actualmente.\n`;
 
         // Agregar políticas (por hotel si existe, sino generales)
         let policies = knowledgeBase.policies; // Políticas generales por defecto
