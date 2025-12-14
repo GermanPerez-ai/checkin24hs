@@ -2921,8 +2921,9 @@
 
                 <!-- General Tab -->
                 <div id="flor-tab-general" class="flor-tab-content active">
-                    <div class="stat-card" style="padding: 24px;">
-                        <h3 style="margin: 0 0 20px 0;">Configuración General</h3>
+                    <!-- Configuración Básica -->
+                    <div class="stat-card" style="padding: 24px; margin-bottom: 24px;">
+                        <h3 style="margin: 0 0 20px 0;">⚙️ Configuración General</h3>
                         <div style="display: grid; gap: 16px; max-width: 600px;">
                             <div>
                                 <label style="display: block; font-weight: 500; margin-bottom: 8px;">Nombre del Agente</label>
@@ -2930,29 +2931,114 @@
                             </div>
                             <div>
                                 <label style="display: block; font-weight: 500; margin-bottom: 8px;">Rol</label>
-                                <input type="text" id="flor-role" value="Asistente Virtual de Reservas" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+                                <input type="text" id="flor-role" value="Agente Multimodal de Conversación" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
                             </div>
                             <div>
                                 <label style="display: block; font-weight: 500; margin-bottom: 8px;">Mensaje de Bienvenida</label>
-                                <textarea id="flor-greeting" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">¡Hola! Soy Flor, tu asistente virtual de Checkin24hs. ¿En qué puedo ayudarte hoy?</textarea>
+                                <textarea id="flor-greeting" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">¡Hola! Soy Flor, tu asistente virtual de Checkin24hs. Puedo ayudarte con texto, audio o imágenes. ¿En qué puedo ayudarte hoy?</textarea>
                             </div>
                             <div>
                                 <label style="display: block; font-weight: 500; margin-bottom: 8px;">Personalidad</label>
                                 <input type="text" id="flor-personality" value="Amable, eficiente y profesional" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
                             </div>
-                            <button class="form-button" style="background: #4caf50; color: white; width: fit-content;" onclick="saveFlorGeneral()">
-                                <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
-                                Guardar Configuración
-                            </button>
                         </div>
+                    </div>
+
+                    <!-- Capacidades Multimodales -->
+                    <div class="stat-card" style="padding: 24px; margin-bottom: 24px;">
+                        <h3 style="margin: 0 0 8px 0;">🖼️ Capacidades Multimodales</h3>
+                        <p style="color: #666; margin-bottom: 20px;">Flor puede procesar texto, audio e imágenes para responder consultas de forma más completa.</p>
+                        
+                        <div style="display: grid; gap: 20px; max-width: 700px;">
+                            <!-- Protocolo de Audio -->
+                            <div style="background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%); padding: 20px; border-radius: 12px; border-left: 4px solid #4caf50;">
+                                <h4 style="margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 1.3rem;">🎤</span> Protocolo de Audio
+                                </h4>
+                                <div style="display: grid; gap: 12px;">
+                                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                        <input type="checkbox" id="audio-enabled" checked style="width: 18px; height: 18px;">
+                                        <span>Habilitar recepción de audios</span>
+                                    </label>
+                                    <div>
+                                        <label style="display: block; font-weight: 500; margin-bottom: 6px; font-size: 0.9rem;">Duración máxima de audio (segundos)</label>
+                                        <input type="number" id="audio-max-duration" value="45" min="10" max="120" style="width: 120px; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+                                        <span style="font-size: 0.85rem; color: #666; margin-left: 8px;">Recomendado: 45 seg</span>
+                                    </div>
+                                    <p style="font-size: 0.85rem; color: #555; margin: 0;">
+                                        📋 <strong>Comportamiento:</strong> El audio se transcribe a texto y se procesa como una consulta normal. Si excede el límite o es de mala calidad, se muestra el mensaje de fallback.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Protocolo de Imágenes (Entrada) -->
+                            <div style="background: linear-gradient(135deg, #e3f2fd 0%, #e8eaf6 100%); padding: 20px; border-radius: 12px; border-left: 4px solid #2196f3;">
+                                <h4 style="margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 1.3rem;">📸</span> Protocolo de Imágenes (Entrada)
+                                </h4>
+                                <div style="display: grid; gap: 12px;">
+                                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                        <input type="checkbox" id="image-input-enabled" checked style="width: 18px; height: 18px;">
+                                        <span>Habilitar análisis de imágenes enviadas por clientes</span>
+                                    </label>
+                                    <p style="font-size: 0.85rem; color: #555; margin: 0;">
+                                        📋 <strong>Uso principal:</strong> Identificación de productos, tipos de habitaciones o problemas. La imagen se compara con la Base de Conocimiento para dar una respuesta relevante.
+                                    </p>
+                                    <div style="background: #fff3e0; padding: 10px; border-radius: 8px; font-size: 0.85rem;">
+                                        🔒 <strong>Seguridad:</strong> Las imágenes de clientes nunca se almacenan. Solo se usan para la respuesta inmediata.
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Protocolo de Envío de Imágenes (Salida) -->
+                            <div style="background: linear-gradient(135deg, #fce4ec 0%, #f3e5f5 100%); padding: 20px; border-radius: 12px; border-left: 4px solid #e91e63;">
+                                <h4 style="margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 1.3rem;">📤</span> Protocolo de Envío de Imágenes (Salida)
+                                </h4>
+                                <div style="display: grid; gap: 12px;">
+                                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                        <input type="checkbox" id="image-output-enabled" checked style="width: 18px; height: 18px;">
+                                        <span>Permitir que Flor envíe imágenes proactivamente</span>
+                                    </label>
+                                    <p style="font-size: 0.85rem; color: #555; margin: 0 0 8px 0;">
+                                        📋 <strong>Condiciones de envío:</strong>
+                                    </p>
+                                    <ul style="margin: 0; padding-left: 20px; font-size: 0.85rem; color: #555;">
+                                        <li><strong>Solicitud visual:</strong> Cliente pregunta por apariencia de hotel/habitación</li>
+                                        <li><strong>Documentación:</strong> Mapas de ubicación, infografías de servicios</li>
+                                    </ul>
+                                    <div style="margin-top: 8px;">
+                                        <label style="display: block; font-weight: 500; margin-bottom: 6px; font-size: 0.9rem;">Endpoint de imágenes (API)</label>
+                                        <input type="text" id="image-api-endpoint" value="/api/hoteles/imagen/{nombre_hotel}" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-family: monospace; font-size: 0.9rem;">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Botón Guardar -->
+                    <div class="stat-card" style="padding: 24px;">
+                        <button class="form-button" style="background: #4caf50; color: white; width: fit-content;" onclick="saveFlorGeneral()">
+                            <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
+                            Guardar Configuración General
+                        </button>
                     </div>
                 </div>
 
                 <!-- Knowledge Tab -->
                 <div id="flor-tab-knowledge" class="flor-tab-content" style="display: none;">
-                    <div class="stat-card" style="padding: 24px;">
-                        <h3 style="margin: 0 0 20px 0;">Base de Conocimiento por Hotel</h3>
-                        <p style="color: #666; margin-bottom: 20px;">Configure la información específica para cada hotel. Flor usará esta información para responder consultas.</p>
+                    <!-- Info Banner -->
+                    <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 16px 20px; border-radius: 12px; margin-bottom: 24px; display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 1.5rem;">💡</span>
+                        <div>
+                            <strong>Base de Conocimiento Multimodal</strong>
+                            <p style="margin: 4px 0 0 0; font-size: 0.9rem; color: #1565c0;">Flor usará esta información para responder consultas de texto, interpretar imágenes de hoteles y enviar fotos cuando sea necesario.</p>
+                        </div>
+                    </div>
+
+                    <!-- Selector de Hotel -->
+                    <div class="stat-card" style="padding: 24px; margin-bottom: 24px;">
+                        <h3 style="margin: 0 0 20px 0;">📚 Base de Conocimiento por Hotel</h3>
                         <div style="margin-bottom: 24px;">
                             <label style="font-weight: 500; margin-bottom: 8px; display: block;">🏨 Seleccionar Hotel:</label>
                             <select id="knowledge-hotel-selector" style="width: 100%; max-width: 400px; padding: 12px; border: 1px solid #ddd; border-radius: 8px;" onchange="loadSelectedHotelKnowledge()">
@@ -2963,13 +3049,64 @@
                             <p style="color: #666; text-align: center; padding: 40px;">Seleccione un hotel para ver/editar su base de conocimiento</p>
                         </div>
                     </div>
+
+                    <!-- Gestión de Imágenes por Hotel -->
+                    <div class="stat-card" style="padding: 24px;">
+                        <h3 style="margin: 0 0 8px 0;">🖼️ Gestión de Imágenes por Hotel</h3>
+                        <p style="color: #666; margin-bottom: 20px;">Configure las imágenes que Flor puede enviar cuando el cliente solicite información visual.</p>
+                        
+                        <div id="hotel-images-manager" style="display: none; max-width: 700px;">
+                            <div style="margin-bottom: 20px;">
+                                <label style="display: block; font-weight: 500; margin-bottom: 8px;">🏨 Hotel seleccionado:</label>
+                                <p id="selected-hotel-for-images" style="font-size: 1.1rem; color: #1976d2; margin: 0;">Ninguno</p>
+                            </div>
+
+                            <!-- Tipos de Imágenes -->
+                            <div style="display: grid; gap: 16px;">
+                                <div style="background: #f5f5f5; padding: 16px; border-radius: 10px;">
+                                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">📷 Imagen Principal del Hotel</label>
+                                    <input type="text" id="hotel-image-main" placeholder="URL de la imagen principal (ej: /images/hotel-puyehue-main.jpg)" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+                                    <p style="font-size: 0.8rem; color: #666; margin: 6px 0 0 0;">Se envía cuando preguntan "¿cómo se ve el hotel?"</p>
+                                </div>
+
+                                <div style="background: #f5f5f5; padding: 16px; border-radius: 10px;">
+                                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">🛏️ Imagen de Habitación</label>
+                                    <input type="text" id="hotel-image-room" placeholder="URL de imagen de habitación típica" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+                                    <p style="font-size: 0.8rem; color: #666; margin: 6px 0 0 0;">Se envía cuando preguntan por habitaciones</p>
+                                </div>
+
+                                <div style="background: #f5f5f5; padding: 16px; border-radius: 10px;">
+                                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">🗺️ Mapa de Ubicación</label>
+                                    <input type="text" id="hotel-image-map" placeholder="URL del mapa o infografía de ubicación" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+                                    <p style="font-size: 0.8rem; color: #666; margin: 6px 0 0 0;">Se envía cuando preguntan "¿dónde queda?" o "¿cómo llego?"</p>
+                                </div>
+
+                                <div style="background: #f5f5f5; padding: 16px; border-radius: 10px;">
+                                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">🎯 Infografía de Servicios</label>
+                                    <input type="text" id="hotel-image-services" placeholder="URL de infografía de servicios" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
+                                    <p style="font-size: 0.8rem; color: #666; margin: 6px 0 0 0;">Se envía cuando preguntan por servicios o amenidades</p>
+                                </div>
+                            </div>
+
+                            <button class="form-button" style="background: #4caf50; color: white; margin-top: 20px;" onclick="saveHotelImages()">
+                                <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
+                                Guardar Imágenes del Hotel
+                            </button>
+                        </div>
+
+                        <div id="hotel-images-placeholder" style="text-align: center; padding: 40px; color: #666;">
+                            <span style="font-size: 3rem; opacity: 0.5;">🖼️</span>
+                            <p style="margin-top: 12px;">Seleccione un hotel arriba para gestionar sus imágenes</p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Responses Tab -->
                 <div id="flor-tab-responses" class="flor-tab-content" style="display: none;">
-                    <div class="stat-card" style="padding: 24px;">
-                        <h3 style="margin: 0 0 20px 0;">Respuestas Predefinidas</h3>
-                        <div style="display: grid; gap: 16px; max-width: 600px;">
+                    <!-- Respuestas Generales -->
+                    <div class="stat-card" style="padding: 24px; margin-bottom: 24px;">
+                        <h3 style="margin: 0 0 20px 0;">💬 Respuestas Generales</h3>
+                        <div style="display: grid; gap: 16px; max-width: 700px;">
                             <div>
                                 <label style="display: block; font-weight: 500; margin-bottom: 8px;">Cuando no entiende</label>
                                 <textarea id="response-no-entendido" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">Lo siento, no he podido entender tu consulta. ¿Podrías reformularla o prefieres que te conecte con un agente humano?</textarea>
@@ -2982,25 +3119,93 @@
                                 <label style="display: block; font-weight: 500; margin-bottom: 8px;">Despedida</label>
                                 <textarea id="response-despedida" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">¡Gracias por contactarnos! Si tienes más preguntas, estaré aquí para ayudarte. ¡Hasta pronto!</textarea>
                             </div>
-                            <button class="form-button" style="background: #4caf50; color: white; width: fit-content;" onclick="saveFlorResponses()">
-                                <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
-                                Guardar Respuestas
-                            </button>
                         </div>
+                    </div>
+
+                    <!-- Respuestas Multimodales -->
+                    <div class="stat-card" style="padding: 24px; margin-bottom: 24px;">
+                        <h3 style="margin: 0 0 8px 0;">🖼️ Respuestas Multimodales</h3>
+                        <p style="color: #666; margin-bottom: 20px;">Mensajes que Flor usará cuando reciba audio o imágenes con problemas.</p>
+                        
+                        <div style="display: grid; gap: 20px; max-width: 700px;">
+                            <!-- Fallback de Audio -->
+                            <div style="background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%); padding: 20px; border-radius: 12px;">
+                                <h4 style="margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
+                                    <span>🎤</span> Fallback de Audio
+                                </h4>
+                                <div style="display: grid; gap: 12px;">
+                                    <div>
+                                        <label style="display: block; font-weight: 500; margin-bottom: 6px; font-size: 0.9rem;">Audio muy largo o de mala calidad</label>
+                                        <textarea id="response-audio-fallback" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">Disculpa, el audio no fue del todo claro. Para atenderte con la rapidez que mereces, ¿podrías enviarme tu consulta por escrito, o prefieres que te conecte con un agente ahora mismo?</textarea>
+                                    </div>
+                                    <div>
+                                        <label style="display: block; font-weight: 500; margin-bottom: 6px; font-size: 0.9rem;">Audio procesándose</label>
+                                        <textarea id="response-audio-processing" rows="2" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">Un momento, estoy escuchando tu mensaje de voz... 🎧</textarea>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Fallback de Imágenes -->
+                            <div style="background: linear-gradient(135deg, #e3f2fd 0%, #e8eaf6 100%); padding: 20px; border-radius: 12px;">
+                                <h4 style="margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
+                                    <span>📸</span> Fallback de Imágenes
+                                </h4>
+                                <div style="display: grid; gap: 12px;">
+                                    <div>
+                                        <label style="display: block; font-weight: 500; margin-bottom: 6px; font-size: 0.9rem;">Imagen no reconocida</label>
+                                        <textarea id="response-image-fallback" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">No pude identificar claramente la imagen. ¿Podrías describirme qué estás buscando o enviar otra foto con mejor iluminación?</textarea>
+                                    </div>
+                                    <div>
+                                        <label style="display: block; font-weight: 500; margin-bottom: 6px; font-size: 0.9rem;">Imagen procesándose</label>
+                                        <textarea id="response-image-processing" rows="2" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">Un momento, estoy analizando la imagen... 🔍</textarea>
+                                    </div>
+                                    <div>
+                                        <label style="display: block; font-weight: 500; margin-bottom: 6px; font-size: 0.9rem;">Imagen de hotel identificada</label>
+                                        <textarea id="response-image-hotel-found" rows="2" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">¡Reconozco esa imagen! Se trata de {nombre_hotel}. Te cuento más sobre este hotel:</textarea>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Respuestas de Envío de Imágenes -->
+                            <div style="background: linear-gradient(135deg, #fce4ec 0%, #f3e5f5 100%); padding: 20px; border-radius: 12px;">
+                                <h4 style="margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
+                                    <span>📤</span> Envío de Imágenes
+                                </h4>
+                                <div style="display: grid; gap: 12px;">
+                                    <div>
+                                        <label style="display: block; font-weight: 500; margin-bottom: 6px; font-size: 0.9rem;">Antes de enviar imagen de hotel</label>
+                                        <textarea id="response-image-sending" rows="2" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">Aquí te muestro una foto de {nombre_hotel}:</textarea>
+                                    </div>
+                                    <div>
+                                        <label style="display: block; font-weight: 500; margin-bottom: 6px; font-size: 0.9rem;">Imagen no disponible</label>
+                                        <textarea id="response-image-not-available" rows="2" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">Lo siento, no tengo imágenes disponibles de este hotel en este momento. ¿Te gustaría que te conecte con un agente que pueda mostrarte fotos?</textarea>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Botón Guardar -->
+                    <div class="stat-card" style="padding: 24px;">
+                        <button class="form-button" style="background: #4caf50; color: white; width: fit-content;" onclick="saveFlorResponses()">
+                            <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
+                            Guardar Todas las Respuestas
+                        </button>
                     </div>
                 </div>
 
                 <!-- Policies Tab -->
                 <div id="flor-tab-policies" class="flor-tab-content" style="display: none;">
-                    <div class="stat-card" style="padding: 24px;">
-                        <h3 style="margin: 0 0 20px 0;">Políticas por Hotel</h3>
+                    <!-- Políticas por Hotel -->
+                    <div class="stat-card" style="padding: 24px; margin-bottom: 24px;">
+                        <h3 style="margin: 0 0 20px 0;">🏨 Políticas por Hotel</h3>
                         <div style="margin-bottom: 24px;">
-                            <label style="font-weight: 500; margin-bottom: 8px; display: block;">🏨 Seleccionar Hotel:</label>
+                            <label style="font-weight: 500; margin-bottom: 8px; display: block;">Seleccionar Hotel:</label>
                             <select id="policy-hotel-select" style="width: 100%; max-width: 400px; padding: 12px; border: 1px solid #ddd; border-radius: 8px;" onchange="loadHotelPolicies()">
                                 <option value="">-- Seleccione un hotel --</option>
                             </select>
                         </div>
-                        <div id="hotel-policies-form" style="display: none; max-width: 600px;">
+                        <div id="hotel-policies-form" style="display: none; max-width: 700px;">
                             <div style="margin-bottom: 20px;">
                                 <label style="display: block; font-weight: 500; margin-bottom: 8px;">Condiciones para la Reserva</label>
                                 <textarea id="policy-condiciones-reserva" rows="5" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;" placeholder="Ej: Se requiere un depósito del 30% para confirmar..."></textarea>
@@ -3011,8 +3216,88 @@
                             </div>
                             <button class="form-button" style="background: #4caf50; color: white;" onclick="saveFlorPolicies()">
                                 <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
-                                Guardar Políticas
+                                Guardar Políticas del Hotel
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- Políticas de Privacidad Multimedia -->
+                    <div class="stat-card" style="padding: 24px; margin-bottom: 24px;">
+                        <h3 style="margin: 0 0 8px 0;">🔒 Políticas de Privacidad Multimedia</h3>
+                        <p style="color: #666; margin-bottom: 20px;">Reglas de seguridad para el manejo de archivos multimedia de clientes.</p>
+                        
+                        <div style="display: grid; gap: 20px; max-width: 700px;">
+                            <!-- Política de Imágenes -->
+                            <div style="background: linear-gradient(135deg, #ffebee 0%, #fce4ec 100%); padding: 20px; border-radius: 12px; border-left: 4px solid #f44336;">
+                                <h4 style="margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
+                                    <span>📸</span> Política de Imágenes de Clientes
+                                </h4>
+                                <div style="display: grid; gap: 12px;">
+                                    <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
+                                        <input type="checkbox" id="policy-no-store-images" checked disabled style="width: 18px; height: 18px; margin-top: 2px;">
+                                        <div>
+                                            <span style="font-weight: 500;">No almacenar imágenes de clientes</span>
+                                            <p style="font-size: 0.85rem; color: #666; margin: 4px 0 0 0;">Las imágenes enviadas por clientes (personas, documentos) solo se usan para la respuesta inmediata y nunca se guardan.</p>
+                                        </div>
+                                    </label>
+                                    <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
+                                        <input type="checkbox" id="policy-no-share-images" checked disabled style="width: 18px; height: 18px; margin-top: 2px;">
+                                        <div>
+                                            <span style="font-weight: 500;">No compartir imágenes con terceros</span>
+                                            <p style="font-size: 0.85rem; color: #666; margin: 4px 0 0 0;">Las imágenes de clientes nunca se comparten con servicios externos excepto para su análisis inmediato.</p>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Política de Audio -->
+                            <div style="background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%); padding: 20px; border-radius: 12px; border-left: 4px solid #4caf50;">
+                                <h4 style="margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
+                                    <span>🎤</span> Política de Audios de Clientes
+                                </h4>
+                                <div style="display: grid; gap: 12px;">
+                                    <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
+                                        <input type="checkbox" id="policy-no-store-audio" checked disabled style="width: 18px; height: 18px; margin-top: 2px;">
+                                        <div>
+                                            <span style="font-weight: 500;">No almacenar grabaciones de voz</span>
+                                            <p style="font-size: 0.85rem; color: #666; margin: 4px 0 0 0;">Los audios se transcriben a texto y se eliminan inmediatamente. Solo se guarda la transcripción para la conversación.</p>
+                                        </div>
+                                    </label>
+                                    <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer;">
+                                        <input type="checkbox" id="policy-audio-privacy" checked disabled style="width: 18px; height: 18px; margin-top: 2px;">
+                                        <div>
+                                            <span style="font-weight: 500;">Transcripción privada</span>
+                                            <p style="font-size: 0.85rem; color: #666; margin: 4px 0 0 0;">La transcripción de audio se procesa de forma segura y no se usa para entrenamiento de modelos.</p>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Reglas de Envío de Imágenes -->
+                            <div style="background: linear-gradient(135deg, #e3f2fd 0%, #e8eaf6 100%); padding: 20px; border-radius: 12px; border-left: 4px solid #2196f3;">
+                                <h4 style="margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
+                                    <span>📤</span> Reglas de Envío de Imágenes
+                                </h4>
+                                <p style="font-size: 0.9rem; color: #555; margin-bottom: 12px;">
+                                    Flor solo enviará imágenes bajo estas condiciones:
+                                </p>
+                                <ul style="margin: 0; padding-left: 20px; font-size: 0.9rem; color: #555;">
+                                    <li style="margin-bottom: 8px;"><strong>Solicitud explícita:</strong> El cliente pregunta por la apariencia de un hotel o habitación</li>
+                                    <li style="margin-bottom: 8px;"><strong>Documentación estándar:</strong> Mapas de ubicación, infografías de servicios pre-aprobadas</li>
+                                    <li><strong>Contenido funcional:</strong> Las imágenes deben ser útiles, no decorativas</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Mensaje de Conformidad -->
+                    <div class="stat-card" style="padding: 24px; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="font-size: 2rem;">✅</span>
+                            <div>
+                                <h4 style="margin: 0 0 4px 0;">Políticas de Privacidad Activas</h4>
+                                <p style="margin: 0; color: #2e7d32; font-size: 0.9rem;">Las políticas de seguridad multimedia están habilitadas y no pueden ser desactivadas para proteger la privacidad de los clientes.</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -18945,38 +19230,122 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         });
     }
 
-    // Guardar configuración general de Flor
+    // Guardar configuración general de Flor (incluye multimodal)
     window.saveFlorGeneral = function() {
         const config = {
+            // Configuración básica
             name: document.getElementById('flor-name')?.value || 'Flor',
-            role: document.getElementById('flor-role')?.value || 'Asistente Virtual',
+            role: document.getElementById('flor-role')?.value || 'Agente Multimodal de Conversación',
             greeting: document.getElementById('flor-greeting')?.value || '',
-            personality: document.getElementById('flor-personality')?.value || ''
+            personality: document.getElementById('flor-personality')?.value || '',
+            // Configuración multimodal
+            multimodal: {
+                audio: {
+                    enabled: document.getElementById('audio-enabled')?.checked ?? true,
+                    maxDuration: parseInt(document.getElementById('audio-max-duration')?.value) || 45
+                },
+                imageInput: {
+                    enabled: document.getElementById('image-input-enabled')?.checked ?? true
+                },
+                imageOutput: {
+                    enabled: document.getElementById('image-output-enabled')?.checked ?? true,
+                    apiEndpoint: document.getElementById('image-api-endpoint')?.value || '/api/hoteles/imagen/{nombre_hotel}'
+                }
+            }
         };
         localStorage.setItem('flor_general_config', JSON.stringify(config));
-        alert('✅ Configuración general guardada');
+        
+        // También actualizar el servicio multimodal si existe
+        if (typeof florMultimodalService !== 'undefined') {
+            florMultimodalService.config.audio.enabled = config.multimodal.audio.enabled;
+            florMultimodalService.config.audio.maxDuration = config.multimodal.audio.maxDuration;
+            florMultimodalService.config.image.enabled = config.multimodal.imageInput.enabled;
+        }
+        
+        alert('✅ Configuración general y multimodal guardada');
         console.log('💾 Configuración Flor guardada:', config);
     };
 
-    // Cargar configuración general
+    // Cargar configuración general (incluye multimodal)
     function loadFlorGeneral() {
         const config = JSON.parse(localStorage.getItem('flor_general_config') || '{}');
+        
+        // Configuración básica
         if (config.name) document.getElementById('flor-name').value = config.name;
         if (config.role) document.getElementById('flor-role').value = config.role;
         if (config.greeting) document.getElementById('flor-greeting').value = config.greeting;
         if (config.personality) document.getElementById('flor-personality').value = config.personality;
+        
+        // Configuración multimodal
+        if (config.multimodal) {
+            const audioEnabled = document.getElementById('audio-enabled');
+            const audioMaxDuration = document.getElementById('audio-max-duration');
+            const imageInputEnabled = document.getElementById('image-input-enabled');
+            const imageOutputEnabled = document.getElementById('image-output-enabled');
+            const imageApiEndpoint = document.getElementById('image-api-endpoint');
+            
+            if (audioEnabled) audioEnabled.checked = config.multimodal.audio?.enabled ?? true;
+            if (audioMaxDuration) audioMaxDuration.value = config.multimodal.audio?.maxDuration || 45;
+            if (imageInputEnabled) imageInputEnabled.checked = config.multimodal.imageInput?.enabled ?? true;
+            if (imageOutputEnabled) imageOutputEnabled.checked = config.multimodal.imageOutput?.enabled ?? true;
+            if (imageApiEndpoint) imageApiEndpoint.value = config.multimodal.imageOutput?.apiEndpoint || '/api/hoteles/imagen/{nombre_hotel}';
+        }
     }
 
-    // Guardar respuestas predefinidas
+    // Guardar respuestas predefinidas (incluye multimodales)
     window.saveFlorResponses = function() {
         const responses = {
+            // Respuestas generales
             noEntendido: document.getElementById('response-no-entendido')?.value || '',
             transferir: document.getElementById('response-transferir')?.value || '',
-            despedida: document.getElementById('response-despedida')?.value || ''
+            despedida: document.getElementById('response-despedida')?.value || '',
+            // Respuestas multimodales - Audio
+            audioFallback: document.getElementById('response-audio-fallback')?.value || 'Disculpa, el audio no fue del todo claro. Para atenderte con la rapidez que mereces, ¿podrías enviarme tu consulta por escrito, o prefieres que te conecte con un agente ahora mismo?',
+            audioProcessing: document.getElementById('response-audio-processing')?.value || 'Un momento, estoy escuchando tu mensaje de voz... 🎧',
+            // Respuestas multimodales - Imágenes entrada
+            imageFallback: document.getElementById('response-image-fallback')?.value || 'No pude identificar claramente la imagen. ¿Podrías describirme qué estás buscando o enviar otra foto con mejor iluminación?',
+            imageProcessing: document.getElementById('response-image-processing')?.value || 'Un momento, estoy analizando la imagen... 🔍',
+            imageHotelFound: document.getElementById('response-image-hotel-found')?.value || '¡Reconozco esa imagen! Se trata de {nombre_hotel}. Te cuento más sobre este hotel:',
+            // Respuestas multimodales - Imágenes salida
+            imageSending: document.getElementById('response-image-sending')?.value || 'Aquí te muestro una foto de {nombre_hotel}:',
+            imageNotAvailable: document.getElementById('response-image-not-available')?.value || 'Lo siento, no tengo imágenes disponibles de este hotel en este momento. ¿Te gustaría que te conecte con un agente que pueda mostrarte fotos?'
         };
         localStorage.setItem('flor_responses', JSON.stringify(responses));
-        alert('✅ Respuestas guardadas');
+        
+        // Actualizar servicio multimodal si existe
+        if (typeof florMultimodalService !== 'undefined') {
+            florMultimodalService.config.audio.fallbackMessage = responses.audioFallback;
+            florMultimodalService.config.audio.processingMessage = responses.audioProcessing;
+            florMultimodalService.config.image.fallbackMessage = responses.imageFallback;
+            florMultimodalService.config.image.processingMessage = responses.imageProcessing;
+        }
+        
+        alert('✅ Respuestas guardadas (generales y multimodales)');
+        console.log('💾 Respuestas Flor guardadas:', responses);
     };
+    
+    // Cargar respuestas predefinidas
+    function loadFlorResponses() {
+        const responses = JSON.parse(localStorage.getItem('flor_responses') || '{}');
+        
+        // Generales
+        if (responses.noEntendido) document.getElementById('response-no-entendido').value = responses.noEntendido;
+        if (responses.transferir) document.getElementById('response-transferir').value = responses.transferir;
+        if (responses.despedida) document.getElementById('response-despedida').value = responses.despedida;
+        
+        // Multimodales - Audio
+        if (responses.audioFallback) document.getElementById('response-audio-fallback').value = responses.audioFallback;
+        if (responses.audioProcessing) document.getElementById('response-audio-processing').value = responses.audioProcessing;
+        
+        // Multimodales - Imágenes entrada
+        if (responses.imageFallback) document.getElementById('response-image-fallback').value = responses.imageFallback;
+        if (responses.imageProcessing) document.getElementById('response-image-processing').value = responses.imageProcessing;
+        if (responses.imageHotelFound) document.getElementById('response-image-hotel-found').value = responses.imageHotelFound;
+        
+        // Multimodales - Imágenes salida
+        if (responses.imageSending) document.getElementById('response-image-sending').value = responses.imageSending;
+        if (responses.imageNotAvailable) document.getElementById('response-image-not-available').value = responses.imageNotAvailable;
+    }
 
     // Guardar políticas de hotel
     window.saveFlorPolicies = function() {
@@ -19393,9 +19762,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     window.loadSelectedHotelKnowledge = function() {
         const hotelId = document.getElementById('knowledge-hotel-selector')?.value;
         const container = document.getElementById('hotels-knowledge-list');
+        const imagesManager = document.getElementById('hotel-images-manager');
+        const imagesPlaceholder = document.getElementById('hotel-images-placeholder');
+        const selectedHotelLabel = document.getElementById('selected-hotel-for-images');
         
         if (!hotelId || !container) {
             container.innerHTML = '<p style="color: #666; text-align: center; padding: 40px;">Seleccione un hotel para ver/editar su base de conocimiento</p>';
+            if (imagesManager) imagesManager.style.display = 'none';
+            if (imagesPlaceholder) imagesPlaceholder.style.display = 'block';
             return;
         }
         
@@ -19404,6 +19778,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         const knowledge = JSON.parse(localStorage.getItem('flor_hotel_knowledge') || '{}');
         const hotelKnowledge = knowledge[hotelId] || {};
         
+        // Cargar base de conocimiento
         container.innerHTML = `
             <div style="background: #f9f9f9; padding: 20px; border-radius: 8px;">
                 <h4 style="margin: 0 0 16px 0;">🏨 ${hotel?.name || 'Hotel'}</h4>
@@ -19427,6 +19802,49 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 </div>
             </div>
         `;
+        
+        // Mostrar y cargar gestor de imágenes
+        if (imagesManager) imagesManager.style.display = 'block';
+        if (imagesPlaceholder) imagesPlaceholder.style.display = 'none';
+        if (selectedHotelLabel) selectedHotelLabel.textContent = hotel?.name || 'Hotel';
+        
+        // Cargar imágenes del hotel
+        const hotelImages = JSON.parse(localStorage.getItem('flor_hotel_images') || '{}');
+        const images = hotelImages[hotelId] || {};
+        
+        const imageMainEl = document.getElementById('hotel-image-main');
+        const imageRoomEl = document.getElementById('hotel-image-room');
+        const imageMapEl = document.getElementById('hotel-image-map');
+        const imageServicesEl = document.getElementById('hotel-image-services');
+        
+        if (imageMainEl) imageMainEl.value = images.main || '';
+        if (imageRoomEl) imageRoomEl.value = images.room || '';
+        if (imageMapEl) imageMapEl.value = images.map || '';
+        if (imageServicesEl) imageServicesEl.value = images.services || '';
+        
+        // Guardar ID del hotel seleccionado para la función saveHotelImages
+        window.currentHotelIdForImages = hotelId;
+    };
+    
+    // Guardar imágenes del hotel
+    window.saveHotelImages = function() {
+        const hotelId = window.currentHotelIdForImages;
+        if (!hotelId) {
+            alert('⚠️ Selecciona un hotel primero');
+            return;
+        }
+        
+        const hotelImages = JSON.parse(localStorage.getItem('flor_hotel_images') || '{}');
+        hotelImages[hotelId] = {
+            main: document.getElementById('hotel-image-main')?.value || '',
+            room: document.getElementById('hotel-image-room')?.value || '',
+            map: document.getElementById('hotel-image-map')?.value || '',
+            services: document.getElementById('hotel-image-services')?.value || ''
+        };
+        localStorage.setItem('flor_hotel_images', JSON.stringify(hotelImages));
+        
+        alert('✅ Imágenes del hotel guardadas');
+        console.log('🖼️ Imágenes guardadas para hotel:', hotelId, hotelImages[hotelId]);
     };
 
     // Guardar conocimiento del hotel
@@ -19449,6 +19867,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             if (section === 'flor-config') {
                 loadFlorGeneral();
+                loadFlorResponses();
                 loadHotelsForFlor();
             }
             if (section === 'interactions') {
