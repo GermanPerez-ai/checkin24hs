@@ -17747,8 +17747,24 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Exportar gastos
-        function exportExpenses() {
-            const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+        async function exportExpenses() {
+            let expenses = [];
+            
+            // Intentar obtener de Supabase primero
+            try {
+                if (window.supabaseClient && typeof window.supabaseClient.getExpenses === 'function') {
+                    expenses = await window.supabaseClient.getExpenses();
+                    console.log('📊 Gastos obtenidos de Supabase:', expenses.length);
+                }
+            } catch (error) {
+                console.error('Error obteniendo gastos de Supabase:', error);
+            }
+            
+            // Fallback a localStorage
+            if (!expenses || expenses.length === 0) {
+                expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+                console.log('📊 Gastos obtenidos de localStorage:', expenses.length);
+            }
             
             if (expenses.length === 0) {
                 alert('❌ No hay gastos para exportar');
@@ -17758,7 +17774,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             let csv = 'Fecha,Tipo,Categoría,Subcategoría,Descripción,Monto,Tipo de Cambio,USD\n';
             expenses.forEach(expense => {
                 const categoryName = expenseCategories[expense.category] || expense.category;
-                csv += `"${expense.date}","${expense.type === 'fixed' ? 'Fijo' : 'Variable'}","${categoryName}","${expense.subcategory || ''}","${expense.description}","${expense.amount}","${expense.exchangeRate || ''}","${expense.usd || ''}"\n`;
+                const exchangeRate = expense.exchangeRate || expense.exchange_rate || '';
+                const usdAmount = expense.usd || expense.usd_amount || '';
+                csv += `"${expense.date}","${expense.type === 'fixed' ? 'Fijo' : 'Variable'}","${categoryName}","${expense.subcategory || ''}","${expense.description}","${expense.amount}","${exchangeRate}","${usdAmount}"\n`;
             });
             
             const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -17771,7 +17789,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             link.click();
             document.body.removeChild(link);
             
-            alert('✅ Gastos exportados correctamente');
+            alert('✅ Gastos exportados correctamente (' + expenses.length + ' registros)');
         }
 
         // Actualizar gastos
