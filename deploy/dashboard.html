@@ -14468,13 +14468,23 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         year: year,
                         month: month,
                         total: 0,
+                        totalUSD: 0,
                         count: 0
                     };
                 }
                 
-                // Sumar gasto
+                // Sumar gasto en pesos
                 monthlyExpenses[monthKey].total += totalAmount;
                 monthlyExpenses[monthKey].count += 1;
+                
+                // Sumar gasto en USD (si está en USD o convertir)
+                const exchangeRate = parseFloat(localStorage.getItem('exchangeRateUSD') || '1050');
+                if (expense.currency === 'USD') {
+                    monthlyExpenses[monthKey].totalUSD += totalAmount;
+                } else {
+                    // Convertir de ARS a USD
+                    monthlyExpenses[monthKey].totalUSD += totalAmount / exchangeRate;
+                }
             });
             
             // Calcular rango de meses: 4 anteriores + mes actual + 4 siguientes
@@ -14539,6 +14549,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         year: monthInfo.year,
                         month: monthInfo.month,
                         total: 0,
+                        totalUSD: 0,
                         count: 0
                     };
                 }
@@ -14566,7 +14577,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             <tr style="background-color: #f5f5f5; border-bottom: 2px solid #ddd;">
                                 <th style="padding: 10px; text-align: left; font-weight: 600; color: #333;">Mes/Año</th>
                                 <th style="padding: 10px; text-align: right; font-weight: 600; color: #333;">Gastos</th>
-                                <th style="padding: 10px; text-align: right; font-weight: 600; color: #333;">Total</th>
+                                <th style="padding: 10px; text-align: right; font-weight: 600; color: #333;">Total ARS</th>
+                                <th style="padding: 10px; text-align: right; font-weight: 600; color: #2e7d32;">Total USD</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -14574,11 +14586,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             finalExpensesArray.forEach(expense => {
                 const monthName = monthNames[expense.month - 1];
+                const totalUSD = expense.totalUSD || 0;
                 html += `
                     <tr style="border-bottom: 1px solid #eee;">
                         <td style="padding: 10px; color: #333; font-weight: 500;">${monthName} ${expense.year}</td>
                         <td style="padding: 10px; text-align: right; color: #666;">${expense.count}</td>
                         <td style="padding: 10px; text-align: right; color: #d32f2f; font-weight: 600;">$${expense.total.toLocaleString('es-AR')}</td>
+                        <td style="padding: 10px; text-align: right; color: #2e7d32; font-weight: 600;">$${totalUSD.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} USD</td>
                     </tr>
                 `;
             });
