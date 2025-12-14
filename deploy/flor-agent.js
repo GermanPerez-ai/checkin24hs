@@ -310,10 +310,35 @@ class FlorAgent {
     // Detectar intención del mensaje
     detectIntent(message) {
         const intents = this.knowledgeBase.intents;
+        const messageLower = message.toLowerCase();
         
         // Primero verificar si menciona un hotel (priorizar consultas específicas sobre saludos genéricos)
         const hotels = this.knowledgeBase.getHotelsFromDB();
         const mentionsHotel = this.findHotelInMessage(message, hotels);
+        
+        // Si hay un hotel en contexto, las preguntas de seguimiento se refieren a ese hotel
+        const hasHotelContext = this.context.currentHotel !== null;
+        
+        // Palabras que indican pregunta de seguimiento sobre el hotel actual
+        const followUpWords = ['tiene', 'tienen', 'hay', 'ofrece', 'ofrecen', 'incluye', 'cuenta con',
+                               'excursiones', 'excursion', 'actividades', 'actividad', 'paseos', 'tours', 
+                               'spa', 'piscina', 'restaurant', 'bar', 'wifi', 'estacionamiento', 'mascotas',
+                               'que servicios', 'qué servicios', 'mas info', 'más info', 'más información',
+                               'si quiero', 'sí quiero', 'cuéntame', 'cuentame', 'dime más', 'dime mas'];
+        const isFollowUp = hasHotelContext && followUpWords.some(w => messageLower.includes(w));
+        
+        // Si es pregunta de seguimiento sobre hotel en contexto
+        if (isFollowUp) {
+            console.log('[Flor] Pregunta de seguimiento detectada, hotel en contexto:', this.context.currentHotel.name);
+            if (this.matchesIntent(message, intents.precios) || messageLower.includes('precio') || messageLower.includes('cuesta') || messageLower.includes('tarifa')) {
+                return 'precios';
+            }
+            if (this.matchesIntent(message, intents.ubicacion) || messageLower.includes('ubicacion') || messageLower.includes('donde') || messageLower.includes('llegar')) {
+                return 'ubicacion';
+            }
+            // Por defecto, preguntas de seguimiento son sobre servicios
+            return 'servicios';
+        }
         
         // Detectar preguntas sobre lista de hoteles (alta prioridad)
         const hotelListKeywords = ['qué hoteles', 'que hoteles', 'cuáles hoteles', 'cuales hoteles', 
@@ -328,7 +353,7 @@ class FlorAgent {
         }
         
         // Si menciona un hotel o tiene palabras clave de consulta, priorizar consultas específicas
-        if (mentionsHotel || this.hasConsultationKeywords(message)) {
+        if (mentionsHotel || this.hasConsultationKeywords(message) || hasHotelContext) {
             if (this.matchesIntent(message, intents.reservar)) return 'reservar';
             if (this.matchesIntent(message, intents.consulta_hotel) || mentionsHotel) return 'consulta_hotel';
             if (this.matchesIntent(message, intents.ubicacion)) return 'ubicacion';
@@ -563,7 +588,19 @@ class FlorAgent {
     // Manejar consultas sobre servicios
     handleServicesQuery(message) {
         const hotels = this.knowledgeBase.getHotelsFromDB();
-        const mentionedHotel = this.findHotelInMessage(message, hotels);
+        let mentionedHotel = this.findHotelInMessage(message, hotels);
+
+        // Si no menciona hotel pero tenemos uno en contexto, usar ese
+        if (!mentionedHotel && this.context.currentHotel) {
+            mentionedHotel = this.context.currentHotel;
+            console.log('[Flor] Usando hotel del contexto:', mentionedHotel.name);
+        }
+        
+        // Si solo hay un hotel, usar ese
+        if (!mentionedHotel && hotels.length === 1) {
+            mentionedHotel = hotels[0];
+            console.log('[Flor] Usando único hotel disponible:', mentionedHotel.name);
+        }
 
         if (!mentionedHotel) {
             return "¿Sobre qué hotel te gustaría conocer los servicios? Puedo darte información detallada de cualquier hotel.";
@@ -576,9 +613,26 @@ class FlorAgent {
         
         // Verificar si tiene información específica de servicios
         if (!hotelKnowledge || !hotelKnowledge.servicesDetails || Object.keys(hotelKnowledge.servicesDetails).length === 0) {
-            // No tiene información específica, derivar a humano
-            this.shouldEscalate = true;
-            return `No tengo información detallada de servicios configurada para ${mentionedHotel.name}. Déjame conectarte con un agente humano que podrá darte información completa y precisa sobre los servicios disponibles.`;
+            // Si el hotel tiene servicios básicos en su registro, mostrarlos
+            if (mentionedHotel.services && mentionedHotel.services.length > 0) {
+                let response = `🏨 **Servicios de ${mentionedHotel.name}:**\n\n`;
+                response += mentionedHotel.services.map(s => `✅ ${s}`).join('\n');
+                response += `\n\n📍 Ubicación: ${mentionedHotel.location}`;
+                if (mentionedHotel.website) {
+                    response += `\n🌐 Más info en: ${mentionedHotel.website}`;
+                }
+                response += `\n\n¿Te gustaría hacer una reserva o necesitas más detalles? Puedo conectarte con un agente especializado.`;
+                return response;
+            }
+            
+            // No tiene información de servicios, dar respuesta general
+            let response = `El **${mentionedHotel.name}** está ubicado en ${mentionedHotel.location}.\n\n`;
+            response += `⭐ Calificación: ${mentionedHotel.rating || 'N/A'}/5\n\n`;
+            if (mentionedHotel.website) {
+                response += `🌐 Puedes ver todos los servicios en su web: ${mentionedHotel.website}\n\n`;
+            }
+            response += `Para información detallada sobre servicios y excursiones, puedo conectarte con un agente especializado. ¿Te parece bien?`;
+            return response;
         }
 
         // Tiene información específica, construir respuesta detallada
