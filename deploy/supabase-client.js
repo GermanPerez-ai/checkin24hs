@@ -896,24 +896,32 @@ class SupabaseClient {
     async createAdmin(admin) {
         if (!this.isInitialized()) {
             const admins = JSON.parse(localStorage.getItem('dashboard_admin_users') || '[]');
-            admin.id = admin.id || 'admin-' + Date.now();
-            admins.push(admin);
+            const existingIndex = admins.findIndex(a => a.id === admin.id || a.username === admin.username);
+            if (existingIndex !== -1) {
+                admins[existingIndex] = { ...admins[existingIndex], ...admin };
+            } else {
+                admin.id = admin.id || 'admin-' + Date.now();
+                admins.push(admin);
+            }
             localStorage.setItem('dashboard_admin_users', JSON.stringify(admins));
             return admin;
         }
 
         try {
-            // Nota: En producción, deberías hashear la contraseña antes de guardarla
+            // Usar upsert para crear o actualizar si ya existe
+            const adminData = { ...admin };
+            adminData.updated_at = new Date().toISOString();
+            
             const { data, error } = await this.client
                 .from('dashboard_admins')
-                .insert([admin])
+                .upsert([adminData], { onConflict: 'username' })
                 .select()
                 .single();
             
             if (error) throw error;
             return data;
         } catch (error) {
-            console.error('❌ Error creando administrador:', error);
+            console.error('❌ Error creando/actualizando administrador:', error);
             throw error;
         }
     }
