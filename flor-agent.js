@@ -537,7 +537,17 @@ class FlorAgent {
     // Manejar consultas sobre ubicación
     handleLocationQuery(message) {
         const hotels = this.knowledgeBase.getHotelsFromDB();
-        const mentionedHotel = this.findHotelInMessage(message, hotels);
+        let mentionedHotel = this.findHotelInMessage(message, hotels);
+
+        // Si no menciona hotel pero tenemos uno en contexto, usar ese
+        if (!mentionedHotel && this.context.currentHotel) {
+            mentionedHotel = this.context.currentHotel;
+        }
+        
+        // Si solo hay un hotel, usar ese
+        if (!mentionedHotel && hotels.length === 1) {
+            mentionedHotel = hotels[0];
+        }
 
         if (!mentionedHotel) {
             // Si no menciona hotel específico, listar todos
@@ -555,6 +565,20 @@ class FlorAgent {
         }
 
         this.context.currentHotel = mentionedHotel;
+        
+        // Verificar si tiene información de Flor IA
+        const florInfo = mentionedHotel.florInfo || {};
+        
+        if (florInfo.transport) {
+            let response = `📍 **Ubicación de ${mentionedHotel.name}:**\n\n`;
+            response += `${mentionedHotel.location}\n\n`;
+            response += `🚗 **Cómo Llegar:**\n${florInfo.transport}`;
+            if (mentionedHotel.googleMaps) {
+                response += `\n\n🗺️ [Ver en Google Maps](${mentionedHotel.googleMaps})`;
+            }
+            response += `\n\n¿Necesitas alguna otra información? 😊`;
+            return response;
+        }
         
         // Obtener información de ubicación desde la base de conocimiento
         const hotelKnowledge = this.knowledgeBase.getHotelKnowledge(mentionedHotel.id);
@@ -611,12 +635,35 @@ class FlorAgent {
         // Obtener información completa del hotel desde la base de conocimiento
         const hotelKnowledge = this.knowledgeBase.getHotelKnowledge(mentionedHotel.id);
         
-        // Verificar si tiene información específica de servicios
+        // Verificar si tiene información de Flor IA cargada
+        const florInfo = mentionedHotel.florInfo || {};
+        
+        // Si tiene información de servicios o excursiones de Flor IA
+        if (florInfo.services || florInfo.excursions) {
+            let response = `🏨 **${mentionedHotel.name}**\n\n`;
+            
+            if (florInfo.services) {
+                response += `🏊 **Servicios e Instalaciones:**\n${florInfo.services}\n\n`;
+            }
+            
+            if (florInfo.excursions) {
+                response += `🎿 **Excursiones y Actividades:**\n${florInfo.excursions}\n\n`;
+            }
+            
+            if (florInfo.policies) {
+                response += `📋 **Políticas:**\n${florInfo.policies}\n\n`;
+            }
+            
+            response += `¿Te gustaría saber sobre precios, cómo llegar, o hacer una reserva? 😊`;
+            return response;
+        }
+        
+        // Verificar si tiene información específica de servicios en el sistema antiguo
         if (!hotelKnowledge || !hotelKnowledge.servicesDetails || Object.keys(hotelKnowledge.servicesDetails).length === 0) {
-            // Si el hotel tiene servicios básicos en su registro, mostrarlos
-            if (mentionedHotel.services && mentionedHotel.services.length > 0) {
+            // Si el hotel tiene amenities básicos, mostrarlos
+            if (mentionedHotel.amenities && mentionedHotel.amenities.length > 0) {
                 let response = `🏨 **Servicios de ${mentionedHotel.name}:**\n\n`;
-                response += mentionedHotel.services.map(s => `✅ ${s}`).join('\n');
+                response += mentionedHotel.amenities.map(s => `✅ ${s}`).join('\n');
                 response += `\n\n📍 Ubicación: ${mentionedHotel.location}`;
                 if (mentionedHotel.website) {
                     response += `\n🌐 Más info en: ${mentionedHotel.website}`;
@@ -678,7 +725,17 @@ class FlorAgent {
     // Manejar consultas sobre precios
     handlePricesQuery(message) {
         const hotels = this.knowledgeBase.getHotelsFromDB();
-        const mentionedHotel = this.findHotelInMessage(message, hotels);
+        let mentionedHotel = this.findHotelInMessage(message, hotels);
+
+        // Si no menciona hotel pero tenemos uno en contexto, usar ese
+        if (!mentionedHotel && this.context.currentHotel) {
+            mentionedHotel = this.context.currentHotel;
+        }
+        
+        // Si solo hay un hotel, usar ese
+        if (!mentionedHotel && hotels.length === 1) {
+            mentionedHotel = hotels[0];
+        }
 
         if (!mentionedHotel) {
             // Si no menciona hotel específico, dar información general sobre tarifas dinámicas
@@ -688,6 +745,17 @@ class FlorAgent {
         }
 
         this.context.currentHotel = mentionedHotel;
+        
+        // Verificar si tiene información de Flor IA
+        const florInfo = mentionedHotel.florInfo || {};
+        
+        if (florInfo.prices) {
+            let response = `💰 **Tarifas de ${mentionedHotel.name}:**\n\n`;
+            response += florInfo.prices;
+            response += `\n\n📋 *Las tarifas pueden variar según temporada. Para una cotización exacta, indícame: fecha de check-in, cantidad de noches y número de personas.*`;
+            response += `\n\n¿Te gustaría solicitar una cotización o hacer una reserva? 😊`;
+            return response;
+        }
         
         // Obtener información de precios desde la base de conocimiento específica
         const hotelKnowledge = this.knowledgeBase.getHotelKnowledge(mentionedHotel.id);
