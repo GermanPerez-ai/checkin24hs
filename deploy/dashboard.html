@@ -5725,7 +5725,7 @@ Ej:
                 document.getElementById('editHotelModalTitle').textContent = '✏️ Editar Hotel';
                 document.getElementById('editHotelName').value = hotel.name || '';
                 document.getElementById('editHotelLocation').value = hotel.location || '';
-                document.getElementById('editHotelGoogleMaps').value = hotel.googleMaps || '';
+                document.getElementById('editHotelGoogleMaps').value = hotel.googleMaps || hotel.google_maps || '';
                 document.getElementById('editHotelWebsite').value = hotel.website || '';
                 document.getElementById('editHotelRating').value = hotel.rating || '';
                 document.getElementById('editHotelPrice').value = hotel.price || '';
