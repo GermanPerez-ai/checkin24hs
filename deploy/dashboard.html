@@ -11391,9 +11391,48 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             }
         });
 
+        // Función para cargar configuración de IA desde Supabase
+        async function loadAIConfigFromSupabase() {
+            try {
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    const { data, error } = await window.supabaseClient.client
+                        .from('system_config')
+                        .select('value')
+                        .eq('key', 'flor_ai_config')
+                        .single();
+                    
+                    if (!error && data && data.value) {
+                        const cloudConfig = JSON.parse(data.value);
+                        // Guardar en localStorage
+                        localStorage.setItem('flor_ai_config', JSON.stringify(cloudConfig));
+                        console.log('☁️ Configuración de IA cargada desde Supabase');
+                        
+                        // Actualizar campos del formulario si están visibles
+                        if (document.getElementById('ai-enabled')) {
+                            document.getElementById('ai-enabled').checked = cloudConfig.enabled || false;
+                        }
+                        if (document.getElementById('ai-provider')) {
+                            document.getElementById('ai-provider').value = cloudConfig.provider || 'gemini';
+                        }
+                        if (document.getElementById('ai-api-key')) {
+                            document.getElementById('ai-api-key').value = cloudConfig.apiKey || '';
+                        }
+                        if (document.getElementById('ai-model')) {
+                            document.getElementById('ai-model').value = cloudConfig.model || 'gemini-2.5-flash';
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log('ℹ️ Usando configuración de IA local');
+            }
+        }
+
         // Función para configurar sincronización automática
         function setupAutoSync() {
             console.log('🔄 Configurando sincronización automática...');
+            
+            // Cargar configuración de IA desde Supabase
+            loadAIConfigFromSupabase();
             
             // Cargar datos iniciales
             loadUsersData();
@@ -20779,15 +20818,40 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     };
 
     // Guardar configuración de IA
-    window.saveAIConfig = function() {
+    window.saveAIConfig = async function() {
         const config = {
             enabled: document.getElementById('ai-enabled')?.checked || false,
-            provider: document.getElementById('ai-provider')?.value || 'openai',
+            provider: document.getElementById('ai-provider')?.value || 'gemini',
             apiKey: document.getElementById('ai-api-key')?.value || '',
-            model: document.getElementById('ai-model')?.value || 'gpt-4o-mini'
+            model: document.getElementById('ai-model')?.value || 'gemini-2.5-flash'
         };
+        
+        // Guardar en localStorage
         localStorage.setItem('flor_ai_config', JSON.stringify(config));
-        alert('✅ Configuración de IA guardada');
+        
+        // Guardar en Supabase para persistencia en la nube
+        if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+            try {
+                await window.supabaseClient.client
+                    .from('system_config')
+                    .upsert({
+                        key: 'flor_ai_config',
+                        value: JSON.stringify(config),
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'key' });
+                console.log('☁️ Configuración de IA guardada en Supabase');
+            } catch (e) {
+                console.warn('⚠️ No se pudo guardar en Supabase:', e);
+            }
+        }
+        
+        // Recargar el servicio de IA si está disponible
+        if (typeof florAIService !== 'undefined') {
+            florAIService.loadConfig();
+            console.log('🔄 Servicio de IA recargado');
+        }
+        
+        alert('✅ Configuración de IA guardada y sincronizada');
     };
 
     // Probar conexión IA
@@ -21370,6 +21434,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 loadFlorGeneral();
                 loadFlorResponses();
                 loadHotelsForFlor();
+                // Cargar configuración de IA desde Supabase
+                loadAIConfigFromSupabase();
             }
             if (section === 'interactions') {
                 loadInteractions();

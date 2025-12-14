@@ -24,9 +24,40 @@ class FlorAIService {
             if (saved) {
                 const parsed = JSON.parse(saved);
                 this.config = { ...this.config, ...parsed };
+                console.log('[Flor AI] ✅ Configuración cargada desde localStorage');
             }
+            
+            // También intentar cargar desde Supabase (asíncrono)
+            this.loadConfigFromSupabase();
         } catch (e) {
             console.error('[Flor AI] Error al cargar configuración:', e);
+        }
+    }
+    
+    // Cargar configuración desde Supabase
+    async loadConfigFromSupabase() {
+        try {
+            if (typeof window !== 'undefined' && window.supabaseClient && window.supabaseClient.isInitialized()) {
+                const { data, error } = await window.supabaseClient.client
+                    .from('system_config')
+                    .select('value')
+                    .eq('key', 'flor_ai_config')
+                    .single();
+                
+                if (!error && data && data.value) {
+                    const cloudConfig = JSON.parse(data.value);
+                    // Solo actualizar si la config de la nube tiene API key
+                    if (cloudConfig.apiKey) {
+                        this.config = { ...this.config, ...cloudConfig };
+                        // Guardar también en localStorage para acceso rápido
+                        localStorage.setItem('flor_ai_config', JSON.stringify(this.config));
+                        console.log('[Flor AI] ☁️ Configuración sincronizada desde Supabase');
+                    }
+                }
+            }
+        } catch (e) {
+            // Silencioso si falla - usará localStorage
+            console.log('[Flor AI] ℹ️ Usando configuración de localStorage');
         }
     }
 

@@ -457,11 +457,47 @@
         const sendBtn = document.getElementById('chatbotSendBtn');
         const typingIndicator = document.getElementById('typingIndicator');
 
-        // Cargar configuración de IA y habilitarla si está configurada
+        // Función para inicializar IA con configuración de Supabase
+        async function initializeAIFromCloud() {
+            try {
+                // Esperar a que Supabase esté disponible
+                if (typeof supabaseClient !== 'undefined' && supabaseClient.isInitialized()) {
+                    const { data, error } = await supabaseClient.client
+                        .from('system_config')
+                        .select('value')
+                        .eq('key', 'flor_ai_config')
+                        .single();
+                    
+                    if (!error && data && data.value) {
+                        const cloudConfig = JSON.parse(data.value);
+                        if (cloudConfig.apiKey && cloudConfig.enabled) {
+                            // Guardar en localStorage para uso inmediato
+                            localStorage.setItem('flor_ai_config', JSON.stringify(cloudConfig));
+                            
+                            // Recargar configuración del servicio de IA
+                            if (typeof florAIService !== 'undefined') {
+                                florAIService.loadConfig();
+                                if (florAIService.isAvailable()) {
+                                    agent.setUseAI(true);
+                                    console.log('[Chatbot] ☁️ IA habilitada desde configuración de Supabase');
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log('[Chatbot] ℹ️ Usando configuración local de IA');
+            }
+        }
+
+        // Cargar configuración de IA desde localStorage primero
         if (typeof florAIService !== 'undefined' && florAIService.isAvailable()) {
             agent.setUseAI(true);
-            console.log('[Chatbot] 🤖 IA habilitada');
+            console.log('[Chatbot] 🤖 IA habilitada desde localStorage');
         }
+        
+        // Luego intentar sincronizar con Supabase (asíncrono)
+        initializeAIFromCloud();
 
         // Mostrar mensaje de bienvenida al cargar
         window.addEventListener('DOMContentLoaded', () => {
