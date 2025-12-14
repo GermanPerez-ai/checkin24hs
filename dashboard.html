@@ -17004,7 +17004,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     console.log(`✅ Identificador ${identifier} agregado a procesados`);
                     
                     if (!existingEmails.has(identifier)) {
-                        console.log(`🆕 Email ${email} no existe, creando nuevo usuario...`);
+                        console.log(`🆕 Identificador ${identifier} no existe, creando nuevo usuario...`);
                         // Calcular nuevo ID
                         let newId = 1;
                         if (users.length > 0) {
