@@ -207,6 +207,16 @@ Hoteles disponibles:
                 prompt += `INFORMACIÓN ADICIONAL: ${JSON.stringify(hotelKnowledge.additionalInfo)}\n`;
             }
             
+            // Información del sitio web del hotel
+            if (hotelKnowledge && hotelKnowledge.websiteInfo) {
+                prompt += `\n📌 INFORMACIÓN DEL SITIO WEB OFICIAL DEL HOTEL:\n${hotelKnowledge.websiteInfo}\n`;
+            }
+            
+            // URL del sitio web
+            if (hotel.website || (hotelKnowledge && hotelKnowledge.website)) {
+                prompt += `🌐 SITIO WEB: ${hotel.website || hotelKnowledge.website}\n`;
+            }
+            
             prompt += '\n';
         });
 

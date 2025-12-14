@@ -3788,6 +3788,14 @@
                         </div>
                         
                         <div class="form-group">
+                            <label class="form-label">🌐 Sitio Web del Hotel</label>
+                            <input type="url" class="form-input" id="editHotelWebsite" placeholder="https://www.nombrehotel.com">
+                            <div style="margin-top: 5px; font-size: 0.85rem; color: #666;">
+                                🤖 <strong>Flor IA</strong> usará esta URL para obtener información adicional
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
                             <label class="form-label">Calificación (1-5)</label>
                             <input type="number" class="form-input" id="editHotelRating" min="1" max="5" step="0.1">
                         </div>
@@ -9943,6 +9951,7 @@
             const nameInput = document.getElementById('editHotelName');
             const locationInput = document.getElementById('editHotelLocation');
             const googleMapsInput = document.getElementById('editHotelGoogleMaps');
+            const websiteInput = document.getElementById('editHotelWebsite');
             const ratingSelect = document.getElementById('editHotelRating');
             const priceInput = document.getElementById('editHotelPrice');
             const descriptionTextarea = document.getElementById('editHotelDescription');
@@ -9950,6 +9959,7 @@
             const statusSelect = document.getElementById('editHotelStatus');
             if (nameInput) nameInput.value = hotel.name || '';
             if (locationInput) locationInput.value = hotel.location || '';
+            if (websiteInput) websiteInput.value = hotel.website || '';
             if (googleMapsInput) {
                 googleMapsInput.value = hotel.googleMaps || '';
                 // Mostrar coordenadas extraídas si están disponibles
@@ -10229,6 +10239,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             const nameInput = document.getElementById('editHotelName');
             const locationInput = document.getElementById('editHotelLocation');
             const googleMapsInput = document.getElementById('editHotelGoogleMaps');
+            const websiteInput = document.getElementById('editHotelWebsite');
             const ratingSelect = document.getElementById('editHotelRating');
             const priceInput = document.getElementById('editHotelPrice');
             const descriptionTextarea = document.getElementById('editHotelDescription');
@@ -10265,6 +10276,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 name: nameInput.value.trim(),
                 location: locationInput.value.trim(),
                 googleMaps: googleMapsInput?.value?.trim() || '',
+                website: websiteInput?.value?.trim() || '', // URL del sitio web del hotel
                 rating: parseInt(ratingSelect?.value || '0'),
                 price: priceInput?.value ? parseInt(priceInput.value) : 0,
                 description: descriptionTextarea?.value || '',
@@ -19798,15 +19810,37 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             </div>
                         </div>
                         
-                        <!-- Google Maps -->
-                        ${hotel.googleMaps ? `
-                        <div>
-                            <label style="display: block; font-weight: 500; margin-bottom: 6px; color: #2e7d32;">🗺️ Google Maps</label>
-                            <div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid #a5d6a7;">
-                                <a href="${hotel.googleMaps}" target="_blank" style="color: #1976d2; text-decoration: none;">📍 Ver en Google Maps</a>
+                        <!-- Google Maps y Sitio Web -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                            ${hotel.googleMaps ? `
+                            <div>
+                                <label style="display: block; font-weight: 500; margin-bottom: 6px; color: #2e7d32;">🗺️ Google Maps</label>
+                                <div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid #a5d6a7;">
+                                    <a href="${hotel.googleMaps}" target="_blank" style="color: #1976d2; text-decoration: none;">📍 Ver en Google Maps</a>
+                                </div>
+                            </div>
+                            ` : '<div></div>'}
+                            <div>
+                                <label style="display: block; font-weight: 500; margin-bottom: 6px; color: #2e7d32;">🌐 Sitio Web del Hotel</label>
+                                <div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid #a5d6a7;">
+                                    ${hotel.website ? `<a href="${hotel.website}" target="_blank" style="color: #1976d2; text-decoration: none;">🔗 Visitar sitio web</a>` : '<span style="color: #999;">No configurado</span>'}
+                                </div>
                             </div>
                         </div>
-                        ` : ''}
+                    </div>
+                </div>
+                
+                <!-- Información Extraída del Sitio Web -->
+                <div style="background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%); padding: 20px; border-radius: 12px; border-left: 4px solid #ff9800;">
+                    <h4 style="margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
+                        <span>🌐</span> Información del Sitio Web del Hotel
+                        <span style="font-size: 0.8rem; color: #e65100; font-weight: normal;">(Copiar información relevante de la web del hotel)</span>
+                    </h4>
+                    <p style="font-size: 0.9rem; color: #bf360c; margin-bottom: 16px;">
+                        💡 <strong>Instrucción:</strong> Visita el sitio web del hotel ${hotel.website ? `(<a href="${hotel.website}" target="_blank" style="color: #1976d2;">${hotel.website}</a>)` : ''} y copia aquí la información relevante que Flor debe conocer.
+                    </p>
+                    <div>
+                        <textarea id="knowledge-website-info" rows="6" style="width: 100%; padding: 12px; border: 1px solid #ffcc80; border-radius: 8px; background: white;" placeholder="Copia aquí información relevante del sitio web del hotel:&#10;- Descripción oficial del hotel&#10;- Servicios destacados&#10;- Políticas específicas&#10;- Promociones actuales&#10;- Información de contacto&#10;- Cualquier dato útil para responder consultas...">${extraKnowledge.websiteInfo || ''}</textarea>
                     </div>
                 </div>
                 
@@ -19871,6 +19905,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             pricing: document.getElementById('knowledge-pricing')?.value || '',
             transport: document.getElementById('knowledge-transport')?.value || '',
             notes: document.getElementById('knowledge-notes')?.value || '',
+            // Información extraída del sitio web
+            websiteInfo: document.getElementById('knowledge-website-info')?.value || '',
             // Referencia a información sincronizada (para acceso rápido)
             syncedInfo: hotel ? {
                 name: hotel.name,
@@ -19880,7 +19916,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 amenities: hotel.amenities,
                 mainImage: hotel.mainImage || (hotel.images && hotel.images[0]),
                 galleryImages: hotel.galleryImages || (hotel.images && hotel.images.slice(1)),
-                googleMaps: hotel.googleMaps
+                googleMaps: hotel.googleMaps,
+                website: hotel.website
             } : null,
             lastUpdated: new Date().toISOString()
         };

@@ -143,16 +143,20 @@ const FlorKnowledgeBase = {
             mainImage: hotel?.mainImage || (hotel?.images && hotel.images[0]) || extraKnowledge?.syncedInfo?.mainImage,
             galleryImages: hotel?.galleryImages || (hotel?.images && hotel.images.slice(1)) || extraKnowledge?.syncedInfo?.galleryImages || [],
             googleMaps: hotel?.googleMaps || extraKnowledge?.syncedInfo?.googleMaps,
+            website: hotel?.website || extraKnowledge?.syncedInfo?.website || '',
             // Información extra de Flor
             description: extraKnowledge?.description || hotel?.description || '',
             servicesDetail: extraKnowledge?.servicesDetail || '',
             pricing: extraKnowledge?.pricing || '',
             transport: extraKnowledge?.transport || '',
             notes: extraKnowledge?.notes || '',
+            // Información extraída del sitio web del hotel
+            websiteInfo: extraKnowledge?.websiteInfo || '',
             // Metadata
             lastUpdated: extraKnowledge?.lastUpdated,
             hasSyncedInfo: !!hotel,
-            hasExtraKnowledge: !!extraKnowledge
+            hasExtraKnowledge: !!extraKnowledge,
+            hasWebsiteInfo: !!(extraKnowledge?.websiteInfo)
         };
         
         return combinedKnowledge;
