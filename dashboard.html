@@ -2704,6 +2704,10 @@
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">refresh</span>
                         Actualizar
                     </button>
+                    <button class="form-button" style="background: #9c27b0; color: white;" onclick="restoreUsersFromSupabase()">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">cloud_download</span>
+                        Restaurar de Supabase
+                    </button>
                     <button class="form-button" style="background: #4caf50; color: white;" onclick="showMarketingTools()">
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">campaign</span>
                         Herramientas Marketing
@@ -11552,6 +11556,94 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             alert('✅ Usuarios actualizados');
         }
         
+        // Función para restaurar usuarios desde Supabase
+        async function restoreUsersFromSupabase() {
+            if (!window.supabaseClient || !window.supabaseClient.isInitialized()) {
+                alert('❌ Supabase no está inicializado');
+                return;
+            }
+            
+            try {
+                console.log('🔄 Restaurando usuarios desde Supabase...');
+                
+                let allUsers = [];
+                
+                // Intentar cargar de la tabla 'users'
+                try {
+                    const { data: usersData, error: usersError } = await window.supabaseClient.client
+                        .from('users')
+                        .select('*')
+                        .order('created_at', { ascending: false });
+                    
+                    if (!usersError && usersData && usersData.length > 0) {
+                        console.log(`☁️ Tabla 'users': ${usersData.length} registros`);
+                        allUsers = [...allUsers, ...usersData];
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Error en tabla users:', e);
+                }
+                
+                // Intentar cargar de la tabla 'system_users'
+                try {
+                    const { data: systemUsersData, error: systemUsersError } = await window.supabaseClient.client
+                        .from('system_users')
+                        .select('*')
+                        .order('created_at', { ascending: false });
+                    
+                    if (!systemUsersError && systemUsersData && systemUsersData.length > 0) {
+                        console.log(`☁️ Tabla 'system_users': ${systemUsersData.length} registros`);
+                        // Solo agregar usuarios que no estén ya en la lista
+                        systemUsersData.forEach(sysUser => {
+                            const exists = allUsers.find(u => u.email === sysUser.email);
+                            if (!exists) {
+                                allUsers.push(sysUser);
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Error en tabla system_users:', e);
+                }
+                
+                if (allUsers.length === 0) {
+                    alert('⚠️ No se encontraron usuarios en Supabase.\n\nPuede que los usuarios solo estén en localStorage local.');
+                    return;
+                }
+                
+                // Convertir a formato consistente
+                const normalizedUsers = allUsers.map(u => ({
+                    id: u.id,
+                    name: u.name || u.nombre || '',
+                    email: u.email,
+                    phone: u.phone || u.telefono || '',
+                    status: u.is_active !== false ? 'active' : 'inactive',
+                    is_active: u.is_active !== false,
+                    createdAt: u.created_at || new Date().toISOString(),
+                    last_activity: u.last_activity || u.updated_at,
+                    tipoCuenta: u.tipo_cuenta || 'registrado',
+                    birthDay: u.birth_day,
+                    birthMonth: u.birth_month,
+                    totalQuotes: u.total_quotes || 0
+                }));
+                
+                // Guardar en localStorage
+                localStorage.setItem('checkin24hs_users', JSON.stringify(normalizedUsers));
+                
+                // Actualizar variable global
+                allUsersData = normalizedUsers;
+                
+                // Recargar tabla
+                loadUsersTable(normalizedUsers.slice(0, 20));
+                updateDashboardStats(normalizedUsers);
+                
+                alert(`✅ ${normalizedUsers.length} usuarios restaurados desde Supabase`);
+                console.log('✅ Usuarios restaurados:', normalizedUsers.length);
+                
+            } catch (error) {
+                console.error('❌ Error restaurando usuarios:', error);
+                alert('❌ Error al restaurar usuarios: ' + error.message);
+            }
+        }
+        
         // Función para mostrar modal de importar usuarios
         function showImportUsersModal() {
             console.log('📥 Abriendo modal de importar usuarios...');
@@ -13023,51 +13115,80 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Función para cargar datos de usuarios
-        function loadUsersData() {
+        async function loadUsersData() {
             try {
                 // Primero, sincronizar usuarios desde reservas
                 syncUsersFromReservations();
                 
-                // Cargar usuarios desde checkin24hs_users (dashboard)
-                const dashboardUsers = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+                let allUsers = [];
                 
-                // Cargar usuarios desde clientesDB (index.html)
-                const mobileUsers = JSON.parse(localStorage.getItem('clientesDB') || '[]');
-                
-                console.log('🔍 Datos encontrados en localStorage:', {
-                    checkin24hs_users: dashboardUsers,
-                    clientesDB: mobileUsers
-                });
-                
-                // Combinar usuarios únicos
-                const allUsers = [...dashboardUsers];
-                
-                // Agregar usuarios móviles que no estén en dashboard
-                mobileUsers.forEach(mobileUser => {
-                    const exists = allUsers.find(user => user.email === mobileUser.email);
-                    if (!exists) {
-                        // Convertir formato de usuario móvil a formato dashboard
-                        const convertedUser = {
-                            id: mobileUser.id,
-                            name: mobileUser.name,
-                            email: mobileUser.email,
-                            phone: mobileUser.phone,
-                            status: mobileUser.status || 'active',
-                            createdAt: mobileUser.fechaRegistro || new Date().toISOString(),
-                            tipoCuenta: mobileUser.tipoCuenta || 'registrado',
-                            birthDay: mobileUser.birthDay,
-                            birthMonth: mobileUser.birthMonth
-                        };
-                        allUsers.push(convertedUser);
+                // 1. Intentar cargar desde Supabase primero
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    try {
+                        const supabaseUsers = await window.supabaseClient.getUsers();
+                        if (supabaseUsers && supabaseUsers.length > 0) {
+                            console.log(`☁️ ${supabaseUsers.length} usuarios cargados desde Supabase`);
+                            allUsers = supabaseUsers.map(u => ({
+                                id: u.id,
+                                name: u.name || u.nombre || '',
+                                email: u.email,
+                                phone: u.phone || u.telefono || '',
+                                status: u.status || u.is_active ? 'active' : 'inactive',
+                                is_active: u.is_active !== false,
+                                createdAt: u.created_at || u.createdAt || new Date().toISOString(),
+                                last_activity: u.last_activity || u.updated_at,
+                                tipoCuenta: u.tipo_cuenta || u.tipoCuenta || 'registrado',
+                                birthDay: u.birth_day || u.birthDay,
+                                birthMonth: u.birth_month || u.birthMonth,
+                                totalQuotes: u.total_quotes || u.totalQuotes || 0
+                            }));
+                            
+                            // Guardar también en localStorage como backup
+                            localStorage.setItem('checkin24hs_users', JSON.stringify(allUsers));
+                        }
+                    } catch (supabaseError) {
+                        console.warn('⚠️ Error cargando de Supabase, usando localStorage:', supabaseError);
                     }
-                });
+                }
                 
-                console.log('📊 Cargando datos de usuarios...', {
-                    dashboard: dashboardUsers.length,
-                    mobile: mobileUsers.length,
-                    total: allUsers.length,
-                    allUsers: allUsers
-                });
+                // 2. Si no hay usuarios de Supabase, cargar de localStorage
+                if (allUsers.length === 0) {
+                    // Cargar usuarios desde checkin24hs_users (dashboard)
+                    const dashboardUsers = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+                    
+                    // Cargar usuarios desde clientesDB (index.html)
+                    const mobileUsers = JSON.parse(localStorage.getItem('clientesDB') || '[]');
+                    
+                    console.log('🔍 Datos encontrados en localStorage:', {
+                        checkin24hs_users: dashboardUsers.length,
+                        clientesDB: mobileUsers.length
+                    });
+                    
+                    // Combinar usuarios únicos
+                    allUsers = [...dashboardUsers];
+                    
+                    // Agregar usuarios móviles que no estén en dashboard
+                    mobileUsers.forEach(mobileUser => {
+                        const exists = allUsers.find(user => user.email === mobileUser.email);
+                        if (!exists) {
+                            // Convertir formato de usuario móvil a formato dashboard
+                            const convertedUser = {
+                                id: mobileUser.id,
+                                name: mobileUser.name,
+                                email: mobileUser.email,
+                                phone: mobileUser.phone,
+                                status: mobileUser.status || 'active',
+                                createdAt: mobileUser.fechaRegistro || new Date().toISOString(),
+                                tipoCuenta: mobileUser.tipoCuenta || 'registrado',
+                                birthDay: mobileUser.birthDay,
+                                birthMonth: mobileUser.birthMonth
+                            };
+                            allUsers.push(convertedUser);
+                        }
+                    });
+                }
+                
+                console.log(`📊 Total usuarios cargados: ${allUsers.length}`);
                 
                 // Guardar todos los usuarios en variable global
                 allUsersData = allUsers;
