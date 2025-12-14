@@ -50,20 +50,20 @@ const FlorKnowledgeBase = {
     intents: {
         saludar: ["hola", "buenos días", "buenas tardes", "buenas noches", "hi", "hello", "saludos"],
         despedirse: ["adiós", "chao", "gracias", "hasta luego", "bye", "thanks"],
-        consulta_hotel: ["hotel", "hoteles", "qué hoteles", "catálogo", "opciones", "lugares", "sitios"],
-        ubicacion: ["dónde", "ubicación", "dirección", "ubicado", "dirección", "localización", "donde queda"],
-        servicios: ["servicios", "amenidades", "comodidades", "qué incluye", "facilidades", "tiene", "cuenta con"],
-        precios: ["precio", "precios", "cuánto", "costo", "tarifa", "tarifas", "valor", "cuanto cuesta"],
-        disponibilidad: ["disponible", "disponibilidad", "libre", "vacante", "hay lugar", "puedo reservar"],
-        reservar: ["reservar", "reserva", "quiero reservar", "hacer reserva", "confirmar", "agendar", "book"],
-        cancelar: ["cancelar", "cancelación", "anular", "eliminar reserva"],
-        contacto_humano: ["humano", "persona", "agente", "asesor", "hablar con alguien", "representante"],
-        problema: ["problema", "error", "no funciona", "no entiendo", "confundido", "ayuda urgente"]
+        consulta_hotel: ["hotel", "hoteles", "qué hoteles", "que hoteles", "catálogo", "opciones", "lugares", "sitios", "trabajan", "trabajamos", "tienen", "ofrecen", "manejan", "lista", "listado", "cuales", "cuáles", "todos los hoteles", "ver hoteles", "mostrar hoteles"],
+        ubicacion: ["dónde", "donde", "ubicación", "ubicacion", "dirección", "direccion", "ubicado", "localización", "localizacion", "donde queda", "como llego", "cómo llego"],
+        servicios: ["servicios", "amenidades", "comodidades", "qué incluye", "que incluye", "facilidades", "tiene", "cuenta con", "ofrece", "incluye"],
+        precios: ["precio", "precios", "cuánto", "cuanto", "costo", "tarifa", "tarifas", "valor", "cuanto cuesta", "cuánto cuesta", "cuanto sale", "cuánto sale"],
+        disponibilidad: ["disponible", "disponibilidad", "libre", "vacante", "hay lugar", "puedo reservar", "hay disponibilidad"],
+        reservar: ["reservar", "reserva", "quiero reservar", "hacer reserva", "confirmar", "agendar", "book", "booking"],
+        cancelar: ["cancelar", "cancelación", "cancelacion", "anular", "eliminar reserva"],
+        contacto_humano: ["humano", "persona", "agente", "asesor", "hablar con alguien", "representante", "llamar", "contactar"],
+        problema: ["problema", "error", "no funciona", "no entiendo", "confundido", "ayuda urgente", "queja", "reclamo"]
     },
 
     // Respuestas predefinidas para situaciones comunes
     responses: {
-        no_entendido: "Disculpa, no entendí completamente tu consulta. ¿Podrías ser más específico? Si prefieres, puedo conectarte inmediatamente con un agente humano que te ayudará mejor.",
+        no_entendido: "No estoy segura de haber entendido tu consulta. Te cuento que trabajamos con varios hoteles de calidad. ¿Te gustaría saber qué hoteles tenemos disponibles o tienes alguna consulta específica?",
         no_informacion: "No tengo esa información específica disponible en este momento. Déjame conectarte con un agente humano que podrá ayudarte mejor con tu consulta.",
         transferir_humano: "Perfecto, voy a conectarte inmediatamente con uno de nuestros agentes que podrá asistirte mejor. Un momento por favor...",
         despedida: "¡Fue un placer ayudarte! Si necesitas algo más, no dudes en consultarme. ¡Que tengas un excelente día!",

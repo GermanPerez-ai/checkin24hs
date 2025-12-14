@@ -315,6 +315,18 @@ class FlorAgent {
         const hotels = this.knowledgeBase.getHotelsFromDB();
         const mentionsHotel = this.findHotelInMessage(message, hotels);
         
+        // Detectar preguntas sobre lista de hoteles (alta prioridad)
+        const hotelListKeywords = ['qué hoteles', 'que hoteles', 'cuáles hoteles', 'cuales hoteles', 
+                                   'lista de hoteles', 'listado de hoteles', 'hoteles trabajan', 
+                                   'hoteles tienen', 'hoteles ofrecen', 'hoteles manejan',
+                                   'ver hoteles', 'mostrar hoteles', 'todos los hoteles',
+                                   'con qué hoteles', 'con que hoteles', 'cuantos hoteles', 'cuántos hoteles'];
+        const asksForHotelList = hotelListKeywords.some(keyword => message.includes(keyword));
+        
+        if (asksForHotelList) {
+            return 'consulta_hotel';
+        }
+        
         // Si menciona un hotel o tiene palabras clave de consulta, priorizar consultas específicas
         if (mentionsHotel || this.hasConsultationKeywords(message)) {
             if (this.matchesIntent(message, intents.reservar)) return 'reservar';
@@ -330,6 +342,10 @@ class FlorAgent {
         if (this.matchesIntent(message, intents.despedirse)) return 'despedirse';
         if (this.matchesIntent(message, intents.contacto_humano)) return 'contacto_humano';
         if (this.matchesIntent(message, intents.problema)) return 'problema';
+        
+        // Verificar consulta_hotel antes de saludar (para capturar "hola, qué hoteles tienen")
+        if (this.matchesIntent(message, intents.consulta_hotel)) return 'consulta_hotel';
+        
         if (this.matchesIntent(message, intents.saludar)) return 'saludar';
 
         // Si no detectó intención pero menciona hotel, tratar como consulta_hotel
@@ -393,7 +409,7 @@ class FlorAgent {
                 return "Lamento que estés teniendo un problema. Voy a conectarte inmediatamente con un agente que podrá resolver tu situación.";
 
             default:
-                // Si no entendió y no tiene información, derivar a humano
+                // Si no entendió, intentar dar información útil
                 const mentionedHotel = this.findHotelInMessage(message, this.knowledgeBase.getHotelsFromDB());
                 if (mentionedHotel) {
                     // Hay un hotel mencionado pero no entendió la consulta específica
@@ -404,6 +420,18 @@ class FlorAgent {
                         return `No tengo suficiente información configurada sobre ${mentionedHotel.name}. Déjame conectarte con un agente humano que podrá ayudarte mejor con tu consulta.`;
                     }
                 }
+                
+                // Si no entendió pero hay hoteles, mostrar lista como ayuda
+                const allHotels = this.knowledgeBase.getHotelsFromDB();
+                if (allHotels.length > 0) {
+                    let response = `Disculpa, no estoy segura de entender tu consulta. Te cuento que trabajamos con ${allHotels.length} hoteles de calidad:\n\n`;
+                    allHotels.forEach((hotel, index) => {
+                        response += `${index + 1}. **${hotel.name}** - ${hotel.location} ⭐ ${hotel.rating || 'N/A'}/5\n`;
+                    });
+                    response += `\n¿Sobre cuál te gustaría más información? También puedo ayudarte con ubicaciones, servicios o precios.`;
+                    return response;
+                }
+                
                 return this.knowledgeBase.responses.no_entendido;
         }
     }
@@ -453,20 +481,15 @@ class FlorAgent {
         }
 
         // Listar hoteles disponibles con información básica
-        if (hotels.length <= 5) {
-            let response = `Trabajamos con ${hotels.length} hoteles de calidad:\n\n`;
-            hotels.forEach((hotel, index) => {
-                const hotelKnowledge = this.knowledgeBase.getHotelKnowledge(hotel.id);
-                const configStatus = hotelKnowledge && hotelKnowledge.description ? '✓' : '⚠️';
-                response += `${index + 1}. **${hotel.name}** - ${hotel.location} (⭐ ${hotel.rating || 'N/A'}/5) ${configStatus}\n`;
-            });
-            response += `\n✓ = Información completa disponible | ⚠️ = Información básica\n`;
-            response += `\n¿Sobre cuál te gustaría más información?`;
-            return response;
-        } else {
-            const hotelNames = hotels.map(h => h.name).join(', ');
-            return `Trabajamos con ${hotels.length} hoteles de calidad superior: ${hotelNames}. ¿Sobre cuál específicamente te gustaría más información?`;
-        }
+        let response = `🏨 **Nuestros Hoteles Disponibles**\n\nTrabajamos con ${hotels.length} hoteles de excelente calidad:\n\n`;
+        hotels.forEach((hotel, index) => {
+            const hotelKnowledge = this.knowledgeBase.getHotelKnowledge(hotel.id);
+            const rating = hotel.rating ? `⭐ ${hotel.rating}/5` : '';
+            response += `${index + 1}. **${hotel.name}**\n`;
+            response += `   📍 ${hotel.location} ${rating}\n\n`;
+        });
+        response += `¿Sobre cuál te gustaría más información? Puedo contarte sobre ubicación, servicios, precios o cualquier otro detalle. 😊`;
+        return response;
     }
 
     // Manejar consultas sobre ubicación
