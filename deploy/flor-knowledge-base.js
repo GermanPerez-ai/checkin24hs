@@ -94,29 +94,102 @@ const FlorKnowledgeBase = {
         );
     },
 
-    // Obtener información completa de un hotel desde la base de conocimiento
+    // Obtener información completa de un hotel desde la base de conocimiento (sincronizada)
     getHotelKnowledge: function(hotelId) {
-        // Cargar desde localStorage si existe
-        const stored = localStorage.getItem(`flor_hotel_knowledge_${hotelId}`);
-        if (stored) {
+        // Primero obtener la información base del hotel desde hotelsDB
+        const hotels = this.getHotelsFromDB();
+        const hotel = hotels.find(h => h.id === hotelId || h.id == hotelId);
+        
+        // Luego obtener el conocimiento extra de Flor
+        let extraKnowledge = null;
+        
+        // Intentar cargar desde el nuevo formato (flor_hotel_knowledge objeto completo)
+        const allKnowledge = localStorage.getItem('flor_hotel_knowledge');
+        if (allKnowledge) {
             try {
-                return JSON.parse(stored);
+                const parsed = JSON.parse(allKnowledge);
+                extraKnowledge = parsed[hotelId] || null;
             } catch (e) {
-                console.error('Error parsing hotel knowledge:', e);
-                return null;
+                console.error('Error parsing flor_hotel_knowledge:', e);
             }
         }
         
-        // Si no existe en localStorage, buscar en el objeto hotelsKnowledge
-        return this.hotelsKnowledge[hotelId] || null;
+        // Fallback al formato antiguo
+        if (!extraKnowledge) {
+            const stored = localStorage.getItem(`flor_hotel_knowledge_${hotelId}`);
+            if (stored) {
+                try {
+                    extraKnowledge = JSON.parse(stored);
+                } catch (e) {
+                    console.error('Error parsing hotel knowledge:', e);
+                }
+            }
+        }
+        
+        // Si no hay hotel ni conocimiento extra, retornar null
+        if (!hotel && !extraKnowledge) {
+            return this.hotelsKnowledge[hotelId] || null;
+        }
+        
+        // Combinar información sincronizada con conocimiento extra
+        const combinedKnowledge = {
+            // Información sincronizada del hotel
+            name: hotel?.name || extraKnowledge?.syncedInfo?.name,
+            location: hotel?.location || extraKnowledge?.syncedInfo?.location,
+            address: hotel?.location || extraKnowledge?.syncedInfo?.location,
+            rating: hotel?.rating || extraKnowledge?.syncedInfo?.rating,
+            priceRange: hotel?.priceRange || hotel?.price_range || extraKnowledge?.syncedInfo?.priceRange,
+            amenities: hotel?.amenities || extraKnowledge?.syncedInfo?.amenities || [],
+            mainImage: hotel?.mainImage || (hotel?.images && hotel.images[0]) || extraKnowledge?.syncedInfo?.mainImage,
+            galleryImages: hotel?.galleryImages || (hotel?.images && hotel.images.slice(1)) || extraKnowledge?.syncedInfo?.galleryImages || [],
+            googleMaps: hotel?.googleMaps || extraKnowledge?.syncedInfo?.googleMaps,
+            // Información extra de Flor
+            description: extraKnowledge?.description || hotel?.description || '',
+            servicesDetail: extraKnowledge?.servicesDetail || '',
+            pricing: extraKnowledge?.pricing || '',
+            transport: extraKnowledge?.transport || '',
+            notes: extraKnowledge?.notes || '',
+            // Metadata
+            lastUpdated: extraKnowledge?.lastUpdated,
+            hasSyncedInfo: !!hotel,
+            hasExtraKnowledge: !!extraKnowledge
+        };
+        
+        return combinedKnowledge;
     },
 
     // Guardar información de conocimiento de un hotel
     saveHotelKnowledge: function(hotelId, knowledge) {
-        // Guardar en localStorage
+        // Guardar en localStorage (nuevo formato)
+        const allKnowledge = JSON.parse(localStorage.getItem('flor_hotel_knowledge') || '{}');
+        allKnowledge[hotelId] = knowledge;
+        localStorage.setItem('flor_hotel_knowledge', JSON.stringify(allKnowledge));
+        
+        // También guardar en formato antiguo para compatibilidad
         localStorage.setItem(`flor_hotel_knowledge_${hotelId}`, JSON.stringify(knowledge));
+        
         // Actualizar en el objeto
         this.hotelsKnowledge[hotelId] = knowledge;
+    },
+    
+    // Obtener imagen principal del hotel
+    getHotelMainImage: function(hotelId) {
+        const hotels = this.getHotelsFromDB();
+        const hotel = hotels.find(h => h.id === hotelId || h.id == hotelId);
+        if (hotel) {
+            return hotel.mainImage || (hotel.images && hotel.images[0]) || null;
+        }
+        return null;
+    },
+    
+    // Obtener galería de imágenes del hotel
+    getHotelGallery: function(hotelId) {
+        const hotels = this.getHotelsFromDB();
+        const hotel = hotels.find(h => h.id === hotelId || h.id == hotelId);
+        if (hotel) {
+            return hotel.galleryImages || (hotel.images && hotel.images.slice(1)) || [];
+        }
+        return [];
     },
 
     // Obtener servicios específicos de un hotel
@@ -157,48 +230,54 @@ const FlorKnowledgeBase = {
         return [];
     },
 
-    // Función para obtener información completa de un hotel
+    // Función para obtener información completa de un hotel (sincronizada con hotelsDB)
     getHotelFullInfo: function(hotel) {
         if (!hotel) return null;
 
-        // Obtener información desde la base de conocimiento específica del hotel
+        // Obtener información combinada (sincronizada + extra de Flor)
         const hotelKnowledge = this.getHotelKnowledge(hotel.id);
         
-        if (!hotelKnowledge) {
-            // Si no hay conocimiento específico, usar información básica
-            return {
-                name: hotel.name,
-                location: hotel.location,
-                address: hotel.address || `${hotel.location}`,
-                description: hotel.description || 'Hotel de calidad superior',
-                rating: hotel.rating || 'No calificado',
-                services: this.getHotelServices(hotel),
-                priceInfo: hotel.price || hotel.priceRange || hotel.price_range,
-                amenities: hotel.amenities || [],
-                hasDetailedKnowledge: false // Indicador de que no tiene conocimiento detallado
-            };
-        }
-
-        // Retornar información completa desde la base de conocimiento
-        return {
+        // Servicios: combinar amenities del hotel con detalle de servicios de Flor
+        const services = this.getHotelServices(hotel);
+        
+        // Construir información completa
+        const fullInfo = {
+            // Información básica sincronizada
             name: hotel.name,
             location: hotel.location,
-            address: hotelKnowledge.address || hotel.address || `${hotel.location}`,
-            description: hotelKnowledge.description || hotel.description || 'Hotel de calidad superior',
-            rating: hotel.rating || hotelKnowledge.rating || 'No calificado',
-            services: hotelKnowledge.services || this.getHotelServices(hotel),
-            priceInfo: hotelKnowledge.priceInfo || hotelKnowledge.priceRange || hotel.price || hotel.priceRange || hotel.price_range || {
+            address: hotel.address || hotel.location,
+            rating: hotel.rating || 'No calificado',
+            amenities: hotel.amenities || [],
+            
+            // Imágenes sincronizadas
+            mainImage: hotel.mainImage || (hotel.images && hotel.images[0]) || null,
+            galleryImages: hotel.galleryImages || (hotel.images && hotel.images.slice(1)) || [],
+            googleMaps: hotel.googleMaps || null,
+            
+            // Información de precios
+            priceRange: hotel.priceRange || hotel.price_range || null,
+            priceInfo: hotelKnowledge?.pricing || {
                 dynamic: true,
                 message: "Las tarifas son dinámicas y varían según fecha, pueden variar en alta temporada o en baja temporada. Para una cotización precisa solicítela con: Fecha de Check-in, cantidad de noches y cantidad de personas. Las tarifas enviadas tienen validez de 24 horas.",
                 requiresQuote: true
             },
-            amenities: hotel.amenities || [],
-            servicesDetails: hotelKnowledge.servicesDetails || {},
-            roomTypes: hotelKnowledge.roomTypes || [],
-            policies: hotelKnowledge.policies || {},
-            additionalInfo: hotelKnowledge.additionalInfo || {},
-            hasDetailedKnowledge: true // Indicador de que tiene conocimiento detallado
+            
+            // Servicios
+            services: services,
+            servicesDetail: hotelKnowledge?.servicesDetail || '',
+            
+            // Información extra de Flor
+            description: hotelKnowledge?.description || hotel.description || 'Hotel de calidad superior',
+            transport: hotelKnowledge?.transport || '',
+            notes: hotelKnowledge?.notes || '',
+            
+            // Metadata
+            hasDetailedKnowledge: !!(hotelKnowledge?.description || hotelKnowledge?.servicesDetail),
+            hasSyncedInfo: true,
+            hasImages: !!(hotel.mainImage || (hotel.images && hotel.images.length > 0))
         };
+        
+        return fullInfo;
     },
 
     // Verificar si tiene información específica sobre un aspecto de un hotel

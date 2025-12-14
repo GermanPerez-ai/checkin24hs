@@ -3029,10 +3029,10 @@
                 <div id="flor-tab-knowledge" class="flor-tab-content" style="display: none;">
                     <!-- Info Banner -->
                     <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 16px 20px; border-radius: 12px; margin-bottom: 24px; display: flex; align-items: center; gap: 12px;">
-                        <span style="font-size: 1.5rem;">💡</span>
+                        <span style="font-size: 1.5rem;">🔄</span>
                         <div>
-                            <strong>Base de Conocimiento Multimodal</strong>
-                            <p style="margin: 4px 0 0 0; font-size: 0.9rem; color: #1565c0;">Flor usará esta información para responder consultas de texto, interpretar imágenes de hoteles y enviar fotos cuando sea necesario.</p>
+                            <strong>Conocimiento Sincronizado</strong>
+                            <p style="margin: 4px 0 0 0; font-size: 0.9rem; color: #1565c0;">La información básica se sincroniza automáticamente desde la sección <strong>Hoteles</strong>. Aquí puedes agregar información adicional específica para Flor.</p>
                         </div>
                     </div>
 
@@ -3045,58 +3045,10 @@
                                 <option value="">-- Seleccione un hotel --</option>
                             </select>
                         </div>
+                        
+                        <!-- Contenedor principal de conocimiento -->
                         <div id="hotels-knowledge-list">
                             <p style="color: #666; text-align: center; padding: 40px;">Seleccione un hotel para ver/editar su base de conocimiento</p>
-                        </div>
-                    </div>
-
-                    <!-- Gestión de Imágenes por Hotel -->
-                    <div class="stat-card" style="padding: 24px;">
-                        <h3 style="margin: 0 0 8px 0;">🖼️ Gestión de Imágenes por Hotel</h3>
-                        <p style="color: #666; margin-bottom: 20px;">Configure las imágenes que Flor puede enviar cuando el cliente solicite información visual.</p>
-                        
-                        <div id="hotel-images-manager" style="display: none; max-width: 700px;">
-                            <div style="margin-bottom: 20px;">
-                                <label style="display: block; font-weight: 500; margin-bottom: 8px;">🏨 Hotel seleccionado:</label>
-                                <p id="selected-hotel-for-images" style="font-size: 1.1rem; color: #1976d2; margin: 0;">Ninguno</p>
-                            </div>
-
-                            <!-- Tipos de Imágenes -->
-                            <div style="display: grid; gap: 16px;">
-                                <div style="background: #f5f5f5; padding: 16px; border-radius: 10px;">
-                                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">📷 Imagen Principal del Hotel</label>
-                                    <input type="text" id="hotel-image-main" placeholder="URL de la imagen principal (ej: /images/hotel-puyehue-main.jpg)" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
-                                    <p style="font-size: 0.8rem; color: #666; margin: 6px 0 0 0;">Se envía cuando preguntan "¿cómo se ve el hotel?"</p>
-                                </div>
-
-                                <div style="background: #f5f5f5; padding: 16px; border-radius: 10px;">
-                                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">🛏️ Imagen de Habitación</label>
-                                    <input type="text" id="hotel-image-room" placeholder="URL de imagen de habitación típica" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
-                                    <p style="font-size: 0.8rem; color: #666; margin: 6px 0 0 0;">Se envía cuando preguntan por habitaciones</p>
-                                </div>
-
-                                <div style="background: #f5f5f5; padding: 16px; border-radius: 10px;">
-                                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">🗺️ Mapa de Ubicación</label>
-                                    <input type="text" id="hotel-image-map" placeholder="URL del mapa o infografía de ubicación" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
-                                    <p style="font-size: 0.8rem; color: #666; margin: 6px 0 0 0;">Se envía cuando preguntan "¿dónde queda?" o "¿cómo llego?"</p>
-                                </div>
-
-                                <div style="background: #f5f5f5; padding: 16px; border-radius: 10px;">
-                                    <label style="display: block; font-weight: 500; margin-bottom: 8px;">🎯 Infografía de Servicios</label>
-                                    <input type="text" id="hotel-image-services" placeholder="URL de infografía de servicios" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
-                                    <p style="font-size: 0.8rem; color: #666; margin: 6px 0 0 0;">Se envía cuando preguntan por servicios o amenidades</p>
-                                </div>
-                            </div>
-
-                            <button class="form-button" style="background: #4caf50; color: white; margin-top: 20px;" onclick="saveHotelImages()">
-                                <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
-                                Guardar Imágenes del Hotel
-                            </button>
-                        </div>
-
-                        <div id="hotel-images-placeholder" style="text-align: center; padding: 40px; color: #666;">
-                            <span style="font-size: 3rem; opacity: 0.5;">🖼️</span>
-                            <p style="margin-top: 12px;">Seleccione un hotel arriba para gestionar sus imágenes</p>
                         </div>
                     </div>
                 </div>
@@ -19758,105 +19710,189 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         input.value = '';
     };
 
-    // Cargar conocimiento del hotel seleccionado
+    // Cargar conocimiento del hotel seleccionado (sincronizado con sección Hoteles)
     window.loadSelectedHotelKnowledge = function() {
         const hotelId = document.getElementById('knowledge-hotel-selector')?.value;
         const container = document.getElementById('hotels-knowledge-list');
-        const imagesManager = document.getElementById('hotel-images-manager');
-        const imagesPlaceholder = document.getElementById('hotel-images-placeholder');
-        const selectedHotelLabel = document.getElementById('selected-hotel-for-images');
         
         if (!hotelId || !container) {
             container.innerHTML = '<p style="color: #666; text-align: center; padding: 40px;">Seleccione un hotel para ver/editar su base de conocimiento</p>';
-            if (imagesManager) imagesManager.style.display = 'none';
-            if (imagesPlaceholder) imagesPlaceholder.style.display = 'block';
             return;
         }
         
         const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
         const hotel = hotels.find(h => h.id === hotelId);
-        const knowledge = JSON.parse(localStorage.getItem('flor_hotel_knowledge') || '{}');
-        const hotelKnowledge = knowledge[hotelId] || {};
         
-        // Cargar base de conocimiento
+        if (!hotel) {
+            container.innerHTML = '<p style="color: #e53935; text-align: center; padding: 40px;">❌ Hotel no encontrado</p>';
+            return;
+        }
+        
+        // Cargar conocimiento extra de Flor
+        const florKnowledge = JSON.parse(localStorage.getItem('flor_hotel_knowledge') || '{}');
+        const extraKnowledge = florKnowledge[hotelId] || {};
+        
+        // Obtener imágenes del hotel
+        const mainImage = hotel.mainImage || (hotel.images && hotel.images[0]) || '';
+        const galleryImages = hotel.galleryImages || (hotel.images && hotel.images.slice(1)) || [];
+        const amenitiesList = Array.isArray(hotel.amenities) ? hotel.amenities.join(', ') : (hotel.amenities || '');
+        
+        // Construir HTML con información sincronizada + campos extra
         container.innerHTML = `
-            <div style="background: #f9f9f9; padding: 20px; border-radius: 8px;">
-                <h4 style="margin: 0 0 16px 0;">🏨 ${hotel?.name || 'Hotel'}</h4>
-                <div style="display: grid; gap: 16px;">
-                    <div>
-                        <label style="display: block; font-weight: 500; margin-bottom: 8px;">Descripción General</label>
-                        <textarea id="knowledge-description" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">${hotelKnowledge.description || ''}</textarea>
+            <div style="display: grid; gap: 24px;">
+                <!-- Información Sincronizada (Solo Lectura) -->
+                <div style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); padding: 20px; border-radius: 12px; border-left: 4px solid #4caf50;">
+                    <h4 style="margin: 0 0 16px 0; display: flex; align-items: center; gap: 8px;">
+                        <span>🔄</span> Información Sincronizada desde Hoteles
+                        <span style="font-size: 0.8rem; color: #2e7d32; font-weight: normal;">(Solo lectura - Editar en sección Hoteles)</span>
+                    </h4>
+                    
+                    <div style="display: grid; gap: 16px;">
+                        <!-- Nombre y Ubicación -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                            <div>
+                                <label style="display: block; font-weight: 500; margin-bottom: 6px; color: #2e7d32;">🏨 Nombre del Hotel</label>
+                                <div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid #a5d6a7;">${hotel.name || 'No especificado'}</div>
+                            </div>
+                            <div>
+                                <label style="display: block; font-weight: 500; margin-bottom: 6px; color: #2e7d32;">📍 Ubicación</label>
+                                <div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid #a5d6a7;">${hotel.location || 'No especificada'}</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Rating y Precio -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                            <div>
+                                <label style="display: block; font-weight: 500; margin-bottom: 6px; color: #2e7d32;">⭐ Calificación</label>
+                                <div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid #a5d6a7;">${hotel.rating || '0'}/5</div>
+                            </div>
+                            <div>
+                                <label style="display: block; font-weight: 500; margin-bottom: 6px; color: #2e7d32;">💰 Rango de Precio</label>
+                                <div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid #a5d6a7;">${hotel.priceRange || hotel.price_range || 'No especificado'}</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Amenidades -->
+                        <div>
+                            <label style="display: block; font-weight: 500; margin-bottom: 6px; color: #2e7d32;">🎯 Servicios/Amenidades</label>
+                            <div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid #a5d6a7;">${amenitiesList || 'No especificados'}</div>
+                        </div>
+                        
+                        <!-- Imágenes del Hotel -->
+                        <div>
+                            <label style="display: block; font-weight: 500; margin-bottom: 6px; color: #2e7d32;">🖼️ Imágenes Disponibles</label>
+                            <div style="display: flex; gap: 12px; flex-wrap: wrap; padding: 12px; background: white; border-radius: 8px; border: 1px solid #a5d6a7;">
+                                ${mainImage ? `
+                                    <div style="text-align: center;">
+                                        <img src="${mainImage}" alt="Principal" style="width: 100px; height: 70px; object-fit: cover; border-radius: 6px; border: 2px solid #4caf50;">
+                                        <div style="font-size: 0.75rem; color: #666; margin-top: 4px;">Principal</div>
+                                    </div>
+                                ` : '<span style="color: #999;">Sin imagen principal</span>'}
+                                ${galleryImages.length > 0 ? galleryImages.slice(0, 4).map((img, i) => `
+                                    <div style="text-align: center;">
+                                        <img src="${img}" alt="Galería ${i+1}" style="width: 100px; height: 70px; object-fit: cover; border-radius: 6px;">
+                                        <div style="font-size: 0.75rem; color: #666; margin-top: 4px;">Galería ${i+1}</div>
+                                    </div>
+                                `).join('') : ''}
+                                ${galleryImages.length > 4 ? `<div style="display: flex; align-items: center; color: #666;">+${galleryImages.length - 4} más</div>` : ''}
+                            </div>
+                        </div>
+                        
+                        <!-- Google Maps -->
+                        ${hotel.googleMaps ? `
+                        <div>
+                            <label style="display: block; font-weight: 500; margin-bottom: 6px; color: #2e7d32;">🗺️ Google Maps</label>
+                            <div style="padding: 12px; background: white; border-radius: 8px; border: 1px solid #a5d6a7;">
+                                <a href="${hotel.googleMaps}" target="_blank" style="color: #1976d2; text-decoration: none;">📍 Ver en Google Maps</a>
+                            </div>
+                        </div>
+                        ` : ''}
                     </div>
-                    <div>
-                        <label style="display: block; font-weight: 500; margin-bottom: 8px;">Servicios y Amenidades</label>
-                        <textarea id="knowledge-amenities" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">${hotelKnowledge.amenities || ''}</textarea>
+                </div>
+                
+                <!-- Información Extra para Flor (Editable) -->
+                <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 20px; border-radius: 12px; border-left: 4px solid #2196f3;">
+                    <h4 style="margin: 0 0 16px 0; display: flex; align-items: center; gap: 8px;">
+                        <span>✏️</span> Información Adicional para Flor
+                        <span style="font-size: 0.8rem; color: #1565c0; font-weight: normal;">(Editable)</span>
+                    </h4>
+                    
+                    <div style="display: grid; gap: 16px;">
+                        <div>
+                            <label style="display: block; font-weight: 500; margin-bottom: 8px; color: #1565c0;">📝 Descripción Detallada para Flor</label>
+                            <textarea id="knowledge-description" rows="4" style="width: 100%; padding: 12px; border: 1px solid #90caf9; border-radius: 8px; background: white;" placeholder="Descripción ampliada que Flor usará para responder consultas. Ejemplo: características únicas, ambiente, qué hace especial a este hotel...">${extraKnowledge.description || ''}</textarea>
+                        </div>
+                        
+                        <div>
+                            <label style="display: block; font-weight: 500; margin-bottom: 8px; color: #1565c0;">🎯 Detalle de Servicios para Flor</label>
+                            <textarea id="knowledge-services-detail" rows="4" style="width: 100%; padding: 12px; border: 1px solid #90caf9; border-radius: 8px; background: white;" placeholder="Información detallada de servicios. Ejemplo: horarios de spa, tipo de comida en restaurante, actividades disponibles...">${extraKnowledge.servicesDetail || ''}</textarea>
+                        </div>
+                        
+                        <div>
+                            <label style="display: block; font-weight: 500; margin-bottom: 8px; color: #1565c0;">💰 Información de Precios para Flor</label>
+                            <textarea id="knowledge-pricing" rows="3" style="width: 100%; padding: 12px; border: 1px solid #90caf9; border-radius: 8px; background: white;" placeholder="Información de tarifas. Ejemplo: temporada alta/baja, promociones, qué incluye el precio...">${extraKnowledge.pricing || ''}</textarea>
+                        </div>
+                        
+                        <div>
+                            <label style="display: block; font-weight: 500; margin-bottom: 8px; color: #1565c0;">🚗 Cómo Llegar / Transporte</label>
+                            <textarea id="knowledge-transport" rows="3" style="width: 100%; padding: 12px; border: 1px solid #90caf9; border-radius: 8px; background: white;" placeholder="Información de transporte. Ejemplo: distancia desde aeropuerto, transfers disponibles, acceso en auto...">${extraKnowledge.transport || ''}</textarea>
+                        </div>
+                        
+                        <div>
+                            <label style="display: block; font-weight: 500; margin-bottom: 8px; color: #1565c0;">📋 Notas Adicionales</label>
+                            <textarea id="knowledge-notes" rows="3" style="width: 100%; padding: 12px; border: 1px solid #90caf9; border-radius: 8px; background: white;" placeholder="Cualquier otra información relevante que Flor deba saber...">${extraKnowledge.notes || ''}</textarea>
+                        </div>
+                        
+                        <button class="form-button" style="background: #4caf50; color: white; width: fit-content;" onclick="saveHotelKnowledge('${hotelId}')">
+                            <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
+                            Guardar Información Adicional
+                        </button>
                     </div>
-                    <div>
-                        <label style="display: block; font-weight: 500; margin-bottom: 8px;">Información de Tarifas</label>
-                        <textarea id="knowledge-pricing" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">${hotelKnowledge.pricing || ''}</textarea>
-                    </div>
-                    <button class="form-button" style="background: #4caf50; color: white; width: fit-content;" onclick="saveHotelKnowledge('${hotelId}')">
-                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
-                        Guardar Conocimiento
-                    </button>
                 </div>
             </div>
         `;
         
-        // Mostrar y cargar gestor de imágenes
-        if (imagesManager) imagesManager.style.display = 'block';
-        if (imagesPlaceholder) imagesPlaceholder.style.display = 'none';
-        if (selectedHotelLabel) selectedHotelLabel.textContent = hotel?.name || 'Hotel';
-        
-        // Cargar imágenes del hotel
-        const hotelImages = JSON.parse(localStorage.getItem('flor_hotel_images') || '{}');
-        const images = hotelImages[hotelId] || {};
-        
-        const imageMainEl = document.getElementById('hotel-image-main');
-        const imageRoomEl = document.getElementById('hotel-image-room');
-        const imageMapEl = document.getElementById('hotel-image-map');
-        const imageServicesEl = document.getElementById('hotel-image-services');
-        
-        if (imageMainEl) imageMainEl.value = images.main || '';
-        if (imageRoomEl) imageRoomEl.value = images.room || '';
-        if (imageMapEl) imageMapEl.value = images.map || '';
-        if (imageServicesEl) imageServicesEl.value = images.services || '';
-        
-        // Guardar ID del hotel seleccionado para la función saveHotelImages
-        window.currentHotelIdForImages = hotelId;
-    };
-    
-    // Guardar imágenes del hotel
-    window.saveHotelImages = function() {
-        const hotelId = window.currentHotelIdForImages;
-        if (!hotelId) {
-            alert('⚠️ Selecciona un hotel primero');
-            return;
-        }
-        
-        const hotelImages = JSON.parse(localStorage.getItem('flor_hotel_images') || '{}');
-        hotelImages[hotelId] = {
-            main: document.getElementById('hotel-image-main')?.value || '',
-            room: document.getElementById('hotel-image-room')?.value || '',
-            map: document.getElementById('hotel-image-map')?.value || '',
-            services: document.getElementById('hotel-image-services')?.value || ''
-        };
-        localStorage.setItem('flor_hotel_images', JSON.stringify(hotelImages));
-        
-        alert('✅ Imágenes del hotel guardadas');
-        console.log('🖼️ Imágenes guardadas para hotel:', hotelId, hotelImages[hotelId]);
+        // Guardar ID del hotel seleccionado
+        window.currentHotelIdForKnowledge = hotelId;
     };
 
     // Guardar conocimiento del hotel
     window.saveHotelKnowledge = function(hotelId) {
+        // Obtener información sincronizada del hotel
+        const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+        const hotel = hotels.find(h => h.id === hotelId);
+        
+        // Guardar conocimiento extra de Flor
         const knowledge = JSON.parse(localStorage.getItem('flor_hotel_knowledge') || '{}');
         knowledge[hotelId] = {
+            // Información extra editable
             description: document.getElementById('knowledge-description')?.value || '',
-            amenities: document.getElementById('knowledge-amenities')?.value || '',
-            pricing: document.getElementById('knowledge-pricing')?.value || ''
+            servicesDetail: document.getElementById('knowledge-services-detail')?.value || '',
+            pricing: document.getElementById('knowledge-pricing')?.value || '',
+            transport: document.getElementById('knowledge-transport')?.value || '',
+            notes: document.getElementById('knowledge-notes')?.value || '',
+            // Referencia a información sincronizada (para acceso rápido)
+            syncedInfo: hotel ? {
+                name: hotel.name,
+                location: hotel.location,
+                rating: hotel.rating,
+                priceRange: hotel.priceRange || hotel.price_range,
+                amenities: hotel.amenities,
+                mainImage: hotel.mainImage || (hotel.images && hotel.images[0]),
+                galleryImages: hotel.galleryImages || (hotel.images && hotel.images.slice(1)),
+                googleMaps: hotel.googleMaps
+            } : null,
+            lastUpdated: new Date().toISOString()
         };
         localStorage.setItem('flor_hotel_knowledge', JSON.stringify(knowledge));
-        alert('✅ Conocimiento del hotel guardado');
+        
+        // También actualizar la base de conocimiento de Flor (FlorKnowledgeBase) si está disponible
+        if (typeof FlorKnowledgeBase !== 'undefined') {
+            FlorKnowledgeBase.saveHotelKnowledge(hotelId, knowledge[hotelId]);
+        }
+        
+        alert('✅ Información adicional para Flor guardada');
+        console.log('💾 Conocimiento guardado para hotel:', hotelId, knowledge[hotelId]);
     };
 
     // Inicializar cuando se carga la sección
