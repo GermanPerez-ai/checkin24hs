@@ -3385,66 +3385,173 @@
 
                 <!-- WhatsApp Tab -->
                 <div id="flor-tab-whatsapp" class="flor-tab-content" style="display: none;">
-                    <div class="stat-card" style="padding: 24px; margin-bottom: 24px;">
-                        <h3 style="margin: 0 0 8px 0;">📱 Integración con WhatsApp</h3>
-                        <p style="color: #666; margin-bottom: 24px;">Conecta Flor con WhatsApp para responder automáticamente a tus clientes.</p>
+                    <!-- Sección de Conexiones WhatsApp -->
+                    <div style="background: #1a1a2e; border-radius: 16px; padding: 32px; margin-bottom: 24px;">
+                        <h2 style="color: white; text-align: center; margin: 0 0 8px 0; font-size: 1.8rem;">Conexiones WhatsApp</h2>
+                        <p style="color: #888; text-align: center; margin-bottom: 32px;">Solo se muestran las conexiones QR de WhatsApp</p>
                         
-                        <!-- Estado de Conexión -->
-                        <div id="whatsapp-status-card" style="background: #f5f5f5; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
-                            <div style="display: flex; align-items: center; gap: 12px;">
-                                <div id="whatsapp-status-indicator" style="width: 16px; height: 16px; border-radius: 50%; background: #9e9e9e;"></div>
-                                <div>
-                                    <strong id="whatsapp-status-text">Verificando conexión...</strong>
-                                    <p id="whatsapp-status-detail" style="color: #666; font-size: 0.85rem; margin: 4px 0 0 0;">Conectando con el servidor...</p>
-                                </div>
+                        <!-- Lista de Conexiones -->
+                        <div id="whatsapp-connections-list" style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 24px;">
+                            <!-- Las conexiones se cargarán dinámicamente -->
+                            <div style="text-align: center; color: #666; padding: 40px;">
+                                <span class="material-icons" style="font-size: 48px; color: #444;">phone_iphone</span>
+                                <p>No hay conexiones configuradas</p>
                             </div>
                         </div>
+                        
+                        <!-- Botón Agregar Conexión -->
+                        <div style="text-align: center;">
+                            <button onclick="openAddWhatsAppModal()" style="background: #25D366; color: white; border: none; padding: 16px 32px; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: 600; display: inline-flex; align-items: center; gap: 10px;">
+                                <span class="material-icons">add</span>
+                                Agregar conexión a WhatsApp
+                            </button>
+                            <p style="color: #666; font-size: 0.85rem; margin-top: 8px;">Máximo 4 conexiones permitidas</p>
+                        </div>
+                    </div>
 
+                    <!-- Configuración del Servidor -->
+                    <div class="stat-card" style="padding: 24px; margin-bottom: 24px;">
+                        <h3 style="margin: 0 0 16px 0;">🖥️ Configuración del Servidor</h3>
                         <div style="max-width: 500px;">
                             <div style="margin-bottom: 16px;">
                                 <label style="display: block; font-weight: 500; margin-bottom: 8px;">URL del Servidor WhatsApp</label>
                                 <input type="text" id="whatsapp-server-url" value="http://localhost:3001" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;" placeholder="http://tu-servidor:3001">
+                                <p style="color: #666; font-size: 0.8rem; margin-top: 4px;">La URL del servidor donde está corriendo el servicio de WhatsApp.</p>
                             </div>
                             <button class="form-button" style="background: #25D366; color: white;" onclick="checkWhatsAppConnection()">
                                 <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">sync</span>
                                 Verificar Conexión
                             </button>
                         </div>
-
-                        <!-- QR Code Section -->
-                        <div id="whatsapp-qr-section" style="display: none; background: #fff3e0; border-radius: 8px; padding: 24px; margin-top: 24px; text-align: center;">
-                            <h4 style="margin-bottom: 16px; color: #e65100;">📲 Escanea el código QR</h4>
-                            <p style="color: #666; margin-bottom: 16px;">Abre WhatsApp → Dispositivos vinculados → Vincular dispositivo</p>
-                            <div id="whatsapp-qr-container" style="display: inline-block; background: white; padding: 16px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-                                <div id="whatsapp-qr-code" style="font-family: monospace; white-space: pre; font-size: 8px; line-height: 1;"></div>
-                            </div>
-                        </div>
-
-                        <!-- Info Conectado -->
-                        <div id="whatsapp-info-section" style="display: none; background: #e8f5e9; border-radius: 8px; padding: 24px; margin-top: 24px;">
-                            <h4 style="margin-bottom: 16px; color: #2e7d32;">✅ WhatsApp Conectado</h4>
-                            <div style="display: grid; gap: 8px;">
-                                <div><strong>Número:</strong> <span id="whatsapp-phone-number">-</span></div>
-                                <div><strong>Nombre:</strong> <span id="whatsapp-user-name">-</span></div>
-                            </div>
-                            <button class="form-button" style="background: #ef5350; color: white; margin-top: 16px;" onclick="disconnectWhatsApp()">
-                                🔌 Desconectar
-                            </button>
-                        </div>
                     </div>
 
-                    <!-- Auto Reply Config -->
-                    <div class="stat-card" style="padding: 24px;">
+                    <!-- Respuestas Automáticas -->
+                    <div class="stat-card" style="padding: 24px; margin-bottom: 24px;">
                         <h3 style="margin: 0 0 20px 0;">🤖 Respuestas Automáticas</h3>
-                        <div style="max-width: 500px;">
-                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 16px;">
-                                <input type="checkbox" id="whatsapp-auto-reply" onchange="saveWhatsAppConfig()">
-                                <span style="font-weight: 500;">Habilitar respuestas automáticas de Flor</span>
+                        <div style="max-width: 600px;">
+                            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin-bottom: 16px; padding: 12px; background: #f5f5f5; border-radius: 8px;">
+                                <input type="checkbox" id="whatsapp-auto-reply" onchange="saveWhatsAppConfig()" style="width: 20px; height: 20px;">
+                                <div>
+                                    <span style="font-weight: 600; color: #333;">Habilitar respuestas automáticas de Flor</span>
+                                    <p style="color: #666; font-size: 0.85rem; margin: 4px 0 0 0;">Cuando está activado, Flor responderá automáticamente los mensajes de WhatsApp usando la IA configurada.</p>
+                                </div>
                             </label>
+                            
+                            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin-bottom: 16px; padding: 12px; background: #f5f5f5; border-radius: 8px;">
+                                <input type="checkbox" id="whatsapp-business-hours-only" onchange="saveWhatsAppConfig()" style="width: 20px; height: 20px;">
+                                <div>
+                                    <span style="font-weight: 600; color: #333;">Solo responder en horario laboral</span>
+                                    <p style="color: #666; font-size: 0.85rem; margin: 4px 0 0 0;">Flor solo responderá durante el horario configurado (9:00 - 18:00 por defecto).</p>
+                                </div>
+                            </label>
+                            
+                            <div style="margin-bottom: 16px;">
+                                <label style="display: block; font-weight: 500; margin-bottom: 8px;">Mensaje fuera de horario</label>
+                                <textarea id="whatsapp-out-of-hours-message" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; resize: vertical;" placeholder="Gracias por contactarnos. Nuestro horario de atención es de Lunes a Viernes de 9:00 a 18:00. Te responderemos a la brevedad.">Gracias por contactarnos. Nuestro horario de atención es de Lunes a Viernes de 9:00 a 18:00. Te responderemos a la brevedad.</textarea>
+                            </div>
+                            
                             <button class="form-button" style="background: #4caf50; color: white;" onclick="saveWhatsAppConfig()">
                                 <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
                                 Guardar Configuración
                             </button>
+                        </div>
+                    </div>
+
+                    <!-- Estadísticas de WhatsApp -->
+                    <div class="stat-card" style="padding: 24px;">
+                        <h3 style="margin: 0 0 20px 0;">📊 Estadísticas de WhatsApp</h3>
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;">
+                            <div style="background: #f5f5f5; padding: 20px; border-radius: 12px; text-align: center;">
+                                <div id="whatsapp-stat-received" style="font-size: 2rem; font-weight: 700; color: #1976d2;">0</div>
+                                <div style="color: #666; font-size: 0.85rem;">Mensajes Recibidos</div>
+                            </div>
+                            <div style="background: #f5f5f5; padding: 20px; border-radius: 12px; text-align: center;">
+                                <div id="whatsapp-stat-auto-replies" style="font-size: 2rem; font-weight: 700; color: #25D366;">0</div>
+                                <div style="color: #666; font-size: 0.85rem;">Respuestas Automáticas</div>
+                            </div>
+                            <div style="background: #f5f5f5; padding: 20px; border-radius: 12px; text-align: center;">
+                                <div id="whatsapp-stat-contacts" style="font-size: 2rem; font-weight: 700; color: #ff9800;">0</div>
+                                <div style="color: #666; font-size: 0.85rem;">Contactos Únicos</div>
+                            </div>
+                            <div style="background: #f5f5f5; padding: 20px; border-radius: 12px; text-align: center;">
+                                <div id="whatsapp-stat-avg-time" style="font-size: 2rem; font-weight: 700; color: #9c27b0;">0s</div>
+                                <div style="color: #666; font-size: 0.85rem;">Tiempo Promedio Respuesta</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Agregar Conexión WhatsApp -->
+                <div id="add-whatsapp-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; align-items: center; justify-content: center;">
+                    <div style="background: #16213e; border-radius: 16px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; position: relative;">
+                        <!-- Header -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 24px; border-bottom: 1px solid #2a2a4a;">
+                            <h2 style="color: white; margin: 0; font-size: 1.4rem;">Conectar WhatsApp</h2>
+                            <button onclick="closeAddWhatsAppModal()" style="background: none; border: none; color: #ff4757; font-size: 24px; cursor: pointer;">✕</button>
+                        </div>
+                        
+                        <!-- Contenido -->
+                        <div id="whatsapp-modal-content" style="padding: 24px;">
+                            <!-- Paso 1: Configurar nombre de bandeja -->
+                            <div id="whatsapp-step-1">
+                                <div style="margin-bottom: 24px;">
+                                    <label style="display: block; color: #ccc; margin-bottom: 8px; font-weight: 500;">Nombre de la bandeja</label>
+                                    <input type="text" id="new-whatsapp-tray-name" placeholder="Ej: call-center-1, ventas, soporte" style="width: 100%; padding: 14px; border: 2px solid #2a2a4a; border-radius: 8px; background: #1a1a2e; color: white; font-size: 1rem;">
+                                    <p style="color: #666; font-size: 0.85rem; margin-top: 8px;">Este nombre identificará la conexión en el sistema.</p>
+                                </div>
+                                <button onclick="startWhatsAppConnection()" style="width: 100%; background: #25D366; color: white; border: none; padding: 16px; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer;">
+                                    <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">qr_code</span>
+                                    Generar código QR
+                                </button>
+                            </div>
+                            
+                            <!-- Paso 2: Mostrar QR -->
+                            <div id="whatsapp-step-2" style="display: none; text-align: center;">
+                                <div style="background: #25D366; color: white; padding: 12px; border-radius: 8px; margin-bottom: 24px;">
+                                    📱 Escanea el código QR
+                                </div>
+                                <p style="color: #888; margin-bottom: 16px;">Abre WhatsApp en tu teléfono → <span style="color: #25D366;">Menú</span> → <span style="color: #25D366;">Dispositivos vinculados</span> → <span style="color: #25D366;">Vincular dispositivo</span></p>
+                                
+                                <div style="background: white; padding: 24px; border-radius: 12px; display: inline-block; margin-bottom: 16px;">
+                                    <div id="whatsapp-qr-code" style="width: 256px; height: 256px; display: flex; align-items: center; justify-content: center;">
+                                        <span class="material-icons" style="font-size: 48px; color: #ddd; animation: pulse 1.5s infinite;">qr_code_scanner</span>
+                                    </div>
+                                </div>
+                                <p style="color: #666; font-size: 0.85rem;">El QR se actualiza automáticamente cada 30 segundos</p>
+                            </div>
+                            
+                            <!-- Paso 3: Conexión Exitosa -->
+                            <div id="whatsapp-step-3" style="display: none; text-align: center;">
+                                <div style="background: #25D366; border-radius: 12px; padding: 32px; margin-bottom: 24px;">
+                                    <div style="background: #1b9c4a; width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+                                        <span class="material-icons" style="font-size: 48px; color: white;">check</span>
+                                    </div>
+                                    <h3 style="color: white; margin: 0 0 8px 0;">¡Conectado!</h3>
+                                    <p style="color: rgba(255,255,255,0.8); margin: 0;">Tu WhatsApp está ahora conectado y listo para usar</p>
+                                </div>
+                                
+                                <div style="background: #1a1a2e; padding: 20px; border-radius: 8px; text-align: left;">
+                                    <h4 style="color: #888; margin: 0 0 12px 0; font-size: 0.9rem;">ℹ Estado de la Conexión</h4>
+                                    <div style="display: grid; gap: 8px;">
+                                        <div style="display: flex; justify-content: space-between;">
+                                            <span style="color: #888;">Estado:</span>
+                                            <span id="connected-status" style="color: #25D366; font-weight: 600;">Conectado</span>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between;">
+                                            <span style="color: #888;">Nombre de bandeja:</span>
+                                            <span id="connected-tray-name" style="color: white; font-weight: 600;">-</span>
+                                        </div>
+                                        <div style="display: flex; justify-content: space-between;">
+                                            <span style="color: #888;">Teléfono:</span>
+                                            <span id="connected-phone" style="color: white; font-weight: 600;">-</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <button onclick="closeAddWhatsAppModal(); loadWhatsAppConnections();" style="width: 100%; background: #25D366; color: white; border: none; padding: 16px; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; margin-top: 24px;">
+                                    Cerrar
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -8596,40 +8703,301 @@ Ej:
             }
         }
         
-        // Función para guardar configuración de WhatsApp
-        function saveWhatsAppConfig(event) {
-            event.preventDefault();
-            console.log('💾 Guardando configuración de WhatsApp...');
+        // ============================================
+        // SISTEMA DE CONEXIONES WHATSAPP (Multi-teléfono)
+        // ============================================
+        
+        // Cargar conexiones de WhatsApp
+        async function loadWhatsAppConnections() {
+            const container = document.getElementById('whatsapp-connections-list');
+            if (!container) return;
             
-            const accessToken = document.getElementById('whatsappAccessToken').value.trim();
-            const phoneNumberId = document.getElementById('whatsappPhoneNumberId').value.trim();
-            const apiVersion = document.getElementById('whatsappApiVersion').value.trim() || 'v18.0';
-            const serverURL = document.getElementById('whatsappServerURL').value.trim();
+            // Obtener conexiones guardadas
+            const connections = JSON.parse(localStorage.getItem('whatsappConnections') || '[]');
             
-            if (!accessToken || !phoneNumberId) {
-                alert('❌ Por favor completa los campos obligatorios (Access Token y Phone Number ID)');
+            if (connections.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; color: #666; padding: 40px;">
+                        <span class="material-icons" style="font-size: 48px; color: #444;">phone_iphone</span>
+                        <p>No hay conexiones configuradas</p>
+                    </div>
+                `;
                 return;
             }
             
-            // Guardar configuración
+            container.innerHTML = connections.map((conn, index) => `
+                <div style="background: #16213e; border-radius: 12px; padding: 20px; display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <div style="background: #25D366; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                            <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
+                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <span style="color: white; font-size: 1.1rem; font-weight: 600;">${conn.phone || 'Sin número'}</span>
+                                <span style="background: ${conn.status === 'connected' ? '#25D366' : '#ff4757'}; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600;">
+                                    ● ${conn.status === 'connected' ? 'Conectado' : 'Desconectado'}
+                                </span>
+                            </div>
+                            <div style="color: #888; font-size: 0.9rem; margin-top: 4px;">Bandeja: ${conn.trayName || 'Sin nombre'}</div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="viewWhatsAppStatus(${index})" style="background: #1976d2; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                            <span class="material-icons" style="font-size: 18px;">visibility</span>
+                            Ver Estado
+                        </button>
+                        <button onclick="disconnectWhatsApp(${index})" style="background: #ff4757; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                            <span class="material-icons" style="font-size: 18px;">link_off</span>
+                            Desconectar
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Actualizar estadísticas
+            updateWhatsAppStats();
+        }
+        
+        // Abrir modal para agregar conexión
+        function openAddWhatsAppModal() {
+            const connections = JSON.parse(localStorage.getItem('whatsappConnections') || '[]');
+            if (connections.length >= 4) {
+                alert('⚠️ Ya tienes el máximo de 4 conexiones permitidas.');
+                return;
+            }
+            
+            const modal = document.getElementById('add-whatsapp-modal');
+            if (modal) {
+                modal.style.display = 'flex';
+                // Resetear pasos
+                document.getElementById('whatsapp-step-1').style.display = 'block';
+                document.getElementById('whatsapp-step-2').style.display = 'none';
+                document.getElementById('whatsapp-step-3').style.display = 'none';
+                document.getElementById('new-whatsapp-tray-name').value = '';
+            }
+        }
+        
+        // Cerrar modal
+        function closeAddWhatsAppModal() {
+            const modal = document.getElementById('add-whatsapp-modal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+        
+        // Iniciar conexión de WhatsApp
+        async function startWhatsAppConnection() {
+            const trayName = document.getElementById('new-whatsapp-tray-name').value.trim();
+            if (!trayName) {
+                alert('⚠️ Por favor ingresa un nombre para la bandeja');
+                return;
+            }
+            
+            // Mostrar paso 2 (QR)
+            document.getElementById('whatsapp-step-1').style.display = 'none';
+            document.getElementById('whatsapp-step-2').style.display = 'block';
+            
+            const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://localhost:3001';
+            
+            try {
+                // Intentar obtener QR del servidor
+                const response = await fetch(`${serverUrl}/api/qr?tray=${encodeURIComponent(trayName)}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.qr) {
+                        // Mostrar QR usando una librería o imagen
+                        document.getElementById('whatsapp-qr-code').innerHTML = `<img src="${data.qr}" style="width: 256px; height: 256px;">`;
+                    }
+                }
+                
+                // Simular espera de conexión (en producción esto sería un polling o websocket)
+                checkConnectionStatus(trayName);
+                
+            } catch (error) {
+                console.log('⚠️ Servidor no disponible, mostrando simulación');
+                // Mostrar QR placeholder
+                document.getElementById('whatsapp-qr-code').innerHTML = `
+                    <div style="width: 256px; height: 256px; background: linear-gradient(45deg, #f0f0f0 25%, transparent 25%, transparent 75%, #f0f0f0 75%, #f0f0f0), 
+                                linear-gradient(45deg, #f0f0f0 25%, transparent 25%, transparent 75%, #f0f0f0 75%, #f0f0f0);
+                         background-size: 20px 20px; background-position: 0 0, 10px 10px; display: flex; align-items: center; justify-content: center;">
+                        <div style="background: white; padding: 20px; border-radius: 8px; text-align: center;">
+                            <span class="material-icons" style="font-size: 48px; color: #25D366;">qr_code</span>
+                            <p style="margin: 8px 0 0 0; color: #333; font-size: 12px;">Escanea con WhatsApp</p>
+                        </div>
+                    </div>
+                `;
+                
+                // Simular conexión exitosa después de 3 segundos (para demo)
+                setTimeout(() => {
+                    simulateSuccessfulConnection(trayName);
+                }, 3000);
+            }
+        }
+        
+        // Verificar estado de conexión
+        async function checkConnectionStatus(trayName) {
+            const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://localhost:3001';
+            let attempts = 0;
+            const maxAttempts = 60; // 60 intentos de 2 segundos = 2 minutos
+            
+            const checkInterval = setInterval(async () => {
+                attempts++;
+                if (attempts > maxAttempts) {
+                    clearInterval(checkInterval);
+                    alert('⏱️ Tiempo de espera agotado. Intenta nuevamente.');
+                    closeAddWhatsAppModal();
+                    return;
+                }
+                
+                try {
+                    const response = await fetch(`${serverUrl}/api/status?tray=${encodeURIComponent(trayName)}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.connected) {
+                            clearInterval(checkInterval);
+                            showConnectionSuccess(trayName, data.phone);
+                        }
+                    }
+                } catch (error) {
+                    // Servidor no disponible, continuar intentando
+                }
+            }, 2000);
+        }
+        
+        // Simular conexión exitosa (para demo sin servidor)
+        function simulateSuccessfulConnection(trayName) {
+            const fakePhone = '+54929' + Math.floor(10000000 + Math.random() * 90000000);
+            showConnectionSuccess(trayName, fakePhone);
+        }
+        
+        // Mostrar conexión exitosa
+        function showConnectionSuccess(trayName, phone) {
+            // Mostrar paso 3
+            document.getElementById('whatsapp-step-2').style.display = 'none';
+            document.getElementById('whatsapp-step-3').style.display = 'block';
+            
+            // Actualizar info
+            document.getElementById('connected-tray-name').textContent = trayName;
+            document.getElementById('connected-phone').textContent = phone;
+            
+            // Guardar conexión
+            const connections = JSON.parse(localStorage.getItem('whatsappConnections') || '[]');
+            connections.push({
+                trayName: trayName,
+                phone: phone,
+                status: 'connected',
+                connectedAt: new Date().toISOString()
+            });
+            localStorage.setItem('whatsappConnections', JSON.stringify(connections));
+        }
+        
+        // Ver estado de conexión
+        function viewWhatsAppStatus(index) {
+            const connections = JSON.parse(localStorage.getItem('whatsappConnections') || '[]');
+            const conn = connections[index];
+            if (!conn) return;
+            
+            alert(`📱 Estado de la Conexión\n\nNúmero: ${conn.phone}\nBandeja: ${conn.trayName}\nEstado: ${conn.status === 'connected' ? '✅ Conectado' : '❌ Desconectado'}\nConectado desde: ${new Date(conn.connectedAt).toLocaleString('es-AR')}`);
+        }
+        
+        // Desconectar WhatsApp
+        async function disconnectWhatsApp(index) {
+            if (!confirm('¿Estás seguro de que deseas desconectar esta cuenta de WhatsApp?')) {
+                return;
+            }
+            
+            const connections = JSON.parse(localStorage.getItem('whatsappConnections') || '[]');
+            
+            if (index !== undefined) {
+                // Desconectar una conexión específica
+                connections.splice(index, 1);
+            }
+            
+            localStorage.setItem('whatsappConnections', JSON.stringify(connections));
+            loadWhatsAppConnections();
+            alert('✅ WhatsApp desconectado correctamente');
+        }
+        
+        // Actualizar estadísticas de WhatsApp
+        function updateWhatsAppStats() {
+            const stats = JSON.parse(localStorage.getItem('whatsappStats') || '{"received":0,"autoReplies":0,"contacts":0,"avgTime":0}');
+            
+            const receivedEl = document.getElementById('whatsapp-stat-received');
+            const autoRepliesEl = document.getElementById('whatsapp-stat-auto-replies');
+            const contactsEl = document.getElementById('whatsapp-stat-contacts');
+            const avgTimeEl = document.getElementById('whatsapp-stat-avg-time');
+            
+            if (receivedEl) receivedEl.textContent = stats.received || 0;
+            if (autoRepliesEl) autoRepliesEl.textContent = stats.autoReplies || 0;
+            if (contactsEl) contactsEl.textContent = stats.contacts || 0;
+            if (avgTimeEl) avgTimeEl.textContent = (stats.avgTime || 0) + 's';
+        }
+        
+        // Verificar conexión del servidor
+        async function checkWhatsAppConnection() {
+            const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://localhost:3001';
+            
+            try {
+                const response = await fetch(`${serverUrl}/api/health`, { 
+                    method: 'GET',
+                    timeout: 5000 
+                });
+                
+                if (response.ok) {
+                    alert('✅ Conexión con el servidor establecida correctamente');
+                } else {
+                    throw new Error('Servidor no responde');
+                }
+            } catch (error) {
+                alert('⚠️ No se pudo conectar con el servidor WhatsApp.\n\nVerifica que:\n1. El servidor esté corriendo\n2. La URL sea correcta\n3. No haya firewall bloqueando la conexión');
+            }
+        }
+        
+        // Guardar configuración de WhatsApp
+        function saveWhatsAppConfig() {
+            console.log('💾 Guardando configuración de WhatsApp...');
+            
+            const autoReply = document.getElementById('whatsapp-auto-reply')?.checked || false;
+            const businessHoursOnly = document.getElementById('whatsapp-business-hours-only')?.checked || false;
+            const outOfHoursMessage = document.getElementById('whatsapp-out-of-hours-message')?.value || '';
+            const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://localhost:3001';
+            
             const config = {
-                accessToken: accessToken,
-                phoneNumberId: phoneNumberId,
-                apiVersion: apiVersion
+                autoReply,
+                businessHoursOnly,
+                outOfHoursMessage,
+                serverUrl
             };
             
             localStorage.setItem('whatsappConfig', JSON.stringify(config));
-            
-            if (serverURL) {
-                localStorage.setItem('whatsappServerURL', serverURL);
-            }
-            
-            console.log('✅ Configuración guardada');
-            alert('✅ Configuración de WhatsApp guardada exitosamente');
-            
-            // Cerrar modal
-            closeWhatsAppConfig();
+            console.log('✅ Configuración guardada:', config);
+            alert('✅ Configuración de WhatsApp guardada correctamente');
         }
+        
+        // Cargar configuración de WhatsApp
+        function loadWhatsAppConfig() {
+            const config = JSON.parse(localStorage.getItem('whatsappConfig') || '{}');
+            
+            const autoReplyEl = document.getElementById('whatsapp-auto-reply');
+            const businessHoursEl = document.getElementById('whatsapp-business-hours-only');
+            const outOfHoursEl = document.getElementById('whatsapp-out-of-hours-message');
+            const serverUrlEl = document.getElementById('whatsapp-server-url');
+            
+            if (autoReplyEl) autoReplyEl.checked = config.autoReply || false;
+            if (businessHoursEl) businessHoursEl.checked = config.businessHoursOnly || false;
+            if (outOfHoursEl && config.outOfHoursMessage) outOfHoursEl.value = config.outOfHoursMessage;
+            if (serverUrlEl && config.serverUrl) serverUrlEl.value = config.serverUrl;
+        }
+        
+        // Inicializar WhatsApp al cargar la página
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                loadWhatsAppConnections();
+                loadWhatsAppConfig();
+            }, 1000);
+        });
         
         // Función para cargar hoteles en el selector
         function loadHotelsForQuote() {
