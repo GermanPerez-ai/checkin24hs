@@ -8833,9 +8833,29 @@ Ej:
                 const response = await fetch(`${serverUrl}/api/qr?tray=${encodeURIComponent(trayName)}`);
                 if (response.ok) {
                     const data = await response.json();
-                    if (data.qr) {
-                        // Mostrar QR usando una librería o imagen
-                        document.getElementById('whatsapp-qr-code').innerHTML = `<img src="${data.qr}" style="width: 256px; height: 256px;">`;
+                    console.log('📱 Respuesta QR:', data);
+                    
+                    if (data.qrImage) {
+                        // Mostrar QR usando la URL de imagen generada
+                        document.getElementById('whatsapp-qr-code').innerHTML = `<img src="${data.qrImage}" style="width: 256px; height: 256px;" alt="Código QR WhatsApp">`;
+                    } else if (data.qr) {
+                        // Generar imagen del QR si solo viene el texto
+                        const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(data.qr)}`;
+                        document.getElementById('whatsapp-qr-code').innerHTML = `<img src="${qrImageUrl}" style="width: 256px; height: 256px;" alt="Código QR WhatsApp">`;
+                    } else if (data.status === 'connected') {
+                        // Ya está conectado
+                        document.getElementById('whatsapp-step-2').style.display = 'none';
+                        document.getElementById('whatsapp-step-3').style.display = 'block';
+                    } else if (data.status === 'initializing') {
+                        // Aún inicializando, esperar
+                        document.getElementById('whatsapp-qr-code').innerHTML = `
+                            <div style="text-align: center;">
+                                <div class="loading-spinner" style="margin: 0 auto 16px;"></div>
+                                <p style="color: #666;">Iniciando servidor...</p>
+                                <p style="color: #999; font-size: 12px;">El QR aparecerá en unos segundos</p>
+                            </div>`;
+                        // Reintentar en 3 segundos
+                        setTimeout(() => startWhatsAppConnection(), 3000);
                     }
                 }
                 
