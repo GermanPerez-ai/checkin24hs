@@ -723,6 +723,121 @@ class SupabaseClient {
         }
     }
 
+    // Limpiar gastos duplicados
+    async cleanDuplicateExpenses() {
+        console.log('🧹 Iniciando limpieza de gastos duplicados...');
+        
+        if (!this.isInitialized()) {
+            console.log('⚠️ Supabase no inicializado, limpiando localStorage...');
+            const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+            const uniqueMap = new Map();
+            
+            expenses.forEach(expense => {
+                const key = `${expense.date}|${expense.amount}|${expense.description}|${expense.category}|${expense.subcategory || ''}`;
+                if (!uniqueMap.has(key)) {
+                    uniqueMap.set(key, expense);
+                }
+            });
+            
+            const uniqueExpenses = Array.from(uniqueMap.values());
+            const duplicatesRemoved = expenses.length - uniqueExpenses.length;
+            localStorage.setItem('expensesDB', JSON.stringify(uniqueExpenses));
+            console.log(`✅ ${duplicatesRemoved} duplicados eliminados de localStorage`);
+            return { deleted: duplicatesRemoved, kept: uniqueExpenses.length };
+        }
+
+        try {
+            // Obtener todos los gastos
+            const { data: expenses, error } = await this.client
+                .from('expenses')
+                .select('*')
+                .order('created_at', { ascending: true });
+            
+            if (error) throw error;
+            
+            console.log(`📊 Total de gastos encontrados: ${expenses.length}`);
+            
+            // Agrupar por clave única (fecha + monto + descripción + categoría + subcategoría)
+            const groupedExpenses = {};
+            const duplicatesToDelete = [];
+            let keptCount = 0;
+            
+            expenses.forEach(expense => {
+                const key = `${expense.date}|${expense.amount}|${expense.description}|${expense.category}|${expense.subcategory || ''}`;
+                
+                if (!groupedExpenses[key]) {
+                    groupedExpenses[key] = expense;
+                    keptCount++;
+                } else {
+                    // Este es un duplicado, marcarlo para eliminar
+                    duplicatesToDelete.push(expense.id);
+                }
+            });
+            
+            console.log(`📊 Resumen: ${keptCount} gastos únicos, ${duplicatesToDelete.length} duplicados a eliminar`);
+            
+            // Eliminar duplicados
+            if (duplicatesToDelete.length > 0) {
+                for (const id of duplicatesToDelete) {
+                    const { error: deleteError } = await this.client
+                        .from('expenses')
+                        .delete()
+                        .eq('id', id);
+                    
+                    if (deleteError) {
+                        console.error(`❌ Error eliminando duplicado ${id}:`, deleteError);
+                    }
+                }
+                console.log(`✅ ${duplicatesToDelete.length} gastos duplicados eliminados`);
+            } else {
+                console.log('✅ No se encontraron gastos duplicados');
+            }
+            
+            // Actualizar localStorage
+            const { data: updatedExpenses } = await this.client
+                .from('expenses')
+                .select('*')
+                .order('date', { ascending: false });
+            
+            localStorage.setItem('expensesDB', JSON.stringify(updatedExpenses || []));
+            
+            return { deleted: duplicatesToDelete.length, kept: keptCount };
+        } catch (error) {
+            console.error('❌ Error limpiando duplicados de gastos:', error);
+            throw error;
+        }
+    }
+
+    // Verificar si un gasto ya existe (para evitar duplicados en sincronización)
+    async expenseExists(expense) {
+        if (!this.isInitialized()) {
+            const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+            return expenses.some(e => 
+                e.date === expense.date && 
+                e.amount === expense.amount && 
+                e.description === expense.description &&
+                e.category === expense.category
+            );
+        }
+
+        try {
+            const { data, error } = await this.client
+                .from('expenses')
+                .select('id')
+                .eq('date', expense.date)
+                .eq('amount', expense.amount)
+                .eq('description', expense.description)
+                .eq('category', expense.category)
+                .limit(1);
+            
+            if (error) throw error;
+            return data && data.length > 0;
+        } catch (error) {
+            console.error('❌ Error verificando existencia de gasto:', error);
+            return false;
+        }
+    }
+
     // ============================================
     // USUARIOS DEL SISTEMA
     // ============================================

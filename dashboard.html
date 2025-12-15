@@ -3758,7 +3758,7 @@
 
                 <!-- Controles de Gastos -->
                 <div class="action-bar" style="margin-bottom: 24px;">
-                    <div class="action-buttons">
+                    <div class="action-buttons" style="flex-wrap: wrap;">
                         <button class="action-btn primary" onclick="addNewExpense()">
                             <span class="material-icons">add</span>
                             Agregar Gasto
@@ -3774,6 +3774,10 @@
                         <button class="action-btn secondary" onclick="openMassUpdateExchangeRate()" style="background: #ff9800; color: white;">
                             <span class="material-icons">currency_exchange</span>
                             Actualizar TC Masivo
+                        </button>
+                        <button class="action-btn secondary" onclick="cleanDuplicateExpenses()" style="background: #d32f2f; color: white; border: 2px solid #b71c1c;">
+                            <span class="material-icons">cleaning_services</span>
+                            🧹 Limpiar Duplicados
                         </button>
                     </div>
                     <div class="search-box">
@@ -18249,6 +18253,50 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             alert('✅ Gastos actualizados');
         }
 
+        // Limpiar gastos duplicados
+        async function cleanDuplicateExpenses() {
+            if (!confirm('¿Estás seguro de que deseas eliminar los gastos duplicados?\n\nEsto eliminará gastos que tengan la misma fecha, monto, descripción y categoría.')) {
+                return;
+            }
+            
+            try {
+                let result;
+                
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    // Limpiar en Supabase
+                    result = await window.supabaseClient.cleanDuplicateExpenses();
+                } else {
+                    // Limpiar en localStorage
+                    const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+                    const uniqueMap = new Map();
+                    
+                    expenses.forEach(expense => {
+                        const key = `${expense.date}|${expense.amount}|${expense.description}|${expense.category}|${expense.subcategory || ''}`;
+                        if (!uniqueMap.has(key)) {
+                            uniqueMap.set(key, expense);
+                        }
+                    });
+                    
+                    const uniqueExpenses = Array.from(uniqueMap.values());
+                    const duplicatesRemoved = expenses.length - uniqueExpenses.length;
+                    localStorage.setItem('expensesDB', JSON.stringify(uniqueExpenses));
+                    result = { deleted: duplicatesRemoved, kept: uniqueExpenses.length };
+                }
+                
+                // Recargar la tabla
+                loadExpensesData();
+                
+                if (result.deleted > 0) {
+                    alert(`✅ Limpieza completada:\n\n• ${result.deleted} duplicados eliminados\n• ${result.kept} gastos únicos conservados`);
+                } else {
+                    alert('✅ No se encontraron gastos duplicados');
+                }
+            } catch (error) {
+                console.error('❌ Error limpiando duplicados:', error);
+                alert('❌ Error al limpiar duplicados: ' + error.message);
+            }
+        }
+
         // Abrir modal para actualizar tipo de cambio masivamente
         function openMassUpdateExchangeRate() {
             const expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
@@ -19162,11 +19210,20 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     }
                 }
                 
-                // 6. SINCRONIZAR GASTOS
+                // 6. SINCRONIZAR GASTOS (con verificación de duplicados)
                 statusText.innerHTML = '💰 Sincronizando gastos...';
                 const localExpenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
                 for (const expense of localExpenses) {
                     try {
+                        // Verificar si el gasto ya existe antes de crearlo
+                        if (typeof window.supabaseClient.expenseExists === 'function') {
+                            const exists = await window.supabaseClient.expenseExists(expense);
+                            if (exists) {
+                                console.log('⏭️ Gasto ya existe, saltando:', expense.description);
+                                results.expenses.synced++; // Contamos como sincronizado
+                                continue;
+                            }
+                        }
                         if (typeof window.supabaseClient.createExpense === 'function') {
                             await window.supabaseClient.createExpense(expense);
                         }
