@@ -1548,7 +1548,7 @@
     <!-- Supabase Configuration -->
     <script src="supabase-config.js"></script>
     <!-- Supabase Client -->
-    <script src="supabase-client.js?v=3.1.0"></script>
+    <script src="supabase-client.js?v=3.2.0"></script>
     <!-- Migration Script (opcional - descomentar si quieres migrar automáticamente) -->
     <!-- <script src="migrate-to-supabase.js"></script> -->
 </head>
@@ -10260,11 +10260,27 @@ Ej:
         }
 
         // Función para editar hotel
-        function editHotel(hotelId) {
+        async function editHotel(hotelId) {
             console.log('✏️ Editando hotel:', hotelId);
             
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-            const hotel = hotels.find(h => h.id === hotelId);
+            // IMPORTANTE: Cargar desde Supabase primero para obtener google_maps
+            let hotel = null;
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    const hotels = await window.supabaseClient.getHotels();
+                    hotel = hotels.find(h => h.id === hotelId || h.id == hotelId);
+                    console.log('📦 Hotel cargado desde Supabase:', hotel);
+                } catch (error) {
+                    console.error('Error cargando hotel de Supabase:', error);
+                }
+            }
+            
+            // Fallback a localStorage si no se encontró en Supabase
+            if (!hotel) {
+                const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                hotel = hotels.find(h => h.id === hotelId || h.id == hotelId);
+                console.log('📦 Hotel cargado desde localStorage:', hotel);
+            }
             
             if (!hotel) {
                 console.error('❌ Hotel no encontrado:', hotelId);
@@ -10286,10 +10302,13 @@ Ej:
             if (locationInput) locationInput.value = hotel.location || '';
             if (websiteInput) websiteInput.value = hotel.website || '';
             if (googleMapsInput) {
-                googleMapsInput.value = hotel.googleMaps || '';
+                // IMPORTANTE: Supabase devuelve google_maps (snake_case), localStorage usa googleMaps (camelCase)
+                const googleMapsUrl = hotel.google_maps || hotel.googleMaps || '';
+                googleMapsInput.value = googleMapsUrl;
+                console.log('🗺️ Cargando Google Maps URL:', googleMapsUrl, '| Original hotel.google_maps:', hotel.google_maps, '| hotel.googleMaps:', hotel.googleMaps);
                 // Mostrar coordenadas extraídas si están disponibles
-                if (hotel.googleMaps) {
-                    const extractedCoords = extractCoordinatesFromGoogleMaps(hotel.googleMaps);
+                if (googleMapsUrl) {
+                    const extractedCoords = extractCoordinatesFromGoogleMaps(googleMapsUrl);
                     if (extractedCoords && extractedCoords.lat && extractedCoords.lng) {
                         console.log(`📍 Coordenadas extraídas de Google Maps para ${hotel.name}:`, extractedCoords);
                         // Agregar un indicador visual de coordenadas extraídas
