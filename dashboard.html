@@ -5872,7 +5872,19 @@ Ej:
             }
         }
 
-        // Función para actualizar vista previa de imagen (ELIMINADA - campo de imagen removido)
+        // Función para eliminar imagen principal
+        function deleteMainImage() {
+            const imageInput = document.getElementById('editHotelImage');
+            if (imageInput) imageInput.value = '';
+            
+            const mainImageFileInput = document.getElementById('mainImageFileInput');
+            if (mainImageFileInput) mainImageFileInput.value = '';
+            
+            updateImagePreview();
+            console.log('🗑️ Imagen principal eliminada');
+        }
+        
+        // Función para actualizar vista previa de imagen
         function updateImagePreview() {
             const imageInput = document.getElementById('editHotelImage');
             const previewContainer = document.getElementById('editImagePreview');
@@ -5886,7 +5898,14 @@ Ej:
             if (imagePath) {
                 const isUrl = !imagePath.startsWith('data:');
                 previewContainer.innerHTML = `
-                    <div style="border: 2px solid #ddd; border-radius: 8px; padding: 10px; background: #f9f9f9;">
+                    <div style="border: 2px solid #ddd; border-radius: 8px; padding: 10px; background: #f9f9f9; position: relative;">
+                        <button type="button" onclick="deleteMainImage()" 
+                                style="position: absolute; top: 5px; right: 5px; background: #d32f2f; color: white; border: none; 
+                                       border-radius: 50%; width: 30px; height: 30px; cursor: pointer; z-index: 10; 
+                                       display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3);"
+                                title="Eliminar imagen principal">
+                            <span class="material-icons" style="font-size: 18px;">close</span>
+                        </button>
                         <img src="${imagePath}" alt="Vista previa" 
                              style="max-width: 100%; max-height: 300px; border-radius: 4px; display: block; margin: 0 auto;"
                              onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
@@ -5898,7 +5917,7 @@ Ej:
                     </div>
                 `;
             } else {
-                previewContainer.innerHTML = '';
+                previewContainer.innerHTML = '<p style="color: #999; text-align: center; font-size: 14px;">Sin imagen principal - Selecciona una imagen</p>';
             }
         }
 
@@ -5927,6 +5946,38 @@ Ej:
             }
         }
         
+        // Función para eliminar una foto de la galería por índice
+        function deleteGalleryPhoto(index) {
+            const photosInput = document.getElementById('editHotelPhotos');
+            if (!photosInput) return;
+            
+            const photoPaths = getGalleryImagesFromInput();
+            photoPaths.splice(index, 1); // Eliminar la foto en el índice indicado
+            
+            // Actualizar el input con las fotos restantes
+            photosInput.value = photoPaths.join('|||');
+            
+            // Refrescar la vista previa
+            updatePhotosPreview();
+            console.log(`🗑️ Foto ${index + 1} eliminada de la galería. Quedan ${photoPaths.length} fotos.`);
+        }
+        
+        // Función para limpiar toda la galería
+        function clearAllGalleryPhotos() {
+            if (!confirm('¿Estás seguro de que deseas eliminar TODAS las fotos de la galería?')) {
+                return;
+            }
+            
+            const photosInput = document.getElementById('editHotelPhotos');
+            if (photosInput) photosInput.value = '';
+            
+            const galleryFileInput = document.getElementById('galleryImagesFileInput');
+            if (galleryFileInput) galleryFileInput.value = '';
+            
+            updatePhotosPreview();
+            console.log('🗑️ Galería de fotos vaciada completamente');
+        }
+        
         function updatePhotosPreview() {
             console.log('🖼️ updatePhotosPreview llamada');
             const photosInput = document.getElementById('editHotelPhotos');
@@ -5948,9 +5999,21 @@ Ej:
             previewContainer.innerHTML = '';
             
             if (photoPaths.length > 0) {
+                // Agregar botón para limpiar toda la galería
+                const clearAllBtn = document.createElement('button');
+                clearAllBtn.type = 'button';
+                clearAllBtn.onclick = clearAllGalleryPhotos;
+                clearAllBtn.style.cssText = 'background: #d32f2f; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-bottom: 10px; display: flex; align-items: center; gap: 5px;';
+                clearAllBtn.innerHTML = '<span class="material-icons" style="font-size: 18px;">delete_sweep</span> Eliminar todas las fotos';
+                previewContainer.appendChild(clearAllBtn);
+                
+                // Contenedor para las fotos
+                const photosWrapper = document.createElement('div');
+                photosWrapper.style.cssText = 'display: flex; flex-wrap: wrap; gap: 10px;';
+                
                 photoPaths.forEach((photoPath, index) => {
                     const photoDiv = document.createElement('div');
-                    photoDiv.style.cssText = 'position: relative; width: 150px; height: 150px; border: 2px solid #ddd; border-radius: 8px; overflow: hidden; margin: 5px; display: inline-block; background: #f0f0f0;';
+                    photoDiv.style.cssText = 'position: relative; width: 150px; height: 150px; border: 2px solid #ddd; border-radius: 8px; overflow: hidden; background: #f0f0f0;';
                     
                     const isUrl = !photoPath.startsWith('data:');
                     const imgSrc = photoPath.trim();
@@ -5971,6 +6034,14 @@ Ej:
                         if (errorDiv) errorDiv.style.display = 'flex';
                     };
                     
+                    // Botón de eliminar para cada foto
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.type = 'button';
+                    deleteBtn.onclick = () => deleteGalleryPhoto(index);
+                    deleteBtn.style.cssText = 'position: absolute; top: 5px; right: 5px; background: #d32f2f; color: white; border: none; border-radius: 50%; width: 26px; height: 26px; cursor: pointer; z-index: 15; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.3);';
+                    deleteBtn.title = 'Eliminar esta foto';
+                    deleteBtn.innerHTML = '<span class="material-icons" style="font-size: 16px;">close</span>';
+                    
                     const errorDiv = document.createElement('div');
                     errorDiv.className = 'error-message';
                     errorDiv.style.cssText = 'display: none; width: 100%; height: 100%; background: #f0f0f0; align-items: center; justify-content: center; flex-direction: column; position: absolute; top: 0; left: 0;';
@@ -5986,6 +6057,7 @@ Ej:
                     photoDiv.appendChild(img);
                     photoDiv.appendChild(errorDiv);
                     photoDiv.appendChild(numberBadge);
+                    photoDiv.appendChild(deleteBtn);
                     
                     if (isUrl) {
                         const urlBadge = document.createElement('div');
@@ -5994,10 +6066,12 @@ Ej:
                         photoDiv.appendChild(urlBadge);
                     }
                     
-                    previewContainer.appendChild(photoDiv);
+                    photosWrapper.appendChild(photoDiv);
                 });
+                
+                previewContainer.appendChild(photosWrapper);
             } else {
-                console.log('⚠️ No hay imágenes para mostrar');
+                previewContainer.innerHTML = '<p style="color: #999; text-align: center; font-size: 14px;">Sin fotos en la galería - Agrega fotos</p>';
             }
         }
 
@@ -10349,6 +10423,26 @@ Ej:
             if (descriptionTextarea) descriptionTextarea.value = hotel.description || '';
             if (amenitiesInput) amenitiesInput.value = Array.isArray(hotel.amenities) ? hotel.amenities.join(', ') : '';
             if (statusSelect) statusSelect.value = hotel.status || 'Activo';
+            
+            // CARGAR CAMPOS DE FLOR IA
+            const florInfo = hotel.flor_info || hotel.florInfo || {};
+            console.log('🤖 Cargando información de Flor IA:', florInfo);
+            
+            const florDescriptionInput = document.getElementById('editHotelFlorDescription');
+            const florServicesInput = document.getElementById('editHotelFlorServices');
+            const florExcursionsInput = document.getElementById('editHotelFlorExcursions');
+            const florPricesInput = document.getElementById('editHotelFlorPrices');
+            const florPoliciesInput = document.getElementById('editHotelFlorPolicies');
+            const florTransportInput = document.getElementById('editHotelFlorTransport');
+            const florContactInput = document.getElementById('editHotelFlorContact');
+            
+            if (florDescriptionInput) florDescriptionInput.value = florInfo.description || '';
+            if (florServicesInput) florServicesInput.value = florInfo.services || '';
+            if (florExcursionsInput) florExcursionsInput.value = florInfo.excursions || '';
+            if (florPricesInput) florPricesInput.value = florInfo.prices || '';
+            if (florPoliciesInput) florPoliciesInput.value = florInfo.policies || '';
+            if (florTransportInput) florTransportInput.value = florInfo.transport || '';
+            if (florContactInput) florContactInput.value = florInfo.contact || '';
             
             // Cargar imágenes
             const imageInput = document.getElementById('editHotelImage');
