@@ -3412,7 +3412,7 @@
                                 </button>
                             </div>
                             <p style="color: #666; font-size: 0.85rem; margin-top: 8px;">Máximo 4 conexiones permitidas</p>
-                        </div>
+                            </div>
                         </div>
 
                     <!-- Configuración del Servidor -->
@@ -3421,7 +3421,7 @@
                         <div style="max-width: 500px;">
                             <div style="margin-bottom: 16px;">
                                 <label style="display: block; font-weight: 500; margin-bottom: 8px;">URL del Servidor WhatsApp</label>
-                                <input type="text" id="whatsapp-server-url" value="http://localhost:3001" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;" placeholder="http://tu-servidor:3001">
+                                <input type="text" id="whatsapp-server-url" value="https://whatsapp.checkin24hs.com" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;" placeholder="https://whatsapp.checkin24hs.com">
                                 <p style="color: #666; font-size: 0.8rem; margin-top: 4px;">La URL del servidor donde está corriendo el servicio de WhatsApp.</p>
                             </div>
                             <button class="form-button" style="background: #25D366; color: white;" onclick="checkWhatsAppConnection()">
@@ -8826,7 +8826,7 @@ Ej:
             document.getElementById('whatsapp-step-1').style.display = 'none';
             document.getElementById('whatsapp-step-2').style.display = 'block';
             
-            const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://localhost:3001';
+            const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'https://whatsapp.checkin24hs.com';
             
             try {
                 // Intentar obtener QR del servidor
@@ -8864,7 +8864,7 @@ Ej:
         
         // Verificar estado de conexión
         async function checkConnectionStatus(trayName) {
-            const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://localhost:3001';
+            const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'https://whatsapp.checkin24hs.com';
             let attempts = 0;
             const maxAttempts = 60; // 60 intentos de 2 segundos = 2 minutos
             
@@ -9041,7 +9041,7 @@ Ej:
             const autoReply = document.getElementById('whatsapp-auto-reply')?.checked || false;
             const businessHoursOnly = document.getElementById('whatsapp-business-hours-only')?.checked || false;
             const outOfHoursMessage = document.getElementById('whatsapp-out-of-hours-message')?.value || '';
-            const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://localhost:3001';
+            const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'https://whatsapp.checkin24hs.com';
             
             const config = {
                 autoReply,
@@ -21642,7 +21642,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 return;
             }
             
-            const serverUrl = serverUrlInput.value || 'http://localhost:3001';
+            const serverUrl = serverUrlInput.value || 'https://whatsapp.checkin24hs.com';
             console.log('🔄 Verificando conexión con:', serverUrl);
             alert('🔄 Verificando conexión con:\n' + serverUrl);
             
@@ -21669,7 +21669,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 
                 const data = await response.json();
                 console.log('✅ Respuesta del servidor:', data);
-                
+                    
                 if (data.connected) {
                     alert('✅ ¡Conexión exitosa!\n\n' +
                           'WhatsApp está conectado.\n' +
@@ -21725,7 +21725,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     window.disconnectWhatsApp = function() {
         if (!confirm('¿Estás seguro de desconectar WhatsApp?')) return;
         
-        const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://localhost:3001';
+        const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'https://whatsapp.checkin24hs.com';
         fetch(serverUrl + '/disconnect', { method: 'POST' })
             .then(() => {
                 alert('WhatsApp desconectado');
