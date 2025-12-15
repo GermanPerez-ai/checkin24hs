@@ -21634,25 +21634,40 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     };
 
     // Verificar conexión WhatsApp
-    window.checkWhatsAppConnection = function() {
-        const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://localhost:3001';
-        
-        console.log('🔄 Verificando conexión con:', serverUrl);
-        
-        // Mostrar indicador de carga
-        const btn = document.querySelector('button[onclick="checkWhatsAppConnection()"]');
-        const originalText = btn ? btn.innerHTML : '';
-        if (btn) {
-            btn.innerHTML = '<span class="material-icons" style="vertical-align: middle; margin-right: 8px;">hourglass_empty</span>Verificando...';
-            btn.disabled = true;
-        }
-        
-        fetch(serverUrl + '/api/status')
-            .then(response => {
-                if (!response.ok) throw new Error('Servidor no responde');
-                return response.json();
-            })
-            .then(data => {
+    window.checkWhatsAppConnection = async function() {
+        try {
+            const serverUrlInput = document.getElementById('whatsapp-server-url');
+            if (!serverUrlInput) {
+                alert('❌ Error: No se encontró el campo de URL del servidor');
+                return;
+            }
+            
+            const serverUrl = serverUrlInput.value || 'http://localhost:3001';
+            console.log('🔄 Verificando conexión con:', serverUrl);
+            alert('🔄 Verificando conexión con:\n' + serverUrl);
+            
+            // Mostrar indicador de carga
+            const btn = document.querySelector('button[onclick="checkWhatsAppConnection()"]');
+            const originalText = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.innerHTML = '<span class="material-icons" style="vertical-align: middle; margin-right: 8px;">hourglass_empty</span>Verificando...';
+                btn.disabled = true;
+            }
+            
+            try {
+                const response = await fetch(serverUrl + '/api/status', {
+                    method: 'GET',
+                    mode: 'cors',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Servidor respondió con error: ' + response.status);
+                }
+                
+                const data = await response.json();
                 console.log('✅ Respuesta del servidor:', data);
                 
                 if (data.connected) {
@@ -21672,23 +21687,28 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 
                 // Guardar la URL si la conexión fue exitosa
                 localStorage.setItem('whatsappServerURL', serverUrl);
-            })
-            .catch(error => {
-                console.error('❌ Error verificando WhatsApp:', error);
+                
+            } catch (fetchError) {
+                console.error('❌ Error en fetch:', fetchError);
                 alert('❌ Error de conexión\n\n' +
                       'No se pudo conectar con el servidor en:\n' + serverUrl + '\n\n' +
-                      'Verifica que:\n' +
-                      '1. La URL sea correcta\n' +
-                      '2. El servidor esté corriendo\n' +
-                      '3. No haya problemas de red/firewall');
-            })
-            .finally(() => {
+                      'Error: ' + fetchError.message + '\n\n' +
+                      'Posibles causas:\n' +
+                      '1. Problema de CORS (HTTP vs HTTPS)\n' +
+                      '2. Servidor no accesible\n' +
+                      '3. Firewall bloqueando');
+            } finally {
                 // Restaurar botón
                 if (btn) {
                     btn.innerHTML = originalText;
                     btn.disabled = false;
                 }
-            });
+            }
+            
+        } catch (error) {
+            console.error('❌ Error general:', error);
+            alert('❌ Error inesperado:\n' + error.message);
+        }
     };
 
     // Guardar config WhatsApp
