@@ -3396,8 +3396,8 @@
                             <div style="text-align: center; color: #666; padding: 40px;">
                                 <span class="material-icons" style="font-size: 48px; color: #444;">phone_iphone</span>
                                 <p>No hay conexiones configuradas</p>
+                                </div>
                             </div>
-                        </div>
                         
                         <!-- Botones de Acción -->
                         <div style="text-align: center;">
@@ -3413,7 +3413,7 @@
                             </div>
                             <p style="color: #666; font-size: 0.85rem; margin-top: 8px;">Máximo 4 conexiones permitidas</p>
                         </div>
-                    </div>
+                        </div>
 
                     <!-- Configuración del Servidor -->
                     <div class="stat-card" style="padding: 24px; margin-bottom: 24px;">
@@ -3429,7 +3429,7 @@
                                 Verificar Conexión
                             </button>
                         </div>
-                    </div>
+                        </div>
 
                     <!-- Respuestas Automáticas -->
                     <div class="stat-card" style="padding: 24px; margin-bottom: 24px;">
@@ -3440,7 +3440,7 @@
                                 <div>
                                     <span style="font-weight: 600; color: #333;">Habilitar respuestas automáticas de Flor</span>
                                     <p style="color: #666; font-size: 0.85rem; margin: 4px 0 0 0;">Cuando está activado, Flor responderá automáticamente los mensajes de WhatsApp usando la IA configurada.</p>
-                                </div>
+                            </div>
                             </label>
                             
                             <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; margin-bottom: 16px; padding: 12px; background: #f5f5f5; border-radius: 8px;">
@@ -3448,7 +3448,7 @@
                                 <div>
                                     <span style="font-weight: 600; color: #333;">Solo responder en horario laboral</span>
                                     <p style="color: #666; font-size: 0.85rem; margin: 4px 0 0 0;">Flor solo responderá durante el horario configurado (9:00 - 18:00 por defecto).</p>
-                                </div>
+                        </div>
                             </label>
                             
                             <div style="margin-bottom: 16px;">
@@ -3508,14 +3508,14 @@
                                 <button onclick="startWhatsAppConnection()" style="width: 100%; background: #25D366; color: white; border: none; padding: 16px; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer;">
                                     <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">qr_code</span>
                                     Generar código QR
-                                </button>
-                            </div>
+                            </button>
+                        </div>
                             
                             <!-- Paso 2: Mostrar QR -->
                             <div id="whatsapp-step-2" style="display: none; text-align: center;">
                                 <div style="background: #25D366; color: white; padding: 12px; border-radius: 8px; margin-bottom: 24px;">
                                     📱 Escanea el código QR
-                                </div>
+                    </div>
                                 <p style="color: #888; margin-bottom: 16px;">Abre WhatsApp en tu teléfono → <span style="color: #25D366;">Menú</span> → <span style="color: #25D366;">Dispositivos vinculados</span> → <span style="color: #25D366;">Vincular dispositivo</span></p>
                                 
                                 <div style="background: white; padding: 24px; border-radius: 12px; display: inline-block; margin-bottom: 16px;">
@@ -9032,36 +9032,7 @@ Ej:
             if (avgTimeEl) avgTimeEl.textContent = (stats.avgTime || 0) + 's';
         }
         
-        // Verificar conexión del servidor
-        async function checkWhatsAppConnection() {
-            const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://localhost:3001';
-            
-            try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000);
-                
-                const response = await fetch(`${serverUrl}/api/health`, { 
-                    method: 'GET',
-                    signal: controller.signal
-                });
-                
-                clearTimeout(timeoutId);
-                
-                if (response.ok) {
-                    alert('✅ Conexión con el servidor WhatsApp establecida correctamente');
-                } else {
-                    throw new Error('Servidor no responde');
-                }
-            } catch (error) {
-                console.log('⚠️ Servidor WhatsApp no disponible:', error.message);
-                alert(`⚠️ No se pudo conectar con el servidor WhatsApp en:\n${serverUrl}\n\n` +
-                      `Para usar WhatsApp con Flor IA necesitas:\n\n` +
-                      `1. Un servidor WhatsApp corriendo (whatsapp-web.js o Baileys)\n` +
-                      `2. La URL correcta del servidor\n` +
-                      `3. El servidor debe estar accesible desde este navegador\n\n` +
-                      `📌 Puedes configurar las conexiones manualmente sin servidor.`);
-            }
-        }
+        // Verificar conexión del servidor - Esta función ya no se usa, usar window.checkWhatsAppConnection
         
         // Guardar configuración de WhatsApp
         function saveWhatsAppConfig() {
@@ -10861,7 +10832,7 @@ Ej:
             
             // Fallback a localStorage si no se encontró en Supabase
             if (!hotel) {
-                const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
                 hotel = hotels.find(h => h.id === hotelId || h.id == hotelId);
                 console.log('📦 Hotel cargado desde localStorage:', hotel);
             }
@@ -10892,7 +10863,7 @@ Ej:
                 const googleMapsUrl = hotel.google_maps || hotel.googleMaps || '';
                 googleMapsInput.value = googleMapsUrl;
                 console.log('🗺️ Google Maps URL cargada:', googleMapsUrl);
-            }
+                    }
             
             if (ratingSelect) ratingSelect.value = hotel.rating || '0';
             if (priceInput) priceInput.value = hotel.price || '';
@@ -21665,45 +21636,58 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     // Verificar conexión WhatsApp
     window.checkWhatsAppConnection = function() {
         const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://localhost:3001';
-        const statusIndicator = document.getElementById('whatsapp-status-indicator');
-        const statusText = document.getElementById('whatsapp-status-text');
-        const statusDetail = document.getElementById('whatsapp-status-detail');
         
-        if (statusText) statusText.textContent = 'Verificando conexión...';
-        if (statusDetail) statusDetail.textContent = 'Conectando con ' + serverUrl;
+        console.log('🔄 Verificando conexión con:', serverUrl);
         
-        fetch(serverUrl + '/status')
-            .then(response => response.json())
+        // Mostrar indicador de carga
+        const btn = document.querySelector('button[onclick="checkWhatsAppConnection()"]');
+        const originalText = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.innerHTML = '<span class="material-icons" style="vertical-align: middle; margin-right: 8px;">hourglass_empty</span>Verificando...';
+            btn.disabled = true;
+        }
+        
+        fetch(serverUrl + '/api/status')
+            .then(response => {
+                if (!response.ok) throw new Error('Servidor no responde');
+                return response.json();
+            })
             .then(data => {
-                if (data.connected || data.status === 'connected') {
-                    if (statusIndicator) statusIndicator.style.background = '#4caf50';
-                    if (statusText) statusText.textContent = '✅ Conectado';
-                    if (statusDetail) statusDetail.textContent = 'WhatsApp está funcionando correctamente';
-                    
-                    document.getElementById('whatsapp-qr-section').style.display = 'none';
-                    document.getElementById('whatsapp-info-section').style.display = 'block';
-                    
-                    if (data.phone) document.getElementById('whatsapp-phone-number').textContent = data.phone;
-                    if (data.name) document.getElementById('whatsapp-user-name').textContent = data.name;
-                } else if (data.qr) {
-                    if (statusIndicator) statusIndicator.style.background = '#ff9800';
-                    if (statusText) statusText.textContent = '📲 Esperando escaneo QR';
-                    if (statusDetail) statusDetail.textContent = 'Escanea el código QR con tu teléfono';
-                    
-                    document.getElementById('whatsapp-qr-section').style.display = 'block';
-                    document.getElementById('whatsapp-info-section').style.display = 'none';
-                    document.getElementById('whatsapp-qr-code').textContent = data.qr;
+                console.log('✅ Respuesta del servidor:', data);
+                
+                if (data.connected) {
+                    alert('✅ ¡Conexión exitosa!\n\n' +
+                          'WhatsApp está conectado.\n' +
+                          'Usuario: ' + (data.userName || '-') + '\n' +
+                          'Teléfono: ' + (data.phoneNumber || '-'));
+                } else if (data.qrCode) {
+                    alert('📲 Servidor conectado\n\n' +
+                          'WhatsApp está esperando escaneo del código QR.\n' +
+                          'Haz clic en "Agregar conexión" para ver el QR.');
                 } else {
-                    if (statusIndicator) statusIndicator.style.background = '#9e9e9e';
-                    if (statusText) statusText.textContent = '⚠️ Desconectado';
-                    if (statusDetail) statusDetail.textContent = 'Servidor disponible pero WhatsApp no conectado';
+                    alert('⚠️ Servidor disponible\n\n' +
+                          'El servidor WhatsApp está corriendo pero no está conectado.\n' +
+                          'Estado: ' + (data.whatsapp || 'desconectado'));
                 }
+                
+                // Guardar la URL si la conexión fue exitosa
+                localStorage.setItem('whatsappServerURL', serverUrl);
             })
             .catch(error => {
-                console.error('Error verificando WhatsApp:', error);
-                if (statusIndicator) statusIndicator.style.background = '#f44336';
-                if (statusText) statusText.textContent = '❌ Error de conexión';
-                if (statusDetail) statusDetail.textContent = 'No se pudo conectar con el servidor';
+                console.error('❌ Error verificando WhatsApp:', error);
+                alert('❌ Error de conexión\n\n' +
+                      'No se pudo conectar con el servidor en:\n' + serverUrl + '\n\n' +
+                      'Verifica que:\n' +
+                      '1. La URL sea correcta\n' +
+                      '2. El servidor esté corriendo\n' +
+                      '3. No haya problemas de red/firewall');
+            })
+            .finally(() => {
+                // Restaurar botón
+                if (btn) {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
             });
     };
 
