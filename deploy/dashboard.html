@@ -3399,12 +3399,18 @@
                             </div>
                         </div>
                         
-                        <!-- Botón Agregar Conexión -->
+                        <!-- Botones de Acción -->
                         <div style="text-align: center;">
-                            <button onclick="openAddWhatsAppModal()" style="background: #25D366; color: white; border: none; padding: 16px 32px; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: 600; display: inline-flex; align-items: center; gap: 10px;">
-                                <span class="material-icons">add</span>
-                                Agregar conexión a WhatsApp
-                            </button>
+                            <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+                                <button onclick="openAddWhatsAppModal()" style="background: #25D366; color: white; border: none; padding: 16px 32px; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: 600; display: inline-flex; align-items: center; gap: 10px;">
+                                    <span class="material-icons">add</span>
+                                    Agregar conexión a WhatsApp
+                                </button>
+                                <button onclick="clearInvalidConnections()" style="background: #ff9800; color: white; border: none; padding: 16px 24px; border-radius: 8px; cursor: pointer; font-size: 0.9rem; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">
+                                    <span class="material-icons">cleaning_services</span>
+                                    Limpiar conexiones
+                                </button>
+                            </div>
                             <p style="color: #666; font-size: 0.85rem; margin-top: 8px;">Máximo 4 conexiones permitidas</p>
                         </div>
                     </div>
@@ -8707,43 +8713,64 @@ Ej:
         // SISTEMA DE CONEXIONES WHATSAPP (Multi-teléfono)
         // ============================================
         
-        // Cargar conexiones de WhatsApp
+        // Cargar conexiones de WhatsApp desde Supabase
         async function loadWhatsAppConnections() {
             const container = document.getElementById('whatsapp-connections-list');
             if (!container) return;
             
-            // Obtener conexiones guardadas
-            const connections = JSON.parse(localStorage.getItem('whatsappConnections') || '[]');
+            // Obtener conexiones desde Supabase primero, luego localStorage como fallback
+            let connections = [];
+            
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    const { data, error } = await window.supabaseClient.client
+                        .from('whatsapp_connections')
+                        .select('*')
+                        .order('created_at', { ascending: false });
+                    
+                    if (!error && data) {
+                        connections = data;
+                        // Sincronizar con localStorage
+                        localStorage.setItem('whatsappConnections', JSON.stringify(connections));
+                    }
+                } catch (e) {
+                    console.log('⚠️ Tabla whatsapp_connections no existe, usando localStorage');
+                    connections = JSON.parse(localStorage.getItem('whatsappConnections') || '[]');
+                }
+            } else {
+                connections = JSON.parse(localStorage.getItem('whatsappConnections') || '[]');
+            }
             
             if (connections.length === 0) {
                 container.innerHTML = `
                     <div style="text-align: center; color: #666; padding: 40px;">
                         <span class="material-icons" style="font-size: 48px; color: #444;">phone_iphone</span>
                         <p>No hay conexiones configuradas</p>
+                        <p style="font-size: 0.85rem; color: #555; margin-top: 8px;">Agrega una conexión para vincular WhatsApp con Flor IA</p>
                     </div>
                 `;
                 return;
             }
             
             container.innerHTML = connections.map((conn, index) => `
-                <div style="background: #16213e; border-radius: 12px; padding: 20px; display: flex; align-items: center; justify-content: space-between;">
+                <div style="background: #16213e; border-radius: 12px; padding: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;">
                     <div style="display: flex; align-items: center; gap: 16px;">
-                        <div style="background: #25D366; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                        <div style="background: #25D366; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
                             <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
                                 <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
                             </svg>
                         </div>
                         <div>
-                            <div style="display: flex; align-items: center; gap: 10px;">
-                                <span style="color: white; font-size: 1.1rem; font-weight: 600;">${conn.phone || 'Sin número'}</span>
+                            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                <span style="color: white; font-size: 1.1rem; font-weight: 600;">${conn.phone || conn.tray_name || 'Sin número'}</span>
                                 <span style="background: ${conn.status === 'connected' ? '#25D366' : '#ff4757'}; color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600;">
                                     ● ${conn.status === 'connected' ? 'Conectado' : 'Desconectado'}
                                 </span>
                             </div>
-                            <div style="color: #888; font-size: 0.9rem; margin-top: 4px;">Bandeja: ${conn.trayName || 'Sin nombre'}</div>
+                            <div style="color: #888; font-size: 0.9rem; margin-top: 4px;">Bandeja: ${conn.tray_name || conn.trayName || 'Sin nombre'}</div>
                         </div>
                     </div>
-                    <div style="display: flex; gap: 10px;">
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                         <button onclick="viewWhatsAppStatus(${index})" style="background: #1976d2; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
                             <span class="material-icons" style="font-size: 18px;">visibility</span>
                             Ver Estado
@@ -8829,10 +8856,9 @@ Ej:
                     </div>
                 `;
                 
-                // Simular conexión exitosa después de 3 segundos (para demo)
-                setTimeout(() => {
-                    simulateSuccessfulConnection(trayName);
-                }, 3000);
+                // NO crear conexión automáticamente - esperar a que el usuario escanee el QR real
+                // La conexión se creará cuando el servidor confirme que el QR fue escaneado
+                console.log('⏳ Esperando que se escanee el código QR...');
             }
         }
         
@@ -8873,7 +8899,7 @@ Ej:
         }
         
         // Mostrar conexión exitosa
-        function showConnectionSuccess(trayName, phone) {
+        async function showConnectionSuccess(trayName, phone) {
             // Mostrar paso 3
             document.getElementById('whatsapp-step-2').style.display = 'none';
             document.getElementById('whatsapp-step-3').style.display = 'block';
@@ -8882,15 +8908,40 @@ Ej:
             document.getElementById('connected-tray-name').textContent = trayName;
             document.getElementById('connected-phone').textContent = phone;
             
-            // Guardar conexión
-            const connections = JSON.parse(localStorage.getItem('whatsappConnections') || '[]');
-            connections.push({
-                trayName: trayName,
+            // Crear objeto de conexión
+            const newConnection = {
+                tray_name: trayName,
                 phone: phone,
                 status: 'connected',
-                connectedAt: new Date().toISOString()
-            });
-            localStorage.setItem('whatsappConnections', JSON.stringify(connections));
+                created_at: new Date().toISOString()
+            };
+            
+            // Intentar guardar en Supabase
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    const { data, error } = await window.supabaseClient.client
+                        .from('whatsapp_connections')
+                        .insert([newConnection])
+                        .select();
+                    
+                    if (!error) {
+                        console.log('✅ Conexión WhatsApp guardada en Supabase:', data);
+                    } else {
+                        console.log('⚠️ Error guardando en Supabase, guardando en localStorage');
+                        throw error;
+                    }
+                } catch (e) {
+                    // Fallback a localStorage
+                    const connections = JSON.parse(localStorage.getItem('whatsappConnections') || '[]');
+                    connections.push(newConnection);
+                    localStorage.setItem('whatsappConnections', JSON.stringify(connections));
+                }
+            } else {
+                // Guardar en localStorage
+                const connections = JSON.parse(localStorage.getItem('whatsappConnections') || '[]');
+                connections.push(newConnection);
+                localStorage.setItem('whatsappConnections', JSON.stringify(connections));
+            }
         }
         
         // Ver estado de conexión
@@ -8899,25 +8950,71 @@ Ej:
             const conn = connections[index];
             if (!conn) return;
             
-            alert(`📱 Estado de la Conexión\n\nNúmero: ${conn.phone}\nBandeja: ${conn.trayName}\nEstado: ${conn.status === 'connected' ? '✅ Conectado' : '❌ Desconectado'}\nConectado desde: ${new Date(conn.connectedAt).toLocaleString('es-AR')}`);
+            const phone = conn.phone || 'No disponible';
+            const trayName = conn.tray_name || conn.trayName || 'Sin nombre';
+            const status = conn.status === 'connected' ? '✅ Conectado' : '❌ Desconectado';
+            const connectedAt = conn.created_at || conn.connectedAt;
+            const dateStr = connectedAt ? new Date(connectedAt).toLocaleString('es-AR') : 'No disponible';
+            
+            alert(`📱 Estado de la Conexión\n\nNúmero: ${phone}\nBandeja: ${trayName}\nEstado: ${status}\nConectado desde: ${dateStr}`);
         }
         
-        // Desconectar WhatsApp
+        // Desconectar WhatsApp (eliminar conexión)
         async function disconnectWhatsApp(index) {
-            if (!confirm('¿Estás seguro de que deseas desconectar esta cuenta de WhatsApp?')) {
+            if (!confirm('¿Estás seguro de que deseas eliminar esta conexión de WhatsApp?')) {
                 return;
             }
             
             const connections = JSON.parse(localStorage.getItem('whatsappConnections') || '[]');
+            const conn = connections[index];
             
-            if (index !== undefined) {
-                // Desconectar una conexión específica
+            if (index !== undefined && index < connections.length) {
+                // Intentar eliminar de Supabase si tiene ID
+                if (conn && conn.id && window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    try {
+                        await window.supabaseClient.client
+                            .from('whatsapp_connections')
+                            .delete()
+                            .eq('id', conn.id);
+                        console.log('✅ Conexión eliminada de Supabase');
+                    } catch (e) {
+                        console.log('⚠️ No se pudo eliminar de Supabase:', e);
+                    }
+                }
+                
+                // Eliminar del array local
                 connections.splice(index, 1);
+                localStorage.setItem('whatsappConnections', JSON.stringify(connections));
             }
             
-            localStorage.setItem('whatsappConnections', JSON.stringify(connections));
             loadWhatsAppConnections();
-            alert('✅ WhatsApp desconectado correctamente');
+            alert('✅ Conexión de WhatsApp eliminada');
+        }
+        
+        // Limpiar todas las conexiones inválidas o de prueba
+        async function clearInvalidConnections() {
+            if (!confirm('¿Estás seguro de que deseas eliminar TODAS las conexiones de WhatsApp?\n\nEsto eliminará todas las conexiones guardadas.')) {
+                return;
+            }
+            
+            // Limpiar localStorage
+            localStorage.removeItem('whatsappConnections');
+            
+            // Intentar limpiar de Supabase
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    await window.supabaseClient.client
+                        .from('whatsapp_connections')
+                        .delete()
+                        .neq('id', 0); // Eliminar todo
+                    console.log('✅ Conexiones eliminadas de Supabase');
+                } catch (e) {
+                    console.log('⚠️ No se pudo limpiar Supabase (tabla puede no existir):', e);
+                }
+            }
+            
+            loadWhatsAppConnections();
+            alert('✅ Todas las conexiones de WhatsApp han sido eliminadas');
         }
         
         // Actualizar estadísticas de WhatsApp
@@ -8940,18 +9037,29 @@ Ej:
             const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://localhost:3001';
             
             try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+                
                 const response = await fetch(`${serverUrl}/api/health`, { 
                     method: 'GET',
-                    timeout: 5000 
+                    signal: controller.signal
                 });
                 
+                clearTimeout(timeoutId);
+                
                 if (response.ok) {
-                    alert('✅ Conexión con el servidor establecida correctamente');
+                    alert('✅ Conexión con el servidor WhatsApp establecida correctamente');
                 } else {
                     throw new Error('Servidor no responde');
                 }
             } catch (error) {
-                alert('⚠️ No se pudo conectar con el servidor WhatsApp.\n\nVerifica que:\n1. El servidor esté corriendo\n2. La URL sea correcta\n3. No haya firewall bloqueando la conexión');
+                console.log('⚠️ Servidor WhatsApp no disponible:', error.message);
+                alert(`⚠️ No se pudo conectar con el servidor WhatsApp en:\n${serverUrl}\n\n` +
+                      `Para usar WhatsApp con Flor IA necesitas:\n\n` +
+                      `1. Un servidor WhatsApp corriendo (whatsapp-web.js o Baileys)\n` +
+                      `2. La URL correcta del servidor\n` +
+                      `3. El servidor debe estar accesible desde este navegador\n\n` +
+                      `📌 Puedes configurar las conexiones manualmente sin servidor.`);
             }
         }
         
