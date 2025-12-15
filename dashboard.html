@@ -9965,11 +9965,81 @@ Ej:
             console.log('Guardando base de datos de hoteles...');
         }
 
+        // Función para limpiar completamente el formulario de hotel
+        function clearHotelForm() {
+            console.log('🧹 Limpiando formulario de hotel...');
+            
+            // Resetear formulario
+            const form = document.getElementById('editHotelForm');
+            if (form) form.reset();
+            
+            // Limpiar TODOS los campos de texto
+            const fieldsToClean = [
+                'editHotelName', 'editHotelLocation', 'editHotelGoogleMaps', 
+                'editHotelWebsite', 'editHotelPrice', 'editHotelDescription', 
+                'editHotelAmenities'
+            ];
+            fieldsToClean.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            
+            // Resetear selects
+            const ratingSelect = document.getElementById('editHotelRating');
+            const statusSelect = document.getElementById('editHotelStatus');
+            if (ratingSelect) ratingSelect.value = '0';
+            if (statusSelect) statusSelect.value = 'Activo';
+            
+            // Limpiar campos de Flor IA
+            const florFields = [
+                'editHotelFlorDescription', 'editHotelFlorServices', 'editHotelFlorExcursions',
+                'editHotelFlorPrices', 'editHotelFlorPolicies', 'editHotelFlorTransport', 'editHotelFlorContact'
+            ];
+            florFields.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            
+            // LIMPIAR IMAGEN PRINCIPAL - Preview y input
+            const mainImageInput = document.getElementById('editHotelImage');
+            if (mainImageInput) mainImageInput.value = '';
+            
+            const mainImagePreview = document.getElementById('editImagePreview');
+            if (mainImagePreview) {
+                mainImagePreview.innerHTML = '';
+            }
+            
+            // Limpiar el input de archivo
+            const mainImageFileInput = document.getElementById('mainImageFileInput');
+            if (mainImageFileInput) mainImageFileInput.value = '';
+            
+            // LIMPIAR GALERÍA DE FOTOS - Preview y input
+            const galleryInput = document.getElementById('editHotelPhotos');
+            if (galleryInput) galleryInput.value = '';
+            
+            const galleryPreview = document.getElementById('editPhotosPreview');
+            if (galleryPreview) {
+                galleryPreview.innerHTML = '';
+            }
+            
+            // Limpiar el input de archivo de galería
+            const galleryFileInput = document.getElementById('galleryImagesFileInput');
+            if (galleryFileInput) galleryFileInput.value = '';
+            
+            // Limpiar elementos dinámicos de coordenadas (los mensajes verdes/naranjas)
+            const googleMapsInput = document.getElementById('editHotelGoogleMaps');
+            if (googleMapsInput && googleMapsInput.parentNode) {
+                const dynamicElements = googleMapsInput.parentNode.querySelectorAll('div[style*="color: #28a745"], div[style*="color: #ff9800"]');
+                dynamicElements.forEach(el => el.remove());
+            }
+            
+            console.log('✅ Formulario limpiado completamente');
+        }
+
         // Función para agregar nuevo hotel
         function addNewHotel() {
             console.log('🆕 Abriendo formulario para agregar nuevo hotel...');
             
-            // Verificar si el modal existe
             const modal = document.getElementById('editHotelModal');
             if (!modal) {
                 console.error('❌ Modal no encontrado');
@@ -9977,65 +10047,26 @@ Ej:
                 return;
             }
             
-            console.log('✅ Modal encontrado, procediendo...');
-            
-            // Limpiar el formulario
-            const form = document.getElementById('editHotelForm');
-            if (form) {
-                form.reset();
-                console.log('✅ Formulario reseteado');
-            } else {
-                console.error('❌ Formulario no encontrado');
-            }
-            
-            // Limpiar campos específicos
-            const nameInput = document.getElementById('editHotelName');
-            const locationInput = document.getElementById('editHotelLocation');
-            const ratingInput = document.getElementById('editHotelRating');
-            const priceInput = document.getElementById('editHotelPrice');
-            const descriptionTextarea = document.getElementById('editHotelDescription');
-            const amenitiesInput = document.getElementById('editHotelAmenities');
-            const statusSelect = document.getElementById('editHotelStatus');
-            
-            console.log('Campos encontrados:', {
-                nameInput: !!nameInput,
-                locationInput: !!locationInput,
-                ratingInput: !!ratingInput,
-                priceInput: !!priceInput,
-                descriptionTextarea: !!descriptionTextarea,
-                amenitiesInput: !!amenitiesInput,
-                statusSelect: !!statusSelect
-            });
-            
-            if (nameInput) nameInput.value = '';
-            if (locationInput) locationInput.value = '';
-            if (ratingInput) ratingInput.value = '';
-            if (priceInput) priceInput.value = '';
-            if (descriptionTextarea) descriptionTextarea.value = '';
-            if (amenitiesInput) amenitiesInput.value = '';
-            if (statusSelect) statusSelect.value = 'Activo';
+            // LIMPIAR TODO EL FORMULARIO
+            clearHotelForm();
             
             // Cambiar el título del modal
             const modalTitle = document.querySelector('#editHotelModal h2');
             if (modalTitle) {
                 modalTitle.textContent = '🏨 Agregar Nuevo Hotel';
-                console.log('✅ Título del modal actualizado');
-            } else {
-                console.error('❌ Título del modal no encontrado');
             }
             
             // Mostrar el modal
             modal.style.display = 'block';
-            console.log('✅ Modal mostrado');
             
             // Configurar el formulario para modo "agregar"
+            const form = document.getElementById('editHotelForm');
             if (form) {
                 form.dataset.mode = 'add';
-                form.dataset.hotelId = null;
-                console.log('✅ Formulario configurado para modo agregar');
+                form.dataset.hotelId = '';
             }
             
-            console.log('✅ Función addNewHotel completada');
+            console.log('✅ Formulario listo para agregar nuevo hotel');
         }
 
         // Nota: Las funciones editHotel, deleteHotel y viewHotel están definidas arriba con soporte para Supabase
@@ -10260,11 +10291,30 @@ Ej:
         }
 
         // Función para editar hotel
-        function editHotel(hotelId) {
+        async function editHotel(hotelId) {
             console.log('✏️ Editando hotel:', hotelId);
             
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-            const hotel = hotels.find(h => h.id === hotelId);
+            // PRIMERO: Limpiar el formulario completamente
+            clearHotelForm();
+            
+            // Obtener hotel desde Supabase primero, luego localStorage como fallback
+            let hotel = null;
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    const hotels = await window.supabaseClient.getHotels();
+                    hotel = hotels.find(h => h.id === hotelId || h.id == hotelId);
+                    console.log('📦 Hotel cargado desde Supabase:', hotel);
+                } catch (error) {
+                    console.warn('⚠️ Error cargando hotel de Supabase:', error);
+                }
+            }
+            
+            // Fallback a localStorage si no se encontró en Supabase
+            if (!hotel) {
+                const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                hotel = hotels.find(h => h.id === hotelId || h.id == hotelId);
+                console.log('📦 Hotel cargado desde localStorage:', hotel);
+            }
             
             if (!hotel) {
                 console.error('❌ Hotel no encontrado:', hotelId);
@@ -10282,34 +10332,18 @@ Ej:
             const descriptionTextarea = document.getElementById('editHotelDescription');
             const amenitiesInput = document.getElementById('editHotelAmenities');
             const statusSelect = document.getElementById('editHotelStatus');
+            
             if (nameInput) nameInput.value = hotel.name || '';
             if (locationInput) locationInput.value = hotel.location || '';
             if (websiteInput) websiteInput.value = hotel.website || '';
+            
+            // IMPORTANTE: Supabase usa snake_case (google_maps), localStorage usa camelCase (googleMaps)
             if (googleMapsInput) {
-                // IMPORTANTE: Supabase usa snake_case (google_maps), localStorage usa camelCase (googleMaps)
                 const googleMapsUrl = hotel.google_maps || hotel.googleMaps || '';
                 googleMapsInput.value = googleMapsUrl;
-                console.log('🗺️ Cargando Google Maps URL:', googleMapsUrl);
-                // Mostrar coordenadas extraídas si están disponibles
-                if (googleMapsUrl) {
-                    const extractedCoords = extractCoordinatesFromGoogleMaps(googleMapsUrl);
-                    if (extractedCoords && extractedCoords.lat && extractedCoords.lng) {
-                        console.log(`📍 Coordenadas extraídas de Google Maps para ${hotel.name}:`, extractedCoords);
-                        // Agregar un indicador visual de coordenadas extraídas
-                        const coordInfo = document.createElement('div');
-                        coordInfo.style.cssText = 'margin-top: 5px; font-size: 0.85rem; color: #28a745; font-weight: 600;';
-                        coordInfo.innerHTML = `✅ Coordenadas extraídas: ${extractedCoords.lat.toFixed(4)}, ${extractedCoords.lng.toFixed(4)}`;
-                        googleMapsInput.parentNode.appendChild(coordInfo);
-                    } else if (extractedCoords && extractedCoords.modernUrl) {
-                        console.log(`🌐 URL moderna de Google Maps para ${hotel.name}`);
-                        // Agregar un indicador visual para URLs modernas
-                        const coordInfo = document.createElement('div');
-                        coordInfo.style.cssText = 'margin-top: 5px; font-size: 0.85rem; color: #ff9800; font-weight: 600;';
-                        coordInfo.innerHTML = `🌐 URL moderna detectada - Coordenadas se extraerán automáticamente`;
-                        googleMapsInput.parentNode.appendChild(coordInfo);
-                    }
-                }
+                console.log('🗺️ Google Maps URL cargada:', googleMapsUrl);
             }
+            
             if (ratingSelect) ratingSelect.value = hotel.rating || '0';
             if (priceInput) priceInput.value = hotel.price || '';
             if (descriptionTextarea) descriptionTextarea.value = hotel.description || '';
