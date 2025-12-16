@@ -8814,6 +8814,13 @@ Ej:
             }
         }
         
+        // Función para limpiar URL (quitar barra final)
+        function cleanServerUrl(url) {
+            if (!url) return 'https://whatsapp.checkin24hs.com';
+            // Remover barra final si existe
+            return url.replace(/\/+$/, '');
+        }
+        
         // Iniciar conexión de WhatsApp
         async function startWhatsAppConnection() {
             const trayName = document.getElementById('new-whatsapp-tray-name').value.trim();
@@ -8826,7 +8833,7 @@ Ej:
             document.getElementById('whatsapp-step-1').style.display = 'none';
             document.getElementById('whatsapp-step-2').style.display = 'block';
             
-            const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'https://whatsapp.checkin24hs.com';
+            const serverUrl = cleanServerUrl(document.getElementById('whatsapp-server-url')?.value);
             
             try {
                 // Intentar obtener QR del servidor
@@ -8936,7 +8943,7 @@ Ej:
         
         // Verificar estado de conexión
         async function checkConnectionStatus(trayName) {
-            const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'https://whatsapp.checkin24hs.com';
+            const serverUrl = cleanServerUrl(document.getElementById('whatsapp-server-url')?.value);
             let attempts = 0;
             const maxAttempts = 60; // 60 intentos de 2 segundos = 2 minutos
             
@@ -21714,9 +21721,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 return;
             }
             
-            const serverUrl = serverUrlInput.value || 'https://whatsapp.checkin24hs.com';
+            // Limpiar URL (quitar barra final para evitar doble //)
+            let serverUrl = serverUrlInput.value || 'https://whatsapp.checkin24hs.com';
+            serverUrl = serverUrl.replace(/\/+$/, ''); // Remover barras finales
+            
             console.log('🔄 Verificando conexión con:', serverUrl);
-            alert('🔄 Verificando conexión con:\n' + serverUrl);
             
             // Mostrar indicador de carga
             const btn = document.querySelector('button[onclick="checkWhatsAppConnection()"]');
