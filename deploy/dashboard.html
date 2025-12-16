@@ -2,6 +2,11 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <!-- VERIFICADOR DE VERSIÓN - Si ves esto en consola, EasyPanel desplegó correctamente -->
+    <script>
+    console.log('🚀🚀🚀 DASHBOARD VERSION 4.0 - 16-DIC-2024 17:30 🚀🚀🚀');
+    console.log('✅ Si ves este mensaje, EasyPanel desplegó el código nuevo');
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Checkin24hs - Panel de Administración</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
@@ -21736,84 +21741,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
     };
 
-    // Verificar conexión WhatsApp - v2.0.2 - COMPLETAMENTE SIMPLIFICADO
-    window.checkWhatsAppConnection = async function() {
-        const API_URL = 'https://whatsapp.checkin24hs.com/api/status';
-        console.log('🔄 [v2.0.2] Verificando WhatsApp en:', API_URL);
-        
-        const btn = document.querySelector('button[onclick="checkWhatsAppConnection()"]');
-        const originalText = btn ? btn.innerHTML : '';
-        
-        try {
-            if (btn) {
-                btn.innerHTML = '⏳ Verificando...';
-                btn.disabled = true;
-            }
-            
-            const response = await fetch(API_URL, {
-                method: 'GET',
-                headers: { 'Accept': 'application/json' }
-            });
-            
-            console.log('📡 Response status:', response.status);
-            
-            if (!response.ok) {
-                throw new Error('Error ' + response.status);
-            }
-            
-            const data = await response.json();
-            console.log('✅ Datos recibidos:', data);
-            
-            if (data.connected) {
-                alert('✅ ¡WhatsApp Conectado!\n\nUsuario: ' + (data.userName || '-') + '\nTeléfono: ' + (data.phoneNumber || '-'));
-            } else if (data.qrCode) {
-                alert('📲 Servidor OK - Esperando escaneo de QR\n\nHaz clic en "Agregar conexión" para ver el QR.');
-            } else {
-                alert('⚠️ Servidor disponible pero WhatsApp desconectado\n\nEstado: ' + (data.whatsapp || 'desconectado'));
-            }
-            
-        } catch (error) {
-            console.error('❌ Error:', error);
-            alert('❌ Error de conexión\n\n' + error.message);
-        } finally {
-            if (btn) {
-                btn.innerHTML = originalText;
-                    btn.disabled = false;
-                }
-            }
-            
-        } catch (error) {
-            console.error('❌ Error general:', error);
-            alert('❌ Error inesperado:\n' + error.message);
-        }
-    };
-
-    // Guardar config WhatsApp
-    window.saveWhatsAppConfig = function() {
-        const config = {
-            serverUrl: document.getElementById('whatsapp-server-url')?.value || '',
-            autoReply: document.getElementById('whatsapp-auto-reply')?.checked || false
-        };
-        localStorage.setItem('flor_whatsapp_config', JSON.stringify(config));
-        alert('✅ Configuración de WhatsApp guardada');
-    };
-
-    // Desconectar WhatsApp
-    window.disconnectWhatsApp = function() {
-        if (!confirm('¿Estás seguro de desconectar WhatsApp?')) return;
-        
-        let serverUrl = document.getElementById('whatsapp-server-url')?.value || 'https://whatsapp.checkin24hs.com';
-        serverUrl = serverUrl.replace(/\/+$/, ''); // Limpiar barra final
-        fetch(serverUrl + '/api/logout', { method: 'POST' })
-            .then(() => {
-                alert('WhatsApp desconectado');
-                checkWhatsAppConnection();
-            })
-            .catch(error => {
-                console.error('Error desconectando:', error);
-                alert('Error al desconectar');
-            });
-    };
+    // *** FUNCIONES WHATSAPP ELIMINADAS - USAR v3.0 INLINE AL FINAL DEL ARCHIVO ***
 
     // Cargar interacciones
     window.loadInteractions = function() {
@@ -22339,6 +22267,33 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             if (step2) step2.style.display = 'block';
             
             await window.showWhatsAppQR(trayName);
+        };
+        
+        // SOBRESCRIBIR saveWhatsAppConfig
+        window.saveWhatsAppConfig = function() {
+            console.log('💾 [v3.0] saveWhatsAppConfig');
+            const config = {
+                serverUrl: WHATSAPP_SERVER,
+                autoReply: document.getElementById('whatsapp-auto-reply')?.checked || false
+            };
+            localStorage.setItem('flor_whatsapp_config', JSON.stringify(config));
+            alert('✅ Configuración de WhatsApp guardada');
+        };
+        
+        // SOBRESCRIBIR disconnectWhatsApp
+        window.disconnectWhatsApp = function() {
+            console.log('🔌 [v3.0] disconnectWhatsApp');
+            if (!confirm('¿Estás seguro de desconectar WhatsApp?')) return;
+            
+            fetch(WHATSAPP_SERVER + '/api/logout', { method: 'POST' })
+                .then(function() {
+                    alert('WhatsApp desconectado');
+                    window.checkWhatsAppConnection();
+                })
+                .catch(function(error) {
+                    console.error('Error desconectando:', error);
+                    alert('Error al desconectar');
+                });
         };
         
         console.log('✅ WHATSAPP FIX v3.0 INLINE - Funciones sobrescritas');
