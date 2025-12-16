@@ -2822,7 +2822,7 @@ function loadWhatsAppConfig() {
     // URL del servidor
     const serverUrl = document.getElementById('whatsapp-server-url');
     if (serverUrl) {
-        serverUrl.value = config.serverUrl || 'http://72.61.58.240:3001';
+        serverUrl.value = config.serverUrl || 'https://whatsapp.checkin24hs.com';
     }
     
     // Respuestas automáticas
@@ -2850,7 +2850,7 @@ function loadWhatsAppConfig() {
 // Guardar configuración de WhatsApp
 function saveWhatsAppConfig() {
     const config = {
-        serverUrl: document.getElementById('whatsapp-server-url')?.value || 'http://72.61.58.240:3001',
+        serverUrl: document.getElementById('whatsapp-server-url')?.value || 'https://whatsapp.checkin24hs.com',
         autoReply: document.getElementById('whatsapp-auto-reply')?.checked || false,
         businessHoursOnly: document.getElementById('whatsapp-business-hours-only')?.checked || false,
         outOfHoursMessage: document.getElementById('whatsapp-out-of-hours-message')?.value || ''
@@ -2868,7 +2868,7 @@ function saveWhatsAppConfig() {
 // Enviar configuración al servidor
 async function sendWhatsAppConfigToServer(config) {
     try {
-        const serverUrl = config.serverUrl || 'http://72.61.58.240:3001';
+        const serverUrl = config.serverUrl || 'https://whatsapp.checkin24hs.com';
         
         const response = await fetch(`${serverUrl}/api/config`, {
             method: 'POST',
@@ -2905,7 +2905,7 @@ async function checkWhatsAppConnection() {
     if (statusText) statusText.textContent = 'Verificando conexión...';
     if (statusDetail) statusDetail.textContent = 'Conectando con el servidor...';
     
-    const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://72.61.58.240:3001';
+    const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'https://whatsapp.checkin24hs.com';
     
     try {
         const response = await fetch(`${serverUrl}/api/status`, {
@@ -2996,7 +2996,7 @@ async function disconnectWhatsApp() {
         return;
     }
     
-    const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://72.61.58.240:3001';
+    const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'https://whatsapp.checkin24hs.com';
     
     try {
         const response = await fetch(`${serverUrl}/api/logout`, {
@@ -3017,7 +3017,7 @@ async function disconnectWhatsApp() {
 
 // Cargar estadísticas de WhatsApp
 async function loadWhatsAppStats() {
-    const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://72.61.58.240:3001';
+    const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'https://whatsapp.checkin24hs.com';
     
     try {
         const response = await fetch(`${serverUrl}/api/stats`);

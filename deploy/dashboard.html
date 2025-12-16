@@ -8814,6 +8814,25 @@ Ej:
             }
         }
         
+        // Limpiar configuración antigua de WhatsApp que tenga URLs incorrectas
+        (function cleanOldWhatsAppConfig() {
+            const oldConfig = localStorage.getItem('whatsappConfig');
+            if (oldConfig) {
+                try {
+                    const config = JSON.parse(oldConfig);
+                    if (config.serverUrl && (config.serverUrl.includes('localhost') || config.serverUrl.includes('72.61.58.240'))) {
+                        console.log('🧹 Limpiando configuración antigua de WhatsApp...');
+                        config.serverUrl = 'https://whatsapp.checkin24hs.com';
+                        localStorage.setItem('whatsappConfig', JSON.stringify(config));
+                    }
+                } catch (e) { /* ignorar errores */ }
+            }
+            const oldUrl = localStorage.getItem('whatsappServerURL');
+            if (oldUrl && (oldUrl.includes('localhost') || oldUrl.includes('72.61.58.240'))) {
+                localStorage.setItem('whatsappServerURL', 'https://whatsapp.checkin24hs.com');
+            }
+        })();
+        
         // Función para limpiar URL (quitar barra final)
         function cleanServerUrl(url) {
             if (!url) return 'https://whatsapp.checkin24hs.com';
