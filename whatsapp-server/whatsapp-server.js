@@ -683,23 +683,22 @@ app.get('/', (req, res) => {
         <div class="flor-badge">🌸 Futura Flor activa</div>
     </div>
     
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
         const statusEl = document.getElementById('status');
         const qrContainer = document.getElementById('qr-container');
         const instructions = document.getElementById('instructions');
         
-        socket.on('qr', async (qr) => {
+        socket.on('qr', (qr) => {
+            console.log('📱 QR recibido');
             statusEl.className = 'status waiting';
             statusEl.textContent = '📱 Escanea el código QR';
             instructions.style.display = 'block';
             
-            qrContainer.innerHTML = '<canvas id="qr-canvas"></canvas>';
-            await QRCode.toCanvas(document.getElementById('qr-canvas'), qr, {
-                width: 256,
-                margin: 2
-            });
+            // Usar API externa para generar imagen del QR (más confiable)
+            const qrImageUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=' + encodeURIComponent(qr);
+            qrContainer.innerHTML = '<img src="' + qrImageUrl + '" alt="Código QR" style="border-radius: 10px; border: 4px solid #25D366;">';
         });
         
         socket.on('authenticated', () => {
