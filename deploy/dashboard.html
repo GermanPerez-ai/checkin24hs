@@ -5,7 +5,7 @@
     <!-- VERIFICADOR DE VERSIÓN v5.0 -->
     <script>
     console.log('🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀');
-    console.log('🎯 DASHBOARD VERSION 5.0 - ' + new Date().toLocaleString());
+    console.log('🎯 DASHBOARD VERSION 6.0 - WhatsApp Integrado');
     console.log('🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀🚀');
     // Limpiar localStorage de WhatsApp viejo
     localStorage.removeItem('whatsappServerURL');
@@ -3003,6 +3003,7 @@
                 <!-- Tabs -->
                 <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; border-bottom: 2px solid #e0e0e0; padding-bottom: 8px;">
                     <button class="flor-tab active" onclick="showFlorTab('general')" data-tab="general">⚙️ General</button>
+                    <button class="flor-tab" onclick="showFlorTab('whatsapp')" data-tab="whatsapp">📱 WhatsApp</button>
                     <button class="flor-tab" onclick="showFlorTab('knowledge')" data-tab="knowledge">📚 Conocimiento</button>
                     <button class="flor-tab" onclick="showFlorTab('responses')" data-tab="responses">💬 Respuestas</button>
                     <button class="flor-tab" onclick="showFlorTab('policies')" data-tab="policies">📋 Políticas</button>
@@ -3112,6 +3113,99 @@
                             <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
                             Guardar Configuración General
                         </button>
+                    </div>
+                </div>
+
+                <!-- WhatsApp Tab -->
+                <div id="flor-tab-whatsapp" class="flor-tab-content" style="display: none;">
+                    <div class="stat-card" style="padding: 24px; margin-bottom: 24px;">
+                        <h3 style="margin: 0 0 20px 0; display: flex; align-items: center; gap: 10px;">
+                            📱 Conexión de WhatsApp
+                            <span id="wa-status-badge" style="font-size: 12px; padding: 4px 12px; border-radius: 20px; background: #e0e0e0; color: #666;">Verificando...</span>
+                        </h3>
+                        
+                        <!-- Estado de Conexión -->
+                        <div id="wa-connection-info" style="background: #f5f5f5; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                                <div>
+                                    <span style="color: #666; font-size: 0.9rem;">Estado</span>
+                                    <p id="wa-status-text" style="margin: 4px 0 0 0; font-weight: 600; font-size: 1.1rem;">--</p>
+                                </div>
+                                <div>
+                                    <span style="color: #666; font-size: 0.9rem;">Teléfono Conectado</span>
+                                    <p id="wa-phone" style="margin: 4px 0 0 0; font-weight: 600; font-size: 1.1rem;">--</p>
+                                </div>
+                                <div>
+                                    <span style="color: #666; font-size: 0.9rem;">Usuario</span>
+                                    <p id="wa-user" style="margin: 4px 0 0 0; font-weight: 600; font-size: 1.1rem;">--</p>
+                                </div>
+                                <div>
+                                    <span style="color: #666; font-size: 0.9rem;">Última Actividad</span>
+                                    <p id="wa-last-activity" style="margin: 4px 0 0 0; font-weight: 600; font-size: 1.1rem;">--</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Flor IA Status -->
+                        <div style="display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;">
+                            <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #e8f5e9, #c8e6c9); padding: 16px; border-radius: 12px;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 1.5rem;">🤖</span>
+                                    <div>
+                                        <span style="font-size: 0.85rem; color: #2e7d32;">Flor IA</span>
+                                        <p id="wa-flor-status" style="margin: 0; font-weight: 600; color: #1b5e20;">--</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #e3f2fd, #bbdefb); padding: 16px; border-radius: 12px;">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 1.5rem;">🔄</span>
+                                    <div>
+                                        <span style="font-size: 0.85rem; color: #1565c0;">Auto-Respuesta</span>
+                                        <p id="wa-autoreply-status" style="margin: 0; font-weight: 600; color: #0d47a1;">--</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Botones de Acción -->
+                        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                            <button onclick="checkWhatsAppStatus()" class="form-button" style="background: #2196f3; color: white;">
+                                <span class="material-icons" style="vertical-align: middle; margin-right: 6px; font-size: 18px;">refresh</span>
+                                Actualizar Estado
+                            </button>
+                            <button id="wa-disconnect-btn" onclick="disconnectWhatsApp()" class="form-button" style="background: #f44336; color: white; display: none;">
+                                <span class="material-icons" style="vertical-align: middle; margin-right: 6px; font-size: 18px;">link_off</span>
+                                Desconectar
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- QR Code Section (solo se muestra si no está conectado) -->
+                    <div id="wa-qr-section" class="stat-card" style="padding: 24px; display: none;">
+                        <h3 style="margin: 0 0 20px 0;">📲 Escanear Código QR</h3>
+                        <p style="color: #666; margin-bottom: 20px;">Escanea este código QR con WhatsApp para conectar tu teléfono.</p>
+                        
+                        <div id="wa-qr-container" style="display: flex; justify-content: center; padding: 20px; background: white; border-radius: 12px; border: 2px dashed #ddd;">
+                            <div id="wa-qr-loading" style="text-align: center; padding: 40px;">
+                                <div style="width: 40px; height: 40px; border: 4px solid #e0e0e0; border-top-color: #2196f3; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 16px;"></div>
+                                <p style="color: #666;">Generando código QR...</p>
+                            </div>
+                            <img id="wa-qr-image" style="display: none; max-width: 300px; border-radius: 8px;" alt="QR Code">
+                        </div>
+                        
+                        <p style="text-align: center; margin-top: 16px; font-size: 0.9rem; color: #666;">
+                            💡 Abre WhatsApp → Menú (⋮) → Dispositivos vinculados → Vincular dispositivo
+                        </p>
+                    </div>
+
+                    <!-- Servidor Info -->
+                    <div class="stat-card" style="padding: 24px; margin-top: 24px;">
+                        <h3 style="margin: 0 0 16px 0;">🖥️ Información del Servidor</h3>
+                        <div style="background: #f5f5f5; padding: 12px 16px; border-radius: 8px; font-family: monospace; font-size: 0.9rem;">
+                            <span style="color: #666;">URL:</span> 
+                            <a href="https://whatsapp.checkin24hs.com" target="_blank" style="color: #1976d2;">https://whatsapp.checkin24hs.com</a>
+                        </div>
                     </div>
                 </div>
 
@@ -21180,11 +21274,160 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         if (tabName === 'knowledge' || tabName === 'policies') {
             loadHotelsForFlor();
         }
-        // NO llamar automáticamente a checkWhatsAppConnection - el usuario hará clic en el botón
+        // Cargar estado de WhatsApp cuando se abre el tab
         if (tabName === 'whatsapp') {
-            console.log('📱 Tab WhatsApp activado - usa el botón Verificar Conexión');
+            console.log('📱 Tab WhatsApp activado - cargando estado...');
+            checkWhatsAppStatus();
         }
     };
+
+    // =====================================================
+    // FUNCIONES DE WHATSAPP - v3.0
+    // =====================================================
+    const WHATSAPP_SERVER_URL = 'https://whatsapp.checkin24hs.com';
+
+    // Verificar estado de WhatsApp
+    window.checkWhatsAppStatus = async function() {
+        console.log('📱 Verificando estado de WhatsApp...');
+        
+        const statusBadge = document.getElementById('wa-status-badge');
+        const statusText = document.getElementById('wa-status-text');
+        const phoneEl = document.getElementById('wa-phone');
+        const userEl = document.getElementById('wa-user');
+        const lastActivityEl = document.getElementById('wa-last-activity');
+        const florStatus = document.getElementById('wa-flor-status');
+        const autoreplyStatus = document.getElementById('wa-autoreply-status');
+        const disconnectBtn = document.getElementById('wa-disconnect-btn');
+        const qrSection = document.getElementById('wa-qr-section');
+
+        if (statusBadge) {
+            statusBadge.textContent = 'Verificando...';
+            statusBadge.style.background = '#fff3e0';
+            statusBadge.style.color = '#e65100';
+        }
+
+        try {
+            const response = await fetch(`${WHATSAPP_SERVER_URL}/api/status`, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+
+            if (!response.ok) throw new Error('Error de conexión');
+
+            const data = await response.json();
+            console.log('📱 Estado WhatsApp:', data);
+
+            if (data.connected && data.whatsapp === 'connected') {
+                // Conectado
+                if (statusBadge) {
+                    statusBadge.textContent = '✅ Conectado';
+                    statusBadge.style.background = '#e8f5e9';
+                    statusBadge.style.color = '#2e7d32';
+                }
+                if (statusText) statusText.textContent = 'Conectado';
+                if (phoneEl) phoneEl.textContent = data.phoneNumber || '--';
+                if (userEl) userEl.textContent = data.userName || '--';
+                if (lastActivityEl) lastActivityEl.textContent = data.lastActivity || '--';
+                if (florStatus) florStatus.textContent = data.flor === 'active' ? 'Activa' : 'Inactiva';
+                if (autoreplyStatus) autoreplyStatus.textContent = data.autoReply ? 'Activada' : 'Desactivada';
+                if (disconnectBtn) disconnectBtn.style.display = 'inline-flex';
+                if (qrSection) qrSection.style.display = 'none';
+            } else {
+                // Desconectado - mostrar QR
+                if (statusBadge) {
+                    statusBadge.textContent = '⚠️ Desconectado';
+                    statusBadge.style.background = '#ffebee';
+                    statusBadge.style.color = '#c62828';
+                }
+                if (statusText) statusText.textContent = 'Desconectado';
+                if (phoneEl) phoneEl.textContent = '--';
+                if (userEl) userEl.textContent = '--';
+                if (lastActivityEl) lastActivityEl.textContent = '--';
+                if (florStatus) florStatus.textContent = '--';
+                if (autoreplyStatus) autoreplyStatus.textContent = '--';
+                if (disconnectBtn) disconnectBtn.style.display = 'none';
+                if (qrSection) qrSection.style.display = 'block';
+
+                // Cargar QR si está disponible
+                if (data.qrCode) {
+                    loadQRCode(data.qrCode);
+                } else {
+                    requestQRCode();
+                }
+            }
+        } catch (error) {
+            console.error('❌ Error verificando WhatsApp:', error);
+            if (statusBadge) {
+                statusBadge.textContent = '❌ Error';
+                statusBadge.style.background = '#ffebee';
+                statusBadge.style.color = '#c62828';
+            }
+            if (statusText) statusText.textContent = 'Error de conexión';
+            alert('No se pudo conectar con el servidor de WhatsApp. Verifica que esté funcionando.');
+        }
+    };
+
+    // Cargar código QR
+    function loadQRCode(qrUrl) {
+        const qrImage = document.getElementById('wa-qr-image');
+        const qrLoading = document.getElementById('wa-qr-loading');
+        
+        if (qrImage && qrUrl) {
+            qrImage.src = qrUrl;
+            qrImage.style.display = 'block';
+            if (qrLoading) qrLoading.style.display = 'none';
+        }
+    }
+
+    // Solicitar código QR
+    async function requestQRCode() {
+        const qrLoading = document.getElementById('wa-qr-loading');
+        const qrImage = document.getElementById('wa-qr-image');
+        
+        if (qrLoading) qrLoading.style.display = 'block';
+        if (qrImage) qrImage.style.display = 'none';
+
+        try {
+            const response = await fetch(`${WHATSAPP_SERVER_URL}/api/qr`);
+            const data = await response.json();
+            
+            if (data.qrImage) {
+                loadQRCode(data.qrImage);
+            } else if (data.connected) {
+                // Ya está conectado, actualizar UI
+                checkWhatsAppStatus();
+            }
+        } catch (error) {
+            console.error('❌ Error obteniendo QR:', error);
+            if (qrLoading) {
+                qrLoading.innerHTML = '<p style="color: #c62828;">Error al obtener el código QR</p>';
+            }
+        }
+    }
+
+    // Desconectar WhatsApp
+    window.disconnectWhatsApp = async function() {
+        if (!confirm('¿Estás seguro de que deseas desconectar WhatsApp?')) return;
+
+        try {
+            const response = await fetch(`${WHATSAPP_SERVER_URL}/api/logout`, {
+                method: 'POST'
+            });
+            
+            if (response.ok) {
+                alert('WhatsApp desconectado correctamente');
+                checkWhatsAppStatus();
+            } else {
+                throw new Error('Error al desconectar');
+            }
+        } catch (error) {
+            console.error('❌ Error desconectando:', error);
+            alert('Error al desconectar WhatsApp');
+        }
+    };
+
+    console.log('📱 Funciones de WhatsApp v3.0 cargadas');
+    // =====================================================
 
     // Cargar hoteles para selectores de Flor
     function loadHotelsForFlor() {
