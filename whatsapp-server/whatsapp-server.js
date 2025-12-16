@@ -3,6 +3,11 @@
  * 
  * Este servidor conecta WhatsApp con el chatbot Flor
  * Permite usar WhatsApp en el teléfono mientras Flor responde automáticamente
+ * 
+ * VERSIÓN 2.0 - Integración con Supabase
+ * - Guarda chats e interacciones en Supabase
+ * - Auto-crea usuarios desde contactos de WhatsApp
+ * - Aprendizaje automático de Flor
  */
 
 const { Client, LocalAuth } = require('whatsapp-web.js');
@@ -13,13 +18,16 @@ const { Server } = require('socket.io');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { createClient } = require('@supabase/supabase-js');
 
 // ===== CONFIGURACIÓN =====
 const CONFIG = {
     PORT: process.env.PORT || 3001,
+    INSTANCE_NUMBER: parseInt(process.env.INSTANCE_NUMBER) || 1, // Número de instancia de WhatsApp (1, 2, 3, 4)
     AUTO_REPLY: true,                    // Activar respuestas automáticas de Flor
     FLOR_ENABLED: true,                  // Habilitar Flor
     SAVE_MESSAGES: true,                 // Guardar mensajes en archivo
+    SAVE_TO_SUPABASE: true,              // Guardar en Supabase
     USE_GEMINI_AI: true,                 // Usar Gemini IA para respuestas inteligentes
     GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',  // Se configura desde el endpoint /api/config
     GEMINI_MODEL: 'gemini-1.5-flash',    // Modelo de Gemini
@@ -31,8 +39,21 @@ const CONFIG = {
         start: 9,                        // Hora inicio (24h)
         end: 21,                         // Hora fin (24h)
         timezone: 'America/Argentina/Buenos_Aires'
+    },
+    SUPABASE: {
+        url: process.env.SUPABASE_URL || 'https://lmoeuyasuvoqhtvhkyia.supabase.co',
+        anonKey: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxtb2V1eWFzdXZvcWh0dmhreWlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzNjE5NjAsImV4cCI6MjA3OTkzNzk2MH0.28xpqAqAa7rkeT3Ma5fPmbzYnetlq2wOPOgh9XBF3g4'
     }
 };
+
+// ===== CLIENTE DE SUPABASE =====
+let supabase = null;
+try {
+    supabase = createClient(CONFIG.SUPABASE.url, CONFIG.SUPABASE.anonKey);
+    console.log('✅ Cliente de Supabase inicializado');
+} catch (e) {
+    console.error('❌ Error inicializando Supabase:', e.message);
+}
 
 // Cargar configuración guardada
 const configFile = path.join(__dirname, 'config.json');
@@ -183,6 +204,7 @@ client.on('message', async (message) => {
             return;
         }
 
+        const startTime = Date.now();
         console.log(`\n📨 Mensaje recibido de ${message.from}:`);
         console.log(`   "${message.body}"`);
 
@@ -190,17 +212,34 @@ client.on('message', async (message) => {
         stats.totalMessages++;
         stats.uniqueContacts.add(message.from);
 
-        // Guardar mensaje
+        // Guardar mensaje en archivo local
         if (CONFIG.SAVE_MESSAGES) {
             saveMessage(message);
         }
+
+        // Guardar mensaje en Supabase
+        await saveMessageToSupabase(message.from, message.body, false, message.type);
+
+        // Obtener nombre del contacto e intentar crear/actualizar usuario
+        let contactName = null;
+        try {
+            const contact = await message.getContact();
+            contactName = contact.pushname || contact.name || null;
+        } catch (e) {
+            // Ignorar error al obtener contacto
+        }
+        
+        // Crear o actualizar usuario desde WhatsApp
+        await saveOrUpdateUser(message.from, contactName);
 
         // Emitir a clientes conectados (CRM/Dashboard)
         io.emit('message', {
             from: message.from,
             body: message.body,
             timestamp: message.timestamp,
-            type: message.type
+            type: message.type,
+            contactName: contactName,
+            instance: CONFIG.INSTANCE_NUMBER
         });
 
         // Verificar si es un agente (no responder automáticamente)
@@ -215,12 +254,33 @@ client.on('message', async (message) => {
             await client.sendPresenceAvailable();
             await message.getChat().then(chat => chat.sendStateTyping());
             
+            // Detectar intent
+            const intent = detectIntent(message.body);
+            
             // Obtener respuesta inteligente (Gemini IA o predefinida)
             const response = await getSmartResponse(message.body);
+            const usedAI = CONFIG.USE_GEMINI_AI && CONFIG.GEMINI_API_KEY;
             
             await message.reply(response);
+            
+            // Calcular tiempo de respuesta
+            const responseTime = Date.now() - startTime;
+            
+            // Guardar respuesta en Supabase
+            await saveMessageToSupabase(message.from, response, true, 'text');
+            
+            // Guardar interacción para aprendizaje de Flor
+            await saveInteraction(
+                message.from,
+                message.body,
+                response,
+                intent,
+                usedAI,
+                responseTime
+            );
+            
             stats.autoReplies++; // Incrementar respuestas automáticas
-            console.log(`   🌸 Futura Flor respondió: "${response.substring(0, 50)}..."`);
+            console.log(`   🌸 Futura Flor respondió: "${response.substring(0, 50)}..." (${responseTime}ms)`);
         }
 
     } catch (error) {
@@ -407,6 +467,246 @@ function saveMessage(message) {
     });
     
     fs.writeFileSync(logFile, JSON.stringify(messages, null, 2));
+}
+
+// ===== FUNCIONES DE SUPABASE =====
+
+// Guardar o actualizar chat en Supabase
+async function saveOrUpdateChat(phone, message, isFromMe = false) {
+    if (!supabase || !CONFIG.SAVE_TO_SUPABASE) return null;
+    
+    try {
+        const cleanPhone = phone.replace('@c.us', '');
+        
+        // Buscar chat existente
+        const { data: existingChat } = await supabase
+            .from('whatsapp_chats')
+            .select('*')
+            .eq('phone', cleanPhone)
+            .eq('whatsapp_instance', CONFIG.INSTANCE_NUMBER)
+            .single();
+        
+        if (existingChat) {
+            // Actualizar chat existente
+            const { data, error } = await supabase
+                .from('whatsapp_chats')
+                .update({
+                    last_message: message.substring(0, 500),
+                    last_message_time: new Date().toISOString(),
+                    unread_count: isFromMe ? 0 : existingChat.unread_count + 1,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', existingChat.id)
+                .select()
+                .single();
+            
+            if (error) throw error;
+            return data;
+        } else {
+            // Crear nuevo chat
+            const { data, error } = await supabase
+                .from('whatsapp_chats')
+                .insert([{
+                    phone: cleanPhone,
+                    name: null, // Se actualizará cuando obtengamos el nombre del contacto
+                    last_message: message.substring(0, 500),
+                    last_message_time: new Date().toISOString(),
+                    unread_count: isFromMe ? 0 : 1,
+                    status: 'active',
+                    whatsapp_instance: CONFIG.INSTANCE_NUMBER
+                }])
+                .select()
+                .single();
+            
+            if (error) throw error;
+            console.log(`📱 Nuevo chat creado para ${cleanPhone}`);
+            return data;
+        }
+    } catch (error) {
+        console.error('❌ Error guardando chat en Supabase:', error.message);
+        return null;
+    }
+}
+
+// Guardar mensaje en Supabase
+async function saveMessageToSupabase(phone, message, isFromMe = false, messageType = 'text') {
+    if (!supabase || !CONFIG.SAVE_TO_SUPABASE) return null;
+    
+    try {
+        const cleanPhone = phone.replace('@c.us', '');
+        
+        // Obtener o crear chat
+        const chat = await saveOrUpdateChat(phone, message, isFromMe);
+        
+        // Guardar mensaje
+        const { data, error } = await supabase
+            .from('whatsapp_messages')
+            .insert([{
+                chat_id: chat?.id || null,
+                phone: cleanPhone,
+                message: message,
+                message_type: messageType,
+                is_from_me: isFromMe,
+                is_read: isFromMe,
+                whatsapp_instance: CONFIG.INSTANCE_NUMBER
+            }])
+            .select()
+            .single();
+        
+        if (error) throw error;
+        return data;
+    } catch (error) {
+        console.error('❌ Error guardando mensaje en Supabase:', error.message);
+        return null;
+    }
+}
+
+// Guardar interacción de Flor para aprendizaje
+async function saveInteraction(phone, userMessage, botResponse, intent, usedAI = false, responseTimeMs = 0) {
+    if (!supabase || !CONFIG.SAVE_TO_SUPABASE) return null;
+    
+    try {
+        const cleanPhone = phone.replace('@c.us', '');
+        
+        const { data, error } = await supabase
+            .from('flor_interactions')
+            .insert([{
+                phone: cleanPhone,
+                user_message: userMessage,
+                bot_response: botResponse,
+                intent: intent,
+                success: true,
+                used_ai: usedAI,
+                ai_model: usedAI ? CONFIG.GEMINI_MODEL : null,
+                response_time_ms: responseTimeMs,
+                whatsapp_instance: CONFIG.INSTANCE_NUMBER
+            }])
+            .select()
+            .single();
+        
+        if (error) throw error;
+        console.log(`📝 Interacción guardada: ${intent || 'general'}`);
+        return data;
+    } catch (error) {
+        console.error('❌ Error guardando interacción:', error.message);
+        return null;
+    }
+}
+
+// Crear o actualizar usuario desde contacto de WhatsApp
+async function saveOrUpdateUser(phone, name = null) {
+    if (!supabase || !CONFIG.SAVE_TO_SUPABASE) return null;
+    
+    try {
+        const cleanPhone = phone.replace('@c.us', '');
+        const formattedPhone = '+' + cleanPhone; // Formato internacional
+        
+        // Buscar usuario existente por teléfono
+        const { data: existingUser } = await supabase
+            .from('users')
+            .select('*')
+            .eq('phone', formattedPhone)
+            .single();
+        
+        if (existingUser) {
+            // Actualizar última actividad
+            const updates = {
+                last_activity: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+            
+            // Actualizar nombre si tenemos uno nuevo y el existente está vacío
+            if (name && !existingUser.name) {
+                updates.name = name;
+            }
+            
+            const { data, error } = await supabase
+                .from('users')
+                .update(updates)
+                .eq('id', existingUser.id)
+                .select()
+                .single();
+            
+            if (error) throw error;
+            return data;
+        } else {
+            // Crear nuevo usuario
+            const { data, error } = await supabase
+                .from('users')
+                .insert([{
+                    name: name || 'Usuario WhatsApp',
+                    phone: formattedPhone,
+                    email: null,
+                    status: 'active',
+                    is_active: true,
+                    last_activity: new Date().toISOString(),
+                    rewards_points: 0,
+                    tipo_cuenta: 'cliente_whatsapp'
+                }])
+                .select()
+                .single();
+            
+            if (error) throw error;
+            console.log(`👤 Nuevo usuario creado desde WhatsApp: ${formattedPhone}`);
+            
+            // Vincular usuario al chat
+            await linkUserToChat(cleanPhone, data.id);
+            
+            return data;
+        }
+    } catch (error) {
+        // Si es error de duplicado, ignorar
+        if (error.code === '23505') {
+            console.log(`ℹ️ Usuario ya existe: ${phone}`);
+            return null;
+        }
+        console.error('❌ Error guardando usuario:', error.message);
+        return null;
+    }
+}
+
+// Vincular usuario a chat
+async function linkUserToChat(phone, userId) {
+    if (!supabase) return;
+    
+    try {
+        await supabase
+            .from('whatsapp_chats')
+            .update({ user_id: userId })
+            .eq('phone', phone)
+            .eq('whatsapp_instance', CONFIG.INSTANCE_NUMBER);
+    } catch (error) {
+        console.error('❌ Error vinculando usuario a chat:', error.message);
+    }
+}
+
+// Detectar intent del mensaje
+function detectIntent(message) {
+    const msg = message.toLowerCase().trim();
+    
+    if (matchAny(msg, ['hola', 'buenos dias', 'buenas tardes', 'buenas noches', 'hey', 'hi'])) {
+        return 'saludo';
+    }
+    if (matchAny(msg, ['gracias', 'chau', 'adios', 'bye', 'hasta luego'])) {
+        return 'despedida';
+    }
+    if (matchAny(msg, ['hotel', 'hoteles', 'alojamiento', 'hospedaje'])) {
+        return 'consulta_hotel';
+    }
+    if (matchAny(msg, ['precio', 'precios', 'costo', 'cuanto', 'tarifa', 'cotiza'])) {
+        return 'consulta_precio';
+    }
+    if (matchAny(msg, ['reserva', 'reservar', 'disponibilidad', 'fecha'])) {
+        return 'reserva';
+    }
+    if (matchAny(msg, ['puyehue', 'huilo', 'corralco', 'futangue'])) {
+        return 'consulta_hotel_especifico';
+    }
+    if (matchAny(msg, ['contacto', 'telefono', 'email', 'web'])) {
+        return 'contacto';
+    }
+    
+    return 'consulta_general';
 }
 
 // ===== ESTADÍSTICAS =====
@@ -627,6 +927,142 @@ app.get('/api/messages/today', (req, res) => {
         res.json(messages);
     } else {
         res.json([]);
+    }
+});
+
+// ===== ENDPOINTS DE SUPABASE =====
+
+// Obtener chats desde Supabase
+app.get('/api/chats', async (req, res) => {
+    if (!supabase) {
+        return res.status(503).json({ error: 'Supabase no está configurado' });
+    }
+    
+    try {
+        const { data, error } = await supabase
+            .from('whatsapp_chats')
+            .select('*, users(name, email)')
+            .eq('whatsapp_instance', CONFIG.INSTANCE_NUMBER)
+            .order('last_message_time', { ascending: false })
+            .limit(50);
+        
+        if (error) throw error;
+        res.json(data || []);
+    } catch (error) {
+        console.error('Error obteniendo chats:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Obtener mensajes de un chat específico
+app.get('/api/chats/:chatId/messages', async (req, res) => {
+    if (!supabase) {
+        return res.status(503).json({ error: 'Supabase no está configurado' });
+    }
+    
+    try {
+        const { chatId } = req.params;
+        const limit = parseInt(req.query.limit) || 100;
+        
+        const { data, error } = await supabase
+            .from('whatsapp_messages')
+            .select('*')
+            .eq('chat_id', chatId)
+            .order('created_at', { ascending: true })
+            .limit(limit);
+        
+        if (error) throw error;
+        
+        // Marcar como leídos
+        await supabase
+            .from('whatsapp_messages')
+            .update({ is_read: true })
+            .eq('chat_id', chatId)
+            .eq('is_from_me', false);
+        
+        // Resetear contador de no leídos
+        await supabase
+            .from('whatsapp_chats')
+            .update({ unread_count: 0 })
+            .eq('id', chatId);
+        
+        res.json(data || []);
+    } catch (error) {
+        console.error('Error obteniendo mensajes:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Obtener interacciones de Flor
+app.get('/api/interactions', async (req, res) => {
+    if (!supabase) {
+        return res.status(503).json({ error: 'Supabase no está configurado' });
+    }
+    
+    try {
+        const limit = parseInt(req.query.limit) || 100;
+        const { data, error } = await supabase
+            .from('flor_interactions')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(limit);
+        
+        if (error) throw error;
+        res.json(data || []);
+    } catch (error) {
+        console.error('Error obteniendo interacciones:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// Obtener estadísticas de Flor
+app.get('/api/flor/stats', async (req, res) => {
+    if (!supabase) {
+        return res.status(503).json({ error: 'Supabase no está configurado' });
+    }
+    
+    try {
+        // Estadísticas generales
+        const { data: statsData } = await supabase
+            .from('flor_interactions')
+            .select('id, success, used_ai, response_time_ms')
+            .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()); // Últimos 30 días
+        
+        // Intents más comunes
+        const { data: intentsData } = await supabase
+            .from('flor_interactions')
+            .select('intent')
+            .not('intent', 'is', null)
+            .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+        
+        // Contar intents
+        const intentCounts = {};
+        intentsData?.forEach(item => {
+            intentCounts[item.intent] = (intentCounts[item.intent] || 0) + 1;
+        });
+        
+        const total = statsData?.length || 0;
+        const successful = statsData?.filter(s => s.success).length || 0;
+        const withAI = statsData?.filter(s => s.used_ai).length || 0;
+        const avgResponseTime = total > 0 
+            ? Math.round(statsData.reduce((sum, s) => sum + (s.response_time_ms || 0), 0) / total)
+            : 0;
+        
+        res.json({
+            total,
+            successful,
+            successRate: total > 0 ? Math.round(100 * successful / total) : 0,
+            withAI,
+            aiRate: total > 0 ? Math.round(100 * withAI / total) : 0,
+            avgResponseTime,
+            topIntents: Object.entries(intentCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5)
+                .map(([intent, count]) => ({ intent, count }))
+        });
+    } catch (error) {
+        console.error('Error obteniendo estadísticas:', error);
+        res.status(500).json({ error: error.message });
     }
 });
 

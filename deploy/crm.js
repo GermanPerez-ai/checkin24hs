@@ -449,71 +449,109 @@ function getQuotes() {
 }
 
 // ===== INTERACCIONES =====
-function loadInteractions() {
+async function loadInteractions() {
     const tbody = document.getElementById('interactionsTable');
     if (!tbody) return;
     
-    // Obtener interacciones del sistema antiguo
-    const oldInteractions = JSON.parse(localStorage.getItem('flor_interactions') || '[]');
+    // Mostrar cargando
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px;"><span class="material-icons" style="animation: spin 1s linear infinite;">sync</span> Cargando...</td></tr>';
     
-    // Obtener interacciones del sistema de aprendizaje
-    let learningInteractions = [];
-    if (typeof FlorLearningSystem !== 'undefined') {
-        learningInteractions = FlorLearningSystem.getInteractions() || [];
+    try {
+        // Intentar cargar desde Supabase primero
+        let interactions = [];
+        if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+            interactions = await window.supabaseClient.getFlorInteractions(100);
+            console.log('🌸 Interacciones cargadas desde Supabase:', interactions.length);
+        }
+        
+        // Si no hay en Supabase, usar fallback a localStorage
+        if (interactions.length === 0) {
+            const oldInteractions = JSON.parse(localStorage.getItem('flor_interactions') || '[]');
+            let learningInteractions = [];
+            if (typeof FlorLearningSystem !== 'undefined') {
+                learningInteractions = FlorLearningSystem.getInteractions() || [];
+            }
+            
+            interactions = [...oldInteractions, ...learningInteractions.map(inter => ({
+                id: inter.id,
+                created_at: inter.timestamp,
+                phone: 'web',
+                user_message: inter.userMessage,
+                bot_response: inter.botResponse,
+                intent: inter.intent || 'consulta_general',
+                success: inter.success !== false,
+                used_ai: inter.usedAI || false
+            }))];
+        }
+        
+        // Agrupar por teléfono/sesión
+        const groupedInteractions = groupInteractionsByPhone(interactions);
+        
+        if (groupedInteractions.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px;">No hay interacciones registradas aún</td></tr>';
+            return;
+        }
+        
+        tbody.innerHTML = groupedInteractions
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+            .map(interaction => {
+                const date = interaction.created_at ? formatDateTime(interaction.created_at) : 'N/A';
+                const messageCount = interaction.message_count || 1;
+                const resolved = interaction.success !== false;
+                const usedAI = interaction.used_ai === true;
+                
+                return `
+                    <tr>
+                        <td>${date}</td>
+                        <td>${interaction.phone || 'Usuario'}</td>
+                        <td>${messageCount} mensaje${messageCount !== 1 ? 's' : ''}</td>
+                        <td>${usedAI ? 'Flor IA' : 'Flor'}</td>
+                        <td>${resolved ? '<span class="badge badge-approved">Resuelto</span>' : '<span class="badge badge-pending">Abierto</span>'}</td>
+                        <td>
+                            <button class="btn btn-primary" onclick="viewInteraction('${interaction.id}')" style="padding: 6px 12px; font-size: 0.85rem;">
+                                Ver
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+    } catch (error) {
+        console.error('❌ Error cargando interacciones:', error);
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: red;">Error cargando interacciones</td></tr>';
     }
+}
+
+// Agrupar interacciones por teléfono (nuevo formato de Supabase)
+function groupInteractionsByPhone(interactions) {
+    const grouped = {};
     
-    // Convertir interacciones del sistema de aprendizaje al formato esperado
-    const convertedInteractions = learningInteractions.map(inter => {
-        // Agrupar interacciones por sesión (mismo timestamp o muy cercanas)
-        return {
-            id: inter.id,
-            timestamp: inter.timestamp,
-            customer_name: 'Usuario',
-            message_count: 1, // Cada interacción es un mensaje
-            escalated: false,
-            resolved: inter.success !== false,
-            intent: inter.intent || 'consulta_general',
-            userMessage: inter.userMessage,
-            botResponse: inter.botResponse,
-            hotelId: inter.hotelId,
-            usedAI: inter.usedAI || false
-        };
+    interactions.forEach(inter => {
+        const phone = inter.phone || 'web';
+        const dateKey = new Date(inter.created_at || inter.timestamp).toDateString();
+        const key = `${phone}_${dateKey}`;
+        
+        if (!grouped[key]) {
+            grouped[key] = {
+                id: inter.id,
+                phone: phone,
+                created_at: inter.created_at || inter.timestamp,
+                message_count: 0,
+                messages: [],
+                success: true,
+                used_ai: inter.used_ai || false,
+                intent: inter.intent
+            };
+        }
+        
+        grouped[key].message_count++;
+        grouped[key].messages.push({
+            user: inter.user_message,
+            bot: inter.bot_response,
+            timestamp: inter.created_at || inter.timestamp
+        });
     });
     
-    // Combinar ambas fuentes
-    const allInteractions = [...oldInteractions, ...convertedInteractions];
-    
-    // Agrupar interacciones por sesión (mismo día y usuario)
-    const groupedInteractions = groupInteractionsBySession(allInteractions);
-    
-    if (groupedInteractions.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px;">No hay interacciones registradas</td></tr>';
-        return;
-    }
-    
-    tbody.innerHTML = groupedInteractions
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-        .map(interaction => {
-            const date = interaction.timestamp ? formatDateTime(interaction.timestamp) : 'N/A';
-            const messageCount = interaction.message_count || interaction.messages?.length || 1;
-            const resolved = interaction.resolved !== false;
-            const escalated = interaction.escalated === true;
-            
-            return `
-                <tr>
-                    <td>${date}</td>
-                    <td>${interaction.customer_name || 'Usuario'}</td>
-                    <td>${messageCount} mensaje${messageCount !== 1 ? 's' : ''}</td>
-                    <td>${escalated ? 'Humano' : 'Flor'}</td>
-                    <td>${resolved ? '<span class="badge badge-approved">Resuelto</span>' : '<span class="badge badge-pending">Abierto</span>'}</td>
-                    <td>
-                        <button class="btn btn-primary" onclick="viewInteraction('${interaction.id}')" style="padding: 6px 12px; font-size: 0.85rem;">
-                            Ver
-                        </button>
-                    </td>
-                </tr>
-            `;
-        }).join('');
+    return Object.values(grouped);
 }
 
 // Agrupar interacciones por sesión (mismo día, mismo usuario)
@@ -576,67 +614,124 @@ function escapeHtml(text) {
 
 // ===== CHATS =====
 let currentChatSession = null;
+let whatsappChats = [];
 
-function loadChats() {
+async function loadChats() {
     const chatsList = document.getElementById('chatsList');
     if (!chatsList) return;
     
-    // Obtener interacciones del sistema de aprendizaje
-    let learningInteractions = [];
-    if (typeof FlorLearningSystem !== 'undefined') {
-        learningInteractions = FlorLearningSystem.getInteractions() || [];
-    }
+    // Mostrar cargando
+    chatsList.innerHTML = '<div style="text-align: center; padding: 40px;"><span class="material-icons" style="animation: spin 1s linear infinite;">sync</span><br>Cargando chats...</div>';
     
-    // Convertir interacciones al formato esperado
-    const convertedInteractions = learningInteractions.map(inter => {
-        return {
-            id: inter.id,
-            timestamp: inter.timestamp,
-            customer_name: 'Usuario',
-            message_count: 1,
-            escalated: false,
-            resolved: inter.success !== false,
-            intent: inter.intent || 'consulta_general',
-            userMessage: inter.userMessage,
-            botResponse: inter.botResponse,
-            hotelId: inter.hotelId,
-            usedAI: inter.usedAI || false
-        };
-    });
-    
-    // Agrupar interacciones por sesión
-    const groupedSessions = groupInteractionsBySession(convertedInteractions);
-    
-    if (groupedSessions.length === 0) {
-        chatsList.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">No hay chats disponibles</p>';
-        return;
-    }
-    
-    // Renderizar lista de chats
-    chatsList.innerHTML = groupedSessions.map(session => {
-        const date = new Date(session.timestamp);
-        const formattedDate = date.toLocaleDateString('es-ES', { 
-            day: '2-digit', 
-            month: '2-digit', 
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
+    try {
+        // Intentar cargar desde Supabase primero
+        if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+            whatsappChats = await window.supabaseClient.getWhatsAppChats(50);
+            console.log('📱 Chats cargados desde Supabase:', whatsappChats.length);
+        }
         
-        return `
-            <div class="chat-item" onclick="openChat('${session.id}')" 
-                 style="padding: 12px; border-bottom: 1px solid #e0e0e0; cursor: pointer; transition: background 0.2s;"
-                 onmouseover="this.style.background='#f5f5f5'" 
-                 onmouseout="this.style.background='white'">
-                <div style="font-weight: 500; margin-bottom: 4px;">${session.customer_name}</div>
-                <div style="font-size: 0.85rem; color: #666; margin-bottom: 4px;">${formattedDate}</div>
-                <div style="font-size: 0.85rem; color: #999;">
-                    <span class="material-icons" style="font-size: 14px; vertical-align: middle;">message</span>
-                    ${session.message_count} mensajes
+        if (whatsappChats.length === 0) {
+            chatsList.innerHTML = '<div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; color: #666;"><span class="material-icons" style="font-size: 48px; margin-bottom: 10px; color: #ccc;">chat_bubble_outline</span><p>No hay chats activos</p></div>';
+            return;
+        }
+        
+        // Renderizar lista de chats
+        chatsList.innerHTML = whatsappChats.map(chat => {
+            const date = new Date(chat.last_message_time);
+            const formattedDate = date.toLocaleDateString('es-ES', { 
+                day: '2-digit', 
+                month: '2-digit', 
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            const userName = chat.users?.name || chat.name || chat.phone;
+            const unreadBadge = chat.unread_count > 0 
+                ? `<span style="background: #25D366; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-left: 8px;">${chat.unread_count}</span>` 
+                : '';
+            
+            return `
+                <div class="chat-item" onclick="openWhatsAppChat('${chat.id}')" 
+                     style="padding: 12px; border-bottom: 1px solid #e0e0e0; cursor: pointer; transition: background 0.2s; ${chat.unread_count > 0 ? 'background: #f0fff4;' : ''}"
+                     onmouseover="this.style.background='#f5f5f5'" 
+                     onmouseout="this.style.background='${chat.unread_count > 0 ? '#f0fff4' : 'white'}'">
+                    <div style="display: flex; align-items: center; justify-content: space-between;">
+                        <div style="font-weight: 500; margin-bottom: 4px;">${userName}${unreadBadge}</div>
+                        <span style="font-size: 12px; color: #999;">WA${chat.whatsapp_instance || 1}</span>
+                    </div>
+                    <div style="font-size: 0.85rem; color: #666; margin-bottom: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        ${chat.last_message ? chat.last_message.substring(0, 50) + '...' : 'Sin mensajes'}
+                    </div>
+                    <div style="font-size: 0.8rem; color: #999;">${formattedDate}</div>
                 </div>
-            </div>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('❌ Error cargando chats:', error);
+        chatsList.innerHTML = '<div style="text-align: center; padding: 40px; color: red;">Error cargando chats</div>';
+    }
+}
+
+// Abrir chat de WhatsApp
+async function openWhatsAppChat(chatId) {
+    const chatMessages = document.getElementById('chatMessages');
+    const chatHeader = document.getElementById('chatHeader');
+    if (!chatMessages || !chatHeader) return;
+    
+    // Mostrar cargando
+    chatMessages.innerHTML = '<div style="text-align: center; padding: 40px;"><span class="material-icons" style="animation: spin 1s linear infinite;">sync</span></div>';
+    
+    try {
+        const chat = whatsappChats.find(c => c.id === chatId);
+        if (!chat) {
+            chatMessages.innerHTML = '<div style="text-align: center; color: red; padding: 20px;">Chat no encontrado</div>';
+            return;
+        }
+        
+        currentChatSession = chat;
+        
+        // Actualizar header
+        const userName = chat.users?.name || chat.name || chat.phone;
+        chatHeader.innerHTML = `
+            <h3 style="margin: 0; font-size: 1.1rem;">${userName}</h3>
+            <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #666;">📱 ${chat.phone} • WhatsApp ${chat.whatsapp_instance || 1}</p>
         `;
-    }).join('');
+        
+        // Cargar mensajes
+        const messages = await window.supabaseClient.getWhatsAppMessages(chatId, 100);
+        
+        if (messages.length === 0) {
+            chatMessages.innerHTML = '<div style="text-align: center; color: #666; padding: 20px;">No hay mensajes en este chat</div>';
+            return;
+        }
+        
+        // Renderizar mensajes
+        chatMessages.innerHTML = messages.map(msg => {
+            const time = new Date(msg.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+            const isFromMe = msg.is_from_me;
+            
+            return `
+                <div style="display: flex; justify-content: ${isFromMe ? 'flex-end' : 'flex-start'}; margin-bottom: 12px;">
+                    <div style="max-width: 70%; padding: 10px 14px; border-radius: 16px; ${isFromMe 
+                        ? 'background: linear-gradient(135deg, #DCF8C6, #C5E1A5); border-bottom-right-radius: 4px;' 
+                        : 'background: white; border: 1px solid #e0e0e0; border-bottom-left-radius: 4px;'}">
+                        <div style="font-size: 0.9rem; word-break: break-word;">${msg.message}</div>
+                        <div style="font-size: 0.7rem; color: #999; text-align: right; margin-top: 4px;">
+                            ${time} ${isFromMe ? '✓✓' : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        // Scroll al final
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+    } catch (error) {
+        console.error('❌ Error abriendo chat:', error);
+        chatMessages.innerHTML = '<div style="text-align: center; color: red; padding: 20px;">Error cargando mensajes</div>';
+    }
 }
 
 function openChat(sessionId) {

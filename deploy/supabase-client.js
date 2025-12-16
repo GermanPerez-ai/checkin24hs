@@ -1658,6 +1658,224 @@ class SupabaseClient {
             return { success: false, error: error.message };
         }
     }
+
+    // ============================================
+    // CHATS DE WHATSAPP
+    // ============================================
+    
+    async getWhatsAppChats(limit = 50) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado');
+            return [];
+        }
+
+        try {
+            const { data, error } = await this.client
+                .from('whatsapp_chats')
+                .select('*, users(name, email)')
+                .order('last_message_time', { ascending: false })
+                .limit(limit);
+
+            if (error) throw error;
+
+            console.log(`📱 ${data?.length || 0} chats de WhatsApp cargados desde Supabase`);
+            return data || [];
+        } catch (error) {
+            console.error('❌ Error obteniendo chats:', error);
+            return [];
+        }
+    }
+
+    async getWhatsAppMessages(chatId, limit = 100) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado');
+            return [];
+        }
+
+        try {
+            const { data, error } = await this.client
+                .from('whatsapp_messages')
+                .select('*')
+                .eq('chat_id', chatId)
+                .order('created_at', { ascending: true })
+                .limit(limit);
+
+            if (error) throw error;
+
+            // Marcar como leídos
+            await this.client
+                .from('whatsapp_messages')
+                .update({ is_read: true })
+                .eq('chat_id', chatId)
+                .eq('is_from_me', false);
+
+            // Resetear contador
+            await this.client
+                .from('whatsapp_chats')
+                .update({ unread_count: 0 })
+                .eq('id', chatId);
+
+            return data || [];
+        } catch (error) {
+            console.error('❌ Error obteniendo mensajes:', error);
+            return [];
+        }
+    }
+
+    // Suscribirse a nuevos mensajes de WhatsApp
+    subscribeToWhatsAppMessages(callback) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado');
+            return null;
+        }
+
+        const channel = this.client
+            .channel('whatsapp-messages')
+            .on('postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'whatsapp_messages' },
+                (payload) => {
+                    console.log('📱 Nuevo mensaje de WhatsApp:', payload.new);
+                    callback(payload.new);
+                }
+            )
+            .subscribe();
+
+        this.activeSubscriptions.whatsappMessages = channel;
+        return channel;
+    }
+
+    // Suscribirse a cambios en chats
+    subscribeToWhatsAppChats(callback) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado');
+            return null;
+        }
+
+        const channel = this.client
+            .channel('whatsapp-chats')
+            .on('postgres_changes',
+                { event: '*', schema: 'public', table: 'whatsapp_chats' },
+                (payload) => {
+                    console.log('📱 Cambio en chat de WhatsApp:', payload);
+                    callback(payload);
+                }
+            )
+            .subscribe();
+
+        this.activeSubscriptions.whatsappChats = channel;
+        return channel;
+    }
+
+    // ============================================
+    // INTERACCIONES DE FLOR
+    // ============================================
+    
+    async getFlorInteractions(limit = 100, filters = {}) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado');
+            return [];
+        }
+
+        try {
+            let query = this.client
+                .from('flor_interactions')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(limit);
+
+            if (filters.intent) {
+                query = query.eq('intent', filters.intent);
+            }
+            if (filters.dateFrom) {
+                query = query.gte('created_at', filters.dateFrom);
+            }
+            if (filters.dateTo) {
+                query = query.lte('created_at', filters.dateTo);
+            }
+
+            const { data, error } = await query;
+
+            if (error) throw error;
+
+            console.log(`🌸 ${data?.length || 0} interacciones de Flor cargadas desde Supabase`);
+            return data || [];
+        } catch (error) {
+            console.error('❌ Error obteniendo interacciones:', error);
+            return [];
+        }
+    }
+
+    async getFlorStats(days = 30) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado');
+            return null;
+        }
+
+        try {
+            const dateFrom = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+            // Obtener interacciones
+            const { data: interactions, error } = await this.client
+                .from('flor_interactions')
+                .select('id, success, used_ai, response_time_ms, intent')
+                .gte('created_at', dateFrom);
+
+            if (error) throw error;
+
+            const total = interactions?.length || 0;
+            const successful = interactions?.filter(i => i.success).length || 0;
+            const withAI = interactions?.filter(i => i.used_ai).length || 0;
+            const avgResponseTime = total > 0
+                ? Math.round(interactions.reduce((sum, i) => sum + (i.response_time_ms || 0), 0) / total)
+                : 0;
+
+            // Contar intents
+            const intentCounts = {};
+            interactions?.forEach(i => {
+                if (i.intent) {
+                    intentCounts[i.intent] = (intentCounts[i.intent] || 0) + 1;
+                }
+            });
+
+            return {
+                total,
+                successful,
+                successRate: total > 0 ? Math.round(100 * successful / total) : 0,
+                withAI,
+                aiRate: total > 0 ? Math.round(100 * withAI / total) : 0,
+                avgResponseTime,
+                topIntents: Object.entries(intentCounts)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 5)
+                    .map(([intent, count]) => ({ intent, count }))
+            };
+        } catch (error) {
+            console.error('❌ Error obteniendo estadísticas de Flor:', error);
+            return null;
+        }
+    }
+
+    // Suscribirse a nuevas interacciones
+    subscribeToFlorInteractions(callback) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado');
+            return null;
+        }
+
+        const channel = this.client
+            .channel('flor-interactions')
+            .on('postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'flor_interactions' },
+                (payload) => {
+                    console.log('🌸 Nueva interacción de Flor:', payload.new);
+                    callback(payload.new);
+                }
+            )
+            .subscribe();
+
+        this.activeSubscriptions.florInteractions = channel;
+        return channel;
+    }
 }
 
 // Crear instancia global
