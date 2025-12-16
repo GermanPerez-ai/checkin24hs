@@ -8830,18 +8830,59 @@ Ej:
             
             try {
                 // Intentar obtener QR del servidor
+                console.log('🔄 Obteniendo QR de:', `${serverUrl}/api/qr?tray=${encodeURIComponent(trayName)}`);
                 const response = await fetch(`${serverUrl}/api/qr?tray=${encodeURIComponent(trayName)}`);
+                console.log('📡 Response status:', response.status);
+                
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('📱 Respuesta QR:', data);
+                    console.log('📱 Respuesta QR completa:', JSON.stringify(data));
+                    
+                    // Función para mostrar la imagen del QR con manejo de errores
+                    const showQRImage = (imageUrl) => {
+                        console.log('🖼️ Mostrando imagen QR:', imageUrl);
+                        const container = document.getElementById('whatsapp-qr-code');
+                        const img = document.createElement('img');
+                        img.style.cssText = 'width: 256px; height: 256px; border-radius: 8px; border: 3px solid #25D366;';
+                        img.alt = 'Código QR WhatsApp';
+                        
+                        img.onload = () => {
+                            console.log('✅ Imagen QR cargada correctamente');
+                            container.innerHTML = '';
+                            container.appendChild(img);
+                        };
+                        
+                        img.onerror = () => {
+                            console.error('❌ Error cargando imagen QR:', imageUrl);
+                            // Intentar con la URL raw del QR
+                            if (data.qr) {
+                                const fallbackUrl = `https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(data.qr)}`;
+                                console.log('🔄 Intentando URL alternativa:', fallbackUrl);
+                                const img2 = document.createElement('img');
+                                img2.style.cssText = 'width: 256px; height: 256px; border-radius: 8px; border: 3px solid #25D366;';
+                                img2.src = fallbackUrl;
+                                img2.onerror = () => {
+                                    container.innerHTML = `<div style="text-align: center; padding: 20px;">
+                                        <span class="material-icons" style="font-size: 48px; color: #f44336;">error</span>
+                                        <p style="color: #f44336; margin-top: 10px;">Error cargando QR</p>
+                                        <button onclick="startWhatsAppConnection()" style="margin-top: 10px; padding: 8px 16px; background: #25D366; color: white; border: none; border-radius: 4px; cursor: pointer;">Reintentar</button>
+                                    </div>`;
+                                };
+                                container.innerHTML = '';
+                                container.appendChild(img2);
+                            }
+                        };
+                        
+                        img.src = imageUrl;
+                    };
                     
                     if (data.qrImage) {
                         // Mostrar QR usando la URL de imagen generada
-                        document.getElementById('whatsapp-qr-code').innerHTML = `<img src="${data.qrImage}" style="width: 256px; height: 256px;" alt="Código QR WhatsApp">`;
+                        showQRImage(data.qrImage);
                     } else if (data.qr) {
                         // Generar imagen del QR si solo viene el texto
-                        const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(data.qr)}`;
-                        document.getElementById('whatsapp-qr-code').innerHTML = `<img src="${qrImageUrl}" style="width: 256px; height: 256px;" alt="Código QR WhatsApp">`;
+                        const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${encodeURIComponent(data.qr)}`;
+                        showQRImage(qrImageUrl);
                     } else if (data.status === 'connected') {
                         // Ya está conectado
                         document.getElementById('whatsapp-step-2').style.display = 'none';
@@ -8856,7 +8897,18 @@ Ej:
                             </div>`;
                         // Reintentar en 3 segundos
                         setTimeout(() => startWhatsAppConnection(), 3000);
+                    } else {
+                        console.log('⚠️ Estado desconocido:', data.status);
+                        document.getElementById('whatsapp-qr-code').innerHTML = `
+                            <div style="text-align: center; padding: 20px;">
+                                <span class="material-icons" style="font-size: 48px; color: #ff9800;">warning</span>
+                                <p style="color: #ff9800; margin-top: 10px;">Esperando QR del servidor...</p>
+                                <button onclick="startWhatsAppConnection()" style="margin-top: 10px; padding: 8px 16px; background: #25D366; color: white; border: none; border-radius: 4px; cursor: pointer;">Reintentar</button>
+                            </div>`;
                     }
+                } else {
+                    console.error('❌ Error en respuesta:', response.status, response.statusText);
+                    throw new Error(`Error del servidor: ${response.status}`);
                 }
                 
                 // Simular espera de conexión (en producción esto sería un polling o websocket)
