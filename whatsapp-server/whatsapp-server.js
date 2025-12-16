@@ -409,7 +409,8 @@ setInterval(() => {
 // ===== API ENDPOINTS =====
 
 // Estado del servidor (compatible con CRM)
-app.get('/api/status', async (req, res) => {
+// Rutas principales Y alias para compatibilidad
+app.get(['/api/status', '/status'], async (req, res) => {
     let phoneNumber = '-';
     let userName = '-';
     
@@ -437,8 +438,8 @@ app.get('/api/status', async (req, res) => {
     });
 });
 
-// Obtener código QR
-app.get('/api/qr', (req, res) => {
+// Obtener código QR (con alias)
+app.get(['/api/qr', '/qr'], (req, res) => {
     if (clientReady) {
         res.json({ status: 'connected', qr: null });
     } else if (qrCodeData) {
@@ -452,8 +453,8 @@ app.get('/api/qr', (req, res) => {
     }
 });
 
-// Desconectar/Logout de WhatsApp
-app.post('/api/logout', async (req, res) => {
+// Desconectar/Logout de WhatsApp (con alias)
+app.post(['/api/logout', '/logout'], async (req, res) => {
     try {
         if (clientReady) {
             await client.logout();
