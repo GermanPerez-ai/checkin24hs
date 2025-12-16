@@ -152,11 +152,27 @@ client.on('ready', () => {
     io.emit('ready');
 });
 
-// Evento: Cliente desconectado
-client.on('disconnected', (reason) => {
+// Evento: Cliente desconectado - con reconexión automática
+client.on('disconnected', async (reason) => {
     console.log('⚠️ WhatsApp desconectado:', reason);
     clientReady = false;
     io.emit('disconnected', reason);
+    
+    // Intentar reconexión automática después de 10 segundos
+    console.log('🔄 Intentando reconexión automática en 10 segundos...');
+    setTimeout(async () => {
+        try {
+            console.log('🔄 Reconectando WhatsApp...');
+            await client.initialize();
+        } catch (error) {
+            console.error('❌ Error al reconectar:', error);
+            // Reintentar en 30 segundos si falla
+            setTimeout(() => {
+                console.log('🔄 Reintentando reconexión...');
+                client.initialize().catch(e => console.error('❌ Error:', e));
+            }, 30000);
+        }
+    }, 10000);
 });
 
 // Evento: Mensaje recibido
@@ -763,6 +779,15 @@ server.listen(CONFIG.PORT, () => {
     console.log(`🌐 Panel: http://localhost:${CONFIG.PORT}`);
     console.log('========================================\n');
     console.log('⏳ Inicializando WhatsApp...\n');
+    
+    // Health check cada 5 minutos para mantener la sesión activa
+    setInterval(() => {
+        if (clientReady) {
+            console.log('💓 Heartbeat: WhatsApp conectado ✅');
+        } else {
+            console.log('💔 Heartbeat: WhatsApp desconectado ❌');
+        }
+    }, 5 * 60 * 1000); // 5 minutos
 });
 
 // Iniciar cliente de WhatsApp
