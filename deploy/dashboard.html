@@ -8852,7 +8852,8 @@ Ej:
             document.getElementById('whatsapp-step-1').style.display = 'none';
             document.getElementById('whatsapp-step-2').style.display = 'block';
             
-            const serverUrl = cleanServerUrl(document.getElementById('whatsapp-server-url')?.value);
+            // URL FIJA - v2.0.2
+            const serverUrl = 'https://whatsapp.checkin24hs.com';
             
             try {
                 // Intentar obtener QR del servidor
@@ -8962,7 +8963,8 @@ Ej:
         
         // Verificar estado de conexión
         async function checkConnectionStatus(trayName) {
-            const serverUrl = cleanServerUrl(document.getElementById('whatsapp-server-url')?.value);
+            // URL FIJA - v2.0.2
+            const serverUrl = 'https://whatsapp.checkin24hs.com';
             let attempts = 0;
             const maxAttempts = 60; // 60 intentos de 2 segundos = 2 minutos
             
@@ -21303,9 +21305,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     <script>
     // =====================================================
     // MÓDULO FLOR IA - INTERACCIONES Y CHATS
-    // Versión: 2.0.1 - 16/12/2025 12:00
+    // Versión: 2.0.2 - 16/12/2025 12:30
     // =====================================================
-    console.log('🌸 FLOR IA v2.0.1 - Dashboard WhatsApp actualizado');
+    console.log('🌸 FLOR IA v2.0.2 - URL WhatsApp HARDCODED');
 
     // Función para mostrar tabs de Flor
     window.showFlorTab = function(tabName) {
@@ -21348,8 +21350,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         if (tabName === 'knowledge' || tabName === 'policies') {
             loadHotelsForFlor();
         }
+        // NO llamar automáticamente a checkWhatsAppConnection - el usuario hará clic en el botón
         if (tabName === 'whatsapp') {
-            checkWhatsAppConnection();
+            console.log('📱 Tab WhatsApp activado - usa el botón Verificar Conexión');
         }
     };
 
@@ -21733,83 +21736,48 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
     };
 
-    // Verificar conexión WhatsApp - v2.0.1
+    // Verificar conexión WhatsApp - v2.0.2 - COMPLETAMENTE SIMPLIFICADO
     window.checkWhatsAppConnection = async function() {
-        console.log('🔄 checkWhatsAppConnection v2.0.1 ejecutándose...');
+        const API_URL = 'https://whatsapp.checkin24hs.com/api/status';
+        console.log('🔄 [v2.0.2] Verificando WhatsApp en:', API_URL);
+        
+        const btn = document.querySelector('button[onclick="checkWhatsAppConnection()"]');
+        const originalText = btn ? btn.innerHTML : '';
+        
         try {
-            // HARDCODED para evitar problemas con localStorage corrupto
-            const WHATSAPP_SERVER = 'https://whatsapp.checkin24hs.com';
-            
-            const serverUrlInput = document.getElementById('whatsapp-server-url');
-            let serverUrl = WHATSAPP_SERVER; // Usar URL fija
-            
-            // Si hay input, usarlo pero limpiarlo
-            if (serverUrlInput && serverUrlInput.value) {
-                serverUrl = serverUrlInput.value.replace(/\/+$/, '');
-                // Corregir URLs antiguas
-                if (serverUrl.includes('localhost') || serverUrl.includes('72.61.58.240')) {
-                    serverUrl = WHATSAPP_SERVER;
-                    serverUrlInput.value = WHATSAPP_SERVER;
-                }
-            }
-            
-            console.log('🔄 Verificando conexión con:', serverUrl + '/api/status');
-            
-            // Mostrar indicador de carga
-            const btn = document.querySelector('button[onclick="checkWhatsAppConnection()"]');
-            const originalText = btn ? btn.innerHTML : '';
             if (btn) {
-                btn.innerHTML = '<span class="material-icons" style="vertical-align: middle; margin-right: 8px;">hourglass_empty</span>Verificando...';
+                btn.innerHTML = '⏳ Verificando...';
                 btn.disabled = true;
             }
             
-            try {
-                const response = await fetch(serverUrl + '/api/status', {
-                    method: 'GET',
-                    mode: 'cors',
-                    headers: {
-                        'Accept': 'application/json'
-                    }
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Servidor respondió con error: ' + response.status);
-                }
-                
-                const data = await response.json();
-                console.log('✅ Respuesta del servidor:', data);
-                    
-                if (data.connected) {
-                    alert('✅ ¡Conexión exitosa!\n\n' +
-                          'WhatsApp está conectado.\n' +
-                          'Usuario: ' + (data.userName || '-') + '\n' +
-                          'Teléfono: ' + (data.phoneNumber || '-'));
-                } else if (data.qrCode) {
-                    alert('📲 Servidor conectado\n\n' +
-                          'WhatsApp está esperando escaneo del código QR.\n' +
-                          'Haz clic en "Agregar conexión" para ver el QR.');
-                } else {
-                    alert('⚠️ Servidor disponible\n\n' +
-                          'El servidor WhatsApp está corriendo pero no está conectado.\n' +
-                          'Estado: ' + (data.whatsapp || 'desconectado'));
-                }
-                
-                // Guardar la URL si la conexión fue exitosa
-                localStorage.setItem('whatsappServerURL', serverUrl);
-                
-            } catch (fetchError) {
-                console.error('❌ Error en fetch:', fetchError);
-                alert('❌ Error de conexión\n\n' +
-                      'No se pudo conectar con el servidor en:\n' + serverUrl + '\n\n' +
-                      'Error: ' + fetchError.message + '\n\n' +
-                      'Posibles causas:\n' +
-                      '1. Problema de CORS (HTTP vs HTTPS)\n' +
-                      '2. Servidor no accesible\n' +
-                      '3. Firewall bloqueando');
-            } finally {
-                // Restaurar botón
-                if (btn) {
-                    btn.innerHTML = originalText;
+            const response = await fetch(API_URL, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+            
+            console.log('📡 Response status:', response.status);
+            
+            if (!response.ok) {
+                throw new Error('Error ' + response.status);
+            }
+            
+            const data = await response.json();
+            console.log('✅ Datos recibidos:', data);
+            
+            if (data.connected) {
+                alert('✅ ¡WhatsApp Conectado!\n\nUsuario: ' + (data.userName || '-') + '\nTeléfono: ' + (data.phoneNumber || '-'));
+            } else if (data.qrCode) {
+                alert('📲 Servidor OK - Esperando escaneo de QR\n\nHaz clic en "Agregar conexión" para ver el QR.');
+            } else {
+                alert('⚠️ Servidor disponible pero WhatsApp desconectado\n\nEstado: ' + (data.whatsapp || 'desconectado'));
+            }
+            
+        } catch (error) {
+            console.error('❌ Error:', error);
+            alert('❌ Error de conexión\n\n' + error.message);
+        } finally {
+            if (btn) {
+                btn.innerHTML = originalText;
                     btn.disabled = false;
                 }
             }
