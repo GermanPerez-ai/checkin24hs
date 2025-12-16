@@ -21806,8 +21806,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     window.disconnectWhatsApp = function() {
         if (!confirm('¿Estás seguro de desconectar WhatsApp?')) return;
         
-        const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'https://whatsapp.checkin24hs.com';
-        fetch(serverUrl + '/disconnect', { method: 'POST' })
+        let serverUrl = document.getElementById('whatsapp-server-url')?.value || 'https://whatsapp.checkin24hs.com';
+        serverUrl = serverUrl.replace(/\/+$/, ''); // Limpiar barra final
+        fetch(serverUrl + '/api/logout', { method: 'POST' })
             .then(() => {
                 alert('WhatsApp desconectado');
                 checkWhatsAppConnection();
