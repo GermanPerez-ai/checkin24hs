@@ -22237,7 +22237,114 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     </div>
     <!-- Fin del contenido del Dashboard -->
     
-    <!-- WhatsApp Fix v3.0 - Este script SOBRESCRIBE todas las funciones de WhatsApp -->
-    <script src="whatsapp-fix.js?v=3.0"></script>
+    <!-- ========== WHATSAPP FIX v3.0 INLINE ========== -->
+    <script>
+    (function() {
+        'use strict';
+        console.log('📱 WHATSAPP FIX v3.0 INLINE - Cargando...');
+        
+        const WHATSAPP_SERVER = 'https://whatsapp.checkin24hs.com';
+        const API_STATUS = WHATSAPP_SERVER + '/api/status';
+        const API_QR = WHATSAPP_SERVER + '/api/qr';
+        
+        // SOBRESCRIBIR checkWhatsAppConnection
+        window.checkWhatsAppConnection = async function() {
+            console.log('🔄 [v3.0 INLINE] checkWhatsAppConnection - URL:', API_STATUS);
+            
+            const btn = document.querySelector('button[onclick="checkWhatsAppConnection()"]');
+            const originalText = btn ? btn.innerHTML : '';
+            
+            try {
+                if (btn) {
+                    btn.innerHTML = '⏳ Verificando...';
+                    btn.disabled = true;
+                }
+                
+                const response = await fetch(API_STATUS, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                console.log('📡 Status:', response.status);
+                
+                if (!response.ok) throw new Error('Error HTTP: ' + response.status);
+                
+                const data = await response.json();
+                console.log('✅ Respuesta:', data);
+                
+                if (data.connected) {
+                    alert('✅ WhatsApp Conectado!\n\nUsuario: ' + (data.userName || '-') + '\nTeléfono: ' + (data.phoneNumber || '-'));
+                } else if (data.qrCode) {
+                    alert('📲 Servidor OK - Esperando QR\n\nHaz clic en "Agregar conexión" para ver el código.');
+                } else {
+                    alert('⚠️ Servidor disponible\n\nWhatsApp: ' + (data.whatsapp || 'desconectado'));
+                }
+            } catch (error) {
+                console.error('❌ Error:', error);
+                alert('❌ Error de conexión\n\n' + error.message);
+            } finally {
+                if (btn) {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                }
+            }
+        };
+        
+        // SOBRESCRIBIR showWhatsAppQR
+        window.showWhatsAppQR = async function(trayName) {
+            console.log('🔄 [v3.0] showWhatsAppQR');
+            const qrContainer = document.getElementById('whatsapp-qr-code');
+            if (!qrContainer) return;
+            
+            qrContainer.innerHTML = '<div style="text-align:center;padding:20px;"><span style="font-size:48px;">⏳</span><p>Cargando QR...</p></div>';
+            
+            try {
+                const url = API_QR + '?tray=' + encodeURIComponent(trayName || 'default');
+                const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+                if (!response.ok) throw new Error('Error HTTP: ' + response.status);
+                
+                const data = await response.json();
+                console.log('📱 Respuesta QR:', data);
+                
+                if (data.status === 'connected') {
+                    qrContainer.innerHTML = '<div style="text-align:center;"><span style="font-size:64px;">✅</span><p style="color:#25D366;font-weight:bold;">WhatsApp Conectado</p></div>';
+                } else if (data.qrImage) {
+                    qrContainer.innerHTML = '<img src="' + data.qrImage + '" style="width:256px;height:256px;border-radius:8px;border:3px solid #25D366;" alt="QR">';
+                } else if (data.qr) {
+                    const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=' + encodeURIComponent(data.qr);
+                    qrContainer.innerHTML = '<img src="' + qrUrl + '" style="width:256px;height:256px;border-radius:8px;border:3px solid #25D366;" alt="QR">';
+                } else if (data.status === 'initializing') {
+                    qrContainer.innerHTML = '<div style="text-align:center;"><span style="font-size:48px;">⏳</span><p>Iniciando servidor...</p></div>';
+                    setTimeout(function() { window.showWhatsAppQR(trayName); }, 3000);
+                } else {
+                    qrContainer.innerHTML = '<div style="text-align:center;"><span style="font-size:48px;">❓</span><p>Estado desconocido</p></div>';
+                }
+            } catch (error) {
+                console.error('❌ Error:', error);
+                qrContainer.innerHTML = '<div style="text-align:center;"><span style="font-size:48px;">❌</span><p style="color:red;">' + error.message + '</p></div>';
+            }
+        };
+        
+        // SOBRESCRIBIR startWhatsAppConnection
+        window.startWhatsAppConnection = async function() {
+            const trayNameInput = document.getElementById('new-whatsapp-tray-name');
+            const trayName = trayNameInput ? trayNameInput.value.trim() : 'default';
+            if (!trayName) { alert('⚠️ Ingresa un nombre'); return; }
+            
+            console.log('🔄 [v3.0] startWhatsAppConnection');
+            
+            const step1 = document.getElementById('whatsapp-step-1');
+            const step2 = document.getElementById('whatsapp-step-2');
+            if (step1) step1.style.display = 'none';
+            if (step2) step2.style.display = 'block';
+            
+            await window.showWhatsAppQR(trayName);
+        };
+        
+        console.log('✅ WHATSAPP FIX v3.0 INLINE - Funciones sobrescritas');
+        console.log('📱 Servidor:', WHATSAPP_SERVER);
+    })();
+    </script>
+    <!-- ========== FIN WHATSAPP FIX ========== -->
 </body>
 </html> 
