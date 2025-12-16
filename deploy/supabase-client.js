@@ -36,8 +36,8 @@ class SupabaseClient {
     
     async getHotels() {
         if (!this.isInitialized()) {
-            console.warn('⚠️ Supabase no está inicializado, usando localStorage como fallback');
-            return JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            console.warn('⚠️ Supabase no está inicializado');
+            return [];
         }
 
         try {
@@ -45,38 +45,21 @@ class SupabaseClient {
                 .from('hotels')
                 .select('*')
                 .order('created_at', { ascending: false });
-            
+
             if (error) throw error;
-            
-            // Sincronizar con localStorage como backup (si hay espacio)
-            if (data && data.length > 0) {
-                try {
-                    localStorage.setItem('hotelsDB', JSON.stringify(data));
-                } catch (e) {
-                    console.warn('⚠️ No se pudo guardar en localStorage (espacio lleno)');
-                }
-            }
-            
+
+            console.log(`☁️ ${data?.length || 0} hoteles cargados desde Supabase`);
             return data || [];
         } catch (error) {
             console.error('❌ Error obteniendo hoteles:', error);
-            // Fallback a localStorage
-            try {
-                return JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-            } catch (e) {
-                return [];
-            }
+            return [];
         }
     }
 
     async createHotel(hotel) {
         if (!this.isInitialized()) {
-            console.warn('⚠️ Supabase no está inicializado, guardando en localStorage');
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-            hotel.id = hotel.id || 'hotel-' + Date.now();
-            hotels.push(hotel);
-            localStorage.setItem('hotelsDB', JSON.stringify(hotels));
-            return hotel;
+            console.error('❌ Supabase no está inicializado');
+            throw new Error('Supabase no está inicializado');
         }
 
         try {
@@ -85,14 +68,10 @@ class SupabaseClient {
                 .insert([hotel])
                 .select()
                 .single();
-            
+
             if (error) throw error;
             
-            // Sincronizar con localStorage
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-            hotels.push(data);
-            localStorage.setItem('hotelsDB', JSON.stringify(hotels));
-            
+            console.log('✅ Hotel creado en Supabase:', data.name);
             return data;
         } catch (error) {
             console.error('❌ Error creando hotel:', error);
@@ -102,15 +81,8 @@ class SupabaseClient {
 
     async updateHotel(id, updates) {
         if (!this.isInitialized()) {
-            console.warn('⚠️ Supabase no está inicializado, actualizando localStorage');
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-            const index = hotels.findIndex(h => h.id === id);
-            if (index !== -1) {
-                hotels[index] = { ...hotels[index], ...updates };
-                localStorage.setItem('hotelsDB', JSON.stringify(hotels));
-                return hotels[index];
-            }
-            return null;
+            console.error('❌ Supabase no está inicializado');
+            throw new Error('Supabase no está inicializado');
         }
 
         try {
@@ -148,14 +120,7 @@ class SupabaseClient {
                 throw error;
             }
             
-            // Sincronizar con localStorage
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-            const index = hotels.findIndex(h => h.id === id);
-            if (index !== -1) {
-                hotels[index] = data;
-                localStorage.setItem('hotelsDB', JSON.stringify(hotels));
-            }
-            
+            console.log('✅ Hotel actualizado en Supabase:', data.name);
             return data;
         } catch (error) {
             console.error('❌ Error actualizando hotel:', error);
@@ -166,17 +131,8 @@ class SupabaseClient {
     // Upsert hotel (crear o actualizar)
     async upsertHotel(hotel) {
         if (!this.isInitialized()) {
-            console.warn('⚠️ Supabase no está inicializado, guardando en localStorage');
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-            const existingIndex = hotels.findIndex(h => h.id === hotel.id || h.name === hotel.name);
-            if (existingIndex !== -1) {
-                hotels[existingIndex] = { ...hotels[existingIndex], ...hotel };
-            } else {
-                hotel.id = hotel.id || 'hotel-' + Date.now();
-                hotels.push(hotel);
-            }
-            localStorage.setItem('hotelsDB', JSON.stringify(hotels));
-            return hotel;
+            console.error('❌ Supabase no está inicializado');
+            throw new Error('Supabase no está inicializado');
         }
 
         try {
@@ -192,16 +148,7 @@ class SupabaseClient {
             
             if (error) throw error;
             
-            // Sincronizar con localStorage
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-            const existingIndex = hotels.findIndex(h => h.id === data.id);
-            if (existingIndex !== -1) {
-                hotels[existingIndex] = data;
-            } else {
-                hotels.push(data);
-            }
-            localStorage.setItem('hotelsDB', JSON.stringify(hotels));
-            
+            console.log('✅ Hotel guardado en Supabase:', data.name);
             return data;
         } catch (error) {
             console.error('❌ Error en upsert hotel:', error);
@@ -211,11 +158,8 @@ class SupabaseClient {
 
     async deleteHotel(id) {
         if (!this.isInitialized()) {
-            console.warn('⚠️ Supabase no está inicializado, eliminando de localStorage');
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-            const filtered = hotels.filter(h => h.id !== id);
-            localStorage.setItem('hotelsDB', JSON.stringify(filtered));
-            return;
+            console.error('❌ Supabase no está inicializado');
+            throw new Error('Supabase no está inicializado');
         }
 
         try {
@@ -226,10 +170,7 @@ class SupabaseClient {
             
             if (error) throw error;
             
-            // Sincronizar con localStorage
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-            const filtered = hotels.filter(h => h.id !== id);
-            localStorage.setItem('hotelsDB', JSON.stringify(filtered));
+            console.log('✅ Hotel eliminado de Supabase');
         } catch (error) {
             console.error('❌ Error eliminando hotel:', error);
             throw error;
