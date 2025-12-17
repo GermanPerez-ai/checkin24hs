@@ -786,40 +786,22 @@ async function saveMessageToSupabase(phone, message, isFromMe = false, messageTy
             console.warn('⚠️ No se pudo obtener o crear chat, guardando mensaje sin chat_id');
         }
         
-        // Preparar datos del mensaje según la estructura real de la tabla
-        // La tabla tiene: id, conversation_id, external_id, direction, sender, recipient, body, 
-        // metadata, status, sent_at, created_at, updated_at, chat_id, is_from_me, is_read
+        // Preparar datos del mensaje usando la estructura REAL de la tabla
+        // La tabla tiene: body (no message), sender/recipient (no phone), direction, etc.
         const messageData = {
-            body: message || '', // La tabla usa 'body', no 'message'
-            direction: isFromMe ? 'outbound' : 'inbound',
-            sender: isFromMe ? null : cleanPhone, // Si es recibido, el sender es el phone
-            recipient: isFromMe ? cleanPhone : null, // Si es enviado, el recipient es el phone
-            status: 'sent', // Estado del mensaje
-            sent_at: new Date().toISOString(),
+            body: message || '',  // La tabla usa 'body', no 'message'
+            direction: isFromMe ? 'outbound' : 'inbound',  // 'inbound' o 'outbound'
+            sender: isFromMe ? null : cleanPhone,  // Solo para mensajes entrantes
+            recipient: isFromMe ? cleanPhone : null,  // Solo para mensajes salientes
             is_from_me: Boolean(isFromMe),
-            is_read: Boolean(isFromMe) // Los mensajes enviados se marcan como leídos
+            is_read: Boolean(isFromMe),  // Los mensajes enviados se marcan como leídos
+            sent_at: new Date().toISOString(),
+            status: 'sent'  // Estado del mensaje
         };
         
-        // Intentar agregar campos opcionales de manera segura
-        try {
-            // Intentar agregar chat_id si el chat existe
-            if (chat && chat.id) {
-                messageData.chat_id = chat.id;
-            }
-            
-            // Intentar agregar conversation_id si existe (puede ser igual a chat_id)
-            if (chat && chat.id) {
-                messageData.conversation_id = chat.id;
-            }
-            
-            // Agregar metadata con información adicional
-            messageData.metadata = {
-                message_type: messageType || 'text',
-                whatsapp_instance: CONFIG.INSTANCE_NUMBER
-            };
-        } catch (e) {
-            // Ignorar errores al agregar campos opcionales
-            console.warn('⚠️ No se pudieron agregar algunos campos opcionales:', e.message);
+        // Agregar chat_id si el chat existe
+        if (chat && chat.id) {
+            messageData.chat_id = chat.id;
         }
         
         // Intentar guardar con todos los campos
@@ -839,14 +821,12 @@ async function saveMessageToSupabase(phone, message, isFromMe = false, messageTy
                 body: message || '',
                 direction: isFromMe ? 'outbound' : 'inbound',
                 is_from_me: Boolean(isFromMe),
-                is_read: Boolean(isFromMe)
+                sent_at: new Date().toISOString()
             };
             
-            // Agregar sender/recipient si es posible
-            if (!isFromMe) {
-                minimalData.sender = cleanPhone;
-            } else {
-                minimalData.recipient = cleanPhone;
+            // Agregar chat_id si existe
+            if (chat && chat.id) {
+                minimalData.chat_id = chat.id;
             }
             
             // Intentar insertar solo con campos mínimos
