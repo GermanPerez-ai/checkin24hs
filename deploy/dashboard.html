@@ -28,7 +28,12 @@
         const tabContent = document.getElementById('flor-tab-' + tabName);
         if (tabContent) {
             tabContent.style.display = 'block';
+            tabContent.style.visibility = 'visible';
+            tabContent.style.opacity = '1';
             tabContent.classList.add('active');
+            console.log('✅ Tab mostrado:', tabName, tabContent);
+        } else {
+            console.error('❌ Tab no encontrado:', 'flor-tab-' + tabName);
         }
         
         // Activar botón
@@ -21137,7 +21142,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             const tabContent = document.getElementById('flor-tab-' + tabName);
             if (tabContent) {
                 tabContent.style.display = 'block';
+                tabContent.style.visibility = 'visible';
+                tabContent.style.opacity = '1';
                 tabContent.classList.add('active');
+                console.log('✅ Tab mostrado:', tabName, tabContent);
+            } else {
+                console.error('❌ Tab no encontrado:', 'flor-tab-' + tabName);
             }
             
             // Activar botón
