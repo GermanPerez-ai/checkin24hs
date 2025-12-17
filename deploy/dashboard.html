@@ -22871,6 +22871,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 
                 // Obtener mensajes recientes (sin filtro de phone porque la columna no es consultable)
                 // Obtener más mensajes para tener más probabilidades de encontrar los del chat
+                console.log('📡 Consultando todos los mensajes recientes de Supabase...');
                 const { data: allMessages, error: allError } = await window.supabaseClient.client
                     .from('whatsapp_messages')
                     .select('*')
@@ -22879,16 +22880,39 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 
                 if (allError) {
                     console.error('❌ Error obteniendo mensajes:', allError);
-                    chatMessages.innerHTML = '<p style="text-align: center; color: #666; margin-top: 60px;">No hay mensajes en este chat</p>';
+                    console.error('❌ Detalles del error:', JSON.stringify(allError, null, 2));
+                    chatMessages.innerHTML = `<div style="text-align: center; padding: 40px; color: #d32f2f;"><span class="material-icons" style="font-size: 48px; color: #d32f2f;">error</span><p style="margin-top: 12px;">Error al cargar mensajes</p><p style="margin-top: 8px; font-size: 0.85rem; color: #999;">${allError.message || 'Error desconocido'}</p></div>`;
                     return;
+                }
+                
+                console.log(`📊 Total de mensajes obtenidos de Supabase: ${allMessages?.length || 0}`);
+                if (allMessages && allMessages.length > 0) {
+                    console.log('📋 Primeros 3 mensajes (muestra):', allMessages.slice(0, 3).map(m => ({
+                        id: m.id,
+                        phone: m.phone,
+                        message: m.message?.substring(0, 30),
+                        chat_id: m.chat_id
+                    })));
+                } else {
+                    console.warn('⚠️ No se obtuvieron mensajes de Supabase. Posibles causas:');
+                    console.warn('  1. No hay mensajes en la tabla whatsapp_messages');
+                    console.warn('  2. RLS está bloqueando la consulta');
+                    console.warn('  3. La tabla está vacía');
                 }
                 
                 // Filtrar mensajes que coincidan con el phone del chat
                 // Comparar phone limpio (solo números) con el phone de los mensajes
                 const filteredMessages = (allMessages || []).filter(msg => {
-                    if (!msg.phone) return false;
+                    if (!msg.phone) {
+                        console.log('⚠️ Mensaje sin phone:', msg.id);
+                        return false;
+                    }
                     const msgPhoneClean = String(msg.phone).replace(/[^0-9]/g, '');
-                    return msgPhoneClean === cleanPhone || msgPhoneClean.endsWith(cleanPhone) || cleanPhone.endsWith(msgPhoneClean);
+                    const matches = msgPhoneClean === cleanPhone || msgPhoneClean.endsWith(cleanPhone) || cleanPhone.endsWith(msgPhoneClean);
+                    if (matches) {
+                        console.log(`✅ Mensaje coincide: ${msg.id} - phone: ${msg.phone} (limpio: ${msgPhoneClean}) vs ${cleanPhone}`);
+                    }
+                    return matches;
                 });
                 
                 console.log(`📨 ${filteredMessages.length} mensajes encontrados después de filtrar por phone (de ${allMessages?.length || 0} mensajes totales)`);
