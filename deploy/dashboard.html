@@ -73,9 +73,7 @@
         }
     };
     // También hacer disponible sin window. para compatibilidad
-    if (typeof showFlorTab === 'undefined') {
-        var showFlorTab = window.showFlorTab;
-    }
+    showFlorTab = window.showFlorTab;
     console.log('✅ showFlorTab definida tempranamente');
     
     // ===== FUNCIONES DE MODALES - DEFINIDAS TEMPRANAMENTE =====
@@ -21185,9 +21183,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         };
     }
     // Asegurar que también esté disponible sin window.
-    if (typeof showFlorTab === 'undefined') {
-        var showFlorTab = window.showFlorTab;
-    }
+    showFlorTab = window.showFlorTab;
 
     // Cargar hoteles para selectores de Flor
     function loadHotelsForFlor() {
