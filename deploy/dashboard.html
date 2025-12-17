@@ -3001,6 +3001,7 @@
                     <button class="flor-tab" onclick="showFlorTab('responses')" data-tab="responses">💬 Respuestas</button>
                     <button class="flor-tab" onclick="showFlorTab('policies')" data-tab="policies">📋 Políticas</button>
                     <button class="flor-tab" onclick="showFlorTab('ai')" data-tab="ai">🤖 IA</button>
+                    <button class="flor-tab" onclick="showFlorTab('whatsapp')" data-tab="whatsapp" style="background: #25D366; color: white;">📱 WhatsApp</button>
                 </div>
 
                 <!-- General Tab -->
@@ -3430,6 +3431,66 @@
                     </div>
                     <div id="syncStatusIndicator" style="margin-top: 16px; padding: 12px; background: rgba(255,255,255,0.1); border-radius: 8px; display: none;">
                         <span id="syncStatusText"></span>
+                    </div>
+                </div>
+
+                <!-- WhatsApp Tab -->
+                <div id="flor-tab-whatsapp" class="flor-tab-content" style="display: none;">
+                    <div class="stat-card" style="padding: 24px; margin-bottom: 24px;">
+                        <h3 style="margin: 0 0 8px 0;">📱 Integración con WhatsApp</h3>
+                        <p style="color: #666; margin-bottom: 24px;">
+                            Conecta Flor con WhatsApp para responder automáticamente a tus clientes. Puedes conectar hasta 4 números de WhatsApp, cada uno con su propio QR y usando Flor IA para las respuestas.
+                        </p>
+                        
+                        <!-- Botón para abrir modal de conexión múltiple -->
+                        <div style="margin-bottom: 24px;">
+                            <button onclick="openWhatsAppMultiConnectModal()" style="background: #25D366; color: white; border: none; padding: 14px 24px; border-radius: 8px; font-size: 1rem; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.3s;" onmouseover="this.style.background='#1da851'" onmouseout="this.style.background='#25D366'">
+                                <span style="font-size: 1.2rem;">📱</span>
+                                <span>Conectar Múltiples WhatsApp (hasta 4)</span>
+                            </button>
+                        </div>
+
+                        <!-- Configuración del Servidor -->
+                        <div style="margin-bottom: 24px; padding: 20px; background: #f5f5f5; border-radius: 8px;">
+                            <h4 style="margin: 0 0 16px 0;">🖥️ Configuración del Servidor</h4>
+                            <div style="margin-bottom: 16px;">
+                                <label style="display: block; font-weight: 500; margin-bottom: 8px;">URL del Servidor WhatsApp</label>
+                                <input type="text" id="whatsapp-server-url" value="http://72.61.58.240:3001" placeholder="http://tu-servidor:3001" style="width: 100%; max-width: 500px; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+                                <p style="color: #666; font-size: 0.85rem; margin-top: 4px;">
+                                    La URL del servidor donde está corriendo el servicio de WhatsApp.
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Respuestas Automáticas -->
+                        <div style="margin-bottom: 24px; padding: 20px; background: #e3f2fd; border-radius: 8px;">
+                            <h4 style="margin: 0 0 16px 0;">🤖 Respuestas Automáticas con Flor IA</h4>
+                            <div style="margin-bottom: 16px;">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="whatsapp-auto-reply" style="width: 18px; height: 18px;">
+                                    <span style="font-weight: 500;">Habilitar respuestas automáticas de Flor IA</span>
+                                </label>
+                                <p style="color: #666; font-size: 0.85rem; margin-top: 4px; margin-left: 26px;">
+                                    Cuando está activado, Flor IA responderá automáticamente los mensajes de WhatsApp usando la configuración de IA.
+                                </p>
+                            </div>
+                            <div style="margin-bottom: 16px;">
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="whatsapp-business-hours-only" style="width: 18px; height: 18px;">
+                                    <span style="font-weight: 500;">Solo responder en horario laboral</span>
+                                </label>
+                                <p style="color: #666; font-size: 0.85rem; margin-top: 4px; margin-left: 26px;">
+                                    Flor IA solo responderá durante el horario configurado (9:00 - 18:00 por defecto).
+                                </p>
+                            </div>
+                            <div>
+                                <label style="display: block; font-weight: 500; margin-bottom: 8px;">Mensaje fuera de horario</label>
+                                <textarea id="whatsapp-out-of-hours-message" rows="3" placeholder="Gracias por contactarnos. Nuestro horario de atención es de Lunes a Viernes de 9:00 a 18:00. Te responderemos a la brevedad." style="width: 100%; max-width: 600px; padding: 12px; border: 1px solid #ddd; border-radius: 8px;"></textarea>
+                            </div>
+                            <button onclick="saveWhatsAppConfig()" style="margin-top: 16px; background: #1976d2; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 500; cursor: pointer;">
+                                Guardar Configuración
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -20946,7 +21007,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         const tabBtn = document.querySelector(`.flor-tab[data-tab="${tabName}"]`);
         if (tabBtn) {
             tabBtn.classList.add('active');
-            if (tabName !== 'whatsapp') {
+            if (tabName === 'whatsapp') {
+                tabBtn.style.background = '#25D366';
+                tabBtn.style.color = 'white';
+            } else {
                 tabBtn.style.background = '#1976d2';
                 tabBtn.style.color = 'white';
             }
@@ -20957,7 +21021,27 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             loadHotelsForFlor();
         }
         if (tabName === 'whatsapp') {
-            checkWhatsAppConnection();
+            if (typeof checkWhatsAppConnection === 'function') {
+                checkWhatsAppConnection();
+            }
+            // Cargar configuración guardada
+            const savedConfig = localStorage.getItem('whatsappConfig');
+            if (savedConfig) {
+                try {
+                    const config = JSON.parse(savedConfig);
+                    const serverUrlInput = document.getElementById('whatsapp-server-url');
+                    const autoReplyCheck = document.getElementById('whatsapp-auto-reply');
+                    const businessHoursCheck = document.getElementById('whatsapp-business-hours-only');
+                    const outOfHoursMsg = document.getElementById('whatsapp-out-of-hours-message');
+                    
+                    if (serverUrlInput && config.serverUrl) serverUrlInput.value = config.serverUrl;
+                    if (autoReplyCheck) autoReplyCheck.checked = config.autoReply !== false;
+                    if (businessHoursCheck) businessHoursCheck.checked = config.businessHoursOnly || false;
+                    if (outOfHoursMsg && config.outOfHoursMessage) outOfHoursMsg.value = config.outOfHoursMessage;
+                } catch (e) {
+                    console.error('Error cargando configuración de WhatsApp:', e);
+                }
+            }
         }
     };
 
@@ -22793,6 +22877,609 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     
         console.log('✅✅✅ FUNCIONES DE CHATS DEFINIDAS - cargarChatsAhora, abrirChatAhora, enviarMensajeAhora');
     })();
+
+    // ===== GESTIÓN DE MÚLTIPLES CONEXIONES WHATSAPP =====
+    const whatsappInstanceIntervals = {};
+
+    // Abrir modal de conexión múltiple
+    window.openWhatsAppMultiConnectModal = function() {
+        const modal = document.getElementById('whatsapp-multi-connect-modal');
+        if (modal) {
+            modal.style.display = 'flex';
+            renderWhatsAppInstances();
+        }
+    };
+
+    // Cerrar modal de conexión múltiple
+    window.closeWhatsAppMultiConnectModal = function() {
+        const modal = document.getElementById('whatsapp-multi-connect-modal');
+        if (modal) {
+            modal.style.display = 'none';
+            // Detener todos los intervalos de verificación
+            Object.values(whatsappInstanceIntervals).forEach(interval => {
+                if (interval) clearInterval(interval);
+            });
+            Object.keys(whatsappInstanceIntervals).forEach(key => {
+                whatsappInstanceIntervals[key] = null;
+            });
+        }
+    };
+
+    // Renderizar las 4 instancias de WhatsApp
+    function renderWhatsAppInstances() {
+        const grid = document.getElementById('whatsapp-instances-grid');
+        if (!grid) return;
+
+        grid.innerHTML = '';
+
+        for (let i = 1; i <= 4; i++) {
+            const instanceCard = createInstanceCard(i);
+            grid.appendChild(instanceCard);
+            // Verificar estado inicial
+            checkWhatsAppInstanceStatus(i);
+        }
+    }
+
+    // Crear tarjeta de instancia
+    function createInstanceCard(instanceNumber) {
+        const card = document.createElement('div');
+        card.className = 'whatsapp-instance-card disconnected';
+        card.id = `whatsapp-instance-${instanceNumber}`;
+        
+        card.innerHTML = `
+            <div class="instance-header">
+                <div class="instance-title">
+                    <span>📱</span>
+                    <span>WhatsApp ${instanceNumber}</span>
+                </div>
+                <div class="instance-status disconnected" id="instance-${instanceNumber}-status">
+                    ⏳ Desconectado
+                </div>
+            </div>
+            
+            <div class="instance-info" id="instance-${instanceNumber}-info">
+                <div><strong>Estado:</strong> <span id="instance-${instanceNumber}-state">Esperando conexión</span></div>
+                <div><strong>Número:</strong> <span id="instance-${instanceNumber}-phone">-</span></div>
+                <div><strong>Nombre:</strong> <span id="instance-${instanceNumber}-name">-</span></div>
+            </div>
+            
+            <div class="instance-qr-container" id="instance-${instanceNumber}-qr">
+                <div style="text-align: center; color: #666;">
+                    <p>Haz clic en "Conectar" para generar el código QR</p>
+                </div>
+            </div>
+            
+            <div class="instance-actions">
+                <button class="btn-connect" onclick="connectWhatsAppInstance(${instanceNumber})" id="instance-${instanceNumber}-btn-connect">
+                    🔗 Conectar
+                </button>
+                <button class="btn-disconnect" onclick="disconnectWhatsAppInstance(${instanceNumber})" id="instance-${instanceNumber}-btn-disconnect" style="display: none;">
+                    🔌 Desconectar
+                </button>
+                <button class="btn-refresh" onclick="refreshWhatsAppInstance(${instanceNumber})" id="instance-${instanceNumber}-btn-refresh">
+                    🔄 Actualizar
+                </button>
+            </div>
+        `;
+        
+        return card;
+    }
+
+    // Conectar instancia de WhatsApp
+    window.connectWhatsAppInstance = async function(instanceNumber) {
+        console.log(`🔄 Conectando instancia ${instanceNumber} de WhatsApp...`);
+        
+        const card = document.getElementById(`whatsapp-instance-${instanceNumber}`);
+        const statusEl = document.getElementById(`instance-${instanceNumber}-status`);
+        const stateEl = document.getElementById(`instance-${instanceNumber}-state`);
+        const qrContainer = document.getElementById(`instance-${instanceNumber}-qr`);
+        const btnConnect = document.getElementById(`instance-${instanceNumber}-btn-connect`);
+        const btnDisconnect = document.getElementById(`instance-${instanceNumber}-btn-disconnect`);
+        
+        // Actualizar estado a "conectando"
+        card.className = 'whatsapp-instance-card connecting';
+        statusEl.className = 'instance-status connecting';
+        statusEl.textContent = '🔄 Conectando...';
+        stateEl.textContent = 'Generando código QR...';
+        btnConnect.disabled = true;
+        btnConnect.textContent = '⏳ Conectando...';
+        
+        const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://72.61.58.240:3001';
+        const baseUrl = serverUrl.replace(/:\d+$/, '');
+        const instancePort = 3001 + (instanceNumber - 1);
+        const instanceUrl = `${baseUrl}:${instancePort}`;
+        
+        try {
+            const response = await fetch(`${instanceUrl}/api/status`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Servidor no responde en puerto ${instancePort}`);
+            }
+            
+            const data = await response.json();
+            
+            if (data.connected) {
+                updateInstanceCard(instanceNumber, {
+                    connected: true,
+                    phoneNumber: data.phoneNumber || '-',
+                    userName: data.userName || '-',
+                    lastActivity: data.lastActivity || 'Ahora'
+                });
+            } else if (data.qrCode) {
+                updateInstanceCard(instanceNumber, {
+                    connected: false,
+                    qrCode: data.qrCode
+                });
+                startInstanceStatusCheck(instanceNumber, instanceUrl);
+            } else {
+                qrContainer.innerHTML = `
+                    <div style="text-align: center;">
+                        <div class="loading-spinner"></div>
+                        <p style="margin-top: 12px; color: #666;">Generando código QR...</p>
+                    </div>
+                `;
+                startInstanceStatusCheck(instanceNumber, instanceUrl);
+            }
+            
+        } catch (error) {
+            console.error(`❌ Error conectando instancia ${instanceNumber}:`, error);
+            
+            card.className = 'whatsapp-instance-card error';
+            statusEl.className = 'instance-status error';
+            statusEl.textContent = '❌ Error';
+            stateEl.textContent = `Error: ${error.message}`;
+            qrContainer.innerHTML = `
+                <div style="text-align: center; color: #f44336;">
+                    <p>⚠️ No se pudo conectar con el servidor</p>
+                    <p style="font-size: 0.85rem; margin-top: 8px;">Verifica que el servidor esté corriendo en el puerto ${instancePort}</p>
+                </div>
+            `;
+            btnConnect.disabled = false;
+            btnConnect.textContent = '🔗 Conectar';
+        }
+    };
+
+    // Actualizar tarjeta de instancia
+    function updateInstanceCard(instanceNumber, data) {
+        const card = document.getElementById(`whatsapp-instance-${instanceNumber}`);
+        const statusEl = document.getElementById(`instance-${instanceNumber}-status`);
+        const stateEl = document.getElementById(`instance-${instanceNumber}-state`);
+        const phoneEl = document.getElementById(`instance-${instanceNumber}-phone`);
+        const nameEl = document.getElementById(`instance-${instanceNumber}-name`);
+        const qrContainer = document.getElementById(`instance-${instanceNumber}-qr`);
+        const btnConnect = document.getElementById(`instance-${instanceNumber}-btn-connect`);
+        const btnDisconnect = document.getElementById(`instance-${instanceNumber}-btn-disconnect`);
+        
+        if (data.connected) {
+            card.className = 'whatsapp-instance-card connected';
+            statusEl.className = 'instance-status connected';
+            statusEl.textContent = '✅ Conectado';
+            stateEl.textContent = 'Conectado y listo';
+            phoneEl.textContent = data.phoneNumber || '-';
+            nameEl.textContent = data.userName || '-';
+            qrContainer.innerHTML = `
+                <div style="text-align: center;">
+                    <div style="font-size: 64px; margin-bottom: 12px;">✅</div>
+                    <p style="color: #4caf50; font-weight: 600;">WhatsApp Conectado</p>
+                    <p style="font-size: 0.85rem; color: #666; margin-top: 8px;">Flor IA activa para este número</p>
+                </div>
+            `;
+            btnConnect.style.display = 'none';
+            btnDisconnect.style.display = 'block';
+            
+            if (whatsappInstanceIntervals[instanceNumber]) {
+                clearInterval(whatsappInstanceIntervals[instanceNumber]);
+                whatsappInstanceIntervals[instanceNumber] = null;
+            }
+        } else if (data.qrCode) {
+            card.className = 'whatsapp-instance-card disconnected';
+            statusEl.className = 'instance-status disconnected';
+            statusEl.textContent = '📲 Escanea QR';
+            stateEl.textContent = 'Esperando escaneo del código QR';
+            qrContainer.innerHTML = `
+                <div style="text-align: center;">
+                    <img src="${data.qrCode}" alt="QR Code" style="max-width: 200px; border-radius: 8px; border: 3px solid #25D366;">
+                    <p style="font-size: 0.85rem; color: #666; margin-top: 12px;">
+                        Abre WhatsApp → Dispositivos vinculados → Vincular dispositivo
+                    </p>
+                </div>
+            `;
+            btnConnect.disabled = false;
+            btnConnect.textContent = '🔗 Conectar';
+            btnConnect.style.display = 'block';
+            btnDisconnect.style.display = 'none';
+        }
+    }
+
+    // Verificar estado de instancia
+    async function checkWhatsAppInstanceStatus(instanceNumber) {
+        const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://72.61.58.240:3001';
+        const baseUrl = serverUrl.replace(/:\d+$/, '');
+        const instancePort = 3001 + (instanceNumber - 1);
+        const instanceUrl = `${baseUrl}:${instancePort}`;
+        
+        try {
+            const response = await fetch(`${instanceUrl}/api/status`, {
+                method: 'GET',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                
+                if (data.connected) {
+                    updateInstanceCard(instanceNumber, {
+                        connected: true,
+                        phoneNumber: data.phoneNumber || '-',
+                        userName: data.userName || '-',
+                        lastActivity: data.lastActivity || 'Ahora'
+                    });
+                } else if (data.qrCode) {
+                    updateInstanceCard(instanceNumber, {
+                        connected: false,
+                        qrCode: data.qrCode
+                    });
+                }
+            }
+        } catch (error) {
+            console.log(`Instancia ${instanceNumber} no disponible`);
+        }
+    }
+
+    // Iniciar verificación periódica de estado
+    function startInstanceStatusCheck(instanceNumber, instanceUrl) {
+        if (whatsappInstanceIntervals[instanceNumber]) {
+            clearInterval(whatsappInstanceIntervals[instanceNumber]);
+        }
+        
+        whatsappInstanceIntervals[instanceNumber] = setInterval(async () => {
+            try {
+                const response = await fetch(`${instanceUrl}/api/status`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    if (data.connected) {
+                        updateInstanceCard(instanceNumber, {
+                            connected: true,
+                            phoneNumber: data.phoneNumber || '-',
+                            userName: data.userName || '-',
+                            lastActivity: data.lastActivity || 'Ahora'
+                        });
+                    } else if (data.qrCode) {
+                        updateInstanceCard(instanceNumber, {
+                            connected: false,
+                            qrCode: data.qrCode
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error(`Error verificando instancia ${instanceNumber}:`, error);
+            }
+        }, 5000);
+    }
+
+    // Desconectar instancia
+    window.disconnectWhatsAppInstance = async function(instanceNumber) {
+        if (!confirm(`¿Estás seguro de desconectar WhatsApp ${instanceNumber}?`)) {
+            return;
+        }
+        
+        const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://72.61.58.240:3001';
+        const baseUrl = serverUrl.replace(/:\d+$/, '');
+        const instancePort = 3001 + (instanceNumber - 1);
+        const instanceUrl = `${baseUrl}:${instancePort}`;
+        
+        try {
+            const response = await fetch(`${instanceUrl}/api/logout`, {
+                method: 'POST'
+            });
+            
+            if (response.ok) {
+                const card = document.getElementById(`whatsapp-instance-${instanceNumber}`);
+                const statusEl = document.getElementById(`instance-${instanceNumber}-status`);
+                const stateEl = document.getElementById(`instance-${instanceNumber}-state`);
+                const qrContainer = document.getElementById(`instance-${instanceNumber}-qr`);
+                const btnConnect = document.getElementById(`instance-${instanceNumber}-btn-connect`);
+                const btnDisconnect = document.getElementById(`instance-${instanceNumber}-btn-disconnect`);
+                
+                card.className = 'whatsapp-instance-card disconnected';
+                statusEl.className = 'instance-status disconnected';
+                statusEl.textContent = '⏳ Desconectado';
+                stateEl.textContent = 'Desconectado';
+                qrContainer.innerHTML = `
+                    <div style="text-align: center; color: #666;">
+                        <p>Haz clic en "Conectar" para generar el código QR</p>
+                    </div>
+                `;
+                btnConnect.style.display = 'block';
+                btnDisconnect.style.display = 'none';
+                
+                if (whatsappInstanceIntervals[instanceNumber]) {
+                    clearInterval(whatsappInstanceIntervals[instanceNumber]);
+                    whatsappInstanceIntervals[instanceNumber] = null;
+                }
+                
+                alert('WhatsApp desconectado correctamente');
+            } else {
+                alert('Error al desconectar WhatsApp');
+            }
+        } catch (error) {
+            console.error('Error desconectando WhatsApp:', error);
+            alert('Error al desconectar WhatsApp: ' + error.message);
+        }
+    };
+
+    // Refrescar instancia
+    window.refreshWhatsAppInstance = function(instanceNumber) {
+        checkWhatsAppInstanceStatus(instanceNumber);
+    };
+
+    // Guardar configuración de WhatsApp
+    window.saveWhatsAppConfig = function() {
+        const config = {
+            serverUrl: document.getElementById('whatsapp-server-url')?.value || 'http://72.61.58.240:3001',
+            autoReply: document.getElementById('whatsapp-auto-reply')?.checked || false,
+            businessHoursOnly: document.getElementById('whatsapp-business-hours-only')?.checked || false,
+            outOfHoursMessage: document.getElementById('whatsapp-out-of-hours-message')?.value || ''
+        };
+        
+        localStorage.setItem('whatsappConfig', JSON.stringify(config));
+        console.log('✅ Configuración de WhatsApp guardada');
+        alert('Configuración de WhatsApp guardada correctamente');
+    };
+
+    // Verificar conexión con WhatsApp (función básica)
+    window.checkWhatsAppConnection = function() {
+        console.log('🔄 Verificando conexión con WhatsApp...');
+        // Esta función puede ser expandida según necesidades
+    };
+
+    // Cerrar modal al hacer clic fuera
+    document.addEventListener('DOMContentLoaded', function() {
+        const modal = document.getElementById('whatsapp-multi-connect-modal');
+        if (modal) {
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closeWhatsAppMultiConnectModal();
+                }
+            });
+        }
+    });
     </script>
+
+    <!-- Modal para Conectar Múltiples WhatsApp -->
+    <div id="whatsapp-multi-connect-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 1200px; width: 95%; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #e0e0e0;">
+                <h2 style="margin: 0; color: #25D366; display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 28px;">📱</span>
+                    <span>Conectar Múltiples WhatsApp con IA</span>
+                </h2>
+                <button onclick="closeWhatsAppMultiConnectModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #666; padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s;">&times;</button>
+            </div>
+            
+            <div style="margin-bottom: 24px; padding: 16px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid #2196f3;">
+                <p style="margin: 0; color: #1565c0; font-size: 0.95rem; line-height: 1.6;">
+                    <strong>🤖 Con IA Integrada:</strong> Cada número de WhatsApp conectado utilizará Flor IA para responder automáticamente a los chats e interacciones. 
+                    Puedes conectar hasta 4 números diferentes, cada uno con su propio QR.
+                </p>
+            </div>
+
+            <div id="whatsapp-instances-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-bottom: 24px;">
+                <!-- Los 4 slots se generan dinámicamente -->
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; padding-top: 16px; border-top: 2px solid #e0e0e0;">
+                <button onclick="closeWhatsAppMultiConnectModal()" style="background: #666; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 500; cursor: pointer;">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* Estilos para el modal de múltiples WhatsApp */
+        #whatsapp-multi-connect-modal {
+            position: fixed;
+            z-index: 10000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s ease;
+        }
+
+        #whatsapp-multi-connect-modal .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .whatsapp-instance-card {
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .whatsapp-instance-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-color: #25D366;
+        }
+
+        .whatsapp-instance-card.connected {
+            background: #e8f5e9;
+            border-color: #4caf50;
+        }
+
+        .whatsapp-instance-card.disconnected {
+            background: #fff3e0;
+            border-color: #ff9800;
+        }
+
+        .whatsapp-instance-card.error {
+            background: #ffebee;
+            border-color: #f44336;
+        }
+
+        .instance-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .instance-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .instance-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+
+        .instance-status.connected {
+            background: #4caf50;
+            color: white;
+        }
+
+        .instance-status.disconnected {
+            background: #ff9800;
+            color: white;
+        }
+
+        .instance-status.connecting {
+            background: #2196f3;
+            color: white;
+        }
+
+        .instance-status.error {
+            background: #f44336;
+            color: white;
+        }
+
+        .instance-info {
+            margin-bottom: 16px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .instance-info strong {
+            color: #333;
+        }
+
+        .instance-qr-container {
+            text-align: center;
+            margin: 16px 0;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+        }
+
+        .instance-qr-container img {
+            max-width: 200px;
+            border-radius: 8px;
+            border: 3px solid #25D366;
+        }
+
+        .instance-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .instance-actions button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+
+        .instance-actions .btn-connect {
+            background: #25D366;
+            color: white;
+        }
+
+        .instance-actions .btn-connect:hover {
+            background: #1da851;
+        }
+
+        .instance-actions .btn-disconnect {
+            background: #ef5350;
+            color: white;
+        }
+
+        .instance-actions .btn-disconnect:hover {
+            background: #e53935;
+        }
+
+        .instance-actions .btn-refresh {
+            background: #2196f3;
+            color: white;
+        }
+
+        .instance-actions .btn-refresh:hover {
+            background: #1976d2;
+        }
+
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #25D366;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
 </body>
 </html> 
