@@ -8726,7 +8726,7 @@ Ej:
                 localStorage.setItem('whatsappConnections', JSON.stringify(connections));
             }
             
-            loadWhatsAppConnections();
+            // loadWhatsAppConnections(); // Función no implementada aún
             alert('✅ Conexión de WhatsApp eliminada');
         }
         
@@ -8739,7 +8739,7 @@ Ej:
             // Limpiar localStorage (no usar Supabase para conexiones)
             localStorage.removeItem('whatsappConnections');
             
-            loadWhatsAppConnections();
+            // loadWhatsAppConnections(); // Función no implementada aún
             alert('✅ Todas las conexiones de WhatsApp han sido eliminadas');
         }
         
@@ -8828,8 +8828,10 @@ Ej:
         // Inicializar WhatsApp al cargar la página
         document.addEventListener('DOMContentLoaded', function() {
             setTimeout(() => {
-                loadWhatsAppConnections();
-                loadWhatsAppConfig();
+                // loadWhatsAppConnections(); // Función no implementada aún
+                if (typeof loadWhatsAppConfig === 'function') {
+                    loadWhatsAppConfig();
+                }
             }, 1000);
         });
         
@@ -20979,8 +20981,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     // MÓDULO FLOR IA - INTERACCIONES Y CHATS
     // =====================================================
 
-    // Función para mostrar tabs de Flor
-    window.showFlorTab = function(tabName) {
+    // Función para mostrar tabs de Flor - DEFINIDA INMEDIATAMENTE
+    if (typeof window.showFlorTab === 'undefined') {
+        window.showFlorTab = function(tabName) {
         console.log('📑 Cambiando a tab Flor:', tabName);
         
         // Ocultar todos los tabs
