@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Checkin24hs - Panel de Administración</title>
+    <script>
+    console.log('🎯🎯🎯 SCRIPT INICIAL CARGADO - ' + new Date().toISOString());
+    </script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -2901,7 +2904,7 @@
                 <div class="stat-card" style="margin-bottom: 24px;">
                     <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; padding: 16px;">
                         <h3 style="margin: 0; font-size: 1.2rem;">Historial de Conversaciones</h3>
-                        <button class="form-button secondary" onclick="loadInteractions()">
+                        <button class="form-button secondary" onclick="if(window.loadInteractions) window.loadInteractions(); else if(typeof loadInteractions === 'function') loadInteractions();">
                             <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">refresh</span>
                             Actualizar
                         </button>
@@ -2949,7 +2952,7 @@
                     <div class="stat-card" style="overflow-y: auto;">
                         <div style="padding: 16px; border-bottom: 1px solid #e0e0e0;">
                             <h3 style="margin: 0 0 12px 0; font-size: 1.1rem;">Conversaciones</h3>
-                            <button class="form-button secondary" onclick="loadChats()" style="width: 100%;">
+                            <button class="form-button secondary" onclick="if(window.cargarChatsAhora){window.cargarChatsAhora();}else{alert('Función no disponible. Recarga la página.');}" style="width: 100%;">
                                 <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">refresh</span>
                                 Actualizar
                             </button>
@@ -2977,8 +2980,8 @@
                             <div style="display: flex; gap: 8px;">
                                 <input type="text" id="chatMessageInput" placeholder="Escribe tu respuesta..." 
                                        style="flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem;"
-                                       onkeypress="if(event.key === 'Enter') sendChatMessage()">
-                                <button class="form-button" style="background: #1976d2; color: white; padding: 12px 24px;" onclick="sendChatMessage()">
+                                       onkeypress="if(event.key === 'Enter') {if(window.enviarMensajeAhora){window.enviarMensajeAhora();}else{alert('Función no disponible');}}">
+                                <button class="form-button" style="background: #1976d2; color: white; padding: 12px 24px;" onclick="if(window.enviarMensajeAhora){window.enviarMensajeAhora();}else{alert('Función no disponible');}">
                                     <span class="material-icons" style="vertical-align: middle;">send</span>
                                 </button>
                             </div>
@@ -10241,17 +10244,34 @@ Ej:
                     console.log('☁️ Cargando hoteles desde Supabase...');
                     existingHotels = await window.supabaseClient.getHotels();
                     console.log(`📊 Estado inicial: ${existingHotels.length} hoteles en Supabase`);
+                    console.log('✅ Hoteles cargados desde Supabase - NO guardando en localStorage (versión corregida v2)');
                     
-                    // Sincronizar con localStorage
-                    if (existingHotels.length > 0) {
-                        localStorage.setItem('hotelsDB', JSON.stringify(existingHotels));
-                    }
+                    // NO sincronizar con localStorage si los datos vienen de Supabase
+                    // localStorage tiene límites de quota y Supabase es la fuente de verdad
+                    // Solo usar localStorage como fallback si Supabase no está disponible
                 } catch (error) {
                     console.warn('⚠️ Error cargando desde Supabase, usando localStorage:', error);
-                    existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                    // NO intentar guardar en localStorage si hay error de quota
+                    if (error && error.name === 'QuotaExceededError') {
+                        console.error('❌ localStorage está lleno. Usando solo Supabase.');
+                        existingHotels = [];
+                    } else {
+                        try {
+                            existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                        } catch (localError) {
+                            console.warn('⚠️ Error leyendo localStorage:', localError);
+                            existingHotels = [];
+                        }
+                    }
                 }
             } else {
-                existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                // Solo usar localStorage si Supabase no está disponible
+                try {
+                    existingHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                } catch (localError) {
+                    console.warn('⚠️ Error leyendo localStorage:', localError);
+                    existingHotels = [];
+                }
             }
             
             console.log(`📊 Estado inicial: ${existingHotels.length} hoteles`);
@@ -21734,72 +21754,637 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     };
 
     // Cargar interacciones
-    window.loadInteractions = function() {
-        console.log('📋 Cargando interacciones...');
-        const interactions = JSON.parse(localStorage.getItem('flor_interactions') || '[]');
-        const tbody = document.getElementById('interactionsTableBody');
+    // VERSIÓN: 4.0 - FORZAR RECARGA - 2025-12-17-18:30
+    window.loadInteractions = async function() {
+        const VERSION = '4.0-FORZAR-RECARGA-2025-12-17-18:30';
+        console.log('🚀🚀🚀 INICIO loadInteractions - VERSIÓN ' + VERSION + ' - ' + new Date().toISOString());
+        let tbody = null;
+        try {
+            console.log('📋 Cargando interacciones... [VERSIÓN ' + VERSION + ' - ' + new Date().toISOString() + ']');
+            console.log('🔍 DEBUG: Verificando elementos del DOM...');
+            console.log('🔍 DEBUG: Después del primer log, continuando...');
+            
+            // Intentar encontrar el elemento, con múltiples intentos
+            tbody = document.getElementById('interactionsTableBody');
+            if (!tbody) {
+                console.warn('⚠️ interactionsTableBody no encontrado en primer intento, esperando 200ms...');
+                await new Promise(resolve => setTimeout(resolve, 200));
+                tbody = document.getElementById('interactionsTableBody');
+            }
+            
+            console.log('🔍 DEBUG: interactionsTableBody encontrado:', !!tbody);
+            
+            if (!tbody) {
+                console.error('❌ interactionsTableBody no encontrado después de esperar. Elementos disponibles:', {
+                    interactionsSection: !!document.getElementById('interactions'),
+                    interactionsTable: !!document.querySelector('#interactions table'),
+                    allTables: document.querySelectorAll('table').length
+                });
+                return;
+            }
+            
+            console.log('✅ Elemento interactionsTableBody encontrado, mostrando cargando...');
         
-        if (!tbody) return;
-        
-        if (interactions.length === 0) {
+            // Mostrar cargando
             tbody.innerHTML = `
                 <tr>
                     <td colspan="6" style="text-align: center; padding: 40px; color: #666;">
-                        <span class="material-icons" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 16px;">chat</span>
-                        No hay interacciones registradas aún
+                        <span class="material-icons" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 16px; animation: spin 1s linear infinite;">sync</span>
+                        Cargando interacciones...
                     </td>
                 </tr>
             `;
-            return;
+            let interactions = [];
+            
+            // Verificar si Supabase está disponible
+            console.log('🔍 Verificando Supabase...');
+            console.log('  - window.supabaseClient existe:', !!window.supabaseClient);
+            if (window.supabaseClient) {
+                console.log('  - Supabase inicializado:', window.supabaseClient.isInitialized());
+            }
+            
+            if (!window.supabaseClient) {
+                console.warn('⚠️ window.supabaseClient no está disponible');
+            } else if (!window.supabaseClient.isInitialized()) {
+                console.warn('⚠️ Supabase no está inicializado');
+            } else {
+                console.log('✅ Supabase disponible, cargando interacciones...');
+            }
+            
+            // Intentar cargar desde Supabase
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                console.log('📡 Llamando a getFlorInteractions(100)...');
+                try {
+                    interactions = await window.supabaseClient.getFlorInteractions(100);
+                    console.log(`🌸 ${interactions.length} interacciones cargadas desde Supabase`);
+                    if (interactions.length > 0) {
+                        console.log('📋 Primeras 3 interacciones:', interactions.slice(0, 3).map(i => ({
+                            id: i.id,
+                            phone: i.phone,
+                            user_message: i.user_message?.substring(0, 50),
+                            intent: i.intent
+                        })));
+                    } else {
+                        console.warn('⚠️ No se obtuvieron interacciones de Supabase. Verifica:');
+                        console.warn('  1. Que haya datos en la tabla flor_interactions');
+                        console.warn('  2. Que RLS esté configurado correctamente');
+                        console.warn('  3. Que el servidor de WhatsApp esté guardando interacciones');
+                    }
+                } catch (error) {
+                    console.error('❌ Error al obtener interacciones de Supabase:', error);
+                    console.error('❌ Stack trace:', error.stack);
+                    interactions = [];
+                }
+            } else {
+                console.log('⚠️ Usando fallback a localStorage');
+            }
+            
+            // Fallback a localStorage si no hay en Supabase
+            if (interactions.length === 0) {
+                const localInteractions = JSON.parse(localStorage.getItem('flor_interactions') || '[]');
+                console.log(`📦 ${localInteractions.length} interacciones encontradas en localStorage`);
+                interactions = localInteractions.map(inter => ({
+                    id: inter.id,
+                    created_at: inter.date || new Date().toISOString(),
+                    phone: inter.client || 'web',
+                    user_message: inter.userMessage || '',
+                    bot_response: inter.botResponse || '',
+                    intent: inter.intent || 'consulta_general',
+                    success: inter.status === 'resolved',
+                    used_ai: inter.usedAI || false
+                }));
+            }
+            
+            if (interactions.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 40px; color: #666;">
+                            <span class="material-icons" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 16px;">chat</span>
+                            <p style="font-weight: 500; margin-bottom: 8px;">No hay interacciones registradas aún</p>
+                            <p style="font-size: 0.85rem; color: #999;">Las interacciones aparecerán aquí cuando Flor responda a mensajes de WhatsApp</p>
+                            <p style="font-size: 0.75rem; color: #999; margin-top: 4px;">Asegúrate de que el servidor de WhatsApp esté guardando interacciones en Supabase</p>
+                        </td>
+                    </tr>
+                `;
+                console.log('ℹ️ No hay interacciones para mostrar. Esto es normal si aún no has recibido mensajes o si Flor no ha respondido.');
+                return;
+            }
+            
+            // Agrupar interacciones por teléfono/sesión
+            const groupedInteractions = {};
+            interactions.forEach(inter => {
+                const phone = inter.phone || 'web';
+                const date = new Date(inter.created_at).toDateString();
+                const key = `${phone}_${date}`;
+                
+                if (!groupedInteractions[key]) {
+                    groupedInteractions[key] = {
+                        id: inter.id,
+                        phone: phone,
+                        date: inter.created_at,
+                        messageCount: 1,
+                        resolvedBy: inter.used_ai ? 'Flor IA' : 'Flor',
+                        status: inter.success !== false ? 'resolved' : 'pending',
+                        interactions: [inter]
+                    };
+                } else {
+                    groupedInteractions[key].messageCount++;
+                    groupedInteractions[key].interactions.push(inter);
+                    if (inter.created_at > groupedInteractions[key].date) {
+                        groupedInteractions[key].date = inter.created_at;
+                    }
+                }
+            });
+            
+            const grouped = Object.values(groupedInteractions).sort((a, b) => 
+                new Date(b.date) - new Date(a.date)
+            );
+            
+            tbody.innerHTML = grouped.map(interaction => `
+                <tr>
+                    <td style="padding: 12px;">${new Date(interaction.date).toLocaleString('es-ES')}</td>
+                    <td style="padding: 12px;">${interaction.phone || 'Desconocido'}</td>
+                    <td style="padding: 12px; text-align: center;">${interaction.messageCount || 0}</td>
+                    <td style="padding: 12px;">${interaction.resolvedBy || 'Flor'}</td>
+                    <td style="padding: 12px; text-align: center;">
+                        <span style="background: ${interaction.status === 'resolved' ? '#4caf50' : '#ff9800'}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.85rem;">
+                            ${interaction.status === 'resolved' ? 'Resuelto' : 'Pendiente'}
+                        </span>
+                    </td>
+                    <td style="padding: 12px; text-align: center;">
+                        <button onclick="viewInteraction('${interaction.id}')" style="background: #1976d2; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                            Ver
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+            
+            console.log(`✅ ${grouped.length} sesiones de interacciones mostradas`);
+        } catch (error) {
+            console.error('❌ Error cargando interacciones:', error);
+            console.error('❌ Stack trace completo:', error.stack);
+            if (tbody) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" style="text-align: center; padding: 40px; color: #d32f2f;">
+                            <span class="material-icons" style="font-size: 48px; color: #d32f2f; display: block; margin-bottom: 16px;">error</span>
+                            Error al cargar interacciones
+                            <p style="margin-top: 8px; font-size: 0.85rem; color: #999;">${error.message || 'Error desconocido'}</p>
+                        </td>
+                    </tr>
+                `;
+            }
         }
-        
-        tbody.innerHTML = interactions.map(interaction => `
-            <tr>
-                <td style="padding: 12px;">${new Date(interaction.date).toLocaleString()}</td>
-                <td style="padding: 12px;">${interaction.client || 'Desconocido'}</td>
-                <td style="padding: 12px; text-align: center;">${interaction.messageCount || 0}</td>
-                <td style="padding: 12px;">${interaction.resolvedBy || 'Flor'}</td>
-                <td style="padding: 12px; text-align: center;">
-                    <span style="background: ${interaction.status === 'resolved' ? '#4caf50' : '#ff9800'}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.85rem;">
-                        ${interaction.status === 'resolved' ? 'Resuelto' : 'Pendiente'}
-                    </span>
-                </td>
-                <td style="padding: 12px; text-align: center;">
-                    <button onclick="viewInteraction('${interaction.id}')" style="background: #1976d2; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
-                        Ver
-                    </button>
-                </td>
-            </tr>
-        `).join('');
     };
+    console.log('✅✅✅ FUNCIÓN window.loadInteractions DEFINIDA - VERSIÓN 4.0 - ' + new Date().toISOString());
 
-    // Cargar chats activos
-    window.loadChats = function() {
-        console.log('💬 Cargando chats activos...');
-        const chats = JSON.parse(localStorage.getItem('flor_active_chats') || '[]');
-        const chatsList = document.getElementById('chatsList');
+    // Cargar chats activos desde Supabase
+    // VERSIÓN: 4.0 - FORZAR RECARGA - 2025-12-17-18:30
+    window.loadChats = async function() {
+        const VERSION = '4.0-FORZAR-RECARGA-2025-12-17-18:30';
+        console.log('🚀🚀🚀 INICIO loadChats - VERSIÓN ' + VERSION + ' - ' + new Date().toISOString());
+        let chatsList = null;
+        try {
+            console.log('💬 Cargando chats activos... [VERSIÓN ' + VERSION + ' - ' + new Date().toISOString() + ']');
+            console.log('🔍 DEBUG: Verificando elementos del DOM...');
+            console.log('🔍 DEBUG: Después del primer log, continuando...');
+            
+            // Intentar encontrar el elemento, con múltiples intentos
+            console.log('🔍 DEBUG: Buscando elemento chatsList...');
+            chatsList = document.getElementById('chatsList');
+            console.log('🔍 DEBUG: chatsList encontrado:', !!chatsList);
+            if (!chatsList) {
+                console.warn('⚠️ chatsList no encontrado en primer intento, esperando 200ms...');
+                await new Promise(resolve => setTimeout(resolve, 200));
+                chatsList = document.getElementById('chatsList');
+            }
+            
+            console.log('🔍 DEBUG: chatsList encontrado:', !!chatsList);
+            
+            if (!chatsList) {
+                console.error('❌ chatsList no encontrado después de esperar. Elementos disponibles:', {
+                    chatsSection: !!document.getElementById('chats'),
+                    chatsContainer: !!document.querySelector('#chats div'),
+                    allDivs: document.querySelectorAll('#chats div').length
+                });
+                return;
+            }
+            
+            console.log('✅ Elemento chatsList encontrado, mostrando cargando...');
         
-        if (!chatsList) return;
-        
-        if (chats.length === 0) {
+            // Mostrar cargando
             chatsList.innerHTML = `
                 <div style="text-align: center; padding: 40px 16px; color: #666;">
-                    <span class="material-icons" style="font-size: 36px; color: #ccc;">forum</span>
-                    <p style="margin-top: 12px;">No hay chats activos</p>
+                    <span class="material-icons" style="font-size: 36px; color: #ccc; animation: spin 1s linear infinite;">sync</span>
+                    <p style="margin-top: 12px;">Cargando chats...</p>
                 </div>
             `;
+            
+            let chats = [];
+            
+            // Verificar si Supabase está disponible
+            console.log('🔍 Verificando Supabase...');
+            console.log('  - window.supabaseClient existe:', !!window.supabaseClient);
+            if (window.supabaseClient) {
+                console.log('  - Supabase inicializado:', window.supabaseClient.isInitialized());
+            }
+            
+            if (!window.supabaseClient) {
+                console.warn('⚠️ window.supabaseClient no está disponible');
+            } else if (!window.supabaseClient.isInitialized()) {
+                console.warn('⚠️ Supabase no está inicializado');
+            } else {
+                console.log('✅ Supabase disponible, cargando chats...');
+            }
+            
+            // Intentar cargar desde Supabase
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                console.log('📡 Llamando a getWhatsAppChats(50)...');
+                try {
+                    chats = await window.supabaseClient.getWhatsAppChats(50);
+                    console.log(`📱 ${chats.length} chats cargados desde Supabase`);
+                    if (chats.length > 0) {
+                        console.log('📋 Primeros 3 chats:', chats.slice(0, 3).map(c => ({
+                            id: c.id,
+                            phone: c.phone,
+                            name: c.name,
+                            last_message: c.last_message?.substring(0, 50)
+                        })));
+                    } else {
+                        console.warn('⚠️ No se obtuvieron chats de Supabase. Verifica:');
+                        console.warn('  1. Que haya datos en la tabla whatsapp_chats');
+                        console.warn('  2. Que RLS esté configurado correctamente');
+                        console.warn('  3. Que los chats no sean solo broadcasts/grupos');
+                    }
+                } catch (error) {
+                    console.error('❌ Error al obtener chats de Supabase:', error);
+                    console.error('❌ Stack trace:', error.stack);
+                    chats = [];
+                }
+            } else {
+                console.log('⚠️ Usando fallback a localStorage');
+            }
+            
+            // Fallback a localStorage si no hay en Supabase
+            if (chats.length === 0) {
+                const localChats = JSON.parse(localStorage.getItem('flor_active_chats') || '[]');
+                console.log(`📦 ${localChats.length} chats encontrados en localStorage`);
+                chats = localChats.map(chat => ({
+                    id: chat.id,
+                    phone: chat.phone,
+                    name: chat.clientName || chat.phone || 'Cliente',
+                    last_message: chat.lastText || null,
+                    last_message_time: chat.lastMessage || new Date().toISOString(),
+                    unread_count: 0,
+                    users: { name: chat.clientName || null }
+                }));
+            }
+            
+            if (chats.length === 0) {
+                chatsList.innerHTML = `
+                    <div style="text-align: center; padding: 40px 16px; color: #666;">
+                        <span class="material-icons" style="font-size: 36px; color: #ccc;">forum</span>
+                        <p style="margin-top: 12px; font-weight: 500;">No hay chats activos</p>
+                        <p style="margin-top: 8px; font-size: 0.85rem; color: #999;">Los chats aparecerán aquí cuando recibas mensajes de WhatsApp</p>
+                        <p style="margin-top: 4px; font-size: 0.75rem; color: #999;">Asegúrate de que el servidor de WhatsApp esté guardando mensajes en Supabase</p>
+                    </div>
+                `;
+                console.log('ℹ️ No hay chats para mostrar. Esto es normal si aún no has recibido mensajes.');
+                return;
+            }
+            
+            // Renderizar chats
+            console.log(`🎨 Renderizando ${chats.length} chats...`);
+            chatsList.innerHTML = chats.map(chat => {
+                const userName = chat.users?.name || chat.name || chat.phone || 'Cliente';
+                const lastMessage = chat.last_message || 'Sin mensajes';
+                const lastMessageTime = chat.last_message_time ? new Date(chat.last_message_time).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '';
+                const unreadBadge = chat.unread_count > 0 
+                    ? `<span style="background: #25D366; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-left: 8px;">${chat.unread_count}</span>` 
+                    : '';
+                
+                return `
+                    <div onclick="selectChat('${chat.id}')" style="padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; ${chat.unread_count > 0 ? 'background: #f0fff4;' : ''}" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='${chat.unread_count > 0 ? '#f0fff4' : 'white'}'">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <strong>${userName}${unreadBadge}</strong>
+                            <span style="font-size: 0.75rem; color: #999;">${lastMessageTime}</span>
+                        </div>
+                        <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${lastMessage}</p>
+                    </div>
+                `;
+            }).join('');
+            
+            console.log(`✅ ${chats.length} chats renderizados correctamente`);
+            
+            // Suscribirse a cambios en tiempo real
+            if (window.supabaseClient && window.supabaseClient.isInitialized() && !window.whatsappChatsSubscription) {
+                window.whatsappChatsSubscription = window.supabaseClient.subscribeToWhatsAppChats((payload) => {
+                    console.log('📱 Cambio en chat detectado, recargando...');
+                    window.loadChats();
+                });
+                
+                window.whatsappMessagesSubscription = window.supabaseClient.subscribeToWhatsAppMessages((message) => {
+                    console.log('📱 Nuevo mensaje recibido, recargando chats...');
+                    window.loadChats();
+                });
+                
+                console.log('✅ Suscripciones en tiempo real activas para chats');
+            }
+            
+            console.log('✅✅✅ FIN loadChats - Éxito completo');
+        } catch (error) {
+            console.error('❌❌❌ ERROR en loadChats:', error);
+            console.error('❌ Tipo de error:', typeof error);
+            console.error('❌ Mensaje:', error.message);
+            console.error('❌ Stack trace completo:', error.stack);
+            console.error('❌ Error completo:', JSON.stringify(error, Object.getOwnPropertyNames(error)));
+            if (chatsList) {
+                chatsList.innerHTML = `
+                    <div style="text-align: center; padding: 40px 16px; color: #d32f2f;">
+                        <span class="material-icons" style="font-size: 36px; color: #d32f2f;">error</span>
+                        <p style="margin-top: 12px;">Error al cargar chats</p>
+                        <p style="margin-top: 8px; font-size: 0.85rem; color: #999;">${error.message || 'Error desconocido'}</p>
+                        <p style="margin-top: 4px; font-size: 0.75rem; color: #999;">Revisa la consola para más detalles</p>
+                    </div>
+                `;
+            } else {
+                console.error('❌ chatsList no está disponible para mostrar el error');
+            }
+        } finally {
+            console.log('🏁 FINALLY: loadChats terminó');
+        }
+    };
+    console.log('✅✅✅ FUNCIÓN window.loadChats DEFINIDA - VERSIÓN 4.0 - ' + new Date().toISOString());
+
+    // ============================================
+    // SOLUCIÓN ALTERNATIVA: Cargar chats directamente desde Supabase
+    // VERSIÓN: 1.0 - 2025-12-17
+    // ============================================
+    window.loadChatsDirect = async function() {
+        console.log('🚀🚀🚀 INICIO loadChatsDirect - SOLUCIÓN ALTERNATIVA - ' + new Date().toISOString());
+        console.log('🔄 CARGANDO CHATS DIRECTAMENTE DESDE SUPABASE...');
+        const chatsList = document.getElementById('chatsList');
+        if (!chatsList) {
+            console.error('❌ chatsList no encontrado');
             return;
         }
-        
-        chatsList.innerHTML = chats.map(chat => `
-            <div onclick="selectChat('${chat.id}')" style="padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='white'">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <strong>${chat.clientName || chat.phone || 'Cliente'}</strong>
-                    <span style="font-size: 0.75rem; color: #999;">${new Date(chat.lastMessage).toLocaleTimeString()}</span>
+
+        try {
+            chatsList.innerHTML = '<div style="text-align: center; padding: 20px;"><span class="material-icons" style="animation: spin 1s linear infinite;">sync</span><p>Cargando...</p></div>';
+
+            // Consultar Supabase directamente
+            if (!window.supabaseClient || !window.supabaseClient.isInitialized()) {
+                throw new Error('Supabase no está inicializado');
+            }
+
+            const { data, error } = await window.supabaseClient.client
+                .from('whatsapp_chats')
+                .select('*')
+                .order('last_message_time', { ascending: false })
+                .limit(50);
+
+            if (error) throw error;
+
+            // Filtrar broadcasts y grupos
+            const chats = (data || []).filter(chat => {
+                const phone = chat.phone || '';
+                return !phone.includes('@broadcast') && !phone.includes('@g.us') && !phone.includes('status@');
+            });
+
+            console.log(`✅ ${chats.length} chats encontrados`);
+
+            if (chats.length === 0) {
+                chatsList.innerHTML = `
+                    <div style="text-align: center; padding: 40px 16px; color: #666;">
+                        <span class="material-icons" style="font-size: 36px; color: #ccc;">forum</span>
+                        <p style="margin-top: 12px;">No hay chats activos</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Renderizar chats
+            chatsList.innerHTML = chats.map(chat => {
+                const phone = chat.phone || 'Sin número';
+                const name = chat.name || phone;
+                const lastMessage = (chat.last_message || 'Sin mensajes').substring(0, 50);
+                const lastTime = chat.last_message_time ? new Date(chat.last_message_time).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '';
+                const unread = chat.unread_count > 0 ? `<span style="background: #25D366; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-left: 8px;">${chat.unread_count}</span>` : '';
+                
+                const escapedPhone = phone.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                const escapedName = name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                return `
+                    <div onclick="openChatDirect('${chat.id}', '${escapedPhone}', '${escapedName}')" 
+                         style="padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; ${chat.unread_count > 0 ? 'background: #f0fff4;' : ''}" 
+                         onmouseover="this.style.background='#f5f5f5'" 
+                         onmouseout="this.style.background='${chat.unread_count > 0 ? '#f0fff4' : 'white'}'">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <strong>${name}${unread}</strong>
+                            <span style="font-size: 0.75rem; color: #999;">${lastTime}</span>
+                        </div>
+                        <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${lastMessage}</p>
+                    </div>
+                `;
+            }).join('');
+
+            console.log('✅ Chats renderizados correctamente');
+        } catch (error) {
+            console.error('❌ Error cargando chats:', error);
+            chatsList.innerHTML = `
+                <div style="text-align: center; padding: 40px 16px; color: #d32f2f;">
+                    <span class="material-icons" style="font-size: 36px; color: #d32f2f;">error</span>
+                    <p style="margin-top: 12px;">Error al cargar chats</p>
+                    <p style="margin-top: 8px; font-size: 0.85rem; color: #999;">${error.message || 'Error desconocido'}</p>
                 </div>
-                <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${chat.lastText || 'Sin mensajes'}</p>
-            </div>
-        `).join('');
+            `;
+        }
+    };
+    console.log('✅✅✅ FUNCIÓN window.loadChatsDirect DEFINIDA - SOLUCIÓN ALTERNATIVA - ' + new Date().toISOString());
+
+    // Abrir chat y cargar mensajes
+    window.openChatDirect = async function(chatId, phone, name) {
+        console.log('💬 Abriendo chat:', chatId, phone, name);
+        
+        const chatHeader = document.getElementById('chatHeader');
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInputContainer = document.getElementById('chatInputContainer');
+        
+        if (!chatHeader || !chatMessages || !chatInputContainer) {
+            console.error('❌ Elementos del chat no encontrados');
+            return;
+        }
+
+        // Actualizar header
+        chatHeader.innerHTML = `
+            <h3 style="margin: 0; font-size: 1.1rem;">${name}</h3>
+            <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #666;">${phone}</p>
+        `;
+
+        // Mostrar input
+        chatInputContainer.style.display = 'block';
+        chatInputContainer.setAttribute('data-chat-id', chatId);
+        chatInputContainer.setAttribute('data-phone', phone);
+
+        // Cargar mensajes
+        try {
+            chatMessages.innerHTML = '<div style="text-align: center; padding: 20px;"><span class="material-icons" style="animation: spin 1s linear infinite;">sync</span><p>Cargando mensajes...</p></div>';
+
+            const { data, error } = await window.supabaseClient.client
+                .from('whatsapp_messages')
+                .select('*')
+                .eq('chat_id', chatId)
+                .order('created_at', { ascending: true })
+                .limit(100);
+
+            if (error) throw error;
+
+            console.log(`✅ ${data?.length || 0} mensajes cargados`);
+
+            if (!data || data.length === 0) {
+                chatMessages.innerHTML = '<p style="text-align: center; color: #666; margin-top: 60px;">No hay mensajes en este chat</p>';
+                return;
+            }
+
+            // Renderizar mensajes
+            chatMessages.innerHTML = data.map(msg => {
+                const isFromMe = msg.is_from_me;
+                const message = msg.message || msg.body || '';
+                const time = msg.created_at ? new Date(msg.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '';
+                
+                return `
+                    <div style="display: flex; justify-content: ${isFromMe ? 'flex-end' : 'flex-start'}; margin-bottom: 12px;">
+                        <div style="max-width: 70%; padding: 10px 14px; border-radius: 12px; background: ${isFromMe ? '#dcf8c6' : 'white'}; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                            <p style="margin: 0; font-size: 0.9rem; word-wrap: break-word;">${message}</p>
+                            <span style="font-size: 0.7rem; color: #999; margin-top: 4px; display: block; text-align: right;">${time}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Scroll al final
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+
+            // Marcar como leído
+            await window.supabaseClient.client
+                .from('whatsapp_chats')
+                .update({ unread_count: 0 })
+                .eq('id', chatId);
+
+        } catch (error) {
+            console.error('❌ Error cargando mensajes:', error);
+            chatMessages.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: #d32f2f;">
+                    <span class="material-icons" style="font-size: 48px; color: #d32f2f;">error</span>
+                    <p style="margin-top: 12px;">Error al cargar mensajes</p>
+                    <p style="margin-top: 8px; font-size: 0.85rem; color: #999;">${error.message || 'Error desconocido'}</p>
+                </div>
+            `;
+        }
+    };
+
+    // Enviar mensaje
+    window.sendChatMessageDirect = async function() {
+        const input = document.getElementById('chatMessageInput');
+        const message = input?.value?.trim();
+        const chatInputContainer = document.getElementById('chatInputContainer');
+        const phone = chatInputContainer?.getAttribute('data-phone');
+        
+        if (!message || !phone) {
+            console.warn('⚠️ No hay mensaje o teléfono');
+            return;
+        }
+
+        try {
+            console.log('📤 Enviando mensaje a', phone, ':', message);
+            
+            // Obtener URL del servidor
+            const serverUrl = document.getElementById('whatsapp-server-url')?.value || localStorage.getItem('whatsappServerURL') || 'http://localhost:3001';
+            
+            // Enviar mensaje al servidor
+            const response = await fetch(`${serverUrl}/api/send`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ number: phone, message: message })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Error al enviar mensaje');
+            }
+
+            console.log('✅ Mensaje enviado:', result);
+            
+            // Limpiar input
+            input.value = '';
+            
+            // Recargar mensajes
+            const chatId = chatInputContainer?.getAttribute('data-chat-id');
+            if (chatId) {
+                setTimeout(() => window.openChatDirect(chatId, phone, document.getElementById('chatHeader')?.querySelector('h3')?.textContent || phone), 500);
+            }
+            
+            // Recargar lista de chats
+            setTimeout(() => window.loadChatsDirect(), 1000);
+            
+        } catch (error) {
+            console.error('❌ Error enviando mensaje:', error);
+            alert('Error al enviar mensaje: ' + error.message);
+        }
+    };
+
+    // Función de prueba para verificar datos de Supabase
+    window.testSupabaseChats = async function() {
+        console.log('🧪 TEST: Verificando datos de Supabase...');
+        try {
+            if (!window.supabaseClient || !window.supabaseClient.isInitialized()) {
+                console.error('❌ Supabase no está inicializado');
+                return;
+            }
+            
+            console.log('📡 Consultando whatsapp_chats directamente...');
+            const { data, error } = await window.supabaseClient.client
+                .from('whatsapp_chats')
+                .select('*')
+                .order('last_message_time', { ascending: false })
+                .limit(10);
+            
+            if (error) {
+                console.error('❌ Error en consulta:', error);
+                return;
+            }
+            
+            console.log(`✅ Encontrados ${data?.length || 0} chats en Supabase`);
+            if (data && data.length > 0) {
+                console.log('📋 Primeros 3 chats:', data.slice(0, 3));
+                console.log('📋 Todos los chats:', data);
+            } else {
+                console.warn('⚠️ No hay chats en la tabla whatsapp_chats');
+            }
+            
+            // Probar interacciones también
+            console.log('📡 Consultando flor_interactions directamente...');
+            const { data: interactions, error: interactionsError } = await window.supabaseClient.client
+                .from('flor_interactions')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(10);
+            
+            if (interactionsError) {
+                console.error('❌ Error en consulta de interacciones:', interactionsError);
+                return;
+            }
+            
+            console.log(`✅ Encontradas ${interactions?.length || 0} interacciones en Supabase`);
+            if (interactions && interactions.length > 0) {
+                console.log('📋 Primeras 3 interacciones:', interactions.slice(0, 3));
+            } else {
+                console.warn('⚠️ No hay interacciones en la tabla flor_interactions');
+            }
+        } catch (error) {
+            console.error('❌ Error en test:', error);
+            console.error('❌ Stack:', error.stack);
+        }
     };
 
     // Seleccionar chat
@@ -22102,10 +22687,33 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 loadAIConfigFromSupabase();
             }
             if (section === 'interactions') {
-                loadInteractions();
+                // Esperar a que el DOM esté listo antes de cargar
+                setTimeout(() => {
+                    console.log('🔄 Ejecutando loadInteractions desde showSection...');
+                    if (typeof window.loadInteractions === 'function') {
+                        window.loadInteractions();
+                    } else if (typeof loadInteractions === 'function') {
+                        loadInteractions();
+                    } else {
+                        console.error('❌ loadInteractions no está definida');
+                    }
+                }, 100);
             }
             if (section === 'chats') {
-                loadChats();
+                // Esperar a que el DOM esté listo antes de cargar
+                setTimeout(() => {
+                    console.log('🔄🔄🔄 CAMBIO A SECCIÓN CHATS');
+                    console.log('🔍 Verificando funciones disponibles...');
+                    console.log('  - window.cargarChatsAhora existe?', typeof window.cargarChatsAhora);
+                    
+                    if (typeof window.cargarChatsAhora === 'function') {
+                        console.log('✅✅✅ LLAMANDO A window.cargarChatsAhora()...');
+                        window.cargarChatsAhora();
+                    } else {
+                        console.error('❌❌❌ cargarChatsAhora NO ESTÁ DEFINIDA');
+                        console.error('⚠️ El script de chats puede no haberse cargado. Recarga la página.');
+                    }
+                }, 200);
             }
         };
     }
@@ -22154,5 +22762,189 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     </script>
     </div>
     <!-- Fin del contenido del Dashboard -->
+    
+    <!-- SCRIPT PARA CARGAR CHATS - SE EJECUTA SIEMPRE AL FINAL -->
+    <script>
+    (function() {
+        'use strict';
+        console.log('🎯🎯🎯🎯🎯 SCRIPT DE CHATS CARGADO - ' + new Date().toISOString());
+        console.log('🎯 Este log DEBE aparecer siempre al cargar la página');
+    
+    // Función para cargar chats directamente - VERSIÓN FINAL
+    window.cargarChatsAhora = async function() {
+        console.log('🚀 EJECUTANDO cargarChatsAhora() - ' + new Date().toISOString());
+        const chatsList = document.getElementById('chatsList');
+        if (!chatsList) {
+            console.error('❌ chatsList no encontrado');
+            return;
+        }
+        
+        try {
+            chatsList.innerHTML = '<div style="text-align: center; padding: 20px;"><span class="material-icons" style="animation: spin 1s linear infinite;">sync</span><p>Cargando...</p></div>';
+            
+            if (!window.supabaseClient || !window.supabaseClient.isInitialized()) {
+                throw new Error('Supabase no está inicializado');
+            }
+            
+            const { data, error } = await window.supabaseClient.client
+                .from('whatsapp_chats')
+                .select('*')
+                .order('last_message_time', { ascending: false })
+                .limit(50);
+            
+            if (error) throw error;
+            
+            const chats = (data || []).filter(chat => {
+                const phone = chat.phone || '';
+                return !phone.includes('@broadcast') && !phone.includes('@g.us') && !phone.includes('status@');
+            });
+            
+            console.log(`✅ ${chats.length} chats encontrados`);
+            
+            if (chats.length === 0) {
+                chatsList.innerHTML = '<div style="text-align: center; padding: 40px 16px; color: #666;"><span class="material-icons" style="font-size: 36px; color: #ccc;">forum</span><p style="margin-top: 12px;">No hay chats activos</p></div>';
+                return;
+            }
+            
+            chatsList.innerHTML = chats.map(chat => {
+                const phone = (chat.phone || 'Sin número').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                const name = (chat.name || phone).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                const lastMessage = (chat.last_message || 'Sin mensajes').substring(0, 50);
+                const lastTime = chat.last_message_time ? new Date(chat.last_message_time).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '';
+                const unread = chat.unread_count > 0 ? `<span style="background: #25D366; color: white; padding: 2px 8px; border-radius: 10px; font-size: 12px; margin-left: 8px;">${chat.unread_count}</span>` : '';
+                
+                return `<div onclick="abrirChatAhora('${chat.id}', '${phone}', '${name}')" style="padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; ${chat.unread_count > 0 ? 'background: #f0fff4;' : ''}" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='${chat.unread_count > 0 ? '#f0fff4' : 'white'}'"><div style="display: flex; justify-content: space-between; align-items: center;"><strong>${name}${unread}</strong><span style="font-size: 0.75rem; color: #999;">${lastTime}</span></div><p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${lastMessage}</p></div>`;
+            }).join('');
+            
+            console.log('✅ Chats renderizados');
+        } catch (error) {
+            console.error('❌ Error:', error);
+            chatsList.innerHTML = `<div style="text-align: center; padding: 40px 16px; color: #d32f2f;"><span class="material-icons" style="font-size: 36px; color: #d32f2f;">error</span><p style="margin-top: 12px;">Error al cargar chats</p><p style="margin-top: 8px; font-size: 0.85rem; color: #999;">${error.message || 'Error desconocido'}</p></div>`;
+        }
+    };
+    
+    // Función para abrir chat
+    window.abrirChatAhora = async function(chatId, phone, name) {
+        console.log('💬 Abriendo chat:', chatId, phone, name);
+        const chatHeader = document.getElementById('chatHeader');
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInputContainer = document.getElementById('chatInputContainer');
+        
+        if (!chatHeader || !chatMessages || !chatInputContainer) return;
+        
+        chatHeader.innerHTML = `<h3 style="margin: 0; font-size: 1.1rem;">${name}</h3><p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #666;">${phone}</p>`;
+        chatInputContainer.style.display = 'block';
+        chatInputContainer.setAttribute('data-chat-id', chatId);
+        chatInputContainer.setAttribute('data-phone', phone);
+        
+        try {
+            chatMessages.innerHTML = '<div style="text-align: center; padding: 20px;"><span class="material-icons" style="animation: spin 1s linear infinite;">sync</span><p>Cargando mensajes...</p></div>';
+            
+            const { data, error } = await window.supabaseClient.client
+                .from('whatsapp_messages')
+                .select('*')
+                .eq('chat_id', chatId)
+                .order('created_at', { ascending: true })
+                .limit(100);
+            
+            if (error) throw error;
+            
+            if (!data || data.length === 0) {
+                chatMessages.innerHTML = '<p style="text-align: center; color: #666; margin-top: 60px;">No hay mensajes en este chat</p>';
+                return;
+            }
+            
+            chatMessages.innerHTML = data.map(msg => {
+                const isFromMe = msg.is_from_me;
+                const message = (msg.message || msg.body || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                const time = msg.created_at ? new Date(msg.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '';
+                return `<div style="display: flex; justify-content: ${isFromMe ? 'flex-end' : 'flex-start'}; margin-bottom: 12px;"><div style="max-width: 70%; padding: 10px 14px; border-radius: 12px; background: ${isFromMe ? '#dcf8c6' : 'white'}; box-shadow: 0 1px 2px rgba(0,0,0,0.1);"><p style="margin: 0; font-size: 0.9rem; word-wrap: break-word;">${message}</p><span style="font-size: 0.7rem; color: #999; margin-top: 4px; display: block; text-align: right;">${time}</span></div></div>`;
+            }).join('');
+            
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            await window.supabaseClient.client
+                .from('whatsapp_chats')
+                .update({ unread_count: 0 })
+                .eq('id', chatId);
+        } catch (error) {
+            console.error('❌ Error:', error);
+            chatMessages.innerHTML = `<div style="text-align: center; padding: 40px; color: #d32f2f;"><span class="material-icons" style="font-size: 48px; color: #d32f2f;">error</span><p style="margin-top: 12px;">Error al cargar mensajes</p></div>`;
+        }
+    };
+    
+    // Función para enviar mensaje
+    window.enviarMensajeAhora = async function() {
+        const input = document.getElementById('chatMessageInput');
+        const message = input?.value?.trim();
+        const chatInputContainer = document.getElementById('chatInputContainer');
+        const phone = chatInputContainer?.getAttribute('data-phone');
+        
+        if (!message || !phone) return;
+        
+        try {
+            const serverUrl = document.getElementById('whatsapp-server-url')?.value || localStorage.getItem('whatsappServerURL') || 'http://localhost:3001';
+            const response = await fetch(`${serverUrl}/api/send`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ number: phone, message: message })
+            });
+            
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'Error al enviar mensaje');
+            
+            input.value = '';
+            const chatId = chatInputContainer?.getAttribute('data-chat-id');
+            if (chatId) {
+                setTimeout(() => window.abrirChatAhora(chatId, phone, document.getElementById('chatHeader')?.querySelector('h3')?.textContent || phone), 500);
+            }
+            setTimeout(() => window.cargarChatsAhora(), 1000);
+        } catch (error) {
+            console.error('❌ Error:', error);
+            alert('Error al enviar mensaje: ' + error.message);
+        }
+    };
+    
+    // Observar cuando se muestra la sección de chats
+    (function() {
+        function initObserver() {
+            const chatsSection = document.getElementById('chats-section');
+            if (!chatsSection) {
+                setTimeout(initObserver, 500);
+                return;
+            }
+            
+            console.log('✅ chats-section encontrado, configurando observador...');
+            
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                        const isVisible = chatsSection.style.display !== 'none';
+                        if (isVisible) {
+                            console.log('👁️ Sección de chats visible, cargando...');
+                            setTimeout(() => {
+                                if (typeof window.cargarChatsAhora === 'function') {
+                                    window.cargarChatsAhora();
+                                }
+                            }, 100);
+                        }
+                    }
+                });
+            });
+            
+            observer.observe(chatsSection, { attributes: true, attributeFilter: ['style'] });
+            console.log('✅ Observador configurado');
+        }
+        
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initObserver);
+        } else {
+            initObserver();
+        }
+    })();
+    
+        console.log('✅✅✅ FUNCIONES DE CHATS DEFINIDAS - cargarChatsAhora, abrirChatAhora, enviarMensajeAhora');
+    })();
+    </script>
 </body>
 </html> 
