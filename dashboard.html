@@ -22830,7 +22830,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         const chatMessages = document.getElementById('chatMessages');
         const chatInputContainer = document.getElementById('chatInputContainer');
         
-        if (!chatHeader || !chatMessages || !chatInputContainer) return;
+        if (!chatHeader || !chatMessages || !chatInputContainer) {
+            console.error('❌ Elementos del DOM no encontrados:', { chatHeader: !!chatHeader, chatMessages: !!chatMessages, chatInputContainer: !!chatInputContainer });
+            return;
+        }
         
         chatHeader.innerHTML = `<h3 style="margin: 0; font-size: 1.1rem;">${name}</h3><p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #666;">${phone}</p>`;
         chatInputContainer.style.display = 'block';
@@ -22838,8 +22841,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         chatInputContainer.setAttribute('data-phone', phone);
         
         try {
+            console.log('📥 Cargando mensajes para chat_id:', chatId);
             chatMessages.innerHTML = '<div style="text-align: center; padding: 20px;"><span class="material-icons" style="animation: spin 1s linear infinite;">sync</span><p>Cargando mensajes...</p></div>';
             
+            if (!window.supabaseClient || !window.supabaseClient.isInitialized()) {
+                throw new Error('Supabase no está inicializado');
+            }
+            
+            console.log('🔍 Consultando whatsapp_messages con chat_id:', chatId);
             const { data, error } = await window.supabaseClient.client
                 .from('whatsapp_messages')
                 .select('*')
@@ -22847,13 +22856,44 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 .order('created_at', { ascending: true })
                 .limit(100);
             
-            if (error) throw error;
+            if (error) {
+                console.error('❌ Error en consulta de mensajes:', error);
+                throw error;
+            }
+            
+            console.log(`📨 ${data?.length || 0} mensajes encontrados para chat_id ${chatId}`);
             
             if (!data || data.length === 0) {
+                console.warn('⚠️ No hay mensajes en Supabase para este chat. Verificando si hay mensajes con phone:', phone);
+                // Limpiar phone para buscar (remover @c.us si existe)
+                const cleanPhone = phone.replace('@c.us', '').replace(/[^0-9]/g, '');
+                console.log('🔍 Buscando mensajes con phone limpio:', cleanPhone);
+                
+                // Intentar buscar por phone si no hay mensajes con chat_id
+                const { data: dataByPhone, error: errorByPhone } = await window.supabaseClient.client
+                    .from('whatsapp_messages')
+                    .select('*')
+                    .or(`phone.eq.${cleanPhone},phone.eq.${phone},phone.ilike.%${cleanPhone}%`)
+                    .order('created_at', { ascending: true })
+                    .limit(100);
+                
+                if (!errorByPhone && dataByPhone && dataByPhone.length > 0) {
+                    console.log(`✅ Encontrados ${dataByPhone.length} mensajes por phone`);
+                    chatMessages.innerHTML = dataByPhone.map(msg => {
+                        const isFromMe = msg.is_from_me;
+                        const message = (msg.message || msg.body || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                        const time = msg.created_at ? new Date(msg.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '';
+                        return `<div style="display: flex; justify-content: ${isFromMe ? 'flex-end' : 'flex-start'}; margin-bottom: 12px;"><div style="max-width: 70%; padding: 10px 14px; border-radius: 12px; background: ${isFromMe ? '#dcf8c6' : 'white'}; box-shadow: 0 1px 2px rgba(0,0,0,0.1);"><p style="margin: 0; font-size: 0.9rem; word-wrap: break-word;">${message}</p><span style="font-size: 0.7rem; color: #999; margin-top: 4px; display: block; text-align: right;">${time}</span></div></div>`;
+                    }).join('');
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                    return;
+                }
+                
                 chatMessages.innerHTML = '<p style="text-align: center; color: #666; margin-top: 60px;">No hay mensajes en este chat</p>';
                 return;
             }
             
+            console.log('✅ Renderizando', data.length, 'mensajes');
             chatMessages.innerHTML = data.map(msg => {
                 const isFromMe = msg.is_from_me;
                 const message = (msg.message || msg.body || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -22862,14 +22902,35 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }).join('');
             
             chatMessages.scrollTop = chatMessages.scrollHeight;
+            console.log('✅ Mensajes renderizados correctamente');
             
             await window.supabaseClient.client
                 .from('whatsapp_chats')
                 .update({ unread_count: 0 })
                 .eq('id', chatId);
+            
+            // Suscribirse a nuevos mensajes en tiempo real
+            if (window.supabaseClient && typeof window.supabaseClient.subscribeToWhatsAppMessages === 'function') {
+                console.log('🔄 Configurando suscripción en tiempo real para este chat...');
+                window.supabaseClient.subscribeToWhatsAppMessages((newMessage) => {
+                    // Solo actualizar si el mensaje es de este chat
+                    const messageChatId = newMessage.chat_id || newMessage.new?.chat_id;
+                    const messagePhone = newMessage.phone || newMessage.new?.phone;
+                    const cleanPhone = phone.replace('@c.us', '').replace(/[^0-9]/g, '');
+                    const messageCleanPhone = (messagePhone || '').replace(/[^0-9]/g, '');
+                    
+                    if (messageChatId === chatId || messageCleanPhone === cleanPhone) {
+                        console.log('📨 Nuevo mensaje recibido, recargando chat...');
+                        setTimeout(() => {
+                            window.abrirChatAhora(chatId, phone, name);
+                        }, 500);
+                    }
+                });
+            }
         } catch (error) {
-            console.error('❌ Error:', error);
-            chatMessages.innerHTML = `<div style="text-align: center; padding: 40px; color: #d32f2f;"><span class="material-icons" style="font-size: 48px; color: #d32f2f;">error</span><p style="margin-top: 12px;">Error al cargar mensajes</p></div>`;
+            console.error('❌ Error cargando mensajes:', error);
+            console.error('❌ Stack trace:', error.stack);
+            chatMessages.innerHTML = `<div style="text-align: center; padding: 40px; color: #d32f2f;"><span class="material-icons" style="font-size: 48px; color: #d32f2f;">error</span><p style="margin-top: 12px;">Error al cargar mensajes</p><p style="margin-top: 8px; font-size: 0.85rem; color: #999;">${error.message || 'Error desconocido'}</p></div>`;
         }
     };
     
@@ -22879,10 +22940,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         const message = input?.value?.trim();
         const chatInputContainer = document.getElementById('chatInputContainer');
         const phone = chatInputContainer?.getAttribute('data-phone');
+        const chatId = chatInputContainer?.getAttribute('data-chat-id');
         
-        if (!message || !phone) return;
+        if (!message || !phone) {
+            console.warn('⚠️ No hay mensaje o teléfono para enviar');
+            return;
+        }
         
         try {
+            console.log('📤 Enviando mensaje a', phone, ':', message);
             const serverUrl = document.getElementById('whatsapp-server-url')?.value || localStorage.getItem('whatsappServerURL') || 'http://localhost:3001';
             const response = await fetch(`${serverUrl}/api/send`, {
                 method: 'POST',
@@ -22893,14 +22959,21 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             const result = await response.json();
             if (!response.ok) throw new Error(result.error || 'Error al enviar mensaje');
             
+            console.log('✅ Mensaje enviado correctamente');
             input.value = '';
-            const chatId = chatInputContainer?.getAttribute('data-chat-id');
+            
+            // Recargar mensajes después de enviar
             if (chatId) {
-                setTimeout(() => window.abrirChatAhora(chatId, phone, document.getElementById('chatHeader')?.querySelector('h3')?.textContent || phone), 500);
+                console.log('🔄 Recargando mensajes del chat...');
+                setTimeout(() => {
+                    window.abrirChatAhora(chatId, phone, document.getElementById('chatHeader')?.querySelector('h3')?.textContent || phone);
+                }, 1000);
             }
-            setTimeout(() => window.cargarChatsAhora(), 1000);
+            
+            // Recargar lista de chats
+            setTimeout(() => window.cargarChatsAhora(), 1500);
         } catch (error) {
-            console.error('❌ Error:', error);
+            console.error('❌ Error enviando mensaje:', error);
             alert('Error al enviar mensaje: ' + error.message);
         }
     };

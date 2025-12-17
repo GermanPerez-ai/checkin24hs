@@ -69,8 +69,9 @@ if (fs.existsSync(configFile)) {
     }
 }
 
-// ===== BASE DE CONOCIMIENTO DE FUTURA FLOR (simplificada) =====
-const FLOR_KNOWLEDGE = {
+// ===== BASE DE CONOCIMIENTO DE FUTURA FLOR =====
+// Base de conocimiento básica (fallback)
+const FLOR_KNOWLEDGE_BASIC = {
     agent: {
         name: "Futura Flor",
         greeting: "¡Hola! 👋 Mi nombre es Futura Flor, soy la asistente virtual de *Checkin24hs*. ¿En qué puedo ayudarte hoy?",
@@ -84,6 +85,85 @@ const FLOR_KNOWLEDGE = {
         unknown: "🤔 Disculpa, no estoy segura de entender tu consulta. Puedo ayudarte con:\n\n• Información de hoteles\n• Cotizaciones\n• Reservas\n• Servicios disponibles\n\n¿Qué te interesa saber?"
     }
 };
+
+// Base de conocimiento cargada desde Supabase (se actualiza dinámicamente)
+let FLOR_KNOWLEDGE = { ...FLOR_KNOWLEDGE_BASIC };
+let FLOR_HOTELS_KNOWLEDGE = {}; // Conocimiento detallado por hotel
+let FLOR_HOTELS_LIST = []; // Lista de hoteles desde Supabase
+
+// Cargar base de conocimiento desde Supabase
+async function loadFlorKnowledgeFromSupabase() {
+    if (!supabase || !CONFIG.SAVE_TO_SUPABASE) {
+        console.log('⚠️ Supabase no disponible, usando base de conocimiento básica');
+        return;
+    }
+
+    try {
+        console.log('📚 Cargando base de conocimiento de Flor desde Supabase...');
+        
+        // Cargar hoteles desde Supabase
+        const { data: hotels, error: hotelsError } = await supabase
+            .from('hotels')
+            .select('*')
+            .order('name');
+        
+        if (!hotelsError && hotels && hotels.length > 0) {
+            FLOR_HOTELS_LIST = hotels;
+            console.log(`✅ ${hotels.length} hoteles cargados desde Supabase`);
+            
+            // Construir lista de hoteles para respuestas
+            const hotelsList = hotels.map(h => `• *${h.name}*${h.description ? ' - ' + h.description.substring(0, 50) : ''}`).join('\n');
+            FLOR_KNOWLEDGE.responses.hotels = `🏨 Trabajamos con los mejores hoteles de lujo en la Patagonia:\n\n${hotelsList}\n\n¿Sobre cuál te gustaría más información?`;
+        }
+        
+        // Cargar base de conocimiento de hoteles desde system_config
+        const { data: knowledgeConfig, error: knowledgeError } = await supabase
+            .from('system_config')
+            .select('value')
+            .eq('key', 'flor_hotel_knowledge')
+            .single();
+        
+        if (!knowledgeError && knowledgeConfig && knowledgeConfig.value) {
+            try {
+                FLOR_HOTELS_KNOWLEDGE = JSON.parse(knowledgeConfig.value);
+                console.log(`✅ Base de conocimiento de hoteles cargada (${Object.keys(FLOR_HOTELS_KNOWLEDGE).length} hoteles)`);
+            } catch (e) {
+                console.error('❌ Error parseando base de conocimiento:', e);
+            }
+        }
+        
+        // Cargar configuración del agente Flor
+        const { data: agentConfig, error: agentError } = await supabase
+            .from('system_config')
+            .select('value')
+            .eq('key', 'flor_agent_config')
+            .single();
+        
+        if (!agentError && agentConfig && agentConfig.value) {
+            try {
+                const agentData = JSON.parse(agentConfig.value);
+                if (agentData.name) FLOR_KNOWLEDGE.agent.name = agentData.name;
+                if (agentData.greeting) FLOR_KNOWLEDGE.agent.greeting = agentData.greeting;
+                if (agentData.farewell) FLOR_KNOWLEDGE.agent.farewell = agentData.farewell;
+                console.log('✅ Configuración del agente Flor cargada');
+            } catch (e) {
+                console.error('❌ Error parseando configuración del agente:', e);
+            }
+        }
+        
+        console.log('✅ Base de conocimiento de Flor cargada correctamente');
+    } catch (error) {
+        console.error('❌ Error cargando base de conocimiento desde Supabase:', error);
+        console.log('⚠️ Usando base de conocimiento básica');
+    }
+}
+
+// Recargar base de conocimiento periódicamente (cada 5 minutos)
+setInterval(() => {
+    if (supabase && CONFIG.SAVE_TO_SUPABASE) {
+        loadFlorKnowledgeFromSupabase();
+    }
+}, 5 * 60 * 1000); // 5 minutos
 
 // ===== INICIALIZACIÓN =====
 const app = express();
@@ -121,6 +201,61 @@ app.use(express.static('public'));
 let clientReady = false;
 let qrCodeData = null;
 
+// Función para limpiar locks de Chrome/Puppeteer
+function cleanChromeLocks() {
+    const sessionDir = path.join(__dirname, '.wwebjs_auth');
+    const defaultDir = path.join(sessionDir, 'Default');
+    
+    if (!fs.existsSync(defaultDir)) {
+        return;
+    }
+    
+    const lockFiles = [
+        path.join(defaultDir, 'SingletonLock'),
+        path.join(defaultDir, 'SingletonSocket'),
+        path.join(defaultDir, 'SingletonCookie')
+    ];
+    
+    let cleaned = false;
+    lockFiles.forEach(lockFile => {
+        try {
+            if (fs.existsSync(lockFile)) {
+                fs.unlinkSync(lockFile);
+                cleaned = true;
+            }
+        } catch (error) {
+            // Ignorar errores al eliminar locks
+        }
+    });
+    
+    // Buscar otros archivos de lock
+    try {
+        const files = fs.readdirSync(defaultDir);
+        files.forEach(file => {
+            if (file.includes('Lock') || file.includes('Singleton')) {
+                const filePath = path.join(defaultDir, file);
+                try {
+                    if (fs.existsSync(filePath)) {
+                        fs.unlinkSync(filePath);
+                        cleaned = true;
+                    }
+                } catch (error) {
+                    // Ignorar errores
+                }
+            }
+        });
+    } catch (error) {
+        // Ignorar errores
+    }
+    
+    if (cleaned) {
+        console.log('🧹 Archivos de lock limpiados automáticamente');
+    }
+}
+
+// Limpiar locks antes de crear el cliente
+cleanChromeLocks();
+
 // Crear cliente de WhatsApp con autenticación local (persiste la sesión)
 const client = new Client({
     authStrategy: new LocalAuth({
@@ -136,8 +271,18 @@ const client = new Client({
             '--no-first-run',
             '--no-zygote',
             '--single-process',
-            '--disable-gpu'
-        ]
+            '--disable-gpu',
+            '--disable-software-rasterizer',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
+            '--disable-features=TranslateUI',
+            '--disable-ipc-flooding-protection'
+        ],
+        // Intentar limpiar locks automáticamente
+        handleSIGINT: false,
+        handleSIGTERM: false,
+        handleSIGHUP: false
     }
 });
 
@@ -323,7 +468,30 @@ function generateFlorResponse(userMessage) {
         return FLOR_KNOWLEDGE.responses.contact;
     }
     
-    // Detectar hotel específico
+    // Detectar hotel específico usando base de conocimiento cargada
+    for (const hotel of FLOR_HOTELS_LIST) {
+        const hotelName = hotel.name?.toLowerCase() || '';
+        const hotelKeywords = [
+            hotelName,
+            ...(hotel.name?.split(' ') || []).map(w => w.toLowerCase()),
+            ...(hotel.description?.split(' ') || []).slice(0, 5).map(w => w.toLowerCase())
+        ];
+        
+        if (matchAny(msg, hotelKeywords)) {
+            // Buscar conocimiento detallado del hotel
+            const hotelKnowledge = FLOR_HOTELS_KNOWLEDGE[hotel.id] || FLOR_HOTELS_KNOWLEDGE[String(hotel.id)];
+            
+            if (hotelKnowledge && hotelKnowledge.description) {
+                return `🏨 *${hotel.name}*\n\n${hotelKnowledge.description}\n\n📍 ${hotel.location || hotel.address || 'Patagonia, Chile'}\n\n¿Te gustaría recibir una cotización?`;
+            } else if (hotel.description) {
+                return `🏨 *${hotel.name}*\n\n${hotel.description.substring(0, 200)}${hotel.description.length > 200 ? '...' : ''}\n\n📍 ${hotel.location || hotel.address || 'Patagonia, Chile'}\n\n¿Te gustaría recibir una cotización?`;
+            } else {
+                return `🏨 *${hotel.name}*\n\n📍 ${hotel.location || hotel.address || 'Patagonia, Chile'}\n\n¿Te gustaría recibir una cotización?`;
+            }
+        }
+    }
+    
+    // Fallback a hoteles conocidos (si no se cargaron desde Supabase)
     if (matchAny(msg, ['puyehue', 'termas'])) {
         return "🏨 *Hotel Terma de Puyehue*\n\n📍 Ubicación: Ruta 215 Km 76, Puyehue, Chile\n🌡️ Especialidad: Spa termal con aguas termales naturales\n✨ Destacado: Piscinas termales, tratamientos de spa, restaurant gourmet\n\n¿Te gustaría recibir una cotización?";
     }
@@ -356,7 +524,25 @@ async function generateGeminiResponse(userMessage, conversationHistory = []) {
         return null;
     }
 
-    const systemPrompt = `Eres Futura Flor, la asistente virtual de Checkin24hs, una agencia de viajes especializada en hoteles de lujo en la Patagonia chilena.
+    // Construir información de hoteles desde la base de conocimiento cargada
+    let hotelsInfo = '';
+    if (FLOR_HOTELS_LIST.length > 0) {
+        hotelsInfo = FLOR_HOTELS_LIST.map((hotel, idx) => {
+            const hotelKnowledge = FLOR_HOTELS_KNOWLEDGE[hotel.id] || FLOR_HOTELS_KNOWLEDGE[String(hotel.id)];
+            let hotelDesc = hotel.description || '';
+            if (hotelKnowledge && hotelKnowledge.description) {
+                hotelDesc = hotelKnowledge.description;
+            }
+            return `${idx + 1}. ${hotel.name}${hotel.location ? ' - ' + hotel.location : ''}${hotelDesc ? '\n   ' + hotelDesc.substring(0, 150) : ''}`;
+        }).join('\n\n');
+    } else {
+        hotelsInfo = `1. Hotel Terma de Puyehue - Spa termal con aguas termales naturales
+2. Hotel Huilo-Huilo - Ecoturismo en la selva valdiviana
+3. Hotel Corralco - Ski y actividades de montaña
+4. Hotel Futangue - Lagos y montañas`;
+    }
+
+    const systemPrompt = `Eres ${FLOR_KNOWLEDGE.agent.name}, la asistente virtual de Checkin24hs, una agencia de viajes especializada en hoteles de lujo en la Patagonia chilena.
 
 INFORMACIÓN DE LA EMPRESA:
 - Nombre: Checkin24hs
@@ -365,10 +551,30 @@ INFORMACIÓN DE LA EMPRESA:
 - Especialidad: Hoteles de lujo en Patagonia
 
 HOTELES QUE MANEJAMOS:
-1. Hotel Terma de Puyehue - Spa termal con aguas termales naturales
-2. Hotel Huilo-Huilo - Ecoturismo en la selva valdiviana
-3. Hotel Corralco - Ski y actividades de montaña
-4. Hotel Futangue - Lagos y montañas
+${hotelsInfo}
+
+BASE DE CONOCIMIENTO DETALLADA:
+${Object.keys(FLOR_HOTELS_KNOWLEDGE).length > 0 ? 
+    Object.entries(FLOR_HOTELS_KNOWLEDGE).map(([hotelId, knowledge]) => {
+        const hotel = FLOR_HOTELS_LIST.find(h => String(h.id) === String(hotelId));
+        const hotelName = hotel?.name || `Hotel ${hotelId}`;
+        let info = `\n${hotelName}:`;
+        if (knowledge.description) info += `\n- Descripción: ${knowledge.description}`;
+        if (knowledge.address) info += `\n- Dirección: ${knowledge.address}`;
+        if (knowledge.servicesDetails) {
+            const services = typeof knowledge.servicesDetails === 'string' ? JSON.parse(knowledge.servicesDetails) : knowledge.servicesDetails;
+            if (services && Object.keys(services).length > 0) {
+                info += `\n- Servicios: ${Object.keys(services).join(', ')}`;
+            }
+        }
+        if (knowledge.policies) {
+            const policies = typeof knowledge.policies === 'string' ? JSON.parse(knowledge.policies) : knowledge.policies;
+            if (policies && Object.keys(policies).length > 0) {
+                info += `\n- Políticas: ${Object.keys(policies).join(', ')}`;
+            }
+        }
+        return info;
+    }).join('\n') : 'Usa la información básica de los hoteles listados arriba.'}
 
 TU PERSONALIDAD:
 - Amable y profesional
@@ -376,12 +582,14 @@ TU PERSONALIDAD:
 - Usa emojis moderadamente
 - Si te piden una cotización, solicita: fechas, cantidad de personas y hotel preferido
 - Si quieren reservar, indica que un agente humano los contactará
+- Usa la información detallada de la base de conocimiento cuando respondas sobre hoteles específicos
 
 IMPORTANTE:
 - Responde en español
 - Máximo 300 caracteres por respuesta para WhatsApp
 - No inventes precios, solo di que varían según temporada
-- Si no sabes algo, ofrece conectar con un agente humano`;
+- Si no sabes algo, ofrece conectar con un agente humano
+- Prioriza usar la información de la BASE DE CONOCIMIENTO DETALLADA cuando respondas sobre hoteles`;
 
     try {
         const modelName = CONFIG.GEMINI_MODEL || 'gemini-1.5-flash';
@@ -473,18 +681,31 @@ function saveMessage(message) {
 
 // Guardar o actualizar chat en Supabase
 async function saveOrUpdateChat(phone, message, isFromMe = false) {
-    if (!supabase || !CONFIG.SAVE_TO_SUPABASE) return null;
+    if (!supabase) {
+        console.warn('⚠️ Supabase no está inicializado, no se puede guardar chat');
+        return null;
+    }
+    
+    if (!CONFIG.SAVE_TO_SUPABASE) {
+        console.log('ℹ️ SAVE_TO_SUPABASE está deshabilitado, no se guarda chat');
+        return null;
+    }
     
     try {
         const cleanPhone = phone.replace('@c.us', '');
         
         // Buscar chat existente
-        const { data: existingChat } = await supabase
+        const { data: existingChat, error: searchError } = await supabase
             .from('whatsapp_chats')
             .select('*')
             .eq('phone', cleanPhone)
             .eq('whatsapp_instance', CONFIG.INSTANCE_NUMBER)
-            .single();
+            .maybeSingle(); // Usar maybeSingle en lugar de single para evitar error si no existe
+        
+        if (searchError && searchError.code !== 'PGRST116') {
+            // PGRST116 es "no rows returned", que es normal si no existe el chat
+            console.warn('⚠️ Error buscando chat existente:', searchError.message);
+        }
         
         if (existingChat) {
             // Actualizar chat existente
@@ -493,14 +714,17 @@ async function saveOrUpdateChat(phone, message, isFromMe = false) {
                 .update({
                     last_message: message.substring(0, 500),
                     last_message_time: new Date().toISOString(),
-                    unread_count: isFromMe ? 0 : existingChat.unread_count + 1,
+                    unread_count: isFromMe ? 0 : (existingChat.unread_count || 0) + 1,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', existingChat.id)
                 .select()
                 .single();
             
-            if (error) throw error;
+            if (error) {
+                console.error('❌ Error actualizando chat:', error);
+                throw error;
+            }
             return data;
         } else {
             // Crear nuevo chat
@@ -518,19 +742,39 @@ async function saveOrUpdateChat(phone, message, isFromMe = false) {
                 .select()
                 .single();
             
-            if (error) throw error;
+            if (error) {
+                console.error('❌ Error creando chat:', error);
+                throw error;
+            }
             console.log(`📱 Nuevo chat creado para ${cleanPhone}`);
             return data;
         }
     } catch (error) {
         console.error('❌ Error guardando chat en Supabase:', error.message);
+        if (error.code) {
+            console.error(`   Código de error: ${error.code}`);
+        }
+        if (error.details) {
+            console.error(`   Detalles: ${error.details}`);
+        }
+        if (error.hint) {
+            console.error(`   Sugerencia: ${error.hint}`);
+        }
         return null;
     }
 }
 
 // Guardar mensaje en Supabase
 async function saveMessageToSupabase(phone, message, isFromMe = false, messageType = 'text') {
-    if (!supabase || !CONFIG.SAVE_TO_SUPABASE) return null;
+    if (!supabase) {
+        console.warn('⚠️ Supabase no está inicializado, no se puede guardar mensaje');
+        return null;
+    }
+    
+    if (!CONFIG.SAVE_TO_SUPABASE) {
+        console.log('ℹ️ SAVE_TO_SUPABASE está deshabilitado, no se guarda mensaje');
+        return null;
+    }
     
     try {
         const cleanPhone = phone.replace('@c.us', '');
@@ -538,57 +782,169 @@ async function saveMessageToSupabase(phone, message, isFromMe = false, messageTy
         // Obtener o crear chat
         const chat = await saveOrUpdateChat(phone, message, isFromMe);
         
-        // Guardar mensaje
-        const { data, error } = await supabase
+        if (!chat) {
+            console.warn('⚠️ No se pudo obtener o crear chat, guardando mensaje sin chat_id');
+        }
+        
+        // Preparar datos del mensaje con solo campos básicos primero
+        const messageData = {
+            phone: cleanPhone,
+            message: message || '',
+            message_type: messageType || 'text',
+            whatsapp_instance: CONFIG.INSTANCE_NUMBER
+        };
+        
+        // Intentar agregar campos opcionales de manera segura
+        // Si falla, intentaremos sin ellos
+        try {
+            // Intentar agregar chat_id si el chat existe
+            if (chat && chat.id) {
+                messageData.chat_id = chat.id;
+            }
+            
+            // Intentar agregar is_from_me
+            messageData.is_from_me = Boolean(isFromMe);
+            
+            // Intentar agregar is_read
+            messageData.is_read = Boolean(isFromMe);
+        } catch (e) {
+            // Ignorar errores al agregar campos opcionales
+            console.warn('⚠️ No se pudieron agregar algunos campos opcionales:', e.message);
+        }
+        
+        // Intentar guardar con todos los campos
+        let { data, error } = await supabase
             .from('whatsapp_messages')
-            .insert([{
-                chat_id: chat?.id || null,
-                phone: cleanPhone,
-                message: message,
-                message_type: messageType,
-                is_from_me: isFromMe,
-                is_read: isFromMe,
-                whatsapp_instance: CONFIG.INSTANCE_NUMBER
-            }])
+            .insert([messageData])
             .select()
             .single();
         
-        if (error) throw error;
+        // Si falla por error de esquema, intentar sin campos problemáticos
+        if (error && (error.message?.includes('schema cache') || error.message?.includes('column'))) {
+            console.warn('⚠️ Error de esquema detectado, intentando con campos mínimos...');
+            
+            // Preparar datos mínimos (solo campos esenciales)
+            const minimalData = {
+                phone: cleanPhone,
+                message: message || '',
+                message_type: messageType || 'text',
+                whatsapp_instance: CONFIG.INSTANCE_NUMBER
+            };
+            
+            // Intentar insertar solo con campos mínimos
+            const result = await supabase
+                .from('whatsapp_messages')
+                .insert([minimalData])
+                .select()
+                .single();
+            
+            if (result.error) {
+                throw result.error;
+            }
+            
+            data = result.data;
+            console.log(`✅ Mensaje guardado en Supabase (modo mínimo): ${isFromMe ? 'Enviado' : 'Recibido'} de ${cleanPhone}`);
+            return data;
+        }
+        
+        if (error) {
+            console.error('❌ Error guardando mensaje en Supabase:', error);
+            console.error('   Detalles:', JSON.stringify(error, null, 2));
+            throw error;
+        }
+        
+        console.log(`✅ Mensaje guardado en Supabase: ${isFromMe ? 'Enviado' : 'Recibido'} de ${cleanPhone}`);
         return data;
     } catch (error) {
         console.error('❌ Error guardando mensaje en Supabase:', error.message);
+        if (error.code) {
+            console.error(`   Código de error: ${error.code}`);
+        }
+        if (error.details) {
+            console.error(`   Detalles: ${error.details}`);
+        }
+        if (error.hint) {
+            console.error(`   Sugerencia: ${error.hint}`);
+        }
         return null;
     }
 }
 
 // Guardar interacción de Flor para aprendizaje
 async function saveInteraction(phone, userMessage, botResponse, intent, usedAI = false, responseTimeMs = 0) {
-    if (!supabase || !CONFIG.SAVE_TO_SUPABASE) return null;
+    if (!supabase) {
+        console.warn('⚠️ Supabase no está inicializado, no se puede guardar interacción');
+        return null;
+    }
+    
+    if (!CONFIG.SAVE_TO_SUPABASE) {
+        console.log('ℹ️ SAVE_TO_SUPABASE está deshabilitado, no se guarda interacción');
+        return null;
+    }
     
     try {
         const cleanPhone = phone.replace('@c.us', '');
         
+        // Asegurar que los valores booleanos sean correctos (nunca strings vacíos)
+        // Convertir cualquier valor a boolean explícitamente
+        const successValue = true; // Siempre true por defecto
+        const usedAIValue = (usedAI !== undefined && usedAI !== null && usedAI !== '') 
+            ? Boolean(usedAI) 
+            : false;
+        
+        // Asegurar que botResponse sea siempre un string válido
+        let botResponseStr = '';
+        if (botResponse !== undefined && botResponse !== null) {
+            if (typeof botResponse === 'string') {
+                botResponseStr = botResponse;
+            } else if (typeof botResponse === 'object') {
+                botResponseStr = JSON.stringify(botResponse);
+            } else {
+                botResponseStr = String(botResponse);
+            }
+        }
+        
+        const interactionData = {
+            phone: cleanPhone,
+            user_message: userMessage || '',
+            bot_response: botResponseStr,
+            intent: intent || null,
+            success: successValue, // Boolean explícito, nunca string
+            used_ai: usedAIValue, // Boolean explícito, nunca string
+            response_time_ms: parseInt(responseTimeMs) || 0,
+            whatsapp_instance: CONFIG.INSTANCE_NUMBER
+        };
+        
+        // Solo agregar ai_model si usedAI es true
+        if (usedAIValue && CONFIG.GEMINI_MODEL) {
+            interactionData.ai_model = CONFIG.GEMINI_MODEL;
+        }
+        
         const { data, error } = await supabase
             .from('flor_interactions')
-            .insert([{
-                phone: cleanPhone,
-                user_message: userMessage,
-                bot_response: botResponse,
-                intent: intent,
-                success: true,
-                used_ai: usedAI,
-                ai_model: usedAI ? CONFIG.GEMINI_MODEL : null,
-                response_time_ms: responseTimeMs,
-                whatsapp_instance: CONFIG.INSTANCE_NUMBER
-            }])
+            .insert([interactionData])
             .select()
             .single();
         
-        if (error) throw error;
-        console.log(`📝 Interacción guardada: ${intent || 'general'}`);
+        if (error) {
+            console.error('❌ Error guardando interacción en Supabase:', error);
+            console.error('   Detalles:', JSON.stringify(error, null, 2));
+            throw error;
+        }
+        
+        console.log(`📝 Interacción guardada: ${intent || 'general'} (${usedAIValue ? 'IA' : 'Predefinida'})`);
         return data;
     } catch (error) {
         console.error('❌ Error guardando interacción:', error.message);
+        if (error.code) {
+            console.error(`   Código de error: ${error.code}`);
+        }
+        if (error.details) {
+            console.error(`   Detalles: ${error.details}`);
+        }
+        if (error.hint) {
+            console.error(`   Sugerencia: ${error.hint}`);
+        }
         return null;
     }
 }
@@ -834,7 +1190,19 @@ app.post('/api/send', async (req, res) => {
             chatId = chatId.replace(/[^0-9]/g, '') + '@c.us';
         }
         
+        console.log(`📤 Enviando mensaje a ${chatId}: ${message.substring(0, 50)}...`);
         await client.sendMessage(chatId, message);
+        
+        // Guardar mensaje en Supabase después de enviarlo
+        if (CONFIG.SAVE_TO_SUPABASE && supabase) {
+            try {
+                await saveMessageToSupabase(chatId, message, true, 'text');
+                console.log('✅ Mensaje guardado en Supabase después de enviar');
+            } catch (saveError) {
+                console.error('⚠️ Error guardando mensaje en Supabase (no crítico):', saveError.message);
+            }
+        }
+        
         res.json({ success: true, message: 'Mensaje enviado' });
         
     } catch (error) {
@@ -855,6 +1223,23 @@ app.post('/api/toggle-flor', (req, res) => {
     CONFIG.FLOR_ENABLED = !CONFIG.FLOR_ENABLED;
     console.log(`🌸 Futura Flor ${CONFIG.FLOR_ENABLED ? 'activada' : 'desactivada'}`);
     res.json({ florEnabled: CONFIG.FLOR_ENABLED });
+});
+
+// Recargar base de conocimiento desde Supabase
+app.post('/api/flor/reload-knowledge', async (req, res) => {
+    try {
+        console.log('🔄 Recargando base de conocimiento de Flor...');
+        await loadFlorKnowledgeFromSupabase();
+        res.json({ 
+            success: true, 
+            message: 'Base de conocimiento recargada',
+            hotelsLoaded: FLOR_HOTELS_LIST.length,
+            knowledgeLoaded: Object.keys(FLOR_HOTELS_KNOWLEDGE).length
+        });
+    } catch (error) {
+        console.error('❌ Error recargando base de conocimiento:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
 // Configurar Gemini IA
@@ -1207,13 +1592,17 @@ app.get('/', (req, res) => {
 
 // ===== INICIAR SERVIDOR =====
 
-server.listen(CONFIG.PORT, () => {
+server.listen(CONFIG.PORT, async () => {
     console.log('\n========================================');
     console.log('🌸 Servidor WhatsApp Futura Flor - Checkin24hs');
     console.log('========================================');
     console.log(`📡 Servidor corriendo en puerto ${CONFIG.PORT}`);
     console.log(`🌐 Panel: http://localhost:${CONFIG.PORT}`);
     console.log('========================================\n');
+    
+    // Cargar base de conocimiento desde Supabase al iniciar
+    await loadFlorKnowledgeFromSupabase();
+    
     console.log('⏳ Inicializando WhatsApp...\n');
     
     // Health check cada 5 minutos para mantener la sesión activa
