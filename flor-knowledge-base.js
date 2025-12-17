@@ -193,6 +193,26 @@ const FlorKnowledgeBase = {
         
         // Actualizar en el objeto
         this.hotelsKnowledge[hotelId] = knowledge;
+        
+        // Guardar en Supabase si está disponible
+        if (typeof window !== 'undefined' && window.supabaseClient && window.supabaseClient.isInitialized()) {
+            window.supabaseClient.client
+                .from('system_config')
+                .upsert({
+                    key: 'flor_hotel_knowledge',
+                    value: JSON.stringify(allKnowledge)
+                })
+                .then(({ error }) => {
+                    if (error) {
+                        console.error('[Flor Knowledge] ❌ Error guardando en Supabase:', error);
+                    } else {
+                        console.log('[Flor Knowledge] ✅ Base de conocimiento guardada en Supabase');
+                    }
+                })
+                .catch(err => {
+                    console.error('[Flor Knowledge] ❌ Error guardando en Supabase:', err);
+                });
+        }
     },
     
     // Obtener imagen principal del hotel

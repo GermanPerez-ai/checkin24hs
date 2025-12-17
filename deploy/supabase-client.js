@@ -1670,13 +1670,33 @@ class SupabaseClient {
         }
 
         try {
-            const { data, error } = await this.client
+            // Primero intentar con el join a users
+            let query = this.client
                 .from('whatsapp_chats')
                 .select('*, users(name, email)')
                 .order('last_message_time', { ascending: false })
                 .limit(limit);
+            
+            let { data, error } = await query;
 
-            if (error) throw error;
+            // Si hay error con el join, intentar sin el join
+            if (error && error.message && error.message.includes('users')) {
+                console.warn('⚠️ Error con join a users, intentando sin join:', error.message);
+                query = this.client
+                    .from('whatsapp_chats')
+                    .select('*')
+                    .order('last_message_time', { ascending: false })
+                    .limit(limit);
+                
+                const result = await query;
+                data = result.data;
+                error = result.error;
+            }
+
+            if (error) {
+                console.error('❌ Error obteniendo chats:', error);
+                throw error;
+            }
 
             console.log(`📱 ${data?.length || 0} chats de WhatsApp cargados desde Supabase`);
             return data || [];

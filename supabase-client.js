@@ -1717,6 +1717,223 @@ class SupabaseClient {
             return { success: false, error: error.message };
         }
     }
+
+    // ============================================
+    // CHATS DE WHATSAPP
+    // ============================================
+    
+    async getWhatsAppChats(limit = 50) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado');
+            return [];
+        }
+
+        try {
+            console.log('📡 Iniciando consulta a whatsapp_chats...');
+            
+            // Primero intentar con el join a users
+            // Obtener más registros para filtrar después (no podemos usar .not() con like en Supabase)
+            let query = this.client
+                .from('whatsapp_chats')
+                .select('*, users(name, email)')
+                .order('last_message_time', { ascending: false })
+                .limit(limit * 3); // Obtener más para filtrar después
+            
+            let { data, error } = await query;
+
+            // Si hay error con el join, intentar sin el join
+            if (error && error.message && error.message.includes('users')) {
+                console.warn('⚠️ Error con join a users, intentando sin join:', error.message);
+                query = this.client
+                    .from('whatsapp_chats')
+                    .select('*')
+                    .order('last_message_time', { ascending: false })
+                    .limit(limit * 3);
+                
+                const result = await query;
+                data = result.data;
+                error = result.error;
+            }
+
+            if (error) {
+                console.error('❌ Error obteniendo chats:', error);
+                console.error('❌ Detalles del error:', JSON.stringify(error, null, 2));
+                throw error;
+            }
+
+            // Filtrar adicionalmente por si algunos se colaron
+            if (data && Array.isArray(data)) {
+                data = data.filter(chat => {
+                    const phone = chat.phone || '';
+                    return !phone.includes('@broadcast') && 
+                           !phone.includes('@g.us') && 
+                           !phone.includes('status@') &&
+                           phone.length > 0 &&
+                           /^[\d+]+/.test(phone); // Solo números o números con +
+                });
+                
+                // Limitar después del filtro
+                data = data.slice(0, limit);
+            }
+
+            console.log(`📱 ${data?.length || 0} chats de WhatsApp cargados desde Supabase (después de filtrar broadcasts/grupos)`);
+            if (data && data.length > 0) {
+                console.log('📋 Ejemplo de chat:', {
+                    id: data[0].id,
+                    phone: data[0].phone,
+                    name: data[0].name,
+                    last_message: data[0].last_message?.substring(0, 50)
+                });
+            }
+            return data || [];
+        } catch (error) {
+            console.error('❌ Error obteniendo chats:', error);
+            console.error('❌ Stack trace:', error.stack);
+            return [];
+        }
+    }
+
+    async getWhatsAppMessages(chatId, limit = 100) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado');
+            return [];
+        }
+
+        try {
+            const { data, error } = await this.client
+                .from('whatsapp_messages')
+                .select('*')
+                .eq('chat_id', chatId)
+                .order('created_at', { ascending: true })
+                .limit(limit);
+
+            if (error) throw error;
+
+            // Marcar como leídos
+            await this.client
+                .from('whatsapp_messages')
+                .update({ is_read: true })
+                .eq('chat_id', chatId)
+                .eq('is_from_me', false);
+
+            // Resetear contador
+            await this.client
+                .from('whatsapp_chats')
+                .update({ unread_count: 0 })
+                .eq('id', chatId);
+
+            return data || [];
+        } catch (error) {
+            console.error('❌ Error obteniendo mensajes:', error);
+            return [];
+        }
+    }
+
+    // Suscribirse a nuevos mensajes de WhatsApp
+    subscribeToWhatsAppMessages(callback) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado');
+            return null;
+        }
+
+        if (!this.activeSubscriptions) {
+            this.activeSubscriptions = {};
+        }
+
+        const channel = this.client
+            .channel('whatsapp-messages')
+            .on('postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'whatsapp_messages' },
+                (payload) => {
+                    console.log('📱 Nuevo mensaje de WhatsApp:', payload.new);
+                    callback(payload.new);
+                }
+            )
+            .subscribe();
+
+        this.activeSubscriptions.whatsappMessages = channel;
+        return channel;
+    }
+
+    // Suscribirse a cambios en chats
+    subscribeToWhatsAppChats(callback) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado');
+            return null;
+        }
+
+        if (!this.activeSubscriptions) {
+            this.activeSubscriptions = {};
+        }
+
+        const channel = this.client
+            .channel('whatsapp-chats')
+            .on('postgres_changes',
+                { event: '*', schema: 'public', table: 'whatsapp_chats' },
+                (payload) => {
+                    console.log('📱 Cambio en chat de WhatsApp:', payload);
+                    callback(payload);
+                }
+            )
+            .subscribe();
+
+        this.activeSubscriptions.whatsappChats = channel;
+        return channel;
+    }
+
+    // ============================================
+    // INTERACCIONES DE FLOR
+    // ============================================
+    
+    async getFlorInteractions(limit = 100, filters = {}) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado');
+            return [];
+        }
+
+        try {
+            console.log('📡 Iniciando consulta a flor_interactions...');
+            
+            let query = this.client
+                .from('flor_interactions')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(limit);
+
+            if (filters.intent) {
+                query = query.eq('intent', filters.intent);
+            }
+            if (filters.dateFrom) {
+                query = query.gte('created_at', filters.dateFrom);
+            }
+            if (filters.dateTo) {
+                query = query.lte('created_at', filters.dateTo);
+            }
+
+            const { data, error } = await query;
+
+            if (error) {
+                console.error('❌ Error en consulta a flor_interactions:', error);
+                console.error('❌ Detalles del error:', JSON.stringify(error, null, 2));
+                throw error;
+            }
+
+            console.log(`🌸 ${data?.length || 0} interacciones de Flor cargadas desde Supabase`);
+            if (data && data.length > 0) {
+                console.log('📋 Ejemplo de interacción:', {
+                    id: data[0].id,
+                    phone: data[0].phone,
+                    intent: data[0].intent,
+                    created_at: data[0].created_at
+                });
+            }
+            return data || [];
+        } catch (error) {
+            console.error('❌ Error obteniendo interacciones:', error);
+            console.error('❌ Stack trace:', error.stack);
+            return [];
+        }
+    }
 }
 
 // Crear instancia global
