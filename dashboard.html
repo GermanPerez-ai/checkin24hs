@@ -22864,61 +22864,74 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             console.log(`📨 ${data?.length || 0} mensajes encontrados para chat_id ${chatId}`);
             
             if (!data || data.length === 0) {
-                console.warn('⚠️ No hay mensajes en Supabase para este chat. Verificando si hay mensajes con phone:', phone);
-                // Limpiar phone para buscar (remover @c.us si existe)
+                console.warn('⚠️ No hay mensajes en Supabase para este chat_id. Buscando mensajes recientes y filtrando por phone...');
+                // Limpiar phone para comparar (remover @c.us si existe y solo números)
                 const cleanPhone = phone.replace('@c.us', '').replace(/[^0-9]/g, '');
-                console.log('🔍 Buscando mensajes con phone limpio:', cleanPhone);
+                console.log('🔍 Phone limpio para filtrar:', cleanPhone);
                 
-                // Intentar buscar por phone si no hay mensajes con chat_id
-                // Intentar primero con el phone limpio
-                let dataByPhone = null;
-                let errorByPhone = null;
-                
-                // Intentar con phone exacto limpio
-                let result = await window.supabaseClient.client
+                // Obtener mensajes recientes (sin filtro de phone porque la columna no es consultable)
+                // Obtener más mensajes para tener más probabilidades de encontrar los del chat
+                const { data: allMessages, error: allError } = await window.supabaseClient.client
                     .from('whatsapp_messages')
                     .select('*')
-                    .eq('phone', cleanPhone)
-                    .order('created_at', { ascending: true })
-                    .limit(100);
+                    .order('created_at', { ascending: false })
+                    .limit(500); // Obtener más mensajes para filtrar
                 
-                if (result.error || !result.data || result.data.length === 0) {
-                    // Si no hay resultados, intentar con el phone original
-                    result = await window.supabaseClient.client
-                        .from('whatsapp_messages')
-                        .select('*')
-                        .eq('phone', phone)
-                        .order('created_at', { ascending: true })
-                        .limit(100);
+                if (allError) {
+                    console.error('❌ Error obteniendo mensajes:', allError);
+                    chatMessages.innerHTML = '<p style="text-align: center; color: #666; margin-top: 60px;">No hay mensajes en este chat</p>';
+                    return;
                 }
                 
-                if (result.error || !result.data || result.data.length === 0) {
-                    // Intentar con ilike como último recurso
-                    result = await window.supabaseClient.client
-                        .from('whatsapp_messages')
-                        .select('*')
-                        .ilike('phone', `%${cleanPhone}%`)
-                        .order('created_at', { ascending: true })
-                        .limit(100);
-                }
+                // Filtrar mensajes que coincidan con el phone del chat
+                // Comparar phone limpio (solo números) con el phone de los mensajes
+                const filteredMessages = (allMessages || []).filter(msg => {
+                    if (!msg.phone) return false;
+                    const msgPhoneClean = String(msg.phone).replace(/[^0-9]/g, '');
+                    return msgPhoneClean === cleanPhone || msgPhoneClean.endsWith(cleanPhone) || cleanPhone.endsWith(msgPhoneClean);
+                });
                 
-                dataByPhone = result.data;
-                errorByPhone = result.error;
+                console.log(`📨 ${filteredMessages.length} mensajes encontrados después de filtrar por phone (de ${allMessages?.length || 0} mensajes totales)`);
                 
-                if (!errorByPhone && dataByPhone && dataByPhone.length > 0) {
-                    console.log(`✅ Encontrados ${dataByPhone.length} mensajes por phone`);
-                    chatMessages.innerHTML = dataByPhone.map(msg => {
+                if (filteredMessages.length > 0) {
+                    // Ordenar por fecha ascendente para mostrar cronológicamente
+                    filteredMessages.sort((a, b) => {
+                        const dateA = new Date(a.created_at || a.timestamp || 0);
+                        const dateB = new Date(b.created_at || b.timestamp || 0);
+                        return dateA - dateB;
+                    });
+                    
+                    console.log(`✅ Encontrados ${filteredMessages.length} mensajes para este chat`);
+                    chatMessages.innerHTML = filteredMessages.map(msg => {
                         const isFromMe = msg.is_from_me;
                         const message = (msg.message || msg.body || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
                         const time = msg.created_at ? new Date(msg.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '';
                         return `<div style="display: flex; justify-content: ${isFromMe ? 'flex-end' : 'flex-start'}; margin-bottom: 12px;"><div style="max-width: 70%; padding: 10px 14px; border-radius: 12px; background: ${isFromMe ? '#dcf8c6' : 'white'}; box-shadow: 0 1px 2px rgba(0,0,0,0.1);"><p style="margin: 0; font-size: 0.9rem; word-wrap: break-word;">${message}</p><span style="font-size: 0.7rem; color: #999; margin-top: 4px; display: block; text-align: right;">${time}</span></div></div>`;
                     }).join('');
                     chatMessages.scrollTop = chatMessages.scrollHeight;
+                    
+                    // Actualizar los mensajes encontrados para asignarles el chat_id correcto
+                    const messagesToUpdate = filteredMessages.filter(msg => !msg.chat_id || msg.chat_id !== chatId);
+                    if (messagesToUpdate.length > 0) {
+                        console.log(`🔄 Actualizando ${messagesToUpdate.length} mensajes con chat_id ${chatId}...`);
+                        for (const msg of messagesToUpdate) {
+                            try {
+                                await window.supabaseClient.client
+                                    .from('whatsapp_messages')
+                                    .update({ chat_id: chatId })
+                                    .eq('id', msg.id);
+                            } catch (updateError) {
+                                console.warn('⚠️ Error actualizando chat_id del mensaje:', updateError);
+                            }
+                        }
+                    }
+                    
+                    // Usar los mensajes filtrados para la suscripción
+                    data = filteredMessages;
+                } else {
+                    chatMessages.innerHTML = '<p style="text-align: center; color: #666; margin-top: 60px;">No hay mensajes en este chat</p>';
                     return;
                 }
-                
-                chatMessages.innerHTML = '<p style="text-align: center; color: #666; margin-top: 60px;">No hay mensajes en este chat</p>';
-                return;
             }
             
             console.log('✅ Renderizando', data.length, 'mensajes');
