@@ -73,6 +73,40 @@
         }
     };
     console.log('✅ showFlorTab definida tempranamente');
+    
+    // ===== FUNCIONES DE MODALES - DEFINIDAS TEMPRANAMENTE =====
+    // Estas funciones se redefinirán más adelante, pero aquí están como fallback
+    
+    // Función genérica para abrir modales
+    window.openModal = function(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.style.zIndex = '99999';
+        } else {
+            console.error('Modal no encontrado:', modalId);
+        }
+    };
+    
+    // Función genérica para cerrar modales
+    window.closeModal = function(modalId) {
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    };
+    
+    // Wrapper para funciones de modales que pueden no estar definidas
+    window.safeCall = function(functionName, ...args) {
+        if (typeof window[functionName] === 'function') {
+            return window[functionName](...args);
+        } else {
+            console.error('Función no definida:', functionName);
+            return false;
+        }
+    };
+    
+    console.log('✅ Funciones de modales definidas tempranamente');
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -1962,11 +1996,11 @@
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">refresh</span>
                         Actualizar
                     </button>
-                    <button class="form-button" style="background: #ff9800; color: white;" onclick="showHotelPromotions()">
+                    <button class="form-button" style="background: #ff9800; color: white;" onclick="if(typeof showHotelPromotions === 'function') { showHotelPromotions(); } else { console.error('showHotelPromotions no está definida'); }">
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">local_offer</span>
                         Promociones
                     </button>
-                    <button class="form-button" style="background: #4caf50; color: white;" onclick="showMarketingTools()">
+                    <button class="form-button" style="background: #4caf50; color: white;" onclick="if(typeof showMarketingTools === 'function') { showMarketingTools(); } else { console.error('showMarketingTools no está definida'); }">
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">campaign</span>
                         Marketing
                     </button>
@@ -2122,7 +2156,7 @@
                             </div>
                         </div>
                     </div>
-                    <div class="stat-card" style="cursor: pointer;" onclick="showTotalRevenueModal()">
+                    <div class="stat-card" style="cursor: pointer;" onclick="if(typeof showTotalRevenueModal === 'function') { showTotalRevenueModal(); } else { console.error('showTotalRevenueModal no está definida'); }">
                         <div class="stat-header">
                             <div class="stat-icon" style="background-color: #9c27b0;">
                                 <span class="material-icons">event</span>
@@ -2323,7 +2357,7 @@
                 </div>
 
                 <div class="modal-footer">
-                    <button type="button" onclick="closeEditReservationModal()" class="btn btn-secondary">Salir</button>
+                    <button type="button" onclick="if(typeof closeEditReservationModal === 'function') { closeEditReservationModal(); } else { document.getElementById('editReservationModal').style.display = 'none'; }" class="btn btn-secondary">Salir</button>
                     <button type="button" onclick="cancelReservation()" class="btn btn-secondary" style="background: #dc3545; color: white;">Cancelar Reserva</button>
                     <button type="submit" class="btn btn-primary">Modificar Reserva</button>
                 </div>
@@ -2422,7 +2456,7 @@
                 </div>
 
                 <div class="modal-footer">
-                    <button type="button" onclick="closeNewReservationModal()" class="btn btn-secondary">Cancelar</button>
+                    <button type="button" onclick="if(typeof closeNewReservationModal === 'function') { closeNewReservationModal(); } else { document.getElementById('newReservationModal').style.display = 'none'; }" class="btn btn-secondary">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Crear Reserva</button>
                 </div>
             </form>
@@ -2434,7 +2468,7 @@
         <div class="modal-content" style="max-width: 505px; width: 85%;">
             <div class="modal-header">
                 <h2>👤 Nuevo Agente</h2>
-                <button onclick="closeNewAgentModal()" class="close-btn">&times;</button>
+                <button onclick="if(typeof closeNewAgentModal === 'function') { closeNewAgentModal(); } else { document.getElementById('newAgentModal').style.display = 'none'; }" class="close-btn">&times;</button>
             </div>
             <form id="newAgentForm" onsubmit="saveNewAgent(event)">
                 <div class="form-grid">
@@ -2462,7 +2496,7 @@
                 </div>
 
                 <div class="modal-footer">
-                    <button type="button" onclick="closeNewAgentModal()" class="btn btn-secondary">Cancelar</button>
+                    <button type="button" onclick="if(typeof closeNewAgentModal === 'function') { closeNewAgentModal(); } else { document.getElementById('newAgentModal').style.display = 'none'; }" class="btn btn-secondary">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Crear Agente</button>
                 </div>
             </form>
@@ -2557,15 +2591,15 @@
                 
                 <!-- Action Buttons -->
                 <div style="margin-bottom: 24px; display: flex; gap: 12px; flex-wrap: wrap;">
-                    <button class="form-button" onclick="openNewFlexiProgramModal()" style="background: #9c27b0; color: white;">
+                    <button class="form-button" onclick="if(typeof openNewFlexiProgramModal === 'function') { openNewFlexiProgramModal(); } else { console.error('openNewFlexiProgramModal no está definida'); }" style="background: #9c27b0; color: white;">
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">add_circle</span>
                         Nuevo Programa
                     </button>
-                    <button class="form-button" onclick="openEmitVoucherModal()" style="background: #4caf50; color: white;">
+                    <button class="form-button" onclick="if(typeof openEmitVoucherModal === 'function') { openEmitVoucherModal(); } else { console.error('openEmitVoucherModal no está definida'); }" style="background: #4caf50; color: white;">
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">card_giftcard</span>
                         Emitir Voucher
                     </button>
-                    <button class="form-button" onclick="openRegisterCanjeModal()" style="background: #ff9800; color: white;">
+                    <button class="form-button" onclick="if(typeof openRegisterCanjeModal === 'function') { openRegisterCanjeModal(); } else { console.error('openRegisterCanjeModal no está definida'); }" style="background: #ff9800; color: white;">
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">swap_horiz</span>
                         Registrar Canje
                     </button>
@@ -2762,7 +2796,7 @@
                 
                 <!-- Action Buttons -->
                 <div style="margin-bottom: 24px; display: flex; gap: 12px; flex-wrap: wrap;">
-                    <button class="form-button" style="background: #2196f3; color: white;" onclick="showImportUsersModal()">
+                    <button class="form-button" style="background: #2196f3; color: white;" onclick="if(typeof showImportUsersModal === 'function') { showImportUsersModal(); } else { console.error('showImportUsersModal no está definida'); }">
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">upload</span>
                         Importar Usuarios
                     </button>
@@ -12119,7 +12153,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         }
         
         // Función para mostrar modal de importar usuarios
-        function showImportUsersModal() {
+        window.showImportUsersModal = function() {
             console.log('📥 Abriendo modal de importar usuarios...');
             
             const modal = document.getElementById('importUsersModal');
@@ -12412,7 +12446,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         }
 
         // Función para mostrar promociones de hoteles
-        function showHotelPromotions() {
+        window.showHotelPromotions = function() {
             console.log('🏨 Mostrando promociones de hoteles...');
             
             // Obtener hoteles del localStorage
@@ -12424,8 +12458,12 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             }
             
             // Mostrar modal de promociones
-            showHotelPromotionsModal(hotels);
-        }
+            if (typeof showHotelPromotionsModal === 'function') {
+                showHotelPromotionsModal(hotels);
+            } else {
+                console.error('showHotelPromotionsModal no está definida');
+            }
+        };
         
         // Función para cambiar entre pestañas de Hoteles
         function showHotelsTab(tab) {
@@ -12773,15 +12811,23 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         }
         
         // Función para mostrar herramientas de marketing
-        function showMarketingTools() {
+        window.showMarketingTools = function() {
             console.log('📢 Mostrando herramientas de marketing...');
             
             // Cargar datos de usuarios
-            const users = loadUsersData();
-            
-            // Crear y mostrar modal de herramientas de marketing
-            showMarketingModal(users);
-        }
+            if (typeof loadUsersData === 'function') {
+                const users = loadUsersData();
+                
+                // Crear y mostrar modal de herramientas de marketing
+                if (typeof showMarketingModal === 'function') {
+                    showMarketingModal(users);
+                } else {
+                    console.error('showMarketingModal no está definida');
+                }
+            } else {
+                console.error('loadUsersData no está definida');
+            }
+        };
         
         // Función para mostrar modal de herramientas de marketing
         function showMarketingModal(users) {
@@ -14780,7 +14826,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Función para mostrar modal de Cantidad de Reservas Futuras
-        function showTotalRevenueModal() {
+        window.showTotalRevenueModal = function() {
             console.log('📊 Abriendo modal de Cantidad de Reservas Futuras...');
             
             // Obtener todas las reservas
@@ -14879,7 +14925,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     modal.remove();
                 }
             });
-        }
+        };
 
         // Función para cargar ventas mensuales con filtros
         function loadMonthlySales(filterFrom = null, filterTo = null, filterHotelId = 'all') {
@@ -16677,12 +16723,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Función para cerrar modal de edición de reservas
-        function closeEditReservationModal() {
+        window.closeEditReservationModal = function() {
             const modal = document.getElementById('editReservationModal');
             if (modal) {
                 modal.style.display = 'none';
             }
-        }
+        };
 
         // Función para cancelar una reserva
         async function cancelReservation() {
@@ -16972,12 +17018,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Función para cerrar modal de nueva reserva
-        function closeNewReservationModal() {
+        window.closeNewReservationModal = function() {
             const modal = document.getElementById('newReservationModal');
             if (modal) {
                 modal.style.display = 'none';
             }
-        }
+        };
 
         // Función para generar código de agente automático
         function generateAgentCode() {
@@ -17010,12 +17056,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Función para cerrar modal de nuevo agente
-        function closeNewAgentModal() {
+        window.closeNewAgentModal = function() {
             const modal = document.getElementById('newAgentModal');
             if (modal) {
                 modal.style.display = 'none';
             }
-        }
+        };
 
         // Función para guardar nuevo agente
         async function saveNewAgent(event) {
@@ -20242,14 +20288,19 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     // PROGRAMAS FLEXI (RF-ADM-001)
     // =====================================================
 
-    function openNewFlexiProgramModal() {
-        document.getElementById('newFlexiProgramForm').reset();
-        loadHotelsForFlexiProgram();
-        document.getElementById('newFlexiProgramModal').style.display = 'flex';
-    }
+    window.openNewFlexiProgramModal = function() {
+        const form = document.getElementById('newFlexiProgramForm');
+        const modal = document.getElementById('newFlexiProgramModal');
+        if (form) form.reset();
+        if (typeof loadHotelsForFlexiProgram === 'function') {
+            loadHotelsForFlexiProgram();
+        }
+        if (modal) modal.style.display = 'flex';
+    };
 
-    function closeNewFlexiProgramModal() {
-        document.getElementById('newFlexiProgramModal').style.display = 'none';
+    window.closeNewFlexiProgramModal = function() {
+        const modal = document.getElementById('newFlexiProgramModal');
+        if (modal) modal.style.display = 'none';
     }
 
     function loadHotelsForFlexiProgram() {
@@ -20358,17 +20409,27 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     // EMISIÓN DE VOUCHERS (RF-ADM-002/003)
     // =====================================================
 
-    function openEmitVoucherModal() {
-        document.getElementById('emitVoucherForm').reset();
-        document.getElementById('voucherProgramaInfo').style.display = 'none';
-        loadProgramsForVoucher();
-        generateVoucherCode();
-        document.getElementById('voucherFechaVenta').value = new Date().toISOString().split('T')[0];
-        document.getElementById('emitVoucherModal').style.display = 'flex';
-    }
+    window.openEmitVoucherModal = function() {
+        const form = document.getElementById('emitVoucherForm');
+        const info = document.getElementById('voucherProgramaInfo');
+        if (form) form.reset();
+        if (info) info.style.display = 'none';
+        if (typeof loadProgramsForVoucher === 'function') {
+            loadProgramsForVoucher();
+        }
+        if (typeof generateVoucherCode === 'function') {
+            generateVoucherCode();
+        }
+        const fechaVenta = document.getElementById('voucherFechaVenta');
+        if (fechaVenta) fechaVenta.value = new Date().toISOString().split('T')[0];
+        const modal = document.getElementById('emitVoucherModal');
+        if (modal) modal.style.display = 'flex';
+    };
 
-    function closeEmitVoucherModal() {
-        document.getElementById('emitVoucherModal').style.display = 'none';
+    window.closeEmitVoucherModal = function() {
+        const modal = document.getElementById('emitVoucherModal');
+        if (modal) modal.style.display = 'none';
+    };
     }
 
     function loadProgramsForVoucher() {
@@ -20535,8 +20596,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         document.getElementById('registerCanjeModal').style.display = 'flex';
     }
 
-    function closeRegisterCanjeModal() {
-        document.getElementById('registerCanjeModal').style.display = 'none';
+    window.closeRegisterCanjeModal = function() {
+        const modal = document.getElementById('registerCanjeModal');
+        if (modal) modal.style.display = 'none';
+    };
         currentVoucherForCanje = null;
     }
 
