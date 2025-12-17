@@ -786,27 +786,37 @@ async function saveMessageToSupabase(phone, message, isFromMe = false, messageTy
             console.warn('⚠️ No se pudo obtener o crear chat, guardando mensaje sin chat_id');
         }
         
-        // Preparar datos del mensaje con solo campos básicos primero
+        // Preparar datos del mensaje según la estructura real de la tabla
+        // La tabla tiene: id, conversation_id, external_id, direction, sender, recipient, body, 
+        // metadata, status, sent_at, created_at, updated_at, chat_id, is_from_me, is_read
         const messageData = {
-            phone: cleanPhone,
-            message: message || '',
-            message_type: messageType || 'text',
-            whatsapp_instance: CONFIG.INSTANCE_NUMBER
+            body: message || '', // La tabla usa 'body', no 'message'
+            direction: isFromMe ? 'outbound' : 'inbound',
+            sender: isFromMe ? null : cleanPhone, // Si es recibido, el sender es el phone
+            recipient: isFromMe ? cleanPhone : null, // Si es enviado, el recipient es el phone
+            status: 'sent', // Estado del mensaje
+            sent_at: new Date().toISOString(),
+            is_from_me: Boolean(isFromMe),
+            is_read: Boolean(isFromMe) // Los mensajes enviados se marcan como leídos
         };
         
         // Intentar agregar campos opcionales de manera segura
-        // Si falla, intentaremos sin ellos
         try {
             // Intentar agregar chat_id si el chat existe
             if (chat && chat.id) {
                 messageData.chat_id = chat.id;
             }
             
-            // Intentar agregar is_from_me
-            messageData.is_from_me = Boolean(isFromMe);
+            // Intentar agregar conversation_id si existe (puede ser igual a chat_id)
+            if (chat && chat.id) {
+                messageData.conversation_id = chat.id;
+            }
             
-            // Intentar agregar is_read
-            messageData.is_read = Boolean(isFromMe);
+            // Agregar metadata con información adicional
+            messageData.metadata = {
+                message_type: messageType || 'text',
+                whatsapp_instance: CONFIG.INSTANCE_NUMBER
+            };
         } catch (e) {
             // Ignorar errores al agregar campos opcionales
             console.warn('⚠️ No se pudieron agregar algunos campos opcionales:', e.message);
@@ -819,17 +829,25 @@ async function saveMessageToSupabase(phone, message, isFromMe = false, messageTy
             .select()
             .single();
         
-        // Si falla por error de esquema, intentar sin campos problemáticos
+        // Si falla por error de esquema, intentar con campos mínimos
         if (error && (error.message?.includes('schema cache') || error.message?.includes('column'))) {
             console.warn('⚠️ Error de esquema detectado, intentando con campos mínimos...');
+            console.warn('   Error:', error.message);
             
-            // Preparar datos mínimos (solo campos esenciales)
+            // Preparar datos mínimos (solo campos esenciales que sabemos que existen)
             const minimalData = {
-                phone: cleanPhone,
-                message: message || '',
-                message_type: messageType || 'text',
-                whatsapp_instance: CONFIG.INSTANCE_NUMBER
+                body: message || '',
+                direction: isFromMe ? 'outbound' : 'inbound',
+                is_from_me: Boolean(isFromMe),
+                is_read: Boolean(isFromMe)
             };
+            
+            // Agregar sender/recipient si es posible
+            if (!isFromMe) {
+                minimalData.sender = cleanPhone;
+            } else {
+                minimalData.recipient = cleanPhone;
+            }
             
             // Intentar insertar solo con campos mínimos
             const result = await supabase
