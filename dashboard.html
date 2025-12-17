@@ -22248,8 +22248,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             // Renderizar mensajes
             chatMessages.innerHTML = data.map(msg => {
                 const isFromMe = msg.is_from_me;
-                const message = msg.message || msg.body || '';
-                const time = msg.created_at ? new Date(msg.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '';
+                // La tabla usa 'body', no 'message'
+                const message = (msg.body || msg.message || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                // Usar sent_at si existe, sino created_at
+                const time = (msg.sent_at || msg.created_at) ? new Date(msg.sent_at || msg.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '';
                 
                 return `
                     <div style="display: flex; justify-content: ${isFromMe ? 'flex-end' : 'flex-start'}; margin-bottom: 12px;">
@@ -22889,8 +22891,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 if (allMessages && allMessages.length > 0) {
                     console.log('📋 Primeros 3 mensajes (muestra):', allMessages.slice(0, 3).map(m => ({
                         id: m.id,
-                        phone: m.phone,
-                        message: m.message?.substring(0, 30),
+                        sender: m.sender,
+                        recipient: m.recipient,
+                        body: m.body?.substring(0, 30),
                         chat_id: m.chat_id
                     })));
                 } else {
@@ -22986,7 +22989,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 window.supabaseClient.subscribeToWhatsAppMessages((newMessage) => {
                     // Solo actualizar si el mensaje es de este chat
                     const messageChatId = newMessage.chat_id || newMessage.new?.chat_id;
-                    const messagePhone = newMessage.phone || newMessage.new?.phone;
+                    // La tabla usa 'sender' o 'recipient' en lugar de 'phone'
+                    const messagePhone = newMessage.sender || newMessage.recipient || newMessage.phone || newMessage.new?.sender || newMessage.new?.recipient || newMessage.new?.phone;
                     const cleanPhone = phone.replace('@c.us', '').replace(/[^0-9]/g, '');
                     const messageCleanPhone = (messagePhone || '').replace(/[^0-9]/g, '');
                     
