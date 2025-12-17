@@ -22901,16 +22901,18 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 }
                 
                 // Filtrar mensajes que coincidan con el phone del chat
-                // Comparar phone limpio (solo números) con el phone de los mensajes
+                // La tabla usa 'sender' o 'recipient' en lugar de 'phone'
                 const filteredMessages = (allMessages || []).filter(msg => {
-                    if (!msg.phone) {
-                        console.log('⚠️ Mensaje sin phone:', msg.id);
+                    // La tabla tiene 'sender' (mensajes entrantes) y 'recipient' (mensajes salientes)
+                    const msgPhone = msg.sender || msg.recipient || msg.phone;
+                    if (!msgPhone) {
+                        console.log('⚠️ Mensaje sin phone/sender/recipient:', msg.id);
                         return false;
                     }
-                    const msgPhoneClean = String(msg.phone).replace(/[^0-9]/g, '');
+                    const msgPhoneClean = String(msgPhone).replace(/[^0-9]/g, '');
                     const matches = msgPhoneClean === cleanPhone || msgPhoneClean.endsWith(cleanPhone) || cleanPhone.endsWith(msgPhoneClean);
                     if (matches) {
-                        console.log(`✅ Mensaje coincide: ${msg.id} - phone: ${msg.phone} (limpio: ${msgPhoneClean}) vs ${cleanPhone}`);
+                        console.log(`✅ Mensaje coincide: ${msg.id} - phone: ${msgPhone} (limpio: ${msgPhoneClean}) vs ${cleanPhone}`);
                     }
                     return matches;
                 });
@@ -22928,8 +22930,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     console.log(`✅ Encontrados ${filteredMessages.length} mensajes para este chat`);
                     chatMessages.innerHTML = filteredMessages.map(msg => {
                         const isFromMe = msg.is_from_me;
-                        const message = (msg.message || msg.body || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                        const time = msg.created_at ? new Date(msg.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '';
+                        // La tabla usa 'body', no 'message'
+                        const message = (msg.body || msg.message || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                        // Usar sent_at si existe, sino created_at
+                        const time = (msg.sent_at || msg.created_at) ? new Date(msg.sent_at || msg.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '';
                         return `<div style="display: flex; justify-content: ${isFromMe ? 'flex-end' : 'flex-start'}; margin-bottom: 12px;"><div style="max-width: 70%; padding: 10px 14px; border-radius: 12px; background: ${isFromMe ? '#dcf8c6' : 'white'}; box-shadow: 0 1px 2px rgba(0,0,0,0.1);"><p style="margin: 0; font-size: 0.9rem; word-wrap: break-word;">${message}</p><span style="font-size: 0.7rem; color: #999; margin-top: 4px; display: block; text-align: right;">${time}</span></div></div>`;
                     }).join('');
                     chatMessages.scrollTop = chatMessages.scrollHeight;
@@ -22961,8 +22965,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             console.log('✅ Renderizando', data.length, 'mensajes');
             chatMessages.innerHTML = data.map(msg => {
                 const isFromMe = msg.is_from_me;
-                const message = (msg.message || msg.body || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                const time = msg.created_at ? new Date(msg.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '';
+                // La tabla usa 'body', no 'message'
+                const message = (msg.body || msg.message || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                // Usar sent_at si existe, sino created_at
+                const time = (msg.sent_at || msg.created_at) ? new Date(msg.sent_at || msg.created_at).toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' }) : '';
                 return `<div style="display: flex; justify-content: ${isFromMe ? 'flex-end' : 'flex-start'}; margin-bottom: 12px;"><div style="max-width: 70%; padding: 10px 14px; border-radius: 12px; background: ${isFromMe ? '#dcf8c6' : 'white'}; box-shadow: 0 1px 2px rgba(0,0,0,0.1);"><p style="margin: 0; font-size: 0.9rem; word-wrap: break-word;">${message}</p><span style="font-size: 0.7rem; color: #999; margin-top: 4px; display: block; text-align: right;">${time}</span></div></div>`;
             }).join('');
             
