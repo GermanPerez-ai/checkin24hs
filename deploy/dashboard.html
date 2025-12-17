@@ -6,6 +6,73 @@
     <title>Checkin24hs - Panel de Administración</title>
     <script>
     console.log('🎯🎯🎯 SCRIPT INICIAL CARGADO - ' + new Date().toISOString());
+    
+    // Declarar showFlorTab INMEDIATAMENTE para que esté disponible antes de que se cargue el HTML
+    window.showFlorTab = function(tabName) {
+        console.log('📑 Cambiando a tab Flor:', tabName);
+        
+        // Ocultar todos los tabs
+        document.querySelectorAll('.flor-tab-content').forEach(tab => {
+            tab.style.display = 'none';
+            tab.classList.remove('active');
+        });
+        
+        // Desactivar todos los botones de tab
+        document.querySelectorAll('.flor-tab').forEach(btn => {
+            btn.classList.remove('active');
+            btn.style.background = '#f5f5f5';
+            btn.style.color = '#333';
+        });
+        
+        // Mostrar tab seleccionado
+        const tabContent = document.getElementById('flor-tab-' + tabName);
+        if (tabContent) {
+            tabContent.style.display = 'block';
+            tabContent.classList.add('active');
+        }
+        
+        // Activar botón
+        const tabBtn = document.querySelector(`.flor-tab[data-tab="${tabName}"]`);
+        if (tabBtn) {
+            tabBtn.classList.add('active');
+            if (tabName === 'whatsapp') {
+                tabBtn.style.background = '#25D366';
+                tabBtn.style.color = 'white';
+            } else {
+                tabBtn.style.background = '#1976d2';
+                tabBtn.style.color = 'white';
+            }
+        }
+        
+        // Cargar datos específicos del tab (se ejecutará cuando el script completo esté cargado)
+        if (typeof loadHotelsForFlor === 'function' && (tabName === 'knowledge' || tabName === 'policies')) {
+            loadHotelsForFlor();
+        }
+        if (tabName === 'whatsapp') {
+            if (typeof checkWhatsAppConnection === 'function') {
+                checkWhatsAppConnection();
+            }
+            // Cargar configuración guardada
+            const savedConfig = localStorage.getItem('whatsappConfig');
+            if (savedConfig) {
+                try {
+                    const config = JSON.parse(savedConfig);
+                    const serverUrlInput = document.getElementById('whatsapp-server-url');
+                    const autoReplyCheck = document.getElementById('whatsapp-auto-reply');
+                    const businessHoursCheck = document.getElementById('whatsapp-business-hours-only');
+                    const outOfHoursMsg = document.getElementById('whatsapp-out-of-hours-message');
+                    
+                    if (serverUrlInput && config.serverUrl) serverUrlInput.value = config.serverUrl;
+                    if (autoReplyCheck) autoReplyCheck.checked = config.autoReply !== false;
+                    if (businessHoursCheck) businessHoursCheck.checked = config.businessHoursOnly || false;
+                    if (outOfHoursMsg && config.outOfHoursMessage) outOfHoursMsg.value = config.outOfHoursMessage;
+                } catch (e) {
+                    console.error('Error cargando configuración de WhatsApp:', e);
+                }
+            }
+        }
+    };
+    console.log('✅ showFlorTab definida tempranamente');
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -20981,8 +21048,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     // MÓDULO FLOR IA - INTERACCIONES Y CHATS
     // =====================================================
 
-    // Función para mostrar tabs de Flor - DEFINIDA INMEDIATAMENTE
-    if (typeof window.showFlorTab === 'undefined') {
+    // Función para mostrar tabs de Flor - Ya está definida en el head, solo actualizar si es necesario
+    if (typeof window.showFlorTab === 'undefined' || !window.showFlorTab) {
         window.showFlorTab = function(tabName) {
         console.log('📑 Cambiando a tab Flor:', tabName);
         
