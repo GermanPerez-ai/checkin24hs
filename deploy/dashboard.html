@@ -21577,10 +21577,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
     // Verificar conexión WhatsApp
     // Verificar conexión con WhatsApp (VERSIÓN CORREGIDA - usa /api/status y muestra QR correctamente)
-    // Funciones de WhatsApp eliminadas
-    window.checkWhatsAppConnection = function() {
-        console.warn('⚠️ Funciones de WhatsApp han sido eliminadas');
-    };
+    // Funciones de WhatsApp
+    window.checkWhatsAppConnection = async function() {
         console.log('🔄 Verificando conexión con WhatsApp...');
         
         const statusIndicator = document.getElementById('whatsapp-status-indicator');
