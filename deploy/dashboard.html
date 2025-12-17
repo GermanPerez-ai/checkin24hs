@@ -72,6 +72,10 @@
             }
         }
     };
+    // También hacer disponible sin window. para compatibilidad
+    if (typeof showFlorTab === 'undefined') {
+        var showFlorTab = window.showFlorTab;
+    }
     console.log('✅ showFlorTab definida tempranamente');
     
     // ===== FUNCIONES DE MODALES - DEFINIDAS TEMPRANAMENTE =====
@@ -3097,12 +3101,12 @@
                 
                 <!-- Tabs -->
                 <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; border-bottom: 2px solid #e0e0e0; padding-bottom: 8px;">
-                    <button class="flor-tab active" onclick="showFlorTab('general')" data-tab="general">⚙️ General</button>
-                    <button class="flor-tab" onclick="showFlorTab('knowledge')" data-tab="knowledge">📚 Conocimiento</button>
-                    <button class="flor-tab" onclick="showFlorTab('responses')" data-tab="responses">💬 Respuestas</button>
-                    <button class="flor-tab" onclick="showFlorTab('policies')" data-tab="policies">📋 Políticas</button>
-                    <button class="flor-tab" onclick="showFlorTab('ai')" data-tab="ai">🤖 IA</button>
-                    <button class="flor-tab" onclick="showFlorTab('whatsapp')" data-tab="whatsapp" style="background: #25D366; color: white;">📱 WhatsApp</button>
+                    <button class="flor-tab active" onclick="(window.showFlorTab || showFlorTab)('general')" data-tab="general">⚙️ General</button>
+                    <button class="flor-tab" onclick="(window.showFlorTab || showFlorTab)('knowledge')" data-tab="knowledge">📚 Conocimiento</button>
+                    <button class="flor-tab" onclick="(window.showFlorTab || showFlorTab)('responses')" data-tab="responses">💬 Respuestas</button>
+                    <button class="flor-tab" onclick="(window.showFlorTab || showFlorTab)('policies')" data-tab="policies">📋 Políticas</button>
+                    <button class="flor-tab" onclick="(window.showFlorTab || showFlorTab)('ai')" data-tab="ai">🤖 IA</button>
+                    <button class="flor-tab" onclick="(window.showFlorTab || showFlorTab)('whatsapp')" data-tab="whatsapp" style="background: #25D366; color: white;">📱 WhatsApp</button>
                 </div>
 
                 <!-- General Tab -->
@@ -21112,51 +21116,54 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     // =====================================================
 
     // Función para mostrar tabs de Flor - Ya está definida en el head, solo actualizar si es necesario
+    // Asegurar que siempre esté disponible y también sin window.
     if (typeof window.showFlorTab === 'undefined' || !window.showFlorTab) {
         window.showFlorTab = function(tabName) {
-        console.log('📑 Cambiando a tab Flor:', tabName);
-        
-        // Ocultar todos los tabs
-        document.querySelectorAll('.flor-tab-content').forEach(tab => {
-            tab.style.display = 'none';
-            tab.classList.remove('active');
-        });
-        
-        // Desactivar todos los botones de tab
-        document.querySelectorAll('.flor-tab').forEach(btn => {
-            btn.classList.remove('active');
-            btn.style.background = '#f5f5f5';
-            btn.style.color = '#333';
-        });
-        
-        // Mostrar tab seleccionado
-        const tabContent = document.getElementById('flor-tab-' + tabName);
-        if (tabContent) {
-            tabContent.style.display = 'block';
-            tabContent.classList.add('active');
-        }
-        
-        // Activar botón
-        const tabBtn = document.querySelector(`.flor-tab[data-tab="${tabName}"]`);
-        if (tabBtn) {
-            tabBtn.classList.add('active');
+            console.log('📑 Cambiando a tab Flor:', tabName);
+            
+            // Ocultar todos los tabs
+            document.querySelectorAll('.flor-tab-content').forEach(tab => {
+                tab.style.display = 'none';
+                tab.classList.remove('active');
+            });
+            
+            // Desactivar todos los botones de tab
+            document.querySelectorAll('.flor-tab').forEach(btn => {
+                btn.classList.remove('active');
+                btn.style.background = '#f5f5f5';
+                btn.style.color = '#333';
+            });
+            
+            // Mostrar tab seleccionado
+            const tabContent = document.getElementById('flor-tab-' + tabName);
+            if (tabContent) {
+                tabContent.style.display = 'block';
+                tabContent.classList.add('active');
+            }
+            
+            // Activar botón
+            const tabBtn = document.querySelector(`.flor-tab[data-tab="${tabName}"]`);
+            if (tabBtn) {
+                tabBtn.classList.add('active');
+                if (tabName === 'whatsapp') {
+                    tabBtn.style.background = '#25D366';
+                    tabBtn.style.color = 'white';
+                } else {
+                    tabBtn.style.background = '#1976d2';
+                    tabBtn.style.color = 'white';
+                }
+            }
+            
+            // Cargar datos específicos del tab
+            if (tabName === 'knowledge' || tabName === 'policies') {
+                if (typeof loadHotelsForFlor === 'function') {
+                    loadHotelsForFlor();
+                }
+            }
             if (tabName === 'whatsapp') {
-                tabBtn.style.background = '#25D366';
-                tabBtn.style.color = 'white';
-            } else {
-                tabBtn.style.background = '#1976d2';
-                tabBtn.style.color = 'white';
-            }
-        }
-        
-        // Cargar datos específicos del tab
-        if (tabName === 'knowledge' || tabName === 'policies') {
-            loadHotelsForFlor();
-        }
-        if (tabName === 'whatsapp') {
-            if (typeof checkWhatsAppConnection === 'function') {
-                checkWhatsAppConnection();
-            }
+                if (typeof checkWhatsAppConnection === 'function') {
+                    checkWhatsAppConnection();
+                }
             // Cargar configuración guardada
             const savedConfig = localStorage.getItem('whatsappConfig');
             if (savedConfig) {
@@ -21176,6 +21183,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 }
             }
         };
+    }
+    // Asegurar que también esté disponible sin window.
+    if (typeof showFlorTab === 'undefined') {
+        var showFlorTab = window.showFlorTab;
     }
 
     // Cargar hoteles para selectores de Flor
