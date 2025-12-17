@@ -10,15 +10,38 @@
  * - Aprendizaje automático de Flor
  */
 
+// Log inicial para diagnosticar inicio del proceso
+console.log('🚀 Iniciando servidor WhatsApp...');
+console.log('📦 Node.js version:', process.version);
+console.log('📁 Directorio de trabajo:', process.cwd());
+console.log('🔧 Variables de entorno:');
+console.log('   - PORT:', process.env.PORT || 'no definido');
+console.log('   - INSTANCE_NUMBER:', process.env.INSTANCE_NUMBER || 'no definido');
+console.log('   - SUPABASE_URL:', process.env.SUPABASE_URL ? 'definido' : 'no definido');
+console.log('   - SUPABASE_ANON_KEY:', process.env.SUPABASE_ANON_KEY ? 'definido' : 'no definido');
+
+console.log('📚 Cargando dependencias...');
+
 const { Client, LocalAuth } = require('whatsapp-web.js');
+console.log('✅ whatsapp-web.js cargado');
+
 const qrcode = require('qrcode-terminal');
+console.log('✅ qrcode-terminal cargado');
+
 const express = require('express');
 const cors = require('cors');
 const { Server } = require('socket.io');
 const http = require('http');
+console.log('✅ express, cors, socket.io, http cargados');
+
 const fs = require('fs');
 const path = require('path');
+console.log('✅ fs, path cargados');
+
 const { createClient } = require('@supabase/supabase-js');
+console.log('✅ @supabase/supabase-js cargado');
+
+console.log('✅ Todas las dependencias cargadas correctamente');
 
 // ===== CONFIGURACIÓN =====
 const CONFIG = {
