@@ -8722,27 +8722,8 @@ Ej:
             if (!container) return;
             
             // Obtener conexiones desde Supabase primero, luego localStorage como fallback
-            let connections = [];
-            
-            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
-                try {
-                    const { data, error } = await window.supabaseClient.client
-                        .from('whatsapp_connections')
-                        .select('*')
-                        .order('created_at', { ascending: false });
-                    
-                    if (!error && data) {
-                        connections = data;
-                        // Sincronizar con localStorage
-                        localStorage.setItem('whatsappConnections', JSON.stringify(connections));
-                    }
-                } catch (e) {
-                    console.log('⚠️ Tabla whatsapp_connections no existe, usando localStorage');
-                    connections = JSON.parse(localStorage.getItem('whatsappConnections') || '[]');
-                }
-            } else {
-                connections = JSON.parse(localStorage.getItem('whatsappConnections') || '[]');
-            }
+            // Usar solo localStorage (la tabla whatsapp_connections no existe en Supabase)
+            let connections = JSON.parse(localStorage.getItem('whatsappConnections') || '[]');
             
             if (connections.length === 0) {
                 container.innerHTML = `
@@ -8919,32 +8900,10 @@ Ej:
                 created_at: new Date().toISOString()
             };
             
-            // Intentar guardar en Supabase
-            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
-                try {
-                    const { data, error } = await window.supabaseClient.client
-                        .from('whatsapp_connections')
-                        .insert([newConnection])
-                        .select();
-                    
-                    if (!error) {
-                        console.log('✅ Conexión WhatsApp guardada en Supabase:', data);
-                    } else {
-                        console.log('⚠️ Error guardando en Supabase, guardando en localStorage');
-                        throw error;
-                    }
-                } catch (e) {
-                    // Fallback a localStorage
-                    const connections = JSON.parse(localStorage.getItem('whatsappConnections') || '[]');
-                    connections.push(newConnection);
-                    localStorage.setItem('whatsappConnections', JSON.stringify(connections));
-                }
-            } else {
-                // Guardar en localStorage
-                const connections = JSON.parse(localStorage.getItem('whatsappConnections') || '[]');
-                connections.push(newConnection);
-                localStorage.setItem('whatsappConnections', JSON.stringify(connections));
-            }
+            // Guardar en localStorage (no usar Supabase para conexiones)
+            const connections = JSON.parse(localStorage.getItem('whatsappConnections') || '[]');
+            connections.push(newConnection);
+            localStorage.setItem('whatsappConnections', JSON.stringify(connections));
         }
         
         // Ver estado de conexión
@@ -8972,20 +8931,7 @@ Ej:
             const conn = connections[index];
             
             if (index !== undefined && index < connections.length) {
-                // Intentar eliminar de Supabase si tiene ID
-                if (conn && conn.id && window.supabaseClient && window.supabaseClient.isInitialized()) {
-                    try {
-                        await window.supabaseClient.client
-                            .from('whatsapp_connections')
-                            .delete()
-                            .eq('id', conn.id);
-                        console.log('✅ Conexión eliminada de Supabase');
-                    } catch (e) {
-                        console.log('⚠️ No se pudo eliminar de Supabase:', e);
-                    }
-                }
-                
-                // Eliminar del array local
+                // Eliminar del array local (no usar Supabase para conexiones)
                 connections.splice(index, 1);
                 localStorage.setItem('whatsappConnections', JSON.stringify(connections));
             }
@@ -9000,21 +8946,8 @@ Ej:
                 return;
             }
             
-            // Limpiar localStorage
+            // Limpiar localStorage (no usar Supabase para conexiones)
             localStorage.removeItem('whatsappConnections');
-            
-            // Intentar limpiar de Supabase
-            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
-                try {
-                    await window.supabaseClient.client
-                        .from('whatsapp_connections')
-                        .delete()
-                        .neq('id', 0); // Eliminar todo
-                    console.log('✅ Conexiones eliminadas de Supabase');
-                } catch (e) {
-                    console.log('⚠️ No se pudo limpiar Supabase (tabla puede no existir):', e);
-                }
-            }
             
             loadWhatsAppConnections();
             alert('✅ Todas las conexiones de WhatsApp han sido eliminadas');
