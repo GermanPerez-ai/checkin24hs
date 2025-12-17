@@ -3444,7 +3444,7 @@
                         
                         <!-- Botón para abrir modal de conexión múltiple -->
                         <div style="margin-bottom: 24px;">
-                            <button onclick="openWhatsAppMultiConnectModal()" style="background: #25D366; color: white; border: none; padding: 14px 24px; border-radius: 8px; font-size: 1rem; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.3s;" onmouseover="this.style.background='#1da851'" onmouseout="this.style.background='#25D366'">
+                            <button onclick="if(typeof openWhatsAppMultiConnectModal === 'function') { openWhatsAppMultiConnectModal(); } else { console.error('openWhatsAppMultiConnectModal no está definida'); alert('Error: La función no está disponible. Recarga la página.'); }" style="background: #25D366; color: white; border: none; padding: 14px 24px; border-radius: 8px; font-size: 1rem; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.3s;" onmouseover="this.style.background='#1da851'" onmouseout="this.style.background='#25D366'">
                                 <span style="font-size: 1.2rem;">📱</span>
                                 <span>Conectar Múltiples WhatsApp (hasta 4)</span>
                             </button>
@@ -22883,10 +22883,19 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
     // Abrir modal de conexión múltiple
     window.openWhatsAppMultiConnectModal = function() {
+        console.log('🔄 Abriendo modal de WhatsApp múltiple...');
         const modal = document.getElementById('whatsapp-multi-connect-modal');
         if (modal) {
+            console.log('✅ Modal encontrado, mostrando...');
             modal.style.display = 'flex';
-            renderWhatsAppInstances();
+            modal.style.zIndex = '10000';
+            if (typeof renderWhatsAppInstances === 'function') {
+                renderWhatsAppInstances();
+            } else {
+                console.error('❌ renderWhatsAppInstances no está definida');
+            }
+        } else {
+            console.error('❌ Modal whatsapp-multi-connect-modal no encontrado');
         }
     };
 
@@ -23262,7 +23271,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     <span style="font-size: 28px;">📱</span>
                     <span>Conectar Múltiples WhatsApp con IA</span>
                 </h2>
-                <button onclick="closeWhatsAppMultiConnectModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #666; padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s;">&times;</button>
+                <button onclick="if(typeof closeWhatsAppMultiConnectModal === 'function') { closeWhatsAppMultiConnectModal(); } else { document.getElementById('whatsapp-multi-connect-modal').style.display = 'none'; }" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #666; padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.2s;" onmouseover="this.style.color='#f44336'" onmouseout="this.style.color='#666'">&times;</button>
             </div>
             
             <div style="margin-bottom: 24px; padding: 16px; background: #e3f2fd; border-radius: 8px; border-left: 4px solid #2196f3;">
@@ -23277,7 +23286,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             </div>
 
             <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; padding-top: 16px; border-top: 2px solid #e0e0e0;">
-                <button onclick="closeWhatsAppMultiConnectModal()" style="background: #666; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 500; cursor: pointer;">
+                <button onclick="if(typeof closeWhatsAppMultiConnectModal === 'function') { closeWhatsAppMultiConnectModal(); } else { document.getElementById('whatsapp-multi-connect-modal').style.display = 'none'; }" style="background: #666; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 500; cursor: pointer;">
                     Cerrar
                 </button>
             </div>
@@ -23287,8 +23296,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     <style>
         /* Estilos para el modal de múltiples WhatsApp */
         #whatsapp-multi-connect-modal {
-            position: fixed;
-            z-index: 10000;
+            position: fixed !important;
+            z-index: 99999 !important;
             left: 0;
             top: 0;
             width: 100%;
@@ -23307,6 +23316,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             padding: 32px;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
             animation: slideUp 0.3s ease;
+            position: relative;
+            z-index: 100000;
+            max-width: 1200px;
+            width: 95%;
+            max-height: 90vh;
+            overflow-y: auto;
         }
 
         @keyframes fadeIn {
