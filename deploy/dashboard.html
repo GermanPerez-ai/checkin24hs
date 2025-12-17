@@ -73,7 +73,8 @@
         }
     };
     // También hacer disponible sin window. para compatibilidad
-    showFlorTab = window.showFlorTab;
+    // Asignar directamente al scope global
+    this.showFlorTab = window.showFlorTab;
     console.log('✅ showFlorTab definida tempranamente');
     
     // ===== FUNCIONES DE MODALES - DEFINIDAS TEMPRANAMENTE =====
