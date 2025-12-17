@@ -22870,12 +22870,40 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 console.log('🔍 Buscando mensajes con phone limpio:', cleanPhone);
                 
                 // Intentar buscar por phone si no hay mensajes con chat_id
-                const { data: dataByPhone, error: errorByPhone } = await window.supabaseClient.client
+                // Intentar primero con el phone limpio
+                let dataByPhone = null;
+                let errorByPhone = null;
+                
+                // Intentar con phone exacto limpio
+                let result = await window.supabaseClient.client
                     .from('whatsapp_messages')
                     .select('*')
-                    .or(`phone.eq.${cleanPhone},phone.eq.${phone},phone.ilike.%${cleanPhone}%`)
+                    .eq('phone', cleanPhone)
                     .order('created_at', { ascending: true })
                     .limit(100);
+                
+                if (result.error || !result.data || result.data.length === 0) {
+                    // Si no hay resultados, intentar con el phone original
+                    result = await window.supabaseClient.client
+                        .from('whatsapp_messages')
+                        .select('*')
+                        .eq('phone', phone)
+                        .order('created_at', { ascending: true })
+                        .limit(100);
+                }
+                
+                if (result.error || !result.data || result.data.length === 0) {
+                    // Intentar con ilike como último recurso
+                    result = await window.supabaseClient.client
+                        .from('whatsapp_messages')
+                        .select('*')
+                        .ilike('phone', `%${cleanPhone}%`)
+                        .order('created_at', { ascending: true })
+                        .limit(100);
+                }
+                
+                dataByPhone = result.data;
+                errorByPhone = result.error;
                 
                 if (!errorByPhone && dataByPhone && dataByPhone.length > 0) {
                     console.log(`✅ Encontrados ${dataByPhone.length} mensajes por phone`);
