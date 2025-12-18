@@ -226,7 +226,7 @@ let qrCodeData = null;
 
 // Función para limpiar locks de Chrome/Puppeteer
 function cleanChromeLocks() {
-    const sessionDir = path.join(__dirname, '.wwebjs_auth');
+    const sessionDir = path.join(__dirname, `.wwebjs_auth_instance_${CONFIG.INSTANCE_NUMBER}`);
     const defaultDir = path.join(sessionDir, 'Default');
     
     if (!fs.existsSync(defaultDir)) {
@@ -280,9 +280,11 @@ function cleanChromeLocks() {
 cleanChromeLocks();
 
 // Crear cliente de WhatsApp con autenticación local (persiste la sesión)
+// Cada instancia usa su propio directorio de sesión
+const sessionPath = `.wwebjs_auth_instance_${CONFIG.INSTANCE_NUMBER}`;
 const client = new Client({
     authStrategy: new LocalAuth({
-        dataPath: '.wwebjs_auth'
+        dataPath: sessionPath
     }),
     puppeteer: {
         headless: true,
