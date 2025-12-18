@@ -1,0 +1,74 @@
+// Configuración PM2 para múltiples instancias de WhatsApp
+module.exports = {
+  apps: [
+    {
+      name: 'whatsapp-1',
+      script: './whatsapp-server.js',
+      instances: 1,
+      exec_mode: 'fork',
+      env: {
+        PORT: 3001,
+        INSTANCE_NUMBER: 1,
+        NODE_ENV: 'production'
+      },
+      error_file: './logs/whatsapp-1-error.log',
+      out_file: './logs/whatsapp-1-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      merge_logs: true,
+      autorestart: true,
+      max_memory_restart: '1G'
+    },
+    {
+      name: 'whatsapp-2',
+      script: './whatsapp-server.js',
+      instances: 1,
+      exec_mode: 'fork',
+      env: {
+        PORT: 3002,
+        INSTANCE_NUMBER: 2,
+        NODE_ENV: 'production'
+      },
+      error_file: './logs/whatsapp-2-error.log',
+      out_file: './logs/whatsapp-2-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      merge_logs: true,
+      autorestart: true,
+      max_memory_restart: '1G'
+    },
+    {
+      name: 'whatsapp-3',
+      script: './whatsapp-server.js',
+      instances: 1,
+      exec_mode: 'fork',
+      env: {
+        PORT: 3003,
+        INSTANCE_NUMBER: 3,
+        NODE_ENV: 'production'
+      },
+      error_file: './logs/whatsapp-3-error.log',
+      out_file: './logs/whatsapp-3-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      merge_logs: true,
+      autorestart: true,
+      max_memory_restart: '1G'
+    },
+    {
+      name: 'whatsapp-4',
+      script: './whatsapp-server.js',
+      instances: 1,
+      exec_mode: 'fork',
+      env: {
+        PORT: 3004,
+        INSTANCE_NUMBER: 4,
+        NODE_ENV: 'production'
+      },
+      error_file: './logs/whatsapp-4-error.log',
+      out_file: './logs/whatsapp-4-out.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
+      merge_logs: true,
+      autorestart: true,
+      max_memory_restart: '1G'
+    }
+  ]
+};
+
