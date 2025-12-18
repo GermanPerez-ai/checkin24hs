@@ -10,38 +10,21 @@
  * - Aprendizaje automático de Flor
  */
 
-// Log inicial para diagnosticar inicio del proceso
+// ===== LOGS DE INICIO =====
 console.log('🚀 Iniciando servidor WhatsApp...');
-console.log('📦 Node.js version:', process.version);
-console.log('📁 Directorio de trabajo:', process.cwd());
-console.log('🔧 Variables de entorno:');
-console.log('   - PORT:', process.env.PORT || 'no definido');
-console.log('   - INSTANCE_NUMBER:', process.env.INSTANCE_NUMBER || 'no definido');
-console.log('   - SUPABASE_URL:', process.env.SUPABASE_URL ? 'definido' : 'no definido');
-console.log('   - SUPABASE_ANON_KEY:', process.env.SUPABASE_ANON_KEY ? 'definido' : 'no definido');
-
-console.log('📚 Cargando dependencias...');
+console.log('📦 Cargando dependencias...');
 
 const { Client, LocalAuth } = require('whatsapp-web.js');
-console.log('✅ whatsapp-web.js cargado');
-
 const qrcode = require('qrcode-terminal');
-console.log('✅ qrcode-terminal cargado');
-
 const express = require('express');
 const cors = require('cors');
 const { Server } = require('socket.io');
 const http = require('http');
-console.log('✅ express, cors, socket.io, http cargados');
-
 const fs = require('fs');
 const path = require('path');
-console.log('✅ fs, path cargados');
-
 const { createClient } = require('@supabase/supabase-js');
-console.log('✅ @supabase/supabase-js cargado');
 
-console.log('✅ Todas las dependencias cargadas correctamente');
+console.log('✅ Dependencias cargadas');
 
 // ===== CONFIGURACIÓN =====
 const CONFIG = {
@@ -224,67 +207,66 @@ app.use(express.static('public'));
 let clientReady = false;
 let qrCodeData = null;
 
-// Función para limpiar locks de Chrome/Puppeteer
-function cleanChromeLocks() {
-    const sessionDir = path.join(__dirname, `.wwebjs_auth_instance_${CONFIG.INSTANCE_NUMBER}`);
-    const defaultDir = path.join(sessionDir, 'Default');
-    
-    if (!fs.existsSync(defaultDir)) {
-        return;
-    }
-    
-    const lockFiles = [
-        path.join(defaultDir, 'SingletonLock'),
-        path.join(defaultDir, 'SingletonSocket'),
-        path.join(defaultDir, 'SingletonCookie')
-    ];
-    
-    let cleaned = false;
-    lockFiles.forEach(lockFile => {
-        try {
-            if (fs.existsSync(lockFile)) {
-                fs.unlinkSync(lockFile);
-                cleaned = true;
-            }
-        } catch (error) {
-            // Ignorar errores al eliminar locks
-        }
-    });
-    
-    // Buscar otros archivos de lock
+// Función para limpiar locks de Chrome antes de inicializar
+function cleanChromeLocks(dataPath) {
     try {
-        const files = fs.readdirSync(defaultDir);
-        files.forEach(file => {
-            if (file.includes('Lock') || file.includes('Singleton')) {
-                const filePath = path.join(defaultDir, file);
-                try {
-                    if (fs.existsSync(filePath)) {
-                        fs.unlinkSync(filePath);
-                        cleaned = true;
+        const sessionPath = path.join(__dirname, dataPath);
+        const defaultPath = path.join(sessionPath, 'session', 'Default');
+        
+        if (fs.existsSync(defaultPath)) {
+            // Eliminar archivos de lock
+            const lockFiles = [
+                'SingletonLock',
+                'SingletonSocket',
+                'SingletonCookie',
+                'lockfile'
+            ];
+            
+            lockFiles.forEach(lockFile => {
+                const lockPath = path.join(defaultPath, lockFile);
+                if (fs.existsSync(lockPath)) {
+                    try {
+                        fs.unlinkSync(lockPath);
+                        console.log(`✅ Lock eliminado: ${lockFile}`);
+                    } catch (e) {
+                        // Ignorar errores si el archivo está en uso
                     }
-                } catch (error) {
-                    // Ignorar errores
                 }
+            });
+            
+            // Buscar y eliminar otros archivos de lock
+            try {
+                const files = fs.readdirSync(defaultPath);
+                files.forEach(file => {
+                    if (file.includes('Lock') || file.includes('Singleton')) {
+                        const filePath = path.join(defaultPath, file);
+                        try {
+                            fs.unlinkSync(filePath);
+                        } catch (e) {
+                            // Ignorar errores
+                        }
+                    }
+                });
+            } catch (e) {
+                // Ignorar errores de lectura
             }
-        });
+        }
     } catch (error) {
-        // Ignorar errores
-    }
-    
-    if (cleaned) {
-        console.log('🧹 Archivos de lock limpiados automáticamente');
+        console.log(`⚠️ No se pudieron limpiar locks (puede ser normal): ${error.message}`);
     }
 }
 
+// Directorio de sesión único por instancia
+const sessionDataPath = `.wwebjs_auth_${CONFIG.INSTANCE_NUMBER}`;
+console.log(`📁 Usando directorio de sesión: ${sessionDataPath} (Instancia ${CONFIG.INSTANCE_NUMBER})`);
+
 // Limpiar locks antes de crear el cliente
-cleanChromeLocks();
+cleanChromeLocks(sessionDataPath);
 
 // Crear cliente de WhatsApp con autenticación local (persiste la sesión)
-// Cada instancia usa su propio directorio de sesión
-const sessionPath = `.wwebjs_auth_instance_${CONFIG.INSTANCE_NUMBER}`;
 const client = new Client({
     authStrategy: new LocalAuth({
-        dataPath: sessionPath
+        dataPath: sessionDataPath
     }),
     puppeteer: {
         headless: true,
@@ -302,12 +284,9 @@ const client = new Client({
             '--disable-backgrounding-occluded-windows',
             '--disable-renderer-backgrounding',
             '--disable-features=TranslateUI',
-            '--disable-ipc-flooding-protection'
-        ],
-        // Intentar limpiar locks automáticamente
-        handleSIGINT: false,
-        handleSIGTERM: false,
-        handleSIGHUP: false
+            '--disable-ipc-flooding-protection',
+            `--user-data-dir=${path.join(__dirname, sessionDataPath, 'session')}`
+        ]
     }
 });
 
@@ -706,31 +685,18 @@ function saveMessage(message) {
 
 // Guardar o actualizar chat en Supabase
 async function saveOrUpdateChat(phone, message, isFromMe = false) {
-    if (!supabase) {
-        console.warn('⚠️ Supabase no está inicializado, no se puede guardar chat');
-        return null;
-    }
-    
-    if (!CONFIG.SAVE_TO_SUPABASE) {
-        console.log('ℹ️ SAVE_TO_SUPABASE está deshabilitado, no se guarda chat');
-        return null;
-    }
+    if (!supabase || !CONFIG.SAVE_TO_SUPABASE) return null;
     
     try {
         const cleanPhone = phone.replace('@c.us', '');
         
         // Buscar chat existente
-        const { data: existingChat, error: searchError } = await supabase
+        const { data: existingChat } = await supabase
             .from('whatsapp_chats')
             .select('*')
             .eq('phone', cleanPhone)
             .eq('whatsapp_instance', CONFIG.INSTANCE_NUMBER)
-            .maybeSingle(); // Usar maybeSingle en lugar de single para evitar error si no existe
-        
-        if (searchError && searchError.code !== 'PGRST116') {
-            // PGRST116 es "no rows returned", que es normal si no existe el chat
-            console.warn('⚠️ Error buscando chat existente:', searchError.message);
-        }
+            .single();
         
         if (existingChat) {
             // Actualizar chat existente
@@ -739,17 +705,14 @@ async function saveOrUpdateChat(phone, message, isFromMe = false) {
                 .update({
                     last_message: message.substring(0, 500),
                     last_message_time: new Date().toISOString(),
-                    unread_count: isFromMe ? 0 : (existingChat.unread_count || 0) + 1,
+                    unread_count: isFromMe ? 0 : existingChat.unread_count + 1,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', existingChat.id)
                 .select()
                 .single();
             
-            if (error) {
-                console.error('❌ Error actualizando chat:', error);
-                throw error;
-            }
+            if (error) throw error;
             return data;
         } else {
             // Crear nuevo chat
@@ -767,39 +730,19 @@ async function saveOrUpdateChat(phone, message, isFromMe = false) {
                 .select()
                 .single();
             
-            if (error) {
-                console.error('❌ Error creando chat:', error);
-                throw error;
-            }
+            if (error) throw error;
             console.log(`📱 Nuevo chat creado para ${cleanPhone}`);
             return data;
         }
     } catch (error) {
         console.error('❌ Error guardando chat en Supabase:', error.message);
-        if (error.code) {
-            console.error(`   Código de error: ${error.code}`);
-        }
-        if (error.details) {
-            console.error(`   Detalles: ${error.details}`);
-        }
-        if (error.hint) {
-            console.error(`   Sugerencia: ${error.hint}`);
-        }
         return null;
     }
 }
 
 // Guardar mensaje en Supabase
 async function saveMessageToSupabase(phone, message, isFromMe = false, messageType = 'text') {
-    if (!supabase) {
-        console.warn('⚠️ Supabase no está inicializado, no se puede guardar mensaje');
-        return null;
-    }
-    
-    if (!CONFIG.SAVE_TO_SUPABASE) {
-        console.log('ℹ️ SAVE_TO_SUPABASE está deshabilitado, no se guarda mensaje');
-        return null;
-    }
+    if (!supabase || !CONFIG.SAVE_TO_SUPABASE) return null;
     
     try {
         const cleanPhone = phone.replace('@c.us', '');
@@ -807,167 +750,57 @@ async function saveMessageToSupabase(phone, message, isFromMe = false, messageTy
         // Obtener o crear chat
         const chat = await saveOrUpdateChat(phone, message, isFromMe);
         
-        if (!chat) {
-            console.warn('⚠️ No se pudo obtener o crear chat, guardando mensaje sin chat_id');
-        }
-        
-        // Preparar datos del mensaje usando la estructura REAL de la tabla
-        // La tabla tiene: body (no message), sender/recipient (no phone), direction, etc.
-        const messageData = {
-            body: message || '',  // La tabla usa 'body', no 'message'
-            direction: isFromMe ? 'outbound' : 'inbound',  // 'inbound' o 'outbound'
-            sender: isFromMe ? null : cleanPhone,  // Solo para mensajes entrantes
-            recipient: isFromMe ? cleanPhone : null,  // Solo para mensajes salientes
-            is_from_me: Boolean(isFromMe),
-            is_read: Boolean(isFromMe),  // Los mensajes enviados se marcan como leídos
-            sent_at: new Date().toISOString(),
-            status: 'sent'  // Estado del mensaje
-        };
-        
-        // Agregar chat_id si el chat existe
-        if (chat && chat.id) {
-            messageData.chat_id = chat.id;
-        }
-        
-        // Intentar guardar con todos los campos
-        let { data, error } = await supabase
+        // Guardar mensaje
+        const { data, error } = await supabase
             .from('whatsapp_messages')
-            .insert([messageData])
+            .insert([{
+                chat_id: chat?.id || null,
+                phone: cleanPhone,
+                message: message,
+                message_type: messageType,
+                is_from_me: isFromMe,
+                is_read: isFromMe,
+                whatsapp_instance: CONFIG.INSTANCE_NUMBER
+            }])
             .select()
             .single();
         
-        // Si falla por error de esquema, intentar con campos mínimos
-        if (error && (error.message?.includes('schema cache') || error.message?.includes('column'))) {
-            console.warn('⚠️ Error de esquema detectado, intentando con campos mínimos...');
-            console.warn('   Error:', error.message);
-            
-            // Preparar datos mínimos (solo campos esenciales que sabemos que existen)
-            const minimalData = {
-                body: message || '',
-                direction: isFromMe ? 'outbound' : 'inbound',
-                is_from_me: Boolean(isFromMe),
-                sent_at: new Date().toISOString()
-            };
-            
-            // Agregar chat_id si existe
-            if (chat && chat.id) {
-                minimalData.chat_id = chat.id;
-            }
-            
-            // Intentar insertar solo con campos mínimos
-            const result = await supabase
-                .from('whatsapp_messages')
-                .insert([minimalData])
-                .select()
-                .single();
-            
-            if (result.error) {
-                throw result.error;
-            }
-            
-            data = result.data;
-            console.log(`✅ Mensaje guardado en Supabase (modo mínimo): ${isFromMe ? 'Enviado' : 'Recibido'} de ${cleanPhone}`);
-            return data;
-        }
-        
-        if (error) {
-            console.error('❌ Error guardando mensaje en Supabase:', error);
-            console.error('   Detalles:', JSON.stringify(error, null, 2));
-            throw error;
-        }
-        
-        console.log(`✅ Mensaje guardado en Supabase: ${isFromMe ? 'Enviado' : 'Recibido'} de ${cleanPhone}`);
+        if (error) throw error;
         return data;
     } catch (error) {
         console.error('❌ Error guardando mensaje en Supabase:', error.message);
-        if (error.code) {
-            console.error(`   Código de error: ${error.code}`);
-        }
-        if (error.details) {
-            console.error(`   Detalles: ${error.details}`);
-        }
-        if (error.hint) {
-            console.error(`   Sugerencia: ${error.hint}`);
-        }
         return null;
     }
 }
 
 // Guardar interacción de Flor para aprendizaje
 async function saveInteraction(phone, userMessage, botResponse, intent, usedAI = false, responseTimeMs = 0) {
-    if (!supabase) {
-        console.warn('⚠️ Supabase no está inicializado, no se puede guardar interacción');
-        return null;
-    }
-    
-    if (!CONFIG.SAVE_TO_SUPABASE) {
-        console.log('ℹ️ SAVE_TO_SUPABASE está deshabilitado, no se guarda interacción');
-        return null;
-    }
+    if (!supabase || !CONFIG.SAVE_TO_SUPABASE) return null;
     
     try {
         const cleanPhone = phone.replace('@c.us', '');
         
-        // Asegurar que los valores booleanos sean correctos (nunca strings vacíos)
-        // Convertir cualquier valor a boolean explícitamente
-        const successValue = true; // Siempre true por defecto
-        const usedAIValue = (usedAI !== undefined && usedAI !== null && usedAI !== '') 
-            ? Boolean(usedAI) 
-            : false;
-        
-        // Asegurar que botResponse sea siempre un string válido
-        let botResponseStr = '';
-        if (botResponse !== undefined && botResponse !== null) {
-            if (typeof botResponse === 'string') {
-                botResponseStr = botResponse;
-            } else if (typeof botResponse === 'object') {
-                botResponseStr = JSON.stringify(botResponse);
-            } else {
-                botResponseStr = String(botResponse);
-            }
-        }
-        
-        const interactionData = {
-            phone: cleanPhone,
-            user_message: userMessage || '',
-            bot_response: botResponseStr,
-            intent: intent || null,
-            success: successValue, // Boolean explícito, nunca string
-            used_ai: usedAIValue, // Boolean explícito, nunca string
-            response_time_ms: parseInt(responseTimeMs) || 0,
-            whatsapp_instance: CONFIG.INSTANCE_NUMBER
-        };
-        
-        // Solo agregar ai_model si usedAI es true
-        if (usedAIValue && CONFIG.GEMINI_MODEL) {
-            interactionData.ai_model = CONFIG.GEMINI_MODEL;
-        }
-        
         const { data, error } = await supabase
             .from('flor_interactions')
-            .insert([interactionData])
+            .insert([{
+                phone: cleanPhone,
+                user_message: userMessage,
+                bot_response: botResponse,
+                intent: intent,
+                success: true,
+                used_ai: usedAI,
+                ai_model: usedAI ? CONFIG.GEMINI_MODEL : null,
+                response_time_ms: responseTimeMs,
+                whatsapp_instance: CONFIG.INSTANCE_NUMBER
+            }])
             .select()
             .single();
         
-        if (error) {
-            console.error('❌ Error guardando interacción en Supabase:', error);
-            console.error('   Detalles:', JSON.stringify(error, null, 2));
-            throw error;
-        }
-        
-        console.log(`📝 Interacción guardada: ${intent || 'general'} (${usedAIValue ? 'IA' : 'Predefinida'})`);
+        if (error) throw error;
+        console.log(`📝 Interacción guardada: ${intent || 'general'}`);
         return data;
     } catch (error) {
         console.error('❌ Error guardando interacción:', error.message);
-        if (error.code) {
-            console.error(`   Código de error: ${error.code}`);
-        }
-        if (error.details) {
-            console.error(`   Detalles: ${error.details}`);
-        }
-        if (error.hint) {
-            console.error(`   Sugerencia: ${error.hint}`);
-        }
         return null;
     }
 }
@@ -1213,19 +1046,7 @@ app.post('/api/send', async (req, res) => {
             chatId = chatId.replace(/[^0-9]/g, '') + '@c.us';
         }
         
-        console.log(`📤 Enviando mensaje a ${chatId}: ${message.substring(0, 50)}...`);
         await client.sendMessage(chatId, message);
-        
-        // Guardar mensaje en Supabase después de enviarlo
-        if (CONFIG.SAVE_TO_SUPABASE && supabase) {
-            try {
-                await saveMessageToSupabase(chatId, message, true, 'text');
-                console.log('✅ Mensaje guardado en Supabase después de enviar');
-            } catch (saveError) {
-                console.error('⚠️ Error guardando mensaje en Supabase (no crítico):', saveError.message);
-            }
-        }
-        
         res.json({ success: true, message: 'Mensaje enviado' });
         
     } catch (error) {
@@ -1644,7 +1465,25 @@ client.initialize();
 // Manejo de cierre
 process.on('SIGINT', async () => {
     console.log('\n🛑 Cerrando servidor...');
-    await client.destroy();
+    try {
+        if (client) {
+            await client.destroy();
+        }
+    } catch (error) {
+        console.error('⚠️ Error al destruir cliente:', error.message);
+    }
+    process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+    console.log('\n🛑 Cerrando servidor (SIGTERM)...');
+    try {
+        if (client) {
+            await client.destroy();
+        }
+    } catch (error) {
+        console.error('⚠️ Error al destruir cliente:', error.message);
+    }
     process.exit(0);
 });
 
