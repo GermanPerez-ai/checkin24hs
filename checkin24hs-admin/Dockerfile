@@ -21,8 +21,8 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Instalar serve globalmente
-RUN npm install -g serve
+# Copiar el servidor HTTP simple
+COPY server.js ./
 
 # Copiar los archivos construidos desde la etapa anterior
 COPY --from=builder /app/build ./build
@@ -30,7 +30,6 @@ COPY --from=builder /app/build ./build
 # Exponer el puerto 3000
 EXPOSE 3000
 
-# Comando para servir los archivos estáticos
-# Usar formato HOST:PORT para escuchar en todas las interfaces
-CMD ["serve", "-s", "build", "-l", "0.0.0.0:3000"]
+# Comando para iniciar el servidor
+CMD ["node", "server.js"]
 
