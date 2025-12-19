@@ -1,14 +1,33 @@
-FROM nginx:alpine
+FROM node:18-alpine
 
-# Copiar todos los archivos estáticos al directorio de Nginx
-COPY . /usr/share/nginx/html
+WORKDIR /app
 
-# Copiar la configuración personalizada de Nginx
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Copiar package.json e instalar dependencias
+COPY package.json package-lock.json* ./
+RUN npm install
 
-# Exponer el puerto 80
-EXPOSE 80
+# Copiar todos los archivos necesarios para el dashboard
+COPY dashboard.html ./
+COPY supabase-client.js ./
+COPY supabase-config.js ./
+COPY database.js ./
+COPY dashboard-integration.js ./
+COPY flor-agent.js ./
+COPY flor-ai-service.js ./
+COPY flor-knowledge-base.js ./
+COPY flor-learning-system.js ./
+COPY flor-multimodal-service.js ./
+COPY flor-widget.js ./
+COPY server.js ./
+COPY puppeteer-real-cotizacion.js ./
 
-# Iniciar Nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Copiar imágenes y recursos
+COPY logo*.png ./
+COPY logo*.svg ./
+COPY hotel-images/ ./hotel-images/
 
+# Exponer el puerto 3000
+EXPOSE 3000
+
+# Comando para iniciar el servidor
+CMD ["node", "server.js"]
