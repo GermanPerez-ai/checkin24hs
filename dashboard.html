@@ -1555,6 +1555,66 @@
 <body>
     <!-- Script para corregir el modal de WhatsApp múltiple - DEBE EJECUTARSE PRIMERO -->
     <script>
+        // ============================================
+        // INTERCEPTOR ULTRA AGRESIVO - DEBE EJECUTARSE PRIMERO
+        // ============================================
+        // Interceptar fetch ANTES de que cualquier código se ejecute
+        (function() {
+            'use strict';
+            
+            // Guardar fetch original
+            const _originalFetch = window.fetch;
+            
+            // Interceptor ULTRA AGRESIVO de fetch
+            window.fetch = function(...args) {
+                // Corregir URL si es string
+                if (typeof args[0] === 'string') {
+                    let url = args[0];
+                    const originalUrl = url;
+                    
+                    // Reemplazar TODOS los puertos 3001-3004
+                    url = url.replace(/:3001(\/|$|"|'|`| |,|&)/g, ':4001$1')
+                             .replace(/:3002(\/|$|"|'|`| |,|&)/g, ':4002$1')
+                             .replace(/:3003(\/|$|"|'|`| |,|&)/g, ':4003$1')
+                             .replace(/:3004(\/|$|"|'|`| |,|&)/g, ':4004$1')
+                             .replace(/:3001/g, ':4001')
+                             .replace(/:3002/g, ':4002')
+                             .replace(/:3003/g, ':4003')
+                             .replace(/:3004/g, ':4004');
+                    
+                    if (url !== originalUrl) {
+                        console.log(`🔧 [INTERCEPTOR] URL corregida: ${originalUrl} → ${url}`);
+                        args[0] = url;
+                    }
+                }
+                
+                // Si es Request, corregir también
+                if (args[0] instanceof Request) {
+                    const req = args[0];
+                    let url = req.url;
+                    const originalUrl = url;
+                    
+                    url = url.replace(/:3001(\/|$|"|'|`| |,|&)/g, ':4001$1')
+                             .replace(/:3002(\/|$|"|'|`| |,|&)/g, ':4002$1')
+                             .replace(/:3003(\/|$|"|'|`| |,|&)/g, ':4003$1')
+                             .replace(/:3004(\/|$|"|'|`| |,|&)/g, ':4004$1')
+                             .replace(/:3001/g, ':4001')
+                             .replace(/:3002/g, ':4002')
+                             .replace(/:3003/g, ':4003')
+                             .replace(/:3004/g, ':4004');
+                    
+                    if (url !== originalUrl) {
+                        console.log(`🔧 [INTERCEPTOR] Request URL corregida: ${originalUrl} → ${url}`);
+                        args[0] = new Request(url, req);
+                    }
+                }
+                
+                return _originalFetch.apply(this, args);
+            };
+            
+            console.log('✅ [INTERCEPTOR] Fetch interceptado ULTRA AGRESIVO activado');
+        })();
+        
         // Sobrescribir funciones del modal de WhatsApp múltiple para usar puertos correctos (4001-4004)
         // Este script debe ejecutarse ANTES de que se genere el modal
         (function() {
@@ -1601,88 +1661,94 @@
             };
             
             // Sobrescribir función de verificación de estado de instancias (usada por el modal)
-            window.checkWhatsAppInstanceStatus = async function(instanceNumber) {
-                const url = getInstanceUrl(instanceNumber);
-                try {
-                    const response = await fetch(`${url}/api/status`, {
-                        method: 'GET',
-                        headers: { 'Accept': 'application/json' }
-                    });
-                    if (response.ok) {
-                        const data = await response.json();
-                        return { available: true, data: data };
+            // Usar defineProperty para que sea más difícil de sobrescribir
+            Object.defineProperty(window, 'checkWhatsAppInstanceStatus', {
+                value: async function(instanceNumber) {
+                    const url = getInstanceUrl(instanceNumber);
+                    console.log(`🔍 Verificando instancia ${instanceNumber} en URL: ${url}`);
+                    try {
+                        const response = await fetch(`${url}/api/status`, {
+                            method: 'GET',
+                            headers: { 'Accept': 'application/json' }
+                        });
+                        if (response.ok) {
+                            const data = await response.json();
+                            return { available: true, data: data };
+                        }
+                        return { available: false };
+                    } catch (e) {
+                        console.error(`❌ Error verificando instancia ${instanceNumber}:`, e);
+                        return { available: false };
                     }
-                    return { available: false };
-                } catch (e) {
-                    return { available: false };
-                }
-            };
+                },
+                writable: false,
+                configurable: false
+            });
             
             // Sobrescribir función de conexión de instancias (SIEMPRE, incluso si ya existe)
-            window.connectWhatsAppInstance = async function(instanceNumber) {
-                console.log(`🔄 Conectando instancia ${instanceNumber} de WhatsApp...`);
-                const url = getInstanceUrl(instanceNumber);
-                
-                try {
-                    const response = await fetch(`${url}/api/qr`, {
-                        method: 'GET',
-                        headers: { 'Accept': 'application/json' }
-                    });
+            // Usar defineProperty para que sea más difícil de sobrescribir
+            Object.defineProperty(window, 'connectWhatsAppInstance', {
+                value: async function(instanceNumber) {
+                    console.log(`🔄 Conectando instancia ${instanceNumber} de WhatsApp...`);
+                    const url = getInstanceUrl(instanceNumber);
+                    console.log(`🔗 URL de conexión: ${url}`);
                     
-                    if (response.ok) {
-                        const data = await response.json();
-                        console.log(`✅ Instancia ${instanceNumber} conectada`);
-                        return data;
-                    } else {
-                        throw new Error(`HTTP ${response.status}`);
+                    try {
+                        const response = await fetch(`${url}/api/qr`, {
+                            method: 'GET',
+                            headers: { 'Accept': 'application/json' }
+                        });
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            console.log(`✅ Instancia ${instanceNumber} conectada`);
+                            return data;
+                        } else {
+                            throw new Error(`HTTP ${response.status}`);
+                        }
+                    } catch (error) {
+                        console.error(`❌ Error conectando instancia ${instanceNumber}:`, error);
+                        throw error;
                     }
-                } catch (error) {
-                    console.error(`❌ Error conectando instancia ${instanceNumber}:`, error);
-                    throw error;
-                }
-            };
+                },
+                writable: false,
+                configurable: false
+            });
             
-            // Interceptar fetch para corregir URLs con puertos antiguos
+            // Interceptar fetch para corregir URLs con puertos antiguos - VERSIÓN ULTRA AGRESIVA
             const originalFetch = window.fetch;
             window.fetch = function(...args) {
                 let url = args[0];
                 
+                // Función para corregir URL
+                function correctPort(urlString) {
+                    if (!urlString || typeof urlString !== 'string') return urlString;
+                    
+                    // Reemplazar TODAS las formas posibles de puertos 3001-3004
+                    let corrected = urlString
+                        .replace(/:3001(\/|$|"|'|`| |,)/g, ':4001$1')
+                        .replace(/:3002(\/|$|"|'|`| |,)/g, ':4002$1')
+                        .replace(/:3003(\/|$|"|'|`| |,)/g, ':4003$1')
+                        .replace(/:3004(\/|$|"|'|`| |,)/g, ':4004$1')
+                        .replace(/:3001/g, ':4001')
+                        .replace(/:3002/g, ':4002')
+                        .replace(/:3003/g, ':4003')
+                        .replace(/:3004/g, ':4004');
+                    
+                    return corrected;
+                }
+                
                 // Manejar tanto strings como objetos URL
                 if (typeof url === 'string') {
-                    // Usar expresión regular para capturar TODOS los casos de puertos 3001-3004
-                    const portMap = {
-                        ':3001': ':4001',
-                        ':3002': ':4002',
-                        ':3003': ':4003',
-                        ':3004': ':4004'
-                    };
-                    
-                    let correctedUrl = url;
-                    for (const [oldPort, newPort] of Object.entries(portMap)) {
-                        // Reemplazar puerto en cualquier posición de la URL
-                        correctedUrl = correctedUrl.replace(new RegExp(oldPort.replace(':', '\\:'), 'g'), newPort);
-                    }
-                    
+                    const correctedUrl = correctPort(url);
                     if (correctedUrl !== url) {
-                        console.log(`🔧 URL corregida: ${url} → ${correctedUrl}`);
+                        console.log(`🔧 URL corregida (fetch): ${url} → ${correctedUrl}`);
                         args[0] = correctedUrl;
-                        url = correctedUrl;
                     }
                 } else if (url instanceof Request) {
                     // Si es un objeto Request, crear uno nuevo con la URL corregida
                     const urlString = url.url;
-                    const portMap = {
-                        ':3001': ':4001',
-                        ':3002': ':4002',
-                        ':3003': ':4003',
-                        ':3004': ':4004'
-                    };
-                    
-                    let correctedUrl = urlString;
-                    for (const [oldPort, newPort] of Object.entries(portMap)) {
-                        correctedUrl = correctedUrl.replace(new RegExp(oldPort.replace(':', '\\:'), 'g'), newPort);
-                    }
-                    
+                    const correctedUrl = correctPort(urlString);
                     if (correctedUrl !== urlString) {
                         console.log(`🔧 URL corregida (Request): ${urlString} → ${correctedUrl}`);
                         args[0] = new Request(correctedUrl, url);
@@ -1692,9 +1758,53 @@
                 return originalFetch.apply(this, args);
             };
             
+            // Interceptar también XMLHttpRequest por si acaso
+            const originalXHROpen = XMLHttpRequest.prototype.open;
+            XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+                if (typeof url === 'string') {
+                    const corrected = url
+                        .replace(/:3001(\/|$|"|'|`| |,)/g, ':4001$1')
+                        .replace(/:3002(\/|$|"|'|`| |,)/g, ':4002$1')
+                        .replace(/:3003(\/|$|"|'|`| |,)/g, ':4003$1')
+                        .replace(/:3004(\/|$|"|'|`| |,)/g, ':4004$1')
+                        .replace(/:3001/g, ':4001')
+                        .replace(/:3002/g, ':4002')
+                        .replace(/:3003/g, ':4003')
+                        .replace(/:3004/g, ':4004');
+                    if (corrected !== url) {
+                        console.log(`🔧 URL corregida (XHR): ${url} → ${corrected}`);
+                        url = corrected;
+                    }
+                }
+                return originalXHROpen.call(this, method, url, ...rest);
+            };
+            
             console.log('✅ Funciones de WhatsApp múltiple corregidas para usar puertos 4001-4004');
             console.log('✅ Interceptor de fetch activado para corregir URLs automáticamente');
         })();
+        
+        // Interceptor ADICIONAL que se ejecuta cuando el DOM está listo
+        // Esto asegura que capture código que se ejecuta después
+        document.addEventListener('DOMContentLoaded', function() {
+            // Re-interceptar fetch por si acaso otro código lo sobrescribió
+            const _originalFetch = window.fetch;
+            window.fetch = function(...args) {
+                if (typeof args[0] === 'string') {
+                    let url = args[0];
+                    const originalUrl = url;
+                    url = url.replace(/:3001/g, ':4001')
+                             .replace(/:3002/g, ':4002')
+                             .replace(/:3003/g, ':4003')
+                             .replace(/:3004/g, ':4004');
+                    if (url !== originalUrl) {
+                        console.log(`🔧 [DOM READY INTERCEPTOR] URL corregida: ${originalUrl} → ${url}`);
+                        args[0] = url;
+                    }
+                }
+                return _originalFetch.apply(this, args);
+            };
+            console.log('✅ [DOM READY] Interceptor adicional activado');
+        });
     </script>
     <!-- Pantalla de Login -->
     <div class="login-container" id="loginContainer">

@@ -12,9 +12,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('.')); // Servir archivos estáticos
 
-// Ruta principal
+// Ruta principal - Dashboard de administración
 app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/index.html');
+    res.sendFile(__dirname + '/dashboard.html');
 });
 
 // Ruta para test-cotizacion
@@ -188,10 +188,10 @@ app.use((err, req, res, next) => {
 });
 
 // Iniciar servidor
-app.listen(PORT, () => {
-    console.log(`🚀 Servidor iniciado en http://localhost:${PORT}`);
-    console.log(`📊 API disponible en http://localhost:${PORT}/api/puyehue-quote`);
-    console.log(`🌐 Frontend disponible en http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Servidor iniciado en http://0.0.0.0:${PORT}`);
+    console.log(`📊 API disponible en http://0.0.0.0:${PORT}/api/puyehue-quote`);
+    console.log(`🌐 Frontend disponible en http://0.0.0.0:${PORT}`);
 });
 
 module.exports = app; 

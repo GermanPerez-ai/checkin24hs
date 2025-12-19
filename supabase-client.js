@@ -1729,15 +1729,12 @@ class SupabaseClient {
         }
 
         try {
-            console.log('📡 Iniciando consulta a whatsapp_chats...');
-            
             // Primero intentar con el join a users
-            // Obtener más registros para filtrar después (no podemos usar .not() con like en Supabase)
             let query = this.client
                 .from('whatsapp_chats')
                 .select('*, users(name, email)')
                 .order('last_message_time', { ascending: false })
-                .limit(limit * 3); // Obtener más para filtrar después
+                .limit(limit);
             
             let { data, error } = await query;
 
@@ -1748,7 +1745,7 @@ class SupabaseClient {
                     .from('whatsapp_chats')
                     .select('*')
                     .order('last_message_time', { ascending: false })
-                    .limit(limit * 3);
+                    .limit(limit);
                 
                 const result = await query;
                 data = result.data;
@@ -1757,38 +1754,13 @@ class SupabaseClient {
 
             if (error) {
                 console.error('❌ Error obteniendo chats:', error);
-                console.error('❌ Detalles del error:', JSON.stringify(error, null, 2));
                 throw error;
             }
 
-            // Filtrar adicionalmente por si algunos se colaron
-            if (data && Array.isArray(data)) {
-                data = data.filter(chat => {
-                    const phone = chat.phone || '';
-                    return !phone.includes('@broadcast') && 
-                           !phone.includes('@g.us') && 
-                           !phone.includes('status@') &&
-                           phone.length > 0 &&
-                           /^[\d+]+/.test(phone); // Solo números o números con +
-                });
-                
-                // Limitar después del filtro
-                data = data.slice(0, limit);
-            }
-
-            console.log(`📱 ${data?.length || 0} chats de WhatsApp cargados desde Supabase (después de filtrar broadcasts/grupos)`);
-            if (data && data.length > 0) {
-                console.log('📋 Ejemplo de chat:', {
-                    id: data[0].id,
-                    phone: data[0].phone,
-                    name: data[0].name,
-                    last_message: data[0].last_message?.substring(0, 50)
-                });
-            }
+            console.log(`📱 ${data?.length || 0} chats de WhatsApp cargados desde Supabase`);
             return data || [];
         } catch (error) {
             console.error('❌ Error obteniendo chats:', error);
-            console.error('❌ Stack trace:', error.stack);
             return [];
         }
     }
@@ -1892,8 +1864,6 @@ class SupabaseClient {
         }
 
         try {
-            console.log('📡 Iniciando consulta a flor_interactions...');
-            
             let query = this.client
                 .from('flor_interactions')
                 .select('*')
@@ -1912,25 +1882,12 @@ class SupabaseClient {
 
             const { data, error } = await query;
 
-            if (error) {
-                console.error('❌ Error en consulta a flor_interactions:', error);
-                console.error('❌ Detalles del error:', JSON.stringify(error, null, 2));
-                throw error;
-            }
+            if (error) throw error;
 
             console.log(`🌸 ${data?.length || 0} interacciones de Flor cargadas desde Supabase`);
-            if (data && data.length > 0) {
-                console.log('📋 Ejemplo de interacción:', {
-                    id: data[0].id,
-                    phone: data[0].phone,
-                    intent: data[0].intent,
-                    created_at: data[0].created_at
-                });
-            }
             return data || [];
         } catch (error) {
             console.error('❌ Error obteniendo interacciones:', error);
-            console.error('❌ Stack trace:', error.stack);
             return [];
         }
     }
