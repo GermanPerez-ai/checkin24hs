@@ -31,5 +31,6 @@ COPY --from=builder /app/build ./build
 EXPOSE 3000
 
 # Comando para servir los archivos estáticos
-CMD ["serve", "-s", "build", "-l", "3000"]
+# Serve escucha en 0.0.0.0 por defecto cuando se especifica solo el puerto
+CMD ["serve", "-s", "build", "-l", "3000", "--host", "0.0.0.0"]
 
