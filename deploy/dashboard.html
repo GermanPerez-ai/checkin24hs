@@ -4686,6 +4686,54 @@ Ej:
 
     <script>
         // ============================================
+        // DEFINICIONES GLOBALES CRÍTICAS (DEBEN ESTAR PRIMERO)
+        // ============================================
+        
+        // DEFINIR showSection INMEDIATAMENTE para evitar errores de navegación
+        // Esta función debe estar disponible ANTES de que cualquier HTML la llame
+        window.showSection = window.showSection || function(section, event) {
+            console.log('🔄 Cambiando a sección:', section);
+            
+            // Ocultar todas las secciones
+            document.querySelectorAll('[id$="-section"]').forEach(el => {
+                el.style.display = 'none';
+            });
+
+            // Mostrar la sección seleccionada
+            const targetSection = document.getElementById(section + '-section');
+            
+            if (targetSection) {
+                targetSection.style.display = 'block';
+                console.log('✅ Sección mostrada:', section);
+            } else {
+                console.error('❌ Sección no encontrada:', section + '-section');
+            }
+
+            // Actualizar menú activo
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // Solo actualizar el menú activo si se proporciona el evento
+            if (event && event.target) {
+                event.target.classList.add('active');
+            } else {
+                // Si no hay evento, buscar el elemento del menú correspondiente
+                const menuItem = document.querySelector(`[onclick*="window.showSection('${section}')"]`);
+                if (menuItem) {
+                    menuItem.classList.add('active');
+                }
+            }
+
+            if (typeof currentSection !== 'undefined') {
+                currentSection = section;
+            }
+        };
+        
+        // Inicializar allUsersData globalmente
+        window.allUsersData = window.allUsersData || [];
+        
+        // ============================================
         // CAMPOS DE IMAGEN - AHORA SON NECESARIOS, NO ELIMINAR
         // ============================================
         // NOTA: Este script anteriormente eliminaba los campos de imagen cada 100ms
@@ -13216,7 +13264,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Variable global para almacenar todos los usuarios (declarada ANTES de su uso)
-        let allUsersData = [];
+        // Variable global para almacenar todos los usuarios (declarada ANTES de su uso)
+        // Usar window.allUsersData si ya existe, sino crear nueva
+        let allUsersData = window.allUsersData || [];
 
         // Función para cargar datos de usuarios
         async function loadUsersData() {
@@ -13451,17 +13501,20 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             if (!searchInput) return;
             
+            // Asegurar que allUsersData existe y está inicializada
+            const usersData = (typeof allUsersData !== 'undefined' && Array.isArray(allUsersData)) ? allUsersData : (window.allUsersData || []);
+            
             const searchTerm = searchInput.value.trim().toLowerCase();
             
             if (searchTerm === '') {
                 // Si no hay búsqueda, mostrar los primeros 20
-                loadUsersTable(allUsersData.slice(0, 20));
+                loadUsersTable(usersData.slice(0, 20));
                 if (searchInfo) searchInfo.style.display = 'none';
                 return;
             }
             
             // Filtrar usuarios por término de búsqueda
-            const filteredUsers = allUsersData.filter(user => {
+            const filteredUsers = usersData.filter(user => {
                 const name = (user.name || '').toLowerCase();
                 const email = (user.email || '').toLowerCase();
                 const phone = (user.phone || '').toLowerCase();
@@ -20745,6 +20798,46 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     // =====================================================
     // MÓDULO FLOR IA - INTERACCIONES Y CHATS
     // =====================================================
+
+    // DEFINIR showSection INMEDIATAMENTE para evitar errores de navegación
+    window.showSection = window.showSection || function(section, event) {
+        console.log('🔄 Cambiando a sección:', section);
+        
+        // Ocultar todas las secciones
+        document.querySelectorAll('[id$="-section"]').forEach(el => {
+            el.style.display = 'none';
+        });
+
+        // Mostrar la sección seleccionada
+        const targetSection = document.getElementById(section + '-section');
+        
+        if (targetSection) {
+            targetSection.style.display = 'block';
+            console.log('✅ Sección mostrada:', section);
+        } else {
+            console.error('❌ Sección no encontrada:', section + '-section');
+        }
+
+        // Actualizar menú activo
+        document.querySelectorAll('.menu-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        
+        // Solo actualizar el menú activo si se proporciona el evento
+        if (event && event.target) {
+            event.target.classList.add('active');
+        } else {
+            // Si no hay evento, buscar el elemento del menú correspondiente
+            const menuItem = document.querySelector(`[onclick*="window.showSection('${section}')"]`);
+            if (menuItem) {
+                menuItem.classList.add('active');
+            }
+        }
+
+        if (typeof currentSection !== 'undefined') {
+            currentSection = section;
+        }
+    };
 
     // SOBRESCRIBIR checkWhatsAppConnection INMEDIATAMENTE para evitar errores
     // Esta función debe estar definida ANTES de cualquier otro código que la pueda usar
