@@ -20721,6 +20721,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     // MÓDULO FLOR IA - INTERACCIONES Y CHATS
     // =====================================================
 
+    // SOBRESCRIBIR checkWhatsAppConnection INMEDIATAMENTE para evitar errores
+    window.checkWhatsAppConnection = function() {
+        console.log('⚠️ checkWhatsAppConnection bloqueado - redirigiendo a whatsapp-new');
+        if (typeof showFlorTab === 'function') {
+            showFlorTab('whatsapp-new');
+        }
+        return Promise.resolve(); // Devolver una promesa resuelta para evitar errores
+    };
+
     // Función para mostrar tabs de Flor
     window.showFlorTab = function(tabName) {
         // REDIRIGIR whatsapp ANTIGUO a whatsapp-new INMEDIATAMENTE
