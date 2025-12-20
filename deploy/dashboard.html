@@ -13273,8 +13273,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         // Función para cargar datos de usuarios
         async function loadUsersData() {
             try {
+                // Asegurar que allUsersData existe antes de usar
+                if (typeof allUsersData === 'undefined') {
+                    allUsersData = window.allUsersData || [];
+                }
+                
                 // Primero, sincronizar usuarios desde reservas
-                syncUsersFromReservations();
+                if (typeof syncUsersFromReservations === 'function') {
+                    syncUsersFromReservations();
+                }
                 
                 let allUsers = [];
                 
