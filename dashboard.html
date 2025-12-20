@@ -20723,10 +20723,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
     // Función para mostrar tabs de Flor
     window.showFlorTab = function(tabName) {
-        // REDIRIGIR whatsapp ANTIGUO a whatsapp-new
-        if (tabName === 'whatsapp' && tabName !== 'whatsapp-new') {
+        // REDIRIGIR whatsapp ANTIGUO a whatsapp-new INMEDIATAMENTE
+        if (tabName === 'whatsapp') {
             console.log('⚠️ Pestaña de WhatsApp antigua detectada, redirigiendo a whatsapp-new');
-            tabName = 'whatsapp-new';
+            // Llamar recursivamente con el nombre correcto
+            setTimeout(() => showFlorTab('whatsapp-new'), 0);
+            return; // Salir inmediatamente para evitar ejecutar código antiguo
         }
         
         console.log('📑 Cambiando a tab Flor:', tabName);
