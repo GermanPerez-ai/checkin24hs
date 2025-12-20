@@ -1,0 +1,8 @@
+# Comando Corto para Corregir Bad Gateway del Dashboard
+
+## Ejecuta esto en el servidor (SSH):
+
+```bash
+DASHBOARD_IP=$(docker inspect $(docker ps | grep dashboard | grep -v nginx | awk '{print $1}' | head -1) | grep -A 5 '"Networks"' | grep '"IPv4Address"' | head -1 | cut -d'"' -f4) && cp /etc/easypanel/traefik/config/main.yaml /etc/easypanel/traefik/config/main.yaml.backup.$(date +%Y%m%d_%H%M%S) && sed -i "s|\"url\": \"http://10.11.132.[0-9]*:3000/\"|\"url\": \"http://${DASHBOARD_IP}:3000/\"|g" /etc/easypanel/traefik/config/main.yaml && sed -i "s|\"url\": \"http://checkin24hs_dashboard:3000/\"|\"url\": \"http://${DASHBOARD_IP}:3000/\"|g" /etc/easypanel/traefik/config/main.yaml && echo "✅ IP actualizada: $DASHBOARD_IP" && echo "⏳ Espera 10-15 segundos y prueba: https://dashboard.checkin24hs.com"
+```
+
