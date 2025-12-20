@@ -11456,9 +11456,24 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             }
         }
 
+        // Variable global para almacenar el intervalo de sincronización
+        let autoSyncInterval = null;
+        let autoSyncConfigured = false;
+        
         // Función para configurar sincronización automática
         function setupAutoSync() {
+            // Evitar configurar múltiples veces
+            if (autoSyncConfigured) {
+                console.log('ℹ️ Sincronización automática ya está configurada, omitiendo...');
+                return;
+            }
+            
             console.log('🔄 Configurando sincronización automática...');
+            
+            // Limpiar intervalo anterior si existe
+            if (autoSyncInterval) {
+                clearInterval(autoSyncInterval);
+            }
             
             // Cargar configuración de IA desde Supabase
             loadAIConfigFromSupabase();
@@ -11466,25 +11481,28 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             // Cargar datos iniciales
             loadUsersData();
             
-            // Configurar listener para cambios en localStorage
-            window.addEventListener('storage', function(e) {
-                if (e.key === 'checkin24hs_users') {
-                    console.log('🔄 Cambio detectado en usuarios, actualizando dashboard...');
-                    loadUsersData();
-                }
-                if (e.key === 'agentsDB') {
-                    console.log('🔄 Cambio detectado en agentes, actualizando dashboard...');
-                    if (typeof loadAgentsTable === 'function' && document.getElementById('agents-section')?.style.display !== 'none') {
-                        loadAgentsTable();
+            // Configurar listener para cambios en localStorage (solo una vez)
+            if (!window.storageListenerConfigured) {
+                window.addEventListener('storage', function(e) {
+                    if (e.key === 'checkin24hs_users') {
+                        console.log('🔄 Cambio detectado en usuarios, actualizando dashboard...');
+                        loadUsersData();
                     }
-                    if (typeof loadAgentsForNewReservation === 'function') {
-                        loadAgentsForNewReservation();
+                    if (e.key === 'agentsDB') {
+                        console.log('🔄 Cambio detectado en agentes, actualizando dashboard...');
+                        if (typeof loadAgentsTable === 'function' && document.getElementById('agents-section')?.style.display !== 'none') {
+                            loadAgentsTable();
+                        }
+                        if (typeof loadAgentsForNewReservation === 'function') {
+                            loadAgentsForNewReservation();
+                        }
                     }
-                }
-            });
+                });
+                window.storageListenerConfigured = true;
+            }
             
-            // Sincronización automática cada 30 segundos
-            setInterval(() => {
+            // Sincronización automática cada 30 segundos (solo una vez)
+            autoSyncInterval = setInterval(() => {
                 console.log('🔄 Sincronización automática...');
                 loadUsersData();
             }, 30000);
@@ -11492,6 +11510,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             // Configurar suscripciones en tiempo real de Supabase
             setupRealtimeSubscriptions();
             
+            autoSyncConfigured = true;
             console.log('✅ Sincronización automática configurada');
         }
         
