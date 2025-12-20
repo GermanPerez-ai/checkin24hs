@@ -20835,14 +20835,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     };
     
     // Funciones stub para evitar errores si se llaman desde algún lugar
-    window.checkWhatsAppConnection = function() {
-        console.log('⚠️ Función checkWhatsAppConnection llamada - redirigiendo a whatsapp-new');
-        // Redirigir a la nueva pestaña en lugar de hacer nada
-        if (typeof showFlorTab === 'function') {
-            showFlorTab('whatsapp-new');
-        }
-        return;
-    };
+    // NOTA: checkWhatsAppConnection ya está definida y protegida arriba
+    // NO redefinir aquí para evitar sobrescritura
     
     window.loadWhatsAppConnections = function() {
         console.log('⚠️ Función de WhatsApp eliminada - no hacer nada');
