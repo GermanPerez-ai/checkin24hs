@@ -1572,7 +1572,7 @@
             // Solo actualizar el menú activo si se proporciona el evento
             if (event && event.target) {
                 event.target.classList.add('active');
-            } else {
+                        } else {
                 // Si no hay evento, buscar el elemento del menú correspondiente
                 const menuItem = document.querySelector(`[onclick*="window.showSection('${section}')"]`);
                 if (menuItem) {
@@ -3477,8 +3477,8 @@
                                 <p style="font-size: 0.85rem; color: #666; margin-top: 6px;">
                                     La URL del servidor donde está corriendo el servicio de WhatsApp.
                                 </p>
-                            </div>
-                            
+                        </div>
+                        
                             <button class="form-button" style="background: #25D366; color: white; width: fit-content; padding: 12px 24px;" onclick="openWhatsAppConnectionModal()">
                                 <span style="font-size: 1.2rem; margin-right: 8px;">📱</span>
                                 Conectar Múltiples WhatsApp (hasta 4)
@@ -3493,21 +3493,21 @@
                         </h3>
                         
                         <div style="display: grid; gap: 16px;">
-                            <div>
+                                <div>
                                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                                     <input type="checkbox" id="whatsapp-auto-reply-enabled-new">
                                     <span style="font-weight: 500;">Habilitar respuestas automáticas de Flor</span>
-                                </label>
+                            </label>
                                 <p style="font-size: 0.85rem; color: #666; margin-top: 4px; margin-left: 28px;">
                                     Cuando está activado, Flor responderá automáticamente los mensajes de WhatsApp usando la IA configurada.
                                 </p>
                             </div>
                             
-                            <div>
+                                <div>
                                 <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
                                     <input type="checkbox" id="whatsapp-business-hours-only-new">
                                     <span style="font-weight: 500;">Solo responder en horario laboral</span>
-                                </label>
+                            </label>
                                 <p style="font-size: 0.85rem; color: #666; margin-top: 4px; margin-left: 28px;">
                                     Flor solo responderá durante el horario configurado (9:00 - 18:00 por defecto).
                                 </p>
@@ -3518,18 +3518,18 @@
                                 <textarea id="whatsapp-out-of-hours-message-new" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">Gracias por contactarnos. Nuestro horario de atención es de Lunes a Viernes de 9:00 a 18:00. Te responderemos a la brevedad.</textarea>
                             </div>
                         </div>
-                    </div>
-
+                            </div>
+                            
                     <!-- Botón Guardar -->
                     <div class="stat-card" style="padding: 24px;">
                         <button class="form-button" style="background: #4caf50; color: white; width: fit-content;" onclick="saveWhatsAppConfigNew()">
-                            <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
+                                <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
                             Guardar Configuración de WhatsApp
-                        </button>
+                            </button>
+                        </div>
                     </div>
-                </div>
 
-            </div>
+                            </div>
 
         <!-- Modal de Conexión Múltiple de WhatsApp -->
         <div id="whatsapp-connection-modal" class="modal" style="display: none;">
@@ -3540,7 +3540,7 @@
                         Conectar Múltiples WhatsApp con IA
                     </h2>
                     <button onclick="closeWhatsAppConnectionModal()" style="background: none; border: none; font-size: 28px; cursor: pointer; color: #666; padding: 0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;">&times;</button>
-                </div>
+                            </div>
                 
                 <p style="color: #666; margin-bottom: 24px; padding: 12px; background: #e3f2fd; border-radius: 8px;">
                     <strong>Con IA Integrada:</strong> Cada número de WhatsApp conectado utilizará Flor IA para responder automáticamente a los chats e interacciones. Puedes conectar hasta 4 números diferentes, cada uno con su propio QR.
@@ -3552,13 +3552,13 @@
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                             <h3 style="margin: 0; font-size: 1.1rem;">WhatsApp 1</h3>
                             <span id="whatsapp-1-status-badge" class="status-badge" style="padding: 4px 12px; border-radius: 12px; font-size: 0.85rem; font-weight: 500; background: #ff9800; color: white;">Desconectado</span>
-                        </div>
+                            </div>
                         
                         <div id="whatsapp-1-info" style="margin-bottom: 16px;">
                             <p style="margin: 4px 0; font-size: 0.9rem;"><strong>Estado:</strong> <span id="whatsapp-1-status-text">Esperando conexión</span></p>
                             <p style="margin: 4px 0; font-size: 0.9rem;"><strong>Número:</strong> <span id="whatsapp-1-number">-</span></p>
                             <p style="margin: 4px 0; font-size: 0.9rem;"><strong>Nombre:</strong> <span id="whatsapp-1-name">-</span></p>
-                        </div>
+                            </div>
                         
                         <div id="whatsapp-1-qr-container" style="display: none; text-align: center; margin: 16px 0; padding: 16px; background: #f5f5f5; border-radius: 8px;">
                             <p style="font-size: 0.9rem; color: #666; margin-bottom: 12px;">Escanea este código QR con WhatsApp:</p>
@@ -3576,9 +3576,9 @@
                             <button onclick="updateWhatsAppInstanceStatus(1)" class="form-button" style="flex: 1; background: #2196f3; color: white; padding: 10px;">
                                 🔄 Actualizar
                             </button>
-                        </div>
                     </div>
-                    
+                </div>
+
                     <!-- WhatsApp 2 -->
                     <div id="whatsapp-instance-2" class="whatsapp-instance-card" style="background: white; border: 2px solid #e0e0e0; border-radius: 12px; padding: 20px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -3590,16 +3590,16 @@
                             <p style="margin: 4px 0; font-size: 0.9rem;"><strong>Estado:</strong> <span id="whatsapp-2-status-text">Esperando conexión</span></p>
                             <p style="margin: 4px 0; font-size: 0.9rem;"><strong>Número:</strong> <span id="whatsapp-2-number">-</span></p>
                             <p style="margin: 4px 0; font-size: 0.9rem;"><strong>Nombre:</strong> <span id="whatsapp-2-name">-</span></p>
-                        </div>
+                                </div>
                         
                         <div id="whatsapp-2-qr-container" style="display: none; text-align: center; margin: 16px 0; padding: 16px; background: #f5f5f5; border-radius: 8px;">
                             <p style="font-size: 0.9rem; color: #666; margin-bottom: 12px;">Escanea este código QR con WhatsApp:</p>
                             <div id="whatsapp-2-qr" style="display: inline-block; padding: 12px; background: white; border-radius: 8px;"></div>
-                        </div>
-                        
+                            </div>
+                            
                         <div id="whatsapp-2-error" style="display: none; padding: 12px; background: #ffebee; border-left: 4px solid #f44336; border-radius: 4px; margin-bottom: 12px;">
                             <p style="margin: 0; font-size: 0.85rem; color: #c62828;" id="whatsapp-2-error-text"></p>
-                        </div>
+                                </div>
                         
                         <div style="display: flex; gap: 8px;">
                             <button onclick="connectWhatsAppInstance(2)" class="form-button" style="flex: 1; background: #25D366; color: white; padding: 10px;">
@@ -3608,30 +3608,30 @@
                             <button onclick="updateWhatsAppInstanceStatus(2)" class="form-button" style="flex: 1; background: #2196f3; color: white; padding: 10px;">
                                 🔄 Actualizar
                             </button>
-                        </div>
-                    </div>
+                                    </div>
+                                </div>
                     
                     <!-- WhatsApp 3 -->
                     <div id="whatsapp-instance-3" class="whatsapp-instance-card" style="background: white; border: 2px solid #e0e0e0; border-radius: 12px; padding: 20px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                             <h3 style="margin: 0; font-size: 1.1rem;">WhatsApp 3</h3>
                             <span id="whatsapp-3-status-badge" class="status-badge" style="padding: 4px 12px; border-radius: 12px; font-size: 0.85rem; font-weight: 500; background: #ff9800; color: white;">Desconectado</span>
-                        </div>
-                        
+                            </div>
+                            
                         <div id="whatsapp-3-info" style="margin-bottom: 16px;">
                             <p style="margin: 4px 0; font-size: 0.9rem;"><strong>Estado:</strong> <span id="whatsapp-3-status-text">Esperando conexión</span></p>
                             <p style="margin: 4px 0; font-size: 0.9rem;"><strong>Número:</strong> <span id="whatsapp-3-number">-</span></p>
                             <p style="margin: 4px 0; font-size: 0.9rem;"><strong>Nombre:</strong> <span id="whatsapp-3-name">-</span></p>
-                        </div>
+                                    </div>
                         
                         <div id="whatsapp-3-qr-container" style="display: none; text-align: center; margin: 16px 0; padding: 16px; background: #f5f5f5; border-radius: 8px;">
                             <p style="font-size: 0.9rem; color: #666; margin-bottom: 12px;">Escanea este código QR con WhatsApp:</p>
                             <div id="whatsapp-3-qr" style="display: inline-block; padding: 12px; background: white; border-radius: 8px;"></div>
-                        </div>
-                        
+                                </div>
+                                
                         <div id="whatsapp-3-error" style="display: none; padding: 12px; background: #ffebee; border-left: 4px solid #f44336; border-radius: 4px; margin-bottom: 12px;">
                             <p style="margin: 0; font-size: 0.85rem; color: #c62828;" id="whatsapp-3-error-text"></p>
-                        </div>
+                                        </div>
                         
                         <div style="display: flex; gap: 8px;">
                             <button onclick="connectWhatsAppInstance(3)" class="form-button" style="flex: 1; background: #25D366; color: white; padding: 10px;">
@@ -3640,22 +3640,22 @@
                             <button onclick="updateWhatsAppInstanceStatus(3)" class="form-button" style="flex: 1; background: #2196f3; color: white; padding: 10px;">
                                 🔄 Actualizar
                             </button>
-                        </div>
-                    </div>
+                                        </div>
+                                        </div>
                     
                     <!-- WhatsApp 4 -->
                     <div id="whatsapp-instance-4" class="whatsapp-instance-card" style="background: white; border: 2px solid #e0e0e0; border-radius: 12px; padding: 20px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                             <h3 style="margin: 0; font-size: 1.1rem;">WhatsApp 4</h3>
                             <span id="whatsapp-4-status-badge" class="status-badge" style="padding: 4px 12px; border-radius: 12px; font-size: 0.85rem; font-weight: 500; background: #ff9800; color: white;">Desconectado</span>
-                        </div>
+                                    </div>
                         
                         <div id="whatsapp-4-info" style="margin-bottom: 16px;">
                             <p style="margin: 4px 0; font-size: 0.9rem;"><strong>Estado:</strong> <span id="whatsapp-4-status-text">Esperando conexión</span></p>
                             <p style="margin: 4px 0; font-size: 0.9rem;"><strong>Número:</strong> <span id="whatsapp-4-number">-</span></p>
                             <p style="margin: 4px 0; font-size: 0.9rem;"><strong>Nombre:</strong> <span id="whatsapp-4-name">-</span></p>
-                        </div>
-                        
+                                </div>
+                                
                         <div id="whatsapp-4-qr-container" style="display: none; text-align: center; margin: 16px 0; padding: 16px; background: #f5f5f5; border-radius: 8px;">
                             <p style="font-size: 0.9rem; color: #666; margin-bottom: 12px;">Escanea este código QR con WhatsApp:</p>
                             <div id="whatsapp-4-qr" style="display: inline-block; padding: 12px; background: white; border-radius: 8px;"></div>
@@ -3671,12 +3671,12 @@
                             </button>
                             <button onclick="updateWhatsAppInstanceStatus(4)" class="form-button" style="flex: 1; background: #2196f3; color: white; padding: 10px;">
                                 🔄 Actualizar
-                            </button>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
 
             <!-- Administrators Section -->
             <div id="administrators-section" style="display: none;">
@@ -4731,7 +4731,7 @@ Ej:
         </div>
     </div>
 
-    </div>
+                </div>
     <!-- Fin del contenido del Dashboard -->
 
     <script>
@@ -5602,7 +5602,7 @@ Ej:
         // NO sobrescribir - solo asegurar que esté disponible si por alguna razón no existe
         if (!window.showSection || typeof window.showSection !== 'function') {
             console.warn('⚠️ showSection no está definida, creando función de respaldo');
-            window.showSection = function(section, event) {
+        window.showSection = function(section, event) {
             console.log('🔄 Cambiando a sección:', section);
             
             // Ocultar todas las secciones
@@ -7842,7 +7842,7 @@ Ej:
             }
             
             if (typeof window.showSection === 'function') {
-                window.showSection('dashboard', null);
+            window.showSection('dashboard', null);
             }
             
             if (typeof loadHotelsTable === 'function') {
@@ -11579,7 +11579,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         // Variable global para almacenar el intervalo de sincronización
         let autoSyncInterval = null;
         let autoSyncConfigured = false;
-        
+
         // Función para configurar sincronización automática
         function setupAutoSync() {
             // Evitar configurar múltiples veces
@@ -11603,21 +11603,21 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             
             // Configurar listener para cambios en localStorage (solo una vez)
             if (!window.storageListenerConfigured) {
-                window.addEventListener('storage', function(e) {
-                    if (e.key === 'checkin24hs_users') {
-                        console.log('🔄 Cambio detectado en usuarios, actualizando dashboard...');
-                        loadUsersData();
+            window.addEventListener('storage', function(e) {
+                if (e.key === 'checkin24hs_users') {
+                    console.log('🔄 Cambio detectado en usuarios, actualizando dashboard...');
+                    loadUsersData();
+                }
+                if (e.key === 'agentsDB') {
+                    console.log('🔄 Cambio detectado en agentes, actualizando dashboard...');
+                    if (typeof loadAgentsTable === 'function' && document.getElementById('agents-section')?.style.display !== 'none') {
+                        loadAgentsTable();
                     }
-                    if (e.key === 'agentsDB') {
-                        console.log('🔄 Cambio detectado en agentes, actualizando dashboard...');
-                        if (typeof loadAgentsTable === 'function' && document.getElementById('agents-section')?.style.display !== 'none') {
-                            loadAgentsTable();
-                        }
-                        if (typeof loadAgentsForNewReservation === 'function') {
-                            loadAgentsForNewReservation();
-                        }
+                    if (typeof loadAgentsForNewReservation === 'function') {
+                        loadAgentsForNewReservation();
                     }
-                });
+                }
+            });
                 window.storageListenerConfigured = true;
             }
             
@@ -13345,7 +13345,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 
                 // Primero, sincronizar usuarios desde reservas
                 if (typeof syncUsersFromReservations === 'function') {
-                    syncUsersFromReservations();
+                syncUsersFromReservations();
                 }
                 
                 let allUsers = [];
@@ -13567,7 +13567,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             console.log('🔄 Sincronización automática iniciada (cada 30 segundos)');
         }
-
+        
         // Función para buscar usuarios
         function searchUsers() {
             const searchInput = document.getElementById('usersSearchInput');
@@ -16370,17 +16370,17 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             if (!dateString) return 'Sin fecha';
             
             try {
-                // Si la fecha está en formato YYYY-MM-DD, parsearla manualmente para evitar problemas de zona horaria
-                if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-                    const [year, month, day] = dateString.split('-');
-                    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-                    return date.toLocaleDateString('es-CL', {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric'
-                    });
-                }
-                
+            // Si la fecha está en formato YYYY-MM-DD, parsearla manualmente para evitar problemas de zona horaria
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+                const [year, month, day] = dateString.split('-');
+                const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                return date.toLocaleDateString('es-CL', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                });
+            }
+            
                 // Si tiene formato ISO con hora (YYYY-MM-DDTHH:mm:ss), extraer solo la fecha
                 if (/^\d{4}-\d{2}-\d{2}T/.test(dateString)) {
                     const dateOnly = dateString.split('T')[0];
@@ -16394,7 +16394,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 }
                 
                 // Para otros formatos, usar el método estándar pero agregar hora del mediodía para evitar problemas de zona horaria
-                const date = new Date(dateString);
+            const date = new Date(dateString);
                 if (isNaN(date.getTime())) {
                     return 'Fecha inválida';
                 }
@@ -16411,11 +16411,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     });
                 }
                 
-                return date.toLocaleDateString('es-CL', {
-                    year: 'numeric',
-                    month: 'short',
-                    day: 'numeric'
-                });
+            return date.toLocaleDateString('es-CL', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
             } catch (e) {
                 console.error('Error formateando fecha:', dateString, e);
                 return 'Fecha inválida';
@@ -20828,15 +20828,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
     // Inicializar cuando se muestre la sección Flexi
     if (typeof window.showSection === 'function') {
-        const originalShowSection = window.showSection;
+    const originalShowSection = window.showSection;
         window.showSection = function(section, event) {
             if (typeof originalShowSection === 'function') {
-                originalShowSection(section, event);
+            originalShowSection(section, event);
             }
             if (section === 'flexi') {
                 setTimeout(() => {
                     if (typeof initFlexiData === 'function') {
-                        initFlexiData();
+                    initFlexiData();
                     }
                 }, 100);
             }
@@ -20993,8 +20993,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         // Desactivar todos los botones de tab
         document.querySelectorAll('.flor-tab').forEach(btn => {
             btn.classList.remove('active');
-            btn.style.background = '#f5f5f5';
-            btn.style.color = '#333';
+                btn.style.background = '#f5f5f5';
+                btn.style.color = '#333';
         });
         
         // Mostrar tab seleccionado
@@ -21008,8 +21008,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         const tabBtn = document.querySelector(`.flor-tab[data-tab="${tabName}"]`);
         if (tabBtn) {
             tabBtn.classList.add('active');
-            tabBtn.style.background = '#1976d2';
-            tabBtn.style.color = 'white';
+                tabBtn.style.background = '#1976d2';
+                tabBtn.style.color = 'white';
         }
         
         // Cargar datos específicos del tab
@@ -21734,7 +21734,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             // WHATSAPP ELIMINADO - NO CARGAR CHATS DE WHATSAPP
             // Las funciones getWhatsAppChats y suscripciones han sido eliminadas
-            chats = [];
+                    chats = [];
             console.log('⚠️ Funcionalidad de WhatsApp eliminada - no se cargan chats');
             
             // Fallback a localStorage si no hay en Supabase
@@ -22106,25 +22106,25 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
     // Inicializar cuando se carga la sección
     if (typeof window.showSection === 'function') {
-        const florOriginalShowSection = window.showSection;
+    const florOriginalShowSection = window.showSection;
         window.showSection = function(section, event) {
             if (typeof florOriginalShowSection === 'function') {
-                florOriginalShowSection(section, event);
+            florOriginalShowSection(section, event);
             }
             
             if (section === 'flor-config') {
                 if (typeof loadFlorGeneral === 'function') {
-                    loadFlorGeneral();
+                loadFlorGeneral();
                 }
                 if (typeof loadFlorResponses === 'function') {
-                    loadFlorResponses();
+                loadFlorResponses();
                 }
                 if (typeof loadHotelsForFlor === 'function') {
-                    loadHotelsForFlor();
+                loadHotelsForFlor();
                 }
                 // Cargar configuración de IA desde Supabase
                 if (typeof loadAIConfigFromSupabase === 'function') {
-                    loadAIConfigFromSupabase();
+                loadAIConfigFromSupabase();
                 }
             }
             if (section === 'interactions') {
@@ -22191,7 +22191,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     console.warn('⚠️ Supabase no está configurado. Los datos se guardarán solo en localStorage.');
                     console.warn('📖 Para activar el guardado en la nube, configura tus credenciales en supabase-config.js');
                 }
-            }, 1000); 
+            }, 1000);
         }); 
 
         // ============================================
@@ -22455,8 +22455,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 closeWhatsAppConnectionModal();
             }
         });
-    </script> 
-    </div> 
-    <!-- Fin del contenido del Dashboard --> 
-</body> 
-</html>
+    </script>
+    </div>
+    <!-- Fin del contenido del Dashboard -->
+</body>
+</html> 
