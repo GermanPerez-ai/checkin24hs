@@ -7,7 +7,7 @@ module.exports = {
       instances: 1,
       exec_mode: 'fork',
       env: {
-        PORT: 3002,
+        PORT: 4001,
         INSTANCE_NUMBER: 1,
         NODE_ENV: 'production',
         SUPABASE_URL: 'https://lmoeuyasuvoqhtvhkyia.supabase.co',
@@ -27,7 +27,7 @@ module.exports = {
       instances: 1,
       exec_mode: 'fork',
       env: {
-        PORT: 3003,
+        PORT: 4002,
         INSTANCE_NUMBER: 2,
         NODE_ENV: 'production',
         SUPABASE_URL: 'https://lmoeuyasuvoqhtvhkyia.supabase.co',
@@ -47,7 +47,7 @@ module.exports = {
       instances: 1,
       exec_mode: 'fork',
       env: {
-        PORT: 3004,
+        PORT: 4003,
         INSTANCE_NUMBER: 3,
         NODE_ENV: 'production',
         SUPABASE_URL: 'https://lmoeuyasuvoqhtvhkyia.supabase.co',
@@ -67,7 +67,7 @@ module.exports = {
       instances: 1,
       exec_mode: 'fork',
       env: {
-        PORT: 3005,
+        PORT: 4004,
         INSTANCE_NUMBER: 4,
         NODE_ENV: 'production',
         SUPABASE_URL: 'https://lmoeuyasuvoqhtvhkyia.supabase.co',
