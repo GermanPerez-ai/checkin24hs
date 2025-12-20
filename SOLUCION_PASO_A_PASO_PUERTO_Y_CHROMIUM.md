@@ -102,6 +102,9 @@ PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 
 ## 📋 PASO 2: Reconstruir el Servicio (Para Corregir Chromium)
 
+> ⚠️ **IMPORTANTE**: Si ya corregiste el puerto pero sigue apareciendo el error de Chromium, necesitas **forzar la reconstrucción** del servicio.  
+> 📖 **Guía detallada**: [FORZAR_RECONSTRUCCION_CHROMIUM.md](./FORZAR_RECONSTRUCCION_CHROMIUM.md)
+
 ### 2.1. Ir a la Sección de Build/Deploy
 
 1. En la página del servicio, busca una de estas opciones:
