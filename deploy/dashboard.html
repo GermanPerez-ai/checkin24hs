@@ -4730,8 +4730,9 @@ Ej:
             }
         };
         
-        // Inicializar allUsersData globalmente
+        // Inicializar allUsersData globalmente (DEBE estar antes de cualquier uso)
         window.allUsersData = window.allUsersData || [];
+        var allUsersData = window.allUsersData; // Variable local que apunta a la global
         
         // ============================================
         // CAMPOS DE IMAGEN - AHORA SON NECESARIOS, NO ELIMINAR
@@ -13263,10 +13264,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             console.log('Creando segmento de usuarios de cotizaciones...');
         }
 
-        // Variable global para almacenar todos los usuarios (declarada ANTES de su uso)
-        // Variable global para almacenar todos los usuarios (declarada ANTES de su uso)
-        // Usar window.allUsersData si ya existe, sino crear nueva
-        let allUsersData = window.allUsersData || [];
+        // allUsersData ya está declarada al inicio del script (línea 4735)
+        // Esta declaración local solo asegura que la variable esté disponible en este scope
+        if (typeof allUsersData === 'undefined') {
+            var allUsersData = window.allUsersData || [];
+        }
 
         // Función para cargar datos de usuarios
         async function loadUsersData() {
