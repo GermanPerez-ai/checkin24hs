@@ -13213,6 +13213,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             console.log('Creando segmento de usuarios de cotizaciones...');
         }
 
+        // Variable global para almacenar todos los usuarios (declarada ANTES de su uso)
+        let allUsersData = [];
+
         // Función para cargar datos de usuarios
         async function loadUsersData() {
             try {
@@ -13438,7 +13441,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             console.log('🔄 Sincronización automática iniciada (cada 30 segundos)');
         }
 
-        // Variable global para almacenar todos los usuarios
+        // Variable global para almacenar todos los usuarios (declarada ANTES de su uso)
         let allUsersData = [];
         
         // Función para buscar usuarios
@@ -20694,13 +20697,17 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     // =====================================================
 
     // Inicializar cuando se muestre la sección Flexi
-    const originalShowSection = window.showSection;
-    if (originalShowSection) {
+    if (typeof window.showSection === 'function') {
+        const originalShowSection = window.showSection;
         window.showSection = function(section, event) {
-            originalShowSection(section, event);
+            if (typeof originalShowSection === 'function') {
+                originalShowSection(section, event);
+            }
             if (section === 'flexi') {
                 setTimeout(() => {
-                    initFlexiData();
+                    if (typeof initFlexiData === 'function') {
+                        initFlexiData();
+                    }
                 }, 100);
             }
         };
@@ -21928,17 +21935,27 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     };
 
     // Inicializar cuando se carga la sección
-    const florOriginalShowSection = window.showSection;
-    if (florOriginalShowSection) {
+    if (typeof window.showSection === 'function') {
+        const florOriginalShowSection = window.showSection;
         window.showSection = function(section, event) {
-            florOriginalShowSection(section, event);
+            if (typeof florOriginalShowSection === 'function') {
+                florOriginalShowSection(section, event);
+            }
             
             if (section === 'flor-config') {
-                loadFlorGeneral();
-                loadFlorResponses();
-                loadHotelsForFlor();
+                if (typeof loadFlorGeneral === 'function') {
+                    loadFlorGeneral();
+                }
+                if (typeof loadFlorResponses === 'function') {
+                    loadFlorResponses();
+                }
+                if (typeof loadHotelsForFlor === 'function') {
+                    loadHotelsForFlor();
+                }
                 // Cargar configuración de IA desde Supabase
-                loadAIConfigFromSupabase();
+                if (typeof loadAIConfigFromSupabase === 'function') {
+                    loadAIConfigFromSupabase();
+                }
             }
             if (section === 'interactions') {
                 // Esperar a que el DOM esté listo antes de cargar
