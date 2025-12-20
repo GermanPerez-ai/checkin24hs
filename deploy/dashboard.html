@@ -13613,7 +13613,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             const searchInput = document.getElementById('usersSearchInput');
             const isSearching = searchInput && searchInput.value.trim() !== '';
             
-            if (!isSearching && allUsersData.length > users.length) {
+            // Asegurar que allUsersData existe
+            const usersData = (typeof allUsersData !== 'undefined' && Array.isArray(allUsersData)) ? allUsersData : (window.allUsersData || []);
+            if (!isSearching && usersData.length > users.length) {
                 // Eliminar mensaje anterior si existe
                 const existingInfo = document.querySelector('.users-info-message');
                 if (existingInfo) existingInfo.remove();
