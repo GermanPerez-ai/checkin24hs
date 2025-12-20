@@ -20723,10 +20723,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
     // Función para mostrar tabs de Flor
     window.showFlorTab = function(tabName) {
-        // ELIMINAR CUALQUIER REFERENCIA A WHATSAPP ANTIGUO (pero NO whatsapp-new)
+        // REDIRIGIR whatsapp ANTIGUO a whatsapp-new
         if (tabName === 'whatsapp' && tabName !== 'whatsapp-new') {
-            console.log('⚠️ Pestaña de WhatsApp antigua eliminada, redirigiendo a General');
-            tabName = 'general';
+            console.log('⚠️ Pestaña de WhatsApp antigua detectada, redirigiendo a whatsapp-new');
+            tabName = 'whatsapp-new';
         }
         
         console.log('📑 Cambiando a tab Flor:', tabName);
@@ -20815,7 +20815,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     
     // Funciones stub para evitar errores si se llaman desde algún lugar
     window.checkWhatsAppConnection = function() {
-        console.log('⚠️ Función de WhatsApp eliminada - no hacer nada');
+        console.log('⚠️ Función checkWhatsAppConnection llamada - redirigiendo a whatsapp-new');
+        // Redirigir a la nueva pestaña en lugar de hacer nada
+        if (typeof showFlorTab === 'function') {
+            showFlorTab('whatsapp-new');
+        }
         return;
     };
     
