@@ -16,6 +16,20 @@ Configurar 4 servicios de WhatsApp en EasyPanel para que se conecten automática
 
 ---
 
+## ⚠️ ANTES DE EMPEZAR: Verificar Puertos
+
+**IMPORTANTE**: Antes de crear los servicios, verifica que los puertos 3001, 3002, 3003 y 3004 estén disponibles.
+
+### Verificación Rápida
+
+1. **En EasyPanel**, revisa los servicios existentes
+2. **Verifica** que ningún servicio esté usando los puertos 3001-3004
+3. **Si hay conflictos**, detén el servicio o usa otros puertos
+
+📖 **Guía completa**: Ver [VERIFICAR_PUERTOS_WHATSAPP.md](./VERIFICAR_PUERTOS_WHATSAPP.md)
+
+---
+
 ## 🚀 PASO 1: Crear el Primer Servicio (whatsapp - Instancia 1)
 
 ### 1.1. Ir a EasyPanel
@@ -377,6 +391,49 @@ Después de escanear cada QR:
 2. Intenta refrescar la página y generar un nuevo QR
 3. Verifica que WhatsApp tenga permisos de cámara
 4. Prueba con otro teléfono si es posible
+
+### ❌ Error: "Failed to launch the browser process! libnss3.so: cannot open shared object file"
+
+**Problema**: Faltan dependencias de Chromium en el contenedor Docker.
+
+**Solución**:
+1. **El Dockerfile ya está actualizado** con todas las dependencias necesarias
+2. **Reconstruye la imagen** en EasyPanel:
+   - Ve al servicio
+   - Haz clic en **"Rebuild"** o **"Reconstruir"**
+   - O simplemente haz **"Redeploy"** para que use la nueva imagen
+3. **Espera** a que termine la reconstrucción (puede tardar 3-5 minutos)
+4. **Verifica los logs** - Deberías ver que el servicio inicia correctamente
+
+### ❌ Error: "Servidor corriendo en puerto 80" (debería ser 3001, 3002, 3003, 3004)
+
+**Problema**: EasyPanel está configurando `PORT=80` en lugar del puerto correcto.
+
+**Solución**:
+1. **Ve al servicio** en EasyPanel
+2. **Edita las variables de entorno**
+3. **Verifica/Cambia** la variable `PORT`:
+   - Para servicio 1: `PORT=3001`
+   - Para servicio 2: `PORT=3002`
+   - Para servicio 3: `PORT=3003`
+   - Para servicio 4: `PORT=3004`
+4. **Guarda** los cambios
+5. **Reinicia** el servicio
+6. **Verifica los logs** - Deberías ver: `📡 Servidor corriendo en puerto 3001` (o el puerto correspondiente)
+
+### ❌ Error: "Puerto ya en uso" o conflicto de puertos
+
+**Problema**: Otro servicio está usando el mismo puerto.
+
+**Solución**:
+1. **Verifica qué puertos están en uso**:
+   - Usa el script: `./whatsapp-server/verificar_puertos.sh`
+   - O manualmente: `netstat -tuln | grep 3001`
+2. **Detén el servicio** que está usando el puerto (si no es necesario)
+3. **O cambia el puerto** del servicio WhatsApp a otro disponible (ej: 3005, 3006, etc.)
+4. **Actualiza la configuración** en EasyPanel con el nuevo puerto
+
+📖 **Guía completa de verificación de puertos**: [VERIFICAR_PUERTOS_WHATSAPP.md](./VERIFICAR_PUERTOS_WHATSAPP.md)
 
 ---
 
