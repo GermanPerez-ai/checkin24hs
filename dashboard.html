@@ -5422,7 +5422,7 @@ Ej:
                 clearInterval(periodicCheck);
             }, 30000);
             
-            // Usar MutationObserver para detectar cuando se agrega el botón
+            // Usar MutationObserver para detectar cuando se agrega el botón (EXCLUIR whatsapp-new)
             const observer = new MutationObserver(function(mutations) {
                 let shouldCheck = false;
                 mutations.forEach(function(mutation) {
@@ -5431,12 +5431,15 @@ Ej:
                             if (node.nodeType === 1) { // Element node
                                 const text = (node.textContent || '').toLowerCase();
                                 const onclick = (node.getAttribute && node.getAttribute('onclick') || '').toLowerCase();
-                                if (text.includes('whatsapp') || text.includes('📱') || onclick.includes('whatsapp')) {
+                                const dataTab = (node.getAttribute && node.getAttribute('data-tab') || '').toLowerCase();
+                                // NO verificar si es whatsapp-new
+                                if ((text.includes('whatsapp') || text.includes('📱') || onclick.includes('whatsapp')) &&
+                                    dataTab !== 'whatsapp-new' && !onclick.includes('whatsapp-new')) {
                                     shouldCheck = true;
                                 }
-                                // También verificar hijos
+                                // También verificar hijos (EXCLUIR whatsapp-new)
                                 if (node.querySelectorAll) {
-                                    const whatsappElements = node.querySelectorAll('button, [onclick*="whatsapp"], [data-tab="whatsapp"]');
+                                    const whatsappElements = node.querySelectorAll('button:not([data-tab="whatsapp-new"]), [onclick*="whatsapp"]:not([onclick*="whatsapp-new"]), [data-tab="whatsapp"]:not([data-tab="whatsapp-new"])');
                                     if (whatsappElements.length > 0) {
                                         shouldCheck = true;
                                     }
@@ -5447,7 +5450,7 @@ Ej:
                 });
                 if (shouldCheck) {
                     if (removeWhatsAppButton()) {
-                        console.log('✅ Botón de WhatsApp eliminado dinámicamente por MutationObserver');
+                        console.log('✅ Botón de WhatsApp antiguo eliminado dinámicamente por MutationObserver');
                     }
                 }
             });
