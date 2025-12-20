@@ -6,6 +6,16 @@ Configurar 4 servicios de WhatsApp en EasyPanel para que se conecten automática
 
 ---
 
+## ⚠️ ¿Tienes Problemas con el Puerto o Chromium?
+
+Si tu servicio ya está creado pero:
+- ❌ Muestra `📡 Servidor corriendo en puerto 80` (debería ser 3001)
+- ❌ Aparece error `libnss3.so: cannot open shared object file`
+
+**Ve primero a**: [SOLUCION_PASO_A_PASO_PUERTO_Y_CHROMIUM.md](./SOLUCION_PASO_A_PASO_PUERTO_Y_CHROMIUM.md)
+
+---
+
 ## 📋 ANTES DE EMPEZAR
 
 ### ✅ Verificaciones Previas
