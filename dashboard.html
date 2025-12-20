@@ -5316,24 +5316,27 @@ Ej:
             let removedCount = 0;
             
             // Buscar y eliminar el botón de WhatsApp específico por múltiples selectores
+            // PERO NO ELIMINAR whatsapp-new
             const selectors = [
-                'button.flor-tab[data-tab="whatsapp"]',
-                'button.flor-tab[onclick*="whatsapp"]',
-                'button.flor-tab[onclick*="WhatsApp"]',
-                'button[class*="flor-tab"][data-tab="whatsapp"]',
-                'button[onclick*="showFlorTab(\'whatsapp\')"]',
-                'button[onclick*="showFlorTab(\"whatsapp\")"]'
+                'button.flor-tab[data-tab="whatsapp"]:not([data-tab="whatsapp-new"])',
+                'button[onclick*="showFlorTab(\'whatsapp\')"]:not([onclick*="whatsapp-new"])',
+                'button[onclick*="showFlorTab(\"whatsapp\")"]:not([onclick*="whatsapp-new"])'
             ];
             
             selectors.forEach(selector => {
                 try {
                     const buttons = document.querySelectorAll(selector);
                     buttons.forEach(btn => {
-                        const text = (btn.textContent || btn.innerText || '').toLowerCase();
-                        if (text.includes('whatsapp') || text.includes('📱')) {
-                            console.log('🗑️ Eliminando botón WhatsApp (selector):', selector, text);
-                            btn.remove();
-                            removedCount++;
+                        const dataTab = (btn.getAttribute('data-tab') || '').toLowerCase();
+                        const onclick = (btn.getAttribute('onclick') || '').toLowerCase();
+                        // NO eliminar si es whatsapp-new
+                        if (dataTab !== 'whatsapp-new' && !onclick.includes('whatsapp-new')) {
+                            const text = (btn.textContent || btn.innerText || '').toLowerCase();
+                            if (text.includes('whatsapp') || text.includes('📱')) {
+                                console.log('🗑️ Eliminando botón WhatsApp antiguo (selector):', selector, text);
+                                btn.remove();
+                                removedCount++;
+                            }
                         }
                     });
                 } catch (e) {
@@ -5341,28 +5344,33 @@ Ej:
                 }
             });
             
-            // Buscar por texto en todos los botones de pestañas
+            // Buscar por texto en todos los botones de pestañas (EXCLUIR whatsapp-new)
             document.querySelectorAll('.flor-tab, button[class*="flor-tab"], button[onclick*="showFlorTab"]').forEach(btn => {
                 const text = (btn.textContent || btn.innerText || '').toLowerCase();
                 const onclick = (btn.getAttribute('onclick') || '').toLowerCase();
                 const dataTab = (btn.getAttribute('data-tab') || '').toLowerCase();
                 
-                if (text.includes('whatsapp') || text.includes('📱') || 
-                    onclick.includes('whatsapp') || dataTab === 'whatsapp') {
-                    console.log('🗑️ Eliminando botón WhatsApp por contenido:', text);
+                // NO eliminar si es whatsapp-new
+                if ((text.includes('whatsapp') || text.includes('📱') || 
+                    onclick.includes('whatsapp') || dataTab === 'whatsapp') &&
+                    dataTab !== 'whatsapp-new' && !onclick.includes('whatsapp-new')) {
+                    console.log('🗑️ Eliminando botón WhatsApp antiguo por contenido:', text);
                     btn.remove();
                     removedCount++;
                 }
             });
             
-            // Buscar en el contenedor de tabs específicamente
+            // Buscar en el contenedor de tabs específicamente (EXCLUIR whatsapp-new)
             const tabsContainer = document.querySelector('#flor-config-section > div[style*="display: flex"]');
             if (tabsContainer) {
                 tabsContainer.querySelectorAll('button').forEach(btn => {
                     const text = (btn.textContent || btn.innerText || '').toLowerCase();
                     const onclick = (btn.getAttribute('onclick') || '').toLowerCase();
-                    if (text.includes('whatsapp') || text.includes('📱') || onclick.includes('whatsapp')) {
-                        console.log('🗑️ Eliminando botón WhatsApp del contenedor:', text);
+                    const dataTab = (btn.getAttribute('data-tab') || '').toLowerCase();
+                    // NO eliminar si es whatsapp-new
+                    if ((text.includes('whatsapp') || text.includes('📱') || onclick.includes('whatsapp')) &&
+                        dataTab !== 'whatsapp-new' && !onclick.includes('whatsapp-new')) {
+                        console.log('🗑️ Eliminando botón WhatsApp antiguo del contenedor:', text);
                         btn.remove();
                         removedCount++;
                     }
