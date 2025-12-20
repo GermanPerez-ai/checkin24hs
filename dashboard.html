@@ -13416,8 +13416,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 console.log(`📊 Total usuarios cargados: ${allUsers.length}`);
                 
                 // Guardar todos los usuarios en variable global (sincronizar ambas)
-                allUsersData = allUsers;
-                window.allUsersData = allUsers; // Sincronizar con window para acceso global
+                // Guardar todos los usuarios en variable global (usar window directamente)
+                window.allUsersData = allUsers; // Usar window directamente para evitar problemas de scope
                 
                 // Actualizar tabla de usuarios (solo primeros 20)
                 loadUsersTable(allUsers.slice(0, 20));
@@ -13695,7 +13695,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 const infoDiv = document.createElement('div');
                 infoDiv.className = 'users-info-message';
                 infoDiv.style.cssText = 'margin-top: 12px; padding: 12px; background: #e3f2fd; border-radius: 8px; color: #1976d2; font-size: 0.9rem; text-align: center;';
-                infoDiv.innerHTML = `Mostrando ${users.length} de ${allUsersData.length} usuarios. Usa el buscador para encontrar más usuarios.`;
+                const totalUsers = (window.allUsersData && Array.isArray(window.allUsersData)) ? window.allUsersData.length : 0;
+                infoDiv.innerHTML = `Mostrando ${users.length} de ${totalUsers} usuarios. Usa el buscador para encontrar más usuarios.`;
                 
                 const tableContainer = tableBody.closest('.activity-card');
                 if (tableContainer) {
@@ -13714,8 +13715,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             // Primero buscar en allUsersData (datos que se muestran en la tabla)
             let user = null;
-            if (typeof allUsersData !== 'undefined' && allUsersData.length > 0) {
-                user = allUsersData.find(u => u.id === userId || u.id == userId);
+            if (window.allUsersData && Array.isArray(window.allUsersData) && window.allUsersData.length > 0) {
+                user = window.allUsersData.find(u => u.id === userId || u.id == userId);
             }
             
             // Si no se encuentra, buscar en Supabase
