@@ -13330,19 +13330,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             console.log('Creando segmento de usuarios de cotizaciones...');
         }
 
-        // allUsersData ya está declarada al inicio del script (línea 4735)
-        // Esta declaración local solo asegura que la variable esté disponible en este scope
-        if (typeof allUsersData === 'undefined') {
-            var allUsersData = window.allUsersData || [];
-        }
+        // allUsersData ya está declarada al inicio del script (línea 1589 y 4784)
+        // Usar window.allUsersData directamente para evitar problemas de hoisting
+        // NO declarar 'var allUsersData' aquí porque causa "Cannot access before initialization"
 
         // Función para cargar datos de usuarios
         async function loadUsersData() {
             try {
-                // Asegurar que allUsersData existe antes de usar
-                if (typeof allUsersData === 'undefined') {
-                    allUsersData = window.allUsersData || [];
-                }
+                // Usar window.allUsersData directamente para evitar problemas de hoisting
+                // NO usar 'var allUsersData' aquí porque causa "Cannot access before initialization"
                 
                 // Primero, sincronizar usuarios desde reservas
                 if (typeof syncUsersFromReservations === 'function') {
