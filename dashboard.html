@@ -3111,7 +3111,7 @@
                         <div style="display: grid; gap: 16px; max-width: 600px;">
                             <div>
                                 <label style="display: block; font-weight: 500; margin-bottom: 8px;">URL del Servidor WhatsApp</label>
-                                <input type="text" id="whatsapp-server-url" value="http://72.61.58.240" placeholder="http://72.61.58.240" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: monospace;">
+                                <input type="text" id="whatsapp-server-url" value="https://72.61.58.240" placeholder="https://72.61.58.240" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: monospace;">
                                 <p style="font-size: 0.85rem; color: #666; margin-top: 6px;">
                                     La URL del servidor donde está corriendo el servicio de WhatsApp.
                                 </p>
@@ -3423,7 +3423,7 @@
                         <div style="display: grid; gap: 16px; max-width: 600px;">
                             <div>
                                 <label style="display: block; font-weight: 500; margin-bottom: 8px;">URL del Servidor WhatsApp</label>
-                                <input type="text" id="whatsapp-server-url-new" value="http://72.61.58.240" placeholder="http://72.61.58.240" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: monospace;">
+                                <input type="text" id="whatsapp-server-url-new" value="https://72.61.58.240" placeholder="https://72.61.58.240" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: monospace;">
                                 <p style="font-size: 0.85rem; color: #666; margin-top: 6px;">
                                     La URL del servidor donde está corriendo el servicio de WhatsApp.
                                 </p>
@@ -20898,7 +20898,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     // Guardar configuración de WhatsApp (NUEVA pestaña)
     window.saveWhatsAppConfigNew = async function() {
         const config = {
-            serverUrl: document.getElementById('whatsapp-server-url-new')?.value || 'http://72.61.58.240',
+            serverUrl: document.getElementById('whatsapp-server-url-new')?.value || (window.location.protocol === 'https:' ? 'https://72.61.58.240' : 'http://72.61.58.240'),
             autoReply: {
                 enabled: document.getElementById('whatsapp-auto-reply-enabled-new')?.checked ?? true,
                 businessHoursOnly: document.getElementById('whatsapp-business-hours-only-new')?.checked ?? false,
@@ -20950,7 +20950,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 if (!error && data && data.value) {
                     const config = data.value;
                     if (document.getElementById('whatsapp-server-url-new')) {
-                        document.getElementById('whatsapp-server-url-new').value = config.serverUrl || 'http://72.61.58.240';
+                        document.getElementById('whatsapp-server-url-new').value = config.serverUrl || (window.location.protocol === 'https:' ? 'https://72.61.58.240' : 'http://72.61.58.240');
                     }
                     if (document.getElementById('whatsapp-auto-reply-enabled-new')) {
                         document.getElementById('whatsapp-auto-reply-enabled-new').checked = config.autoReply?.enabled ?? true;
@@ -21999,19 +21999,33 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }
         };
         
-        // Obtener URL del servidor
+        // Obtener URL del servidor (siempre HTTPS si la página está en HTTPS)
         function getWhatsAppServerUrl() {
+            // Detectar si la página está en HTTPS
+            const isHTTPS = window.location.protocol === 'https:';
+            
             // Buscar en la nueva pestaña primero, luego en la antigua
             const urlInputNew = document.getElementById('whatsapp-server-url-new');
             const urlInput = document.getElementById('whatsapp-server-url');
             
+            let serverUrl = '';
+            
             if (urlInputNew && urlInputNew.value) {
-                return urlInputNew.value.trim().replace(/\/$/, ''); // Eliminar barra final si existe
+                serverUrl = urlInputNew.value.trim().replace(/\/$/, '');
+            } else if (urlInput && urlInput.value) {
+                serverUrl = urlInput.value.trim().replace(/\/$/, '');
+            } else {
+                // URL por defecto: usar HTTPS si la página está en HTTPS
+                serverUrl = isHTTPS ? 'https://72.61.58.240' : 'http://72.61.58.240';
             }
-            if (urlInput && urlInput.value) {
-                return urlInput.value.trim().replace(/\/$/, ''); // Eliminar barra final si existe
+            
+            // Si la página está en HTTPS y la URL es HTTP, convertirla a HTTPS
+            if (isHTTPS && serverUrl.startsWith('http://')) {
+                serverUrl = serverUrl.replace('http://', 'https://');
+                console.log('⚠️ URL convertida a HTTPS:', serverUrl);
             }
-            return 'http://72.61.58.240'; // URL por defecto
+            
+            return serverUrl;
         }
         
         // Conectar instancia de WhatsApp
