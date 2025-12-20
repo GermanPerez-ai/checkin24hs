@@ -3,7 +3,7 @@
 
 FROM node:18-slim
 
-# Instalar dependencias de Chromium (versión completa)
+# Instalar dependencias de Chromium (versión completa con todas las librerías)
 RUN apt-get update && apt-get install -y \
     chromium \
     chromium-sandbox \
@@ -27,6 +27,8 @@ RUN apt-get update && apt-get install -y \
     libgtk-3-0 \
     libnspr4 \
     libnss3 \
+    libnss3-dev \
+    libnss3-tools \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
     libstdc++6 \
@@ -46,8 +48,8 @@ RUN apt-get update && apt-get install -y \
     lsb-release \
     wget \
     xdg-utils \
-    --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
 # Variables de entorno para Puppeteer
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
