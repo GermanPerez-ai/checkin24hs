@@ -20722,13 +20722,23 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     // =====================================================
 
     // SOBRESCRIBIR checkWhatsAppConnection INMEDIATAMENTE para evitar errores
+    // Esta función debe estar definida ANTES de cualquier otro código que la pueda usar
     window.checkWhatsAppConnection = function() {
-        console.log('⚠️ checkWhatsAppConnection bloqueado - redirigiendo a whatsapp-new');
+        console.log('⚠️ checkWhatsAppConnection BLOQUEADO - redirigiendo a whatsapp-new');
+        // NO hacer ningún fetch, solo redirigir
         if (typeof showFlorTab === 'function') {
-            showFlorTab('whatsapp-new');
+            setTimeout(() => showFlorTab('whatsapp-new'), 0);
         }
-        return Promise.resolve(); // Devolver una promesa resuelta para evitar errores
+        // Devolver una promesa resuelta para evitar errores si se espera un then/catch
+        return Promise.resolve({ blocked: true, message: 'Función bloqueada - usar whatsapp-new' });
     };
+    
+    // Proteger la función contra sobrescritura
+    Object.defineProperty(window, 'checkWhatsAppConnection', {
+        writable: false,
+        configurable: false,
+        value: window.checkWhatsAppConnection
+    });
 
     // Función para mostrar tabs de Flor
     window.showFlorTab = function(tabName) {
