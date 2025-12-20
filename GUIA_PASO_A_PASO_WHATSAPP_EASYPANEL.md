@@ -47,8 +47,14 @@ Ruta de compilación (Build Path): /whatsapp-server
 ⚠️ **ATENCIÓN**: 
 - La **Ruta de compilación** debe ser: `/whatsapp-server` (con barra inicial, sin barra final)
 - La **Rama** debe ser: `main` (NO "working-version" ni "master")
+- **Si NO encuentras el campo "Rama"**: Está dentro de la configuración de GitHub, puede estar como "Branch" o puede estar en una sección avanzada
 
-4. Haz clic en **"Save"** o **"Guardar"**
+4. **Si NO ves el campo "Rama" o "Branch"**:
+   - Busca un botón **"Advanced"** o **"Avanzado"** en la sección Source
+   - O busca un menú desplegable que diga **"Branch"** o **"Rama"**
+   - O puede estar en la misma línea donde configuras el repositorio
+
+5. Haz clic en **"Save"** o **"Guardar"**
 
 ### 1.4. Configurar Variables de Entorno
 
@@ -112,12 +118,27 @@ node whatsapp-server.js
 
 3. Haz clic en **"Save"** o **"Guardar"**
 
-### 1.7. Habilitar Auto-Deploy (Despliegue Automático)
+### 1.7. Habilitar Auto-Deploy (Despliegue Automático) - ⚠️ OPCIONAL
 
-1. **Busca la sección "Auto Deploy"** o **"Despliegue Automático"**
-2. **Activa el interruptor** para habilitarlo
-3. **Selecciona la rama**: `main`
-4. Haz clic en **"Save"** o **"Guardar"**
+**NOTA**: Auto-Deploy puede no estar disponible en todas las versiones de EasyPanel. Si no lo encuentras, **NO ES CRÍTICO**. Puedes desplegar manualmente cuando sea necesario.
+
+**Si encuentras la opción**:
+
+1. **Busca la sección "Auto Deploy"** o **"Despliegue Automático"** o **"Auto Deploy"**
+   - Puede estar en la sección **"Source"** (Fuente)
+   - O en la sección **"Settings"** (Configuración)
+   - O en **"Advanced"** (Avanzado)
+   - O como un **interruptor** (toggle) en la parte superior de la página
+
+2. **Si la encuentras**:
+   - **Activa el interruptor** para habilitarlo
+   - **Selecciona la rama**: `main`
+   - Haz clic en **"Save"** o **"Guardar"**
+
+3. **Si NO la encuentras** (es normal):
+   - ✅ **No te preocupes**, puedes desplegar manualmente
+   - Cada vez que quieras actualizar, simplemente haz clic en **"Deploy"** o **"Redeploy"**
+   - O puedes hacer `git push` y luego hacer clic en "Deploy" manualmente
 
 ### 1.8. Desplegar el Servicio
 
