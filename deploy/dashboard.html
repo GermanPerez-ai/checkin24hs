@@ -5598,8 +5598,11 @@ Ej:
             }
         });
         
-        // Función global para evitar errores de referencia
-        window.showSection = function(section, event) {
+        // showSection ya está definida al inicio del documento (línea 1549)
+        // NO sobrescribir - solo asegurar que esté disponible si por alguna razón no existe
+        if (!window.showSection || typeof window.showSection !== 'function') {
+            console.warn('⚠️ showSection no está definida, creando función de respaldo');
+            window.showSection = function(section, event) {
             console.log('🔄 Cambiando a sección:', section);
             
             // Ocultar todas las secciones
