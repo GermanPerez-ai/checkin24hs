@@ -7723,7 +7723,9 @@ Ej:
                 syncQuotesFromIndex();
             }
             
-            window.showSection('dashboard', null);
+            if (typeof window.showSection === 'function') {
+                window.showSection('dashboard', null);
+            }
             
             if (typeof loadHotelsTable === 'function') {
                 loadHotelsTable();
@@ -13441,9 +13443,6 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             console.log('🔄 Sincronización automática iniciada (cada 30 segundos)');
         }
 
-        // Variable global para almacenar todos los usuarios (declarada ANTES de su uso)
-        let allUsersData = [];
-        
         // Función para buscar usuarios
         function searchUsers() {
             const searchInput = document.getElementById('usersSearchInput');
