@@ -2999,7 +2999,7 @@
                     <button class="flor-tab" onclick="showFlorTab('responses')" data-tab="responses">💬 Respuestas</button>
                     <button class="flor-tab" onclick="showFlorTab('policies')" data-tab="policies">📋 Políticas</button>
                     <button class="flor-tab" onclick="showFlorTab('ai')" data-tab="ai">🤖 IA</button>
-                    <!-- Botón de WhatsApp ELIMINADO - no debe aparecer -->
+                    <button class="flor-tab" onclick="showFlorTab('whatsapp-new')" data-tab="whatsapp-new">📱 WhatsApp</button>
                 </div>
 
                 <!-- General Tab -->
@@ -3406,6 +3406,76 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- WhatsApp Tab (NUEVA) -->
+                <div id="flor-tab-whatsapp-new" class="flor-tab-content" style="display: none;">
+                    <!-- Integración con WhatsApp -->
+                    <div class="stat-card" style="padding: 24px; margin-bottom: 24px;">
+                        <h3 style="margin: 0 0 20px 0; display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.5rem;">📱</span> Integración con WhatsApp
+                        </h3>
+                        <p style="color: #666; margin-bottom: 20px;">
+                            Conecta Flor con WhatsApp para responder automáticamente a tus clientes. Puedes conectar hasta 4 números diferentes, cada uno con su propio QR.
+                        </p>
+                        
+                        <div style="display: grid; gap: 16px; max-width: 600px;">
+                            <div>
+                                <label style="display: block; font-weight: 500; margin-bottom: 8px;">URL del Servidor WhatsApp</label>
+                                <input type="text" id="whatsapp-server-url-new" value="http://72.61.58.240" placeholder="http://72.61.58.240" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: monospace;">
+                                <p style="font-size: 0.85rem; color: #666; margin-top: 6px;">
+                                    La URL del servidor donde está corriendo el servicio de WhatsApp.
+                                </p>
+                            </div>
+                            
+                            <button class="form-button" style="background: #25D366; color: white; width: fit-content; padding: 12px 24px;" onclick="openWhatsAppConnectionModal()">
+                                <span style="font-size: 1.2rem; margin-right: 8px;">📱</span>
+                                Conectar Múltiples WhatsApp (hasta 4)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Respuestas Automáticas -->
+                    <div class="stat-card" style="padding: 24px; margin-bottom: 24px;">
+                        <h3 style="margin: 0 0 20px 0; display: flex; align-items: center; gap: 8px;">
+                            <span style="font-size: 1.5rem;">🤖</span> Respuestas Automáticas
+                        </h3>
+                        
+                        <div style="display: grid; gap: 16px;">
+                            <div>
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="whatsapp-auto-reply-enabled-new">
+                                    <span style="font-weight: 500;">Habilitar respuestas automáticas de Flor</span>
+                                </label>
+                                <p style="font-size: 0.85rem; color: #666; margin-top: 4px; margin-left: 28px;">
+                                    Cuando está activado, Flor responderá automáticamente los mensajes de WhatsApp usando la IA configurada.
+                                </p>
+                            </div>
+                            
+                            <div>
+                                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                    <input type="checkbox" id="whatsapp-business-hours-only-new">
+                                    <span style="font-weight: 500;">Solo responder en horario laboral</span>
+                                </label>
+                                <p style="font-size: 0.85rem; color: #666; margin-top: 4px; margin-left: 28px;">
+                                    Flor solo responderá durante el horario configurado (9:00 - 18:00 por defecto).
+                                </p>
+                            </div>
+                            
+                            <div>
+                                <label style="display: block; font-weight: 500; margin-bottom: 8px;">Mensaje fuera de horario</label>
+                                <textarea id="whatsapp-out-of-hours-message-new" rows="3" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">Gracias por contactarnos. Nuestro horario de atención es de Lunes a Viernes de 9:00 a 18:00. Te responderemos a la brevedad.</textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Botón Guardar -->
+                    <div class="stat-card" style="padding: 24px;">
+                        <button class="form-button" style="background: #4caf50; color: white; width: fit-content;" onclick="saveWhatsAppConfigNew()">
+                            <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">save</span>
+                            Guardar Configuración de WhatsApp
+                        </button>
                     </div>
                 </div>
 
@@ -5246,24 +5316,27 @@ Ej:
             let removedCount = 0;
             
             // Buscar y eliminar el botón de WhatsApp específico por múltiples selectores
+            // PERO NO ELIMINAR whatsapp-new
             const selectors = [
-                'button.flor-tab[data-tab="whatsapp"]',
-                'button.flor-tab[onclick*="whatsapp"]',
-                'button.flor-tab[onclick*="WhatsApp"]',
-                'button[class*="flor-tab"][data-tab="whatsapp"]',
-                'button[onclick*="showFlorTab(\'whatsapp\')"]',
-                'button[onclick*="showFlorTab(\"whatsapp\")"]'
+                'button.flor-tab[data-tab="whatsapp"]:not([data-tab="whatsapp-new"])',
+                'button[onclick*="showFlorTab(\'whatsapp\')"]:not([onclick*="whatsapp-new"])',
+                'button[onclick*="showFlorTab(\"whatsapp\")"]:not([onclick*="whatsapp-new"])'
             ];
             
             selectors.forEach(selector => {
                 try {
                     const buttons = document.querySelectorAll(selector);
                     buttons.forEach(btn => {
-                        const text = (btn.textContent || btn.innerText || '').toLowerCase();
-                        if (text.includes('whatsapp') || text.includes('📱')) {
-                            console.log('🗑️ Eliminando botón WhatsApp (selector):', selector, text);
-                            btn.remove();
-                            removedCount++;
+                        const dataTab = (btn.getAttribute('data-tab') || '').toLowerCase();
+                        const onclick = (btn.getAttribute('onclick') || '').toLowerCase();
+                        // NO eliminar si es whatsapp-new
+                        if (dataTab !== 'whatsapp-new' && !onclick.includes('whatsapp-new')) {
+                            const text = (btn.textContent || btn.innerText || '').toLowerCase();
+                            if (text.includes('whatsapp') || text.includes('📱')) {
+                                console.log('🗑️ Eliminando botón WhatsApp antiguo (selector):', selector, text);
+                                btn.remove();
+                                removedCount++;
+                            }
                         }
                     });
                 } catch (e) {
@@ -5271,28 +5344,33 @@ Ej:
                 }
             });
             
-            // Buscar por texto en todos los botones de pestañas
+            // Buscar por texto en todos los botones de pestañas (EXCLUIR whatsapp-new)
             document.querySelectorAll('.flor-tab, button[class*="flor-tab"], button[onclick*="showFlorTab"]').forEach(btn => {
                 const text = (btn.textContent || btn.innerText || '').toLowerCase();
                 const onclick = (btn.getAttribute('onclick') || '').toLowerCase();
                 const dataTab = (btn.getAttribute('data-tab') || '').toLowerCase();
                 
-                if (text.includes('whatsapp') || text.includes('📱') || 
-                    onclick.includes('whatsapp') || dataTab === 'whatsapp') {
-                    console.log('🗑️ Eliminando botón WhatsApp por contenido:', text);
+                // NO eliminar si es whatsapp-new
+                if ((text.includes('whatsapp') || text.includes('📱') || 
+                    onclick.includes('whatsapp') || dataTab === 'whatsapp') &&
+                    dataTab !== 'whatsapp-new' && !onclick.includes('whatsapp-new')) {
+                    console.log('🗑️ Eliminando botón WhatsApp antiguo por contenido:', text);
                     btn.remove();
                     removedCount++;
                 }
             });
             
-            // Buscar en el contenedor de tabs específicamente
+            // Buscar en el contenedor de tabs específicamente (EXCLUIR whatsapp-new)
             const tabsContainer = document.querySelector('#flor-config-section > div[style*="display: flex"]');
             if (tabsContainer) {
                 tabsContainer.querySelectorAll('button').forEach(btn => {
                     const text = (btn.textContent || btn.innerText || '').toLowerCase();
                     const onclick = (btn.getAttribute('onclick') || '').toLowerCase();
-                    if (text.includes('whatsapp') || text.includes('📱') || onclick.includes('whatsapp')) {
-                        console.log('🗑️ Eliminando botón WhatsApp del contenedor:', text);
+                    const dataTab = (btn.getAttribute('data-tab') || '').toLowerCase();
+                    // NO eliminar si es whatsapp-new
+                    if ((text.includes('whatsapp') || text.includes('📱') || onclick.includes('whatsapp')) &&
+                        dataTab !== 'whatsapp-new' && !onclick.includes('whatsapp-new')) {
+                        console.log('🗑️ Eliminando botón WhatsApp antiguo del contenedor:', text);
                         btn.remove();
                         removedCount++;
                     }
@@ -5344,7 +5422,7 @@ Ej:
                 clearInterval(periodicCheck);
             }, 30000);
             
-            // Usar MutationObserver para detectar cuando se agrega el botón
+            // Usar MutationObserver para detectar cuando se agrega el botón (EXCLUIR whatsapp-new)
             const observer = new MutationObserver(function(mutations) {
                 let shouldCheck = false;
                 mutations.forEach(function(mutation) {
@@ -5353,12 +5431,15 @@ Ej:
                             if (node.nodeType === 1) { // Element node
                                 const text = (node.textContent || '').toLowerCase();
                                 const onclick = (node.getAttribute && node.getAttribute('onclick') || '').toLowerCase();
-                                if (text.includes('whatsapp') || text.includes('📱') || onclick.includes('whatsapp')) {
+                                const dataTab = (node.getAttribute && node.getAttribute('data-tab') || '').toLowerCase();
+                                // NO verificar si es whatsapp-new
+                                if ((text.includes('whatsapp') || text.includes('📱') || onclick.includes('whatsapp')) &&
+                                    dataTab !== 'whatsapp-new' && !onclick.includes('whatsapp-new')) {
                                     shouldCheck = true;
                                 }
-                                // También verificar hijos
+                                // También verificar hijos (EXCLUIR whatsapp-new)
                                 if (node.querySelectorAll) {
-                                    const whatsappElements = node.querySelectorAll('button, [onclick*="whatsapp"], [data-tab="whatsapp"]');
+                                    const whatsappElements = node.querySelectorAll('button:not([data-tab="whatsapp-new"]), [onclick*="whatsapp"]:not([onclick*="whatsapp-new"]), [data-tab="whatsapp"]:not([data-tab="whatsapp-new"])');
                                     if (whatsappElements.length > 0) {
                                         shouldCheck = true;
                                     }
@@ -5369,7 +5450,7 @@ Ej:
                 });
                 if (shouldCheck) {
                     if (removeWhatsAppButton()) {
-                        console.log('✅ Botón de WhatsApp eliminado dinámicamente por MutationObserver');
+                        console.log('✅ Botón de WhatsApp antiguo eliminado dinámicamente por MutationObserver');
                     }
                 }
             });
@@ -20642,41 +20723,45 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
     // Función para mostrar tabs de Flor
     window.showFlorTab = function(tabName) {
-        // ELIMINAR CUALQUIER REFERENCIA A WHATSAPP
-        if (tabName === 'whatsapp') {
-            console.log('⚠️ Pestaña de WhatsApp eliminada, redirigiendo a General');
+        // ELIMINAR CUALQUIER REFERENCIA A WHATSAPP ANTIGUO (pero NO whatsapp-new)
+        if (tabName === 'whatsapp' && tabName !== 'whatsapp-new') {
+            console.log('⚠️ Pestaña de WhatsApp antigua eliminada, redirigiendo a General');
             tabName = 'general';
         }
         
         console.log('📑 Cambiando a tab Flor:', tabName);
         
-        // ELIMINAR CUALQUIER BOTÓN DE WHATSAPP QUE PUEDA EXISTIR (usar función mejorada si existe)
+        // ELIMINAR CUALQUIER BOTÓN DE WHATSAPP ANTIGUO (pero NO whatsapp-new)
         if (typeof removeWhatsAppButton === 'function') {
             removeWhatsAppButton();
         } else {
-            // Fallback: eliminar manualmente
+            // Fallback: eliminar manualmente solo botones antiguos (NO whatsapp-new)
             const selectors = [
-                'button.flor-tab[data-tab="whatsapp"]',
-                'button.flor-tab[onclick*="whatsapp"]',
-                'button.flor-tab[onclick*="WhatsApp"]',
-                'button[onclick*="showFlorTab(\'whatsapp\')"]',
-                'button[onclick*="showFlorTab(\"whatsapp\")"]'
+                'button.flor-tab[data-tab="whatsapp"]:not([data-tab="whatsapp-new"])',
+                'button[onclick*="showFlorTab(\'whatsapp\')"]:not([onclick*="whatsapp-new"])',
+                'button[onclick*="showFlorTab(\"whatsapp\")"]:not([onclick*="whatsapp-new"])'
             ];
             
             selectors.forEach(selector => {
                 try {
-                    document.querySelectorAll(selector).forEach(btn => btn.remove());
+                    document.querySelectorAll(selector).forEach(btn => {
+                        const dataTab = btn.getAttribute('data-tab');
+                        if (dataTab !== 'whatsapp-new') {
+                            btn.remove();
+                        }
+                    });
                 } catch (e) {}
             });
             
-            // Buscar por texto
+            // Buscar por texto pero EXCLUIR whatsapp-new
             document.querySelectorAll('.flor-tab, button[class*="flor-tab"]').forEach(btn => {
                 const text = (btn.textContent || btn.innerText || '').toLowerCase();
                 const onclick = (btn.getAttribute('onclick') || '').toLowerCase();
                 const dataTab = (btn.getAttribute('data-tab') || '').toLowerCase();
-                if (text.includes('whatsapp') || text.includes('📱') || 
-                    onclick.includes('whatsapp') || dataTab === 'whatsapp') {
-                    console.log('🗑️ Eliminando botón WhatsApp en showFlorTab:', text);
+                // Solo eliminar si NO es whatsapp-new
+                if ((text.includes('whatsapp') || onclick.includes('whatsapp') || dataTab === 'whatsapp') 
+                    && dataTab !== 'whatsapp-new' && !onclick.includes('whatsapp-new')) {
+                    console.log('🗑️ Eliminando botón WhatsApp antiguo en showFlorTab:', text);
                     btn.remove();
                 }
             });
@@ -20688,14 +20773,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             tab.classList.remove('active');
         });
         
-        // Desactivar todos los botones de tab (excepto WhatsApp que ya fue eliminado)
+        // Desactivar todos los botones de tab
         document.querySelectorAll('.flor-tab').forEach(btn => {
-            const dataTab = (btn.getAttribute('data-tab') || '').toLowerCase();
-            if (dataTab !== 'whatsapp') {
-                btn.classList.remove('active');
-                btn.style.background = '#f5f5f5';
-                btn.style.color = '#333';
-            }
+            btn.classList.remove('active');
+            btn.style.background = '#f5f5f5';
+            btn.style.color = '#333';
         });
         
         // Mostrar tab seleccionado
@@ -20705,14 +20787,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             tabContent.classList.add('active');
         }
         
-        // Activar botón (solo si no es WhatsApp)
-        if (tabName !== 'whatsapp') {
-            const tabBtn = document.querySelector(`.flor-tab[data-tab="${tabName}"]`);
-            if (tabBtn) {
-                tabBtn.classList.add('active');
-                tabBtn.style.background = '#1976d2';
-                tabBtn.style.color = 'white';
-            }
+        // Activar botón
+        const tabBtn = document.querySelector(`.flor-tab[data-tab="${tabName}"]`);
+        if (tabBtn) {
+            tabBtn.classList.add('active');
+            tabBtn.style.background = '#1976d2';
+            tabBtn.style.color = 'white';
         }
         
         // Cargar datos específicos del tab
@@ -20720,7 +20800,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             loadHotelsForFlor();
         }
         
-        // NO LLAMAR A checkWhatsAppConnection NI loadWhatsAppConfig - ELIMINADO
+        // Si es la nueva pestaña de WhatsApp, cargar configuración
+        if (tabName === 'whatsapp-new') {
+            loadWhatsAppConfigNew();
+        }
         
         // Verificar nuevamente después de un pequeño delay por si se insertó dinámicamente
         setTimeout(function() {
@@ -20804,6 +20887,96 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         
         alert('✅ Configuración general y multimodal guardada');
         console.log('💾 Configuración Flor guardada:', config);
+    };
+
+    // Guardar configuración de WhatsApp (NUEVA pestaña)
+    window.saveWhatsAppConfigNew = async function() {
+        const config = {
+            serverUrl: document.getElementById('whatsapp-server-url-new')?.value || 'http://72.61.58.240',
+            autoReply: {
+                enabled: document.getElementById('whatsapp-auto-reply-enabled-new')?.checked ?? true,
+                businessHoursOnly: document.getElementById('whatsapp-business-hours-only-new')?.checked ?? false,
+                outOfHoursMessage: document.getElementById('whatsapp-out-of-hours-message-new')?.value || ''
+            }
+        };
+        
+        // Guardar en localStorage
+        localStorage.setItem('whatsapp_config_new', JSON.stringify(config));
+        
+        // También guardar en Supabase si está disponible
+        if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+            try {
+                const { error } = await window.supabaseClient
+                    .from('system_config')
+                    .upsert({
+                        key: 'whatsapp_config_new',
+                        value: config,
+                        updated_at: new Date().toISOString()
+                    }, {
+                        onConflict: 'key'
+                    });
+                
+                if (error) {
+                    console.error('❌ Error guardando en Supabase:', error);
+                } else {
+                    console.log('✅ Configuración guardada en Supabase');
+                }
+            } catch (e) {
+                console.error('❌ Error guardando configuración:', e);
+            }
+        }
+        
+        alert('✅ Configuración de WhatsApp guardada');
+        console.log('💾 Configuración WhatsApp guardada:', config);
+    };
+
+    // Cargar configuración de WhatsApp (NUEVA pestaña)
+    window.loadWhatsAppConfigNew = async function() {
+        // Primero intentar cargar desde Supabase
+        if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+            try {
+                const { data, error } = await window.supabaseClient
+                    .from('system_config')
+                    .select('value')
+                    .eq('key', 'whatsapp_config_new')
+                    .single();
+                
+                if (!error && data && data.value) {
+                    const config = data.value;
+                    if (document.getElementById('whatsapp-server-url-new')) {
+                        document.getElementById('whatsapp-server-url-new').value = config.serverUrl || 'http://72.61.58.240';
+                    }
+                    if (document.getElementById('whatsapp-auto-reply-enabled-new')) {
+                        document.getElementById('whatsapp-auto-reply-enabled-new').checked = config.autoReply?.enabled ?? true;
+                    }
+                    if (document.getElementById('whatsapp-business-hours-only-new')) {
+                        document.getElementById('whatsapp-business-hours-only-new').checked = config.autoReply?.businessHoursOnly ?? false;
+                    }
+                    if (document.getElementById('whatsapp-out-of-hours-message-new')) {
+                        document.getElementById('whatsapp-out-of-hours-message-new').value = config.autoReply?.outOfHoursMessage || '';
+                    }
+                    console.log('✅ Configuración cargada desde Supabase');
+                    return;
+                }
+            } catch (e) {
+                console.log('⚠️ No se pudo cargar desde Supabase, usando localStorage');
+            }
+        }
+        
+        // Fallback a localStorage
+        const config = JSON.parse(localStorage.getItem('whatsapp_config_new') || '{}');
+        if (config.serverUrl && document.getElementById('whatsapp-server-url-new')) {
+            document.getElementById('whatsapp-server-url-new').value = config.serverUrl;
+        }
+        if (document.getElementById('whatsapp-auto-reply-enabled-new')) {
+            document.getElementById('whatsapp-auto-reply-enabled-new').checked = config.autoReply?.enabled ?? true;
+        }
+        if (document.getElementById('whatsapp-business-hours-only-new')) {
+            document.getElementById('whatsapp-business-hours-only-new').checked = config.autoReply?.businessHoursOnly ?? false;
+        }
+        if (config.autoReply?.outOfHoursMessage && document.getElementById('whatsapp-out-of-hours-message-new')) {
+            document.getElementById('whatsapp-out-of-hours-message-new').value = config.autoReply.outOfHoursMessage;
+        }
     };
 
     // Cargar configuración general (incluye multimodal)
@@ -21822,7 +21995,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         
         // Obtener URL del servidor
         function getWhatsAppServerUrl() {
+            // Buscar en la nueva pestaña primero, luego en la antigua
+            const urlInputNew = document.getElementById('whatsapp-server-url-new');
             const urlInput = document.getElementById('whatsapp-server-url');
+            
+            if (urlInputNew && urlInputNew.value) {
+                return urlInputNew.value.trim().replace(/\/$/, ''); // Eliminar barra final si existe
+            }
             if (urlInput && urlInput.value) {
                 return urlInput.value.trim().replace(/\/$/, ''); // Eliminar barra final si existe
             }
