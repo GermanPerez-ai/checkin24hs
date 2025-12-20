@@ -1539,6 +1539,56 @@
             to { transform: rotate(360deg); }
         }
     </style>
+    
+    <!-- ============================================ -->
+    <!-- DEFINICIONES GLOBALES CRÍTICAS (ANTES DEL HTML) -->
+    <!-- ============================================ -->
+    <script>
+        // DEFINIR showSection INMEDIATAMENTE (ANTES de que el HTML se cargue)
+        // Esta función DEBE estar disponible cuando los elementos HTML con onclick se ejecuten
+        window.showSection = window.showSection || function(section, event) {
+            console.log('🔄 Cambiando a sección:', section);
+            
+            // Ocultar todas las secciones
+            document.querySelectorAll('[id$="-section"]').forEach(el => {
+                el.style.display = 'none';
+            });
+
+            // Mostrar la sección seleccionada
+            const targetSection = document.getElementById(section + '-section');
+            
+            if (targetSection) {
+                targetSection.style.display = 'block';
+                console.log('✅ Sección mostrada:', section);
+            } else {
+                console.error('❌ Sección no encontrada:', section + '-section');
+            }
+
+            // Actualizar menú activo
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // Solo actualizar el menú activo si se proporciona el evento
+            if (event && event.target) {
+                event.target.classList.add('active');
+            } else {
+                // Si no hay evento, buscar el elemento del menú correspondiente
+                const menuItem = document.querySelector(`[onclick*="window.showSection('${section}')"]`);
+                if (menuItem) {
+                    menuItem.classList.add('active');
+                }
+            }
+
+            if (typeof currentSection !== 'undefined') {
+                currentSection = section;
+            }
+        };
+        
+        // Inicializar allUsersData globalmente (DEBE estar antes de cualquier uso)
+        window.allUsersData = window.allUsersData || [];
+    </script>
+    
     <!-- SheetJS library for Excel import/export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- Chart.js library for charts -->
