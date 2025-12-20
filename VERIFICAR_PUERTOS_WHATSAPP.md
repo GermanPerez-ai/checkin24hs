@@ -91,13 +91,26 @@ docker ps --format "table {{.Names}}\t{{.Ports}}" | grep -E "3001|3002|3003|3004
 
 ## ⚠️ Conflictos Comunes
 
-### ❌ Puerto 80 en uso
+### ✅ Puerto 80 usado por Webmail (NORMAL)
 
-**Problema**: El puerto 80 está siendo usado por otro servicio (webmail, dashboard, etc.)
+**Situación**: Webmail (Roundcube) usa puerto 80 internamente.
+
+**¿Es un problema?**: 
+- ✅ **NO es un problema** - Webmail puede usar puerto 80 (es normal)
+- ✅ **NO hay conflicto** - Cada servicio corre en su propio contenedor
+- ✅ **Los servicios WhatsApp usan 3001-3004**, no 80
+
+**Importante**:
+- Webmail puerto 80 = ✅ CORRECTO (no cambiar)
+- WhatsApp puerto 80 = ❌ INCORRECTO (debe ser 3001-3004)
+
+### ❌ Puerto 80 configurado en WhatsApp (INCORRECTO)
+
+**Problema**: EasyPanel está configurando `PORT=80` para WhatsApp.
 
 **Solución**: 
-- ✅ **NO es un problema** - Los servicios WhatsApp usan 3001-3004, no 80
-- ⚠️ Si EasyPanel está configurando PORT=80, **cámbialo a PORT=3001** (o 3002, 3003, 3004)
+- ⚠️ **Cámbialo a `PORT=3001`** (o 3002, 3003, 3004 según la instancia)
+- ✅ Webmail puede seguir usando puerto 80 (no hay conflicto)
 
 ---
 

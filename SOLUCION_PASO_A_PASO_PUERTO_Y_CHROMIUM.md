@@ -2,8 +2,26 @@
 
 ## 🎯 Problemas a Corregir
 
-1. ❌ **Puerto incorrecto**: El servicio está usando puerto 80 en lugar de 3001
+1. ❌ **Puerto incorrecto**: El servicio WhatsApp está usando puerto 80 en lugar de 3001
 2. ❌ **Error de Chromium**: Faltan dependencias (`libnss3.so`)
+
+---
+
+## ⚠️ IMPORTANTE: Sobre el Puerto 80
+
+**Webmail SÍ puede usar puerto 80** - Esto es **NORMAL y CORRECTO**:
+- ✅ **Webmail (Roundcube)** usa puerto **80 INTERNO** (dentro del contenedor)
+- ✅ Esto es el comportamiento estándar de Apache/Roundcube
+- ✅ **NO hay conflicto** porque webmail y WhatsApp son servicios diferentes en contenedores diferentes
+
+**WhatsApp NO debe usar puerto 80**:
+- ❌ **WhatsApp** debe usar puerto **3001, 3002, 3003, o 3004**
+- ❌ Si WhatsApp muestra `puerto 80`, está **MAL CONFIGURADO**
+- ✅ **Cada servicio tiene su propio contenedor**, así que no hay conflicto de puertos
+
+**Resumen**:
+- Webmail puerto 80 = ✅ CORRECTO
+- WhatsApp puerto 80 = ❌ INCORRECTO (debe ser 3001-3004)
 
 ---
 
