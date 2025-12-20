@@ -5344,6 +5344,12 @@ Ej:
         
         // Aplicar formato automático a campos de teléfono
         function setupArgentinePhoneFormatting() {
+            // Verificar que las funciones necesarias existan
+            if (typeof formatArgentinePhone !== 'function' || typeof validateArgentinePhone !== 'function') {
+                console.warn('⚠️ Funciones de formato de teléfono no disponibles');
+                return;
+            }
+            
             // Lista de IDs de campos de teléfono
             const phoneFields = [
                 'newClientPhone',
@@ -5354,7 +5360,7 @@ Ej:
                 'editUserPhone'
             ];
             
-            phoneFields.forEach(fieldId => {
+            phoneFields.forEach(function(fieldId) {
                 const field = document.getElementById(fieldId);
                 if (field) {
                     // Aplicar placeholder argentino
