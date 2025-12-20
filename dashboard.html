@@ -13346,8 +13346,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 
                 console.log(`📊 Total usuarios cargados: ${allUsers.length}`);
                 
-                // Guardar todos los usuarios en variable global
+                // Guardar todos los usuarios en variable global (sincronizar ambas)
                 allUsersData = allUsers;
+                window.allUsersData = allUsers; // Sincronizar con window para acceso global
                 
                 // Actualizar tabla de usuarios (solo primeros 20)
                 loadUsersTable(allUsers.slice(0, 20));
