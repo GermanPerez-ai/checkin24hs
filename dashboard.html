@@ -5370,6 +5370,9 @@ Ej:
                     
                     // Agregar evento de formato en tiempo real
                     field.addEventListener('input', function(e) {
+                        if (typeof formatArgentinePhone !== 'function') {
+                            return; // Salir si la función no está disponible
+                        }
                         const cursorPosition = e.target.selectionStart;
                         const oldValue = e.target.value;
                         const formatted = formatArgentinePhone(e.target.value);
@@ -5391,12 +5394,19 @@ Ej:
                     });
                     
                     // Formatear valor existente al cargar
-                    if (field.value) {
-                        field.value = formatArgentinePhone(field.value);
+                    if (field.value && typeof formatArgentinePhone === 'function') {
+                        try {
+                            field.value = formatArgentinePhone(field.value);
+                        } catch (e) {
+                            console.warn('⚠️ Error al formatear teléfono:', e);
+                        }
                     }
                     
                     // Validar al perder el foco
                     field.addEventListener('blur', function(e) {
+                        if (typeof validateArgentinePhone !== 'function') {
+                            return; // Salir si la función no está disponible
+                        }
                         if (e.target.value && !validateArgentinePhone(e.target.value)) {
                             e.target.style.borderColor = '#f44336';
                             // No mostrar alerta, solo indicar visualmente
