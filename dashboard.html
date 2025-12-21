@@ -6451,15 +6451,34 @@ Ej:
             modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
         }
         
-        async function saveHotelChanges(event, hotelId) {
-            event.preventDefault();
+        // Función saveHotelChanges - DEFINIDA UNA SOLA VEZ COMO GLOBAL
+        // IMPORTANTE: Solo debe haber UNA declaración de esta función
+        // Usar window.saveHotelChanges para evitar duplicados
+        window.saveHotelChanges = window.saveHotelChanges || async function saveHotelChanges(event, hotelId) {
+            if (event) {
+                event.preventDefault();
+            }
+            
+            // Si no se proporciona hotelId, intentar obtenerlo del formulario
+            if (!hotelId) {
+                const form = document.getElementById('editHotelForm');
+                if (form) {
+                    hotelId = form.dataset.hotelId || form.getAttribute('data-hotel-id');
+                }
+            }
+            
+            if (!hotelId) {
+                console.error('❌ No se pudo obtener el ID del hotel');
+                alert('❌ Error: No se pudo identificar el hotel. Por favor, cierra y vuelve a abrir el formulario.');
+                return;
+            }
             
             const updates = {
-                name: document.getElementById('editHotelName').value,
-                location: document.getElementById('editHotelLocation').value,
-                price: parseFloat(document.getElementById('editHotelPrice').value) || 0,
-                rating: parseInt(document.getElementById('editHotelRating').value) || 0,
-                status: document.getElementById('editHotelStatus').value,
+                name: document.getElementById('editHotelName')?.value || '',
+                location: document.getElementById('editHotelLocation')?.value || '',
+                price: parseFloat(document.getElementById('editHotelPrice')?.value || '0') || 0,
+                rating: parseInt(document.getElementById('editHotelRating')?.value || '0') || 0,
+                status: document.getElementById('editHotelStatus')?.value || 'Activo',
                 updated_at: new Date().toISOString()
             };
             
@@ -6470,8 +6489,23 @@ Ej:
                     await window.supabaseClient.updateHotel(hotelId, updates);
                     console.log('✅ Hotel actualizado en Supabase');
                     alert('✅ Hotel actualizado correctamente');
-                    document.getElementById('editHotelModalDynamic').remove();
-                    loadHotelsTable();
+                    
+                    // Cerrar modal dinámico si existe
+                    const dynamicModal = document.getElementById('editHotelModalDynamic');
+                    if (dynamicModal) {
+                        dynamicModal.remove();
+                    }
+                    
+                    // Cerrar modal principal si existe
+                    const mainModal = document.getElementById('editHotelModal');
+                    if (mainModal) {
+                        mainModal.style.display = 'none';
+                    }
+                    
+                    // Actualizar tabla
+                    if (typeof loadHotelsTable === 'function') {
+                        loadHotelsTable();
+                    }
                     return;
                 }
             } catch (error) {
@@ -6485,10 +6519,26 @@ Ej:
                 hotels[index] = { ...hotels[index], ...updates };
                 localStorage.setItem('hotelsDB', JSON.stringify(hotels));
                 alert('✅ Hotel actualizado correctamente');
-                document.getElementById('editHotelModalDynamic').remove();
-                loadHotelsTable();
+                
+                // Cerrar modales
+                const dynamicModal = document.getElementById('editHotelModalDynamic');
+                if (dynamicModal) {
+                    dynamicModal.remove();
+                }
+                const mainModal = document.getElementById('editHotelModal');
+                if (mainModal) {
+                    mainModal.style.display = 'none';
+                }
+                
+                // Actualizar tabla
+                if (typeof loadHotelsTable === 'function') {
+                    loadHotelsTable();
+                }
+            } else {
+                console.error('❌ Hotel no encontrado en localStorage');
+                alert('❌ Error: Hotel no encontrado');
             }
-        }
+        };
 
         // Función para cerrar modal de edición
         function closeEditModal() {
