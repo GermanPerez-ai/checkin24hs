@@ -5527,7 +5527,9 @@ Ej:
         });
         
         // Función global para evitar errores de referencia
-        window.showSection = function(section, event) {
+        // NOTA: Solo definir si no existe (la definición temprana del <head> tiene prioridad)
+        if (!window.showSection || typeof window.showSection !== 'function') {
+            window.showSection = function(section, event) {
             console.log('🔄 Cambiando a sección:', section);
             
             // Ocultar todas las secciones
