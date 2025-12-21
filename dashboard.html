@@ -13382,8 +13382,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
         // Variable global para almacenar todos los usuarios
         // NOTA: Ya está inicializada en el <head> como window.allUsersData
-        // Esta declaración local permite usar allUsersData sin el prefijo window
-        let allUsersData = window.allUsersData || [];
+        // Usar var en lugar de let para evitar problemas de temporal dead zone
+        var allUsersData = window.allUsersData || [];
         
         // Función para buscar usuarios
         function searchUsers() {
