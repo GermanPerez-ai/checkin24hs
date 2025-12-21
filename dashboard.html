@@ -10759,7 +10759,6 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         // Esta función estaba duplicada. La versión correcta está en la línea 6454 con la firma: async function saveHotelChanges(event, hotelId)
         // NOTA: Esta declaración duplicada causaba el error "Identifier 'saveHotelChanges' has already been declared"
         // TODO: El código suelto de la función duplicada ha sido eliminado. Si necesitas esa funcionalidad, usa la versión de la línea 6454.
-            const websiteInput = document.getElementById('editHotelWebsite');
             const ratingSelect = document.getElementById('editHotelRating');
             const priceInput = document.getElementById('editHotelPrice');
             const descriptionTextarea = document.getElementById('editHotelDescription');
@@ -13618,8 +13617,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             console.log('🔄 Sincronización automática iniciada (cada 30 segundos)');
         }
         
-        // Función para buscar usuarios
-        function searchUsers() {
+        // Función para buscar usuarios (versión completa - disponible globalmente)
+        window.searchUsers = window.searchUsers || function searchUsers() {
             const searchInput = document.getElementById('usersSearchInput');
             const searchInfo = document.getElementById('usersSearchInfo');
             const searchCount = document.getElementById('usersSearchCount');
