@@ -13387,12 +13387,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         
         // Función para buscar usuarios
         function searchUsers() {
-            // Asegurar que allUsersData esté disponible
-            if (!allUsersData && window.allUsersData) {
-                allUsersData = window.allUsersData;
-            }
-            if (!allUsersData || !Array.isArray(allUsersData)) {
-                allUsersData = [];
+            // Asegurar que allUsersData esté disponible - usar window.allUsersData directamente
+            const usersData = window.allUsersData || [];
+            if (!Array.isArray(usersData)) {
+                console.warn('⚠️ allUsersData no es un array, usando array vacío');
+                window.allUsersData = [];
             }
             const searchInput = document.getElementById('usersSearchInput');
             const searchInfo = document.getElementById('usersSearchInfo');
@@ -13404,13 +13403,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             if (searchTerm === '') {
                 // Si no hay búsqueda, mostrar los primeros 20
-                loadUsersTable(allUsersData.slice(0, 20));
+                loadUsersTable(usersData.slice(0, 20));
                 if (searchInfo) searchInfo.style.display = 'none';
                 return;
             }
             
             // Filtrar usuarios por término de búsqueda
-            const filteredUsers = allUsersData.filter(user => {
+            const filteredUsers = usersData.filter(user => {
                 const name = (user.name || '').toLowerCase();
                 const email = (user.email || '').toLowerCase();
                 const phone = (user.phone || '').toLowerCase();
