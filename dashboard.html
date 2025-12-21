@@ -10761,10 +10761,6 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         // TODO: El código suelto de la función duplicada ha sido eliminado. Si necesitas esa funcionalidad, usa la versión de la línea 6454.
 
         // Fin del código eliminado de la función duplicada saveHotelChanges
-            const imageInput = document.getElementById('editHotelImage');
-            const photosInput = document.getElementById('editHotelPhotos');
-            let mainImage = imageInput?.value?.trim() || '';
-            let galleryImages = getGalleryImagesFromInput();
             
             // Validar tamaño de imágenes base64 (localStorage tiene límite de ~5-10MB por item)
             const maxImageSize = 2 * 1024 * 1024; // 2MB por imagen base64
