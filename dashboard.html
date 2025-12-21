@@ -6480,12 +6480,8 @@ Ej:
             }
         }
 
-        // Función para guardar cambios del hotel
-        function saveHotelChanges() {
-            // Implementar lógica para guardar cambios
-            console.log('Guardando cambios del hotel...');
-            closeEditHotelModal();
-        }
+        // Función saveHotelChanges duplicada eliminada - usar la versión correcta de línea 6233
+        // NOTA: Esta declaración duplicada causaba el error "Identifier 'saveHotelChanges' has already been declared"
 
         // Función para sincronizar con index.html
         function syncWithIndexHtml() {
@@ -10537,58 +10533,9 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             }
         }
 
-        // Función para guardar cambios del hotel
-        async function saveHotelChanges() {
-            console.log('💾 Guardando cambios del hotel...');
-            
-            const form = document.getElementById('editHotelForm');
-            if (!form) {
-                console.error('❌ Formulario no encontrado');
-                return;
-            }
-            
-            // Obtener datos del formulario
-            const nameInput = document.getElementById('editHotelName');
-            const locationInput = document.getElementById('editHotelLocation');
-            const googleMapsInput = document.getElementById('editHotelGoogleMaps');
-            const websiteInput = document.getElementById('editHotelWebsite');
-            const ratingSelect = document.getElementById('editHotelRating');
-            const priceInput = document.getElementById('editHotelPrice');
-            const descriptionTextarea = document.getElementById('editHotelDescription');
-            const amenitiesInput = document.getElementById('editHotelAmenities');
-            const statusSelect = document.getElementById('editHotelStatus');
-            if (!nameInput || !locationInput) {
-                console.error('❌ Campos requeridos no encontrados');
-                return;
-            }
-            
-            // Obtener imágenes del formulario (pueden ser base64 o URLs)
-            const imageInput = document.getElementById('editHotelImage');
-            const photosInput = document.getElementById('editHotelPhotos');
-            let mainImage = imageInput?.value?.trim() || '';
-            let galleryImages = getGalleryImagesFromInput();
-            
-            // Validar tamaño de imágenes base64 (localStorage tiene límite de ~5-10MB por item)
-            const maxImageSize = 2 * 1024 * 1024; // 2MB por imagen base64
-            if (mainImage && mainImage.startsWith('data:') && mainImage.length > maxImageSize) {
-                console.warn('⚠️ Imagen principal muy grande, truncando...');
-                alert('⚠️ La imagen principal es muy grande. Considera usar una URL externa o comprimir la imagen.');
-            }
-            
-            // Filtrar imágenes de galería que sean demasiado grandes
-            galleryImages = galleryImages.filter(img => {
-                if (img.startsWith('data:') && img.length > maxImageSize) {
-                    console.warn('⚠️ Imagen de galería muy grande, omitiendo...');
-                    return false;
-                }
-                return true;
-            });
-            
-            // Obtener campos de Flor IA
-            const florDescription = document.getElementById('editHotelFlorDescription')?.value?.trim() || '';
-            const florServices = document.getElementById('editHotelFlorServices')?.value?.trim() || '';
-            const florExcursions = document.getElementById('editHotelFlorExcursions')?.value?.trim() || '';
-            const florPrices = document.getElementById('editHotelFlorPrices')?.value?.trim() || '';
+        // Función saveHotelChanges duplicada eliminada - usar la versión correcta de línea 6233
+        // NOTA: Esta declaración duplicada causaba el error "Identifier 'saveHotelChanges' has already been declared"
+        // La versión correcta está en la línea 6233: async function saveHotelChanges(event, hotelId)
             const florPolicies = document.getElementById('editHotelFlorPolicies')?.value?.trim() || '';
             const florTransport = document.getElementById('editHotelFlorTransport')?.value?.trim() || '';
             const florContact = document.getElementById('editHotelFlorContact')?.value?.trim() || '';
@@ -10932,6 +10879,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 updateHotelsStats();
             }
         }
+        // FIN DE FUNCIÓN DUPLICADA - La versión correcta está en línea 6233
 
         // Función para abrir modal de vista previa de imágenes
         function openImagePreviewModal() {
