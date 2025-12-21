@@ -4368,7 +4368,7 @@ Ej:
                 <!-- Botones -->
                 <div style="margin-top: 20px; display: flex; gap: 12px; justify-content: flex-end;">
                     <button type="button" class="form-button secondary" onclick="closeEditModal()">Cancelar</button>
-                    <button type="button" class="form-button" onclick="saveHotelChanges()" style="background: linear-gradient(135deg, #4caf50, #2e7d32);">
+                    <button type="button" class="form-button" onclick="if(typeof saveHotelChanges === 'function') { const form = document.getElementById('editHotelForm'); const hotelId = form?.dataset?.hotelId || form?.getAttribute('data-hotel-id'); saveHotelChanges(event, hotelId); } else { console.error('saveHotelChanges no está definida'); }" style="background: linear-gradient(135deg, #4caf50, #2e7d32);">
                         💾 Guardar Cambios
                     </button>
                 </div>
@@ -7922,7 +7922,12 @@ Ej:
             if (editHotelForm) {
                 editHotelForm.addEventListener('submit', function(e) {
                     e.preventDefault();
-                    saveHotelChanges();
+                    const hotelId = editHotelForm.dataset.hotelId || editHotelForm.getAttribute('data-hotel-id');
+                    if (typeof saveHotelChanges === 'function') {
+                        saveHotelChanges(e, hotelId);
+                    } else {
+                        console.error('saveHotelChanges no está definida');
+                    }
                 });
             }
             
