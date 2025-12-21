@@ -5659,92 +5659,9 @@ Ej:
             return stars;
         }
 
-        // Función para cargar hoteles en la tabla
-        async function loadHotelsTable() {
-            console.log('🔄 Cargando tabla de hoteles...');
-            
-            const tbody = document.getElementById('hotelsTableBody');
-            if (!tbody) {
-                console.error('❌ Tbody de hoteles no encontrado');
-                return;
-            }
-            
-            // Intentar obtener hoteles de Supabase primero, luego localStorage como fallback
-            let hotels = [];
-            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
-                try {
-                    console.log('☁️ Cargando hoteles desde Supabase...');
-                    hotels = await window.supabaseClient.getHotels();
-                    console.log(`✅ ${hotels.length} hoteles cargados desde Supabase`);
-                } catch (error) {
-                    console.warn('⚠️ Error cargando desde Supabase, usando localStorage:', error);
-                    hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-                }
-            } else {
-                console.log('💾 Cargando hoteles desde localStorage...');
-                hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-            }
-            
-            console.log(`📋 Encontrados ${hotels.length} hoteles:`, hotels.map(h => h.name));
-            
-            tbody.innerHTML = '';
-
-            if (hotels.length === 0) {
-                // Mostrar mensaje si no hay hoteles
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td colspan="6" style="text-align: center; padding: 40px; color: #666;">
-                        <div style="margin-bottom: 20px;">
-                            <i class="fas fa-hotel" style="font-size: 3rem; color: #ddd;"></i>
-                        </div>
-                        <h3 style="margin-bottom: 10px; color: #333;">No hay hoteles registrados</h3>
-                        <p style="margin-bottom: 20px; color: #666;">Comienza agregando tu primer hotel</p>
-                        <button onclick="addNewHotel()" class="btn btn-primary">
-                            <i class="fas fa-plus"></i> Agregar Primer Hotel
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(row);
-                return;
-            }
-
-            hotels.forEach(hotel => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>
-                        <div>
-                            <div class="hotel-name">${hotel.name}</div>
-                            <div class="hotel-location">${hotel.location}</div>
-                        </div>
-                    </td>
-                    <td>${hotel.location}</td>
-                    <td style="text-align: center;">
-                        <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
-                            ${getStars(hotel.rating)}
-                            <span style="margin-left: 4px;">${hotel.rating}</span>
-                        </div>
-                    </td>
-                    <td style="text-align: center;">${hotel.price || 'No especificado'}</td>
-                    <td style="text-align: center;">
-                        <span class="status-${hotel.status?.toLowerCase() || 'activo'}">${hotel.status || 'Activo'}</span>
-                    </td>
-                    <td style="text-align: center;">
-                        <button onclick="editHotel('${hotel.id}')" class="action-btn edit" title="Editar">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button onclick="deleteHotel('${hotel.id}')" class="action-btn delete" title="Eliminar">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                        <button onclick="viewHotel('${hotel.id}')" class="action-btn view" title="Ver">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(row);
-            });
-            
-            console.log(`✅ Tabla de hoteles cargada con ${hotels.length} hoteles`);
-        }
+        // Función loadHotelsTable duplicada eliminada - usar la versión actualizada de línea 10039
+        // NOTA: Esta declaración duplicada causaba el error "Identifier 'loadHotelsTable' has already been declared"
+        // La versión correcta está en la línea 10039 con el comentario "versión actualizada con Supabase"
 
         // Función para actualizar estadísticas del dashboard
         function updateStats() {
