@@ -6454,7 +6454,9 @@ Ej:
         // Función saveHotelChanges - DEFINIDA UNA SOLA VEZ COMO GLOBAL
         // IMPORTANTE: Solo debe haber UNA declaración de esta función
         // Usar window.saveHotelChanges para evitar duplicados
-        window.saveHotelChanges = window.saveHotelChanges || async function saveHotelChanges(event, hotelId) {
+        // Usar función anónima para evitar conflictos de nombre
+        if (!window.saveHotelChanges) {
+            window.saveHotelChanges = async function(event, hotelId) {
             if (event) {
                 event.preventDefault();
             }
@@ -6539,6 +6541,7 @@ Ej:
                 alert('❌ Error: Hotel no encontrado');
             }
         };
+        }
 
         // Función para cerrar modal de edición
         function closeEditModal() {
