@@ -5373,17 +5373,22 @@ Ej:
         }
         
         // Ejecutar inmediatamente (antes de DOMContentLoaded)
+        // NOTA: Usar window.removeWhatsAppButton para asegurar que esté disponible
         (function() {
             if (document.readyState === 'loading') {
                 // Si el DOM aún no está listo, usar un intervalo para verificar
                 const checkInterval = setInterval(function() {
                     if (document.readyState !== 'loading') {
                         clearInterval(checkInterval);
-                        removeWhatsAppButton();
+                        if (typeof window.removeWhatsAppButton === 'function') {
+                            window.removeWhatsAppButton();
+                        }
                     }
                 }, 50);
             } else {
-                removeWhatsAppButton();
+                if (typeof window.removeWhatsAppButton === 'function') {
+                    window.removeWhatsAppButton();
+                }
             }
         })();
         
@@ -13178,6 +13183,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 
                 // Guardar todos los usuarios en variable global
                 allUsersData = allUsers;
+                window.allUsersData = allUsers; // Sincronizar con window
                 
                 // Actualizar tabla de usuarios (solo primeros 20)
                 loadUsersTable(allUsers.slice(0, 20));
@@ -13326,10 +13332,19 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Variable global para almacenar todos los usuarios
-        let allUsersData = [];
+        // NOTA: Ya está inicializada en el <head> como window.allUsersData
+        // Esta declaración local permite usar allUsersData sin el prefijo window
+        let allUsersData = window.allUsersData || [];
         
         // Función para buscar usuarios
         function searchUsers() {
+            // Asegurar que allUsersData esté disponible
+            if (!allUsersData && window.allUsersData) {
+                allUsersData = window.allUsersData;
+            }
+            if (!allUsersData || !Array.isArray(allUsersData)) {
+                allUsersData = [];
+            }
             const searchInput = document.getElementById('usersSearchInput');
             const searchInfo = document.getElementById('usersSearchInfo');
             const searchCount = document.getElementById('usersSearchCount');
