@@ -13563,8 +13563,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             console.log('🔄 Sincronización automática iniciada (cada 30 segundos)');
         }
         
-        // Función para buscar usuarios
-        function searchUsers() {
+        // Función para buscar usuarios - Disponible globalmente
+        window.searchUsers = window.searchUsers || function searchUsers() {
             const searchInput = document.getElementById('usersSearchInput');
             const searchInfo = document.getElementById('usersSearchInfo');
             const searchCount = document.getElementById('usersSearchCount');
