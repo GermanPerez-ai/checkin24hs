@@ -9453,9 +9453,8 @@ Ej:
         
         // Verificar estado de conexión
         async function checkWhatsAppConnectionStatus(cardNumber) {
-            const baseServerUrl = getServerURL();
-            const port = 3000 + parseInt(cardNumber); // 3001, 3002, 3003, 3004
-            const serverUrl = `${baseServerUrl}:${port}`;
+            // getServerURL(cardNumber) retorna URL completa con ruta (/api1) o puerto (:3001)
+            const serverUrl = getServerURL(cardNumber);
             let attempts = 0;
             const maxAttempts = 60;
             
@@ -9539,10 +9538,9 @@ Ej:
             updateWhatsAppCard(cardNumber, cardData[cardNumber]);
             
             // Intentar desconectar en el servidor (opcional, no bloquea si falla)
-            const baseServerUrl = getServerURL();
-            if (baseServerUrl) {
-                const port = 3000 + parseInt(cardNumber);
-                const serverUrl = `${baseServerUrl}:${port}`;
+            // getServerURL(cardNumber) retorna URL completa con ruta (/api1) o puerto (:3001)
+            const serverUrl = getServerURL(cardNumber);
+            if (serverUrl) {
                 
                 // Intentar desconectar en el servidor (en segundo plano, no bloquea)
                 // Usar AbortController para timeout
@@ -9576,9 +9574,8 @@ Ej:
             
             if (currentData.status === 'connected') {
                 // Verificar estado actual en el servidor
-                const baseServerUrl = getServerURL();
-                const port = 3000 + parseInt(cardNumber); // 3001, 3002, 3003, 3004
-                const serverUrl = `${baseServerUrl}:${port}`;
+                // getServerURL(cardNumber) retorna URL completa con ruta (/api1) o puerto (:3001)
+                const serverUrl = getServerURL(cardNumber);
                 try {
                     const response = await fetch(`${serverUrl}/api/status?card=${cardNumber}`);
                     if (response.ok) {
@@ -22668,8 +22665,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
     // Verificar conexión WhatsApp
     window.checkWhatsAppConnection = function() {
-        const baseServerUrl = getServerURL() || localStorage.getItem('whatsappServerURL') || localStorage.getItem('whatsappServerUrl') || 'http://72.61.58.240';
-        const serverUrl = `${baseServerUrl}:3001`;
+        // getServerURL(1) retorna URL completa con ruta (/api1) o puerto (:3001)
+        const serverUrl = getServerURL(1) || localStorage.getItem('whatsappServerURL') || localStorage.getItem('whatsappServerUrl') || 'http://72.61.58.240:3001';
         const statusIndicator = document.getElementById('whatsapp-status-indicator');
         const statusText = document.getElementById('whatsapp-status-text');
         const statusDetail = document.getElementById('whatsapp-status-detail');
