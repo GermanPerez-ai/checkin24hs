@@ -10505,15 +10505,25 @@ Ej:
         
         function getServerURL() {
             // Intentar obtener desde localStorage
-            const serverUrl = localStorage.getItem('whatsappServerURL') || localStorage.getItem('whatsappServerUrl');
+            let serverUrl = localStorage.getItem('whatsappServerURL') || localStorage.getItem('whatsappServerUrl');
             if (serverUrl && serverUrl.trim() !== '') {
-                // NO aplicar ensureHTTPS aquí, mantener el protocolo original
-                // El usuario puede configurar HTTP o HTTPS explícitamente
-                return serverUrl.trim();
+                serverUrl = serverUrl.trim();
+            } else {
+                // Valor por defecto
+                serverUrl = 'http://72.61.58.240';
             }
             
-            // Valor por defecto (HTTP, no HTTPS, porque el servidor WhatsApp no tiene SSL)
-            return 'http://72.61.58.240';
+            // IMPORTANTE: Si el dashboard está en HTTPS, convertir HTTP a HTTPS automáticamente
+            // Esto evita errores de Mixed Content (HTTPS bloqueando HTTP)
+            if (window.location.protocol === 'https:' && serverUrl.startsWith('http://')) {
+                console.log('⚠️ Dashboard en HTTPS detectado. Convirtiendo URL HTTP a HTTPS para evitar Mixed Content.');
+                console.log(`   URL original: ${serverUrl}`);
+                serverUrl = serverUrl.replace('http://', 'https://');
+                console.log(`   URL convertida: ${serverUrl}`);
+                console.log(`   ⚠️ NOTA: El servidor WhatsApp debe tener SSL configurado para que esto funcione.`);
+            }
+            
+            return serverUrl;
         }
         
         // Función para formatear mensaje de WhatsApp
