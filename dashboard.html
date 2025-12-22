@@ -9283,7 +9283,36 @@ Ej:
             }
             
             updateWhatsAppCard(cardNumber, cardData[cardNumber]);
-            alert(`✅ WhatsApp ${cardNumber} desconectado`);
+            
+            // Intentar desconectar en el servidor (opcional, no bloquea si falla)
+            const baseServerUrl = getServerURL();
+            if (baseServerUrl) {
+                const port = 3000 + parseInt(cardNumber);
+                const serverUrl = `${baseServerUrl}:${port}`;
+                
+                // Intentar desconectar en el servidor (en segundo plano, no bloquea)
+                // Usar AbortController para timeout
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3000);
+                
+                fetch(`${serverUrl}/disconnect`, { 
+                    method: 'POST',
+                    signal: controller.signal
+                })
+                .then(() => {
+                    clearTimeout(timeoutId);
+                    console.log(`✅ WhatsApp ${cardNumber} desconectado en el servidor`);
+                })
+                .catch(error => {
+                    clearTimeout(timeoutId);
+                    // Silenciar error - la desconexión local ya se hizo
+                    if (error.name !== 'AbortError') {
+                        console.log(`ℹ️ No se pudo desconectar en el servidor (puede que no tenga HTTPS): ${error.message}`);
+                    }
+                });
+            }
+            
+            alert(`✅ WhatsApp ${cardNumber} desconectado correctamente`);
         }
         
         // Actualizar estado de WhatsApp
@@ -22251,28 +22280,16 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         alert('✅ Configuración de WhatsApp guardada');
     };
 
-    // Desconectar WhatsApp
-    window.disconnectWhatsApp = function() {
-        if (!confirm('¿Estás seguro de desconectar WhatsApp?')) return;
-        
-        let serverUrl = document.getElementById('whatsapp-server-url')?.value || getServerURL() || 'http://localhost:3001';
-        
-        // Asegurar HTTPS si la página está en HTTPS
-        if (window.location.protocol === 'https:' && serverUrl.startsWith('http://')) {
-            serverUrl = serverUrl.replace('http://', 'https://');
+    // Desconectar WhatsApp (versión antigua - reemplazada por la nueva función con cardNumber)
+    // Esta función se mantiene por compatibilidad pero redirige a la nueva implementación
+    window.disconnectWhatsAppOld = function() {
+        console.warn('⚠️ Usando función disconnectWhatsApp antigua. Usa la nueva versión con cardNumber.');
+        // Intentar desconectar la tarjeta 1 por defecto
+        if (typeof window.disconnectWhatsApp === 'function') {
+            window.disconnectWhatsApp(1);
+        } else {
+            alert('⚠️ Función de desconexión no disponible. Recarga la página.');
         }
-        
-        fetch(serverUrl + '/disconnect', { method: 'POST' })
-            .then(() => {
-                alert('WhatsApp desconectado');
-                if (typeof checkWhatsAppConnection === 'function') {
-                    checkWhatsAppConnection();
-                }
-            })
-            .catch(error => {
-                console.error('Error desconectando:', error);
-                alert('Error al desconectar. Verifica que el servidor esté configurado con HTTPS.');
-            });
     };
 
     // Cargar interacciones
