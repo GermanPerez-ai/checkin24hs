@@ -3470,6 +3470,26 @@
                             </div>
                         </div>
                         
+                    <!-- Configuración de URL del Servidor -->
+                    <div style="background: white; padding: 20px; border-radius: 12px; margin-bottom: 24px; border: 2px solid #e0e0e0;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">
+                            🌐 URL del Servidor WhatsApp:
+                        </label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="text" id="whatsapp-server-url" 
+                                   placeholder="http://72.61.58.240" 
+                                   style="flex: 1; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.95rem;"
+                                   value="http://72.61.58.240">
+                            <button onclick="saveWhatsAppServerUrl()" 
+                                    style="background: #25D366; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                                Guardar URL
+                            </button>
+                        </div>
+                        <small style="color: #666; margin-top: 8px; display: block;">
+                            💡 Ingresa la IP o dominio de tu servidor. El sistema agregará automáticamente los puertos :3001, :3002, :3003, :3004
+                        </small>
+                    </div>
+                        
                     <!-- Grid de 4 Tarjetas WhatsApp -->
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 24px;">
                         <!-- WhatsApp 1 -->
@@ -8949,13 +8969,17 @@ Ej:
             updateWhatsAppCard(cardNumber, currentData);
             
             // Intentar obtener QR del servidor primero
-            const serverUrl = 'http://localhost:3001';
+            const baseServerUrl = getServerURL() || localStorage.getItem('whatsappServerUrl') || 'http://72.61.58.240';
+            const port = 3000 + parseInt(cardNumber); // 3001, 3002, 3003, 3004
+            const serverUrl = `${baseServerUrl}:${port}`;
             let qrGenerated = false;
+            
+            console.log(`🔗 Conectando WhatsApp ${cardNumber} a: ${serverUrl}`);
             
             try {
                 const response = await fetch(`${serverUrl}/api/qr?card=${cardNumber}`, {
                     method: 'GET',
-                    signal: AbortSignal.timeout(3000) // 3 segundos de timeout
+                    signal: AbortSignal.timeout(5000) // 5 segundos de timeout
                 });
                 
                 if (response.ok) {
@@ -9102,7 +9126,9 @@ Ej:
         
         // Verificar estado de conexión
         async function checkWhatsAppConnectionStatus(cardNumber) {
-            const serverUrl = 'http://localhost:3001';
+            const baseServerUrl = getServerURL() || localStorage.getItem('whatsappServerURL') || localStorage.getItem('whatsappServerUrl') || 'http://72.61.58.240';
+            const port = 3000 + parseInt(cardNumber); // 3001, 3002, 3003, 3004
+            const serverUrl = `${baseServerUrl}:${port}`;
             let attempts = 0;
             const maxAttempts = 60;
             
@@ -9189,7 +9215,9 @@ Ej:
             
             if (currentData.status === 'connected') {
                 // Verificar estado actual en el servidor
-                const serverUrl = 'http://localhost:3001';
+                const baseServerUrl = getServerURL() || localStorage.getItem('whatsappServerURL') || localStorage.getItem('whatsappServerUrl') || 'http://72.61.58.240';
+                const port = 3000 + parseInt(cardNumber); // 3001, 3002, 3003, 3004
+                const serverUrl = `${baseServerUrl}:${port}`;
                 try {
                     const response = await fetch(`${serverUrl}/api/status?card=${cardNumber}`);
                     if (response.ok) {
@@ -9246,7 +9274,10 @@ Ej:
             const autoReply = document.getElementById('whatsapp-auto-reply')?.checked || false;
             const businessHoursOnly = document.getElementById('whatsapp-business-hours-only')?.checked || false;
             const outOfHoursMessage = document.getElementById('whatsapp-out-of-hours-message')?.value || '';
-            const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://localhost:3001';
+            const serverUrl = document.getElementById('whatsapp-server-url')?.value || 
+                            getServerURL() || 
+                            localStorage.getItem('whatsappServerURL') || 
+                            'http://72.61.58.240';
             
             const config = {
                 autoReply,
@@ -21462,6 +21493,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
     // Función para mostrar tabs de Flor
     window.showFlorTab = function(tabName) {
+        // Si se abre la pestaña WhatsApp, cargar la URL del servidor
+        if (tabName === 'whatsapp') {
+            loadWhatsAppServerUrl();
+        }
         console.log('📑 Cambiando a tab Flor:', tabName);
         
         // Ocultar todos los tabs
@@ -21962,7 +21997,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
     // Verificar conexión WhatsApp
     window.checkWhatsAppConnection = function() {
-        const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://localhost:3001';
+        const baseServerUrl = getServerURL() || localStorage.getItem('whatsappServerURL') || localStorage.getItem('whatsappServerUrl') || 'http://72.61.58.240';
+        const serverUrl = `${baseServerUrl}:3001`;
         const statusIndicator = document.getElementById('whatsapp-status-indicator');
         const statusText = document.getElementById('whatsapp-status-text');
         const statusDetail = document.getElementById('whatsapp-status-detail');
