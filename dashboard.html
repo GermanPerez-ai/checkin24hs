@@ -7356,7 +7356,7 @@ Ej:
                     console.log('✅ Hotel eliminado de Supabase');
                     alert('✅ Hotel eliminado correctamente');
                     loadHotelsTable();
-                    updateHotelsStats();
+                    await updateHotelsStats();
                     return;
                 }
             } catch (error) {
@@ -7371,7 +7371,7 @@ Ej:
                 localStorage.setItem('hotelsDB', JSON.stringify(hotels));
                 alert('✅ Hotel eliminado correctamente');
                 loadHotelsTable();
-                updateHotelsStats();
+                await updateHotelsStats();
             }
         }
 
@@ -7500,9 +7500,10 @@ Ej:
         }
 
         // Función para refrescar hoteles
-        function refreshHotels() {
+        async function refreshHotels() {
             loadHotelsTable();
-            updateStats();
+            await updateHotelsStats();
+            if (typeof updateStats === 'function') updateStats();
             alert('Datos actualizados correctamente');
         }
 
@@ -7532,7 +7533,7 @@ Ej:
                 loadHotelsTable();
             }
             if (typeof updateHotelsStats === 'function') {
-                updateHotelsStats();
+                await updateHotelsStats();
             }
             // Actualizar estadísticas del dashboard (incluye Ingresos de Hoy)
             // AHORA los datos de reservas ya están cargados de Supabase
@@ -7602,10 +7603,10 @@ Ej:
                             });
                         }
                     },
-                    onHotelChange: (payload) => {
+                    onHotelChange: async (payload) => {
                         console.log('🔔 Cambio en hoteles detectado:', payload.eventType);
                         if (typeof loadHotelsTable === 'function') loadHotelsTable();
-                        if (typeof updateHotelsStats === 'function') updateHotelsStats();
+                        if (typeof updateHotelsStats === 'function') await updateHotelsStats();
                     },
                     onAgentChange: (payload) => {
                         console.log('🔔 Cambio en agentes detectado:', payload.eventType);
@@ -10851,9 +10852,22 @@ Ej:
             showHotelsStatus();
         }
 
-        // Función para mostrar estado actual de hoteles
-        function showHotelsStatus() {
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+        // Función para mostrar estado actual de hoteles (usa Supabase directamente)
+        async function showHotelsStatus() {
+            let hotels = [];
+            
+            // Cargar desde Supabase primero
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    hotels = await window.supabaseClient.getHotels();
+                } catch (error) {
+                    console.warn('⚠️ Error cargando desde Supabase, usando localStorage:', error);
+                    hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                }
+            } else {
+                hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            }
+            
             console.log('🏨 ESTADO ACTUAL DE HOTELES EN DASHBOARD:');
             console.log(`📊 Total de hoteles: ${hotels.length}`);
             console.log('📋 Lista de hoteles:');
@@ -10862,11 +10876,9 @@ Ej:
             });
             
             if (hotels.length === 0) {
-                console.log('⚠️ No hay hoteles en localStorage');
-            } else if (hotels.length < 6) {
-                console.log(`⚠️ Solo hay ${hotels.length} hoteles, deberían ser 6`);
+                console.log('⚠️ No hay hoteles en la base de datos');
             } else {
-                console.log('✅ Todos los hoteles están cargados correctamente');
+                console.log(`✅ ${hotels.length} hoteles cargados correctamente desde Supabase`);
             }
         }
         
@@ -11074,10 +11086,22 @@ Ej:
         }
 
         // Función para actualizar estadísticas de hoteles
-        function updateHotelsStats() {
+        async function updateHotelsStats() {
             console.log('📊 Actualizando estadísticas de hoteles...');
             
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            // Cargar hoteles desde Supabase directamente
+            let hotels = [];
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    hotels = await window.supabaseClient.getHotels();
+                    console.log(`✅ ${hotels.length} hoteles cargados desde Supabase para estadísticas`);
+                } catch (error) {
+                    console.warn('⚠️ Error cargando desde Supabase, usando localStorage:', error);
+                    hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                }
+            } else {
+                hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            }
             
             // Actualizar contadores
             const totalHotelsElement = document.getElementById('totalHotels');
@@ -11091,7 +11115,7 @@ Ej:
             
             if (avgRatingElement) {
                 if (hotels.length > 0) {
-                    const totalRating = hotels.reduce((sum, hotel) => sum + hotel.rating, 0);
+                    const totalRating = hotels.reduce((sum, hotel) => sum + (hotel.rating || 0), 0);
                     const averageRating = (totalRating / hotels.length).toFixed(1);
                     avgRatingElement.textContent = averageRating;
                 } else {
@@ -11100,7 +11124,7 @@ Ej:
             }
             
             if (totalLocationsElement) {
-                const uniqueLocations = new Set(hotels.map(hotel => hotel.location));
+                const uniqueLocations = new Set(hotels.map(hotel => hotel.location).filter(Boolean));
                 totalLocationsElement.textContent = uniqueLocations.size;
             }
             
@@ -11926,7 +11950,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 loadHotelsTable();
             }
             if (typeof updateHotelsStats === 'function') {
-                updateHotelsStats();
+                await updateHotelsStats();
             }
             
             // Notificar actualización del mapa interactivo
