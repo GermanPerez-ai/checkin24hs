@@ -8866,14 +8866,20 @@ Ej:
                             }
                         });
                         localStorage.setItem('whatsappCards', JSON.stringify(whatsappData));
-                    } else if (error && error.code !== 'PGRST116') {
-                        // Solo mostrar error si no es "tabla no existe"
-                        console.log('⚠️ Error cargando desde Supabase:', error.message);
+                    } else if (error) {
+                        // Silenciar error 404 o PGRST116 (tabla no existe) - es normal usar solo localStorage
+                        const errorMessage = error.message || '';
+                        const errorCode = error.code || '';
+                        if (errorCode !== 'PGRST116' && !errorMessage.includes('404') && !errorMessage.includes('not find the table')) {
+                            console.log('⚠️ Error cargando desde Supabase:', errorMessage);
+                        }
                     }
                 } catch (e) {
                     // Silenciar error 404 (tabla no existe) - es normal usar solo localStorage
-                    if (e.code !== 'PGRST116' && !e.message?.includes('404')) {
-                        console.log('⚠️ Error cargando desde Supabase:', e.message);
+                    const errorMessage = e.message || '';
+                    const errorCode = e.code || '';
+                    if (errorCode !== 'PGRST116' && !errorMessage.includes('404') && !errorMessage.includes('not find the table')) {
+                        console.log('⚠️ Error cargando desde Supabase:', errorMessage);
                     }
                 }
             }
@@ -8907,6 +8913,8 @@ Ej:
                 stateSpan.textContent = 'Conectado';
                 connectBtn.textContent = 'Desconectar';
                 connectBtn.style.background = '#ff4757';
+                connectBtn.disabled = false;
+                connectBtn.setAttribute('onclick', `disconnectWhatsApp(${cardNumber})`);
                 if (card) card.style.borderColor = '#25D366';
             } else if (isConnecting) {
                 statusBtn.textContent = 'Conectando...';
@@ -8914,6 +8922,7 @@ Ej:
                 stateSpan.textContent = 'Generando código QR...';
                 connectBtn.textContent = 'Conectando...';
                 connectBtn.disabled = true;
+                connectBtn.setAttribute('onclick', '');
                 if (card) card.style.borderColor = '#1976d2';
             } else {
                 statusBtn.textContent = 'Desconectado';
@@ -8922,6 +8931,7 @@ Ej:
                 connectBtn.textContent = 'Conectar';
                 connectBtn.style.background = '#25D366';
                 connectBtn.disabled = false;
+                connectBtn.setAttribute('onclick', `connectWhatsApp(${cardNumber})`);
                 if (card) card.style.borderColor = '#e0e0e0';
             }
             
@@ -9132,46 +9142,50 @@ Ej:
                     localStorage.setItem('whatsappCards', JSON.stringify(cardData));
                     updateWhatsAppCard(cardNumber, currentData);
                 }
-            
-            // Generar número de teléfono simulado
-            const fakePhone = `+549${Math.floor(1000000000 + Math.random() * 9000000000)}`;
-            const fakeName = `Usuario WhatsApp ${cardNumber}`;
-            
-            // Actualizar estado
-            currentData.status = 'connected';
-            currentData.phone = fakePhone;
-            currentData.name = fakeName;
-            currentData.connectedAt = new Date().toISOString();
-            
-            cardData[cardNumber] = currentData;
-            localStorage.setItem('whatsappCards', JSON.stringify(cardData));
-            
-            // Guardar en Supabase si está disponible (silenciar error si la tabla no existe)
-            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
-                try {
-                    window.supabaseClient.client
-                        .from('whatsapp_cards')
-                        .upsert([{
-                            card_number: cardNumber,
-                            ...currentData
-                        }], { onConflict: 'card_number' })
-                        .then(() => {
-                            console.log(`✅ WhatsApp ${cardNumber} guardado en Supabase`);
-                        })
-                        .catch(e => {
-                            // Silenciar error 404 (tabla no existe) - es normal usar solo localStorage
-                            if (e.code !== 'PGRST116') {
-                                console.log('⚠️ Error guardando en Supabase:', e.message);
-                            }
-                        });
-                } catch (e) {
-                    // Silenciar error si la tabla no existe
-                    if (e.code !== 'PGRST116' && !e.message?.includes('404')) {
-                        console.log('⚠️ Error guardando en Supabase');
+                
+                // Generar número de teléfono simulado
+                const fakePhone = `+549${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+                const fakeName = `Usuario WhatsApp ${cardNumber}`;
+                
+                // Actualizar estado
+                currentData.status = 'connected';
+                currentData.phone = fakePhone;
+                currentData.name = fakeName;
+                currentData.connectedAt = new Date().toISOString();
+                
+                cardData[cardNumber] = currentData;
+                localStorage.setItem('whatsappCards', JSON.stringify(cardData));
+                
+                // Guardar en Supabase si está disponible (silenciar error si la tabla no existe)
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    try {
+                        window.supabaseClient.client
+                            .from('whatsapp_cards')
+                            .upsert([{
+                                card_number: cardNumber,
+                                ...currentData
+                            }], { onConflict: 'card_number' })
+                            .then(() => {
+                                console.log(`✅ WhatsApp ${cardNumber} guardado en Supabase`);
+                            })
+                            .catch(e => {
+                                // Silenciar error 404 (tabla no existe) - es normal usar solo localStorage
+                                const errorMessage = e.message || '';
+                                const errorCode = e.code || '';
+                                if (errorCode !== 'PGRST116' && !errorMessage.includes('404') && !errorMessage.includes('not find the table')) {
+                                    console.log('⚠️ Error guardando en Supabase:', errorMessage);
+                                }
+                            });
+                    } catch (e) {
+                        // Silenciar error si la tabla no existe
+                        const errorMessage = e.message || '';
+                        const errorCode = e.code || '';
+                        if (errorCode !== 'PGRST116' && !errorMessage.includes('404') && !errorMessage.includes('not find the table')) {
+                            console.log('⚠️ Error guardando en Supabase');
+                        }
                     }
                 }
-            }
-            
+                
                 updateWhatsAppCard(cardNumber, currentData);
                 
                 // Mostrar notificación
@@ -9250,7 +9264,7 @@ Ej:
             };
             localStorage.setItem('whatsappCards', JSON.stringify(cardData));
             
-            // Eliminar de Supabase
+            // Eliminar de Supabase (silenciar error si la tabla no existe)
             if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                 try {
                     await window.supabaseClient.client
@@ -9258,7 +9272,12 @@ Ej:
                         .delete()
                         .eq('card_number', cardNumber);
                 } catch (e) {
-                    console.log('⚠️ Error eliminando de Supabase');
+                    // Silenciar error si la tabla no existe
+                    const errorMessage = e.message || '';
+                    const errorCode = e.code || '';
+                    if (errorCode !== 'PGRST116' && !errorMessage.includes('404') && !errorMessage.includes('not find the table')) {
+                        console.log('⚠️ Error eliminando de Supabase:', errorMessage);
+                    }
                 }
             }
             
