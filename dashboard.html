@@ -9604,9 +9604,10 @@ Ej:
             }
             
             // Convertir HTTP a HTTPS si la página está en HTTPS
-            serverUrl = ensureHTTPS(serverUrl);
+            // NO aplicar ensureHTTPS aquí, mantener el protocolo que el usuario ingrese
+            // El usuario puede configurar HTTP o HTTPS explícitamente según su servidor
             
-            // Actualizar el input con la URL corregida
+            // Actualizar el input con la URL ingresada
             serverUrlInput.value = serverUrl;
             
             // Guardar en localStorage
