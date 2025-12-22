@@ -9632,7 +9632,8 @@ Ej:
                              'http://72.61.58.240';
             
             // Convertir HTTP a HTTPS si la página está en HTTPS
-            serverUrl = ensureHTTPS(serverUrl);
+            // NO aplicar ensureHTTPS aquí, mantener el protocolo original
+            // El usuario puede configurar HTTP o HTTPS explícitamente según su servidor
             
             // Actualizar el campo de entrada si existe
             const serverUrlInput = document.getElementById('whatsapp-server-url');
@@ -10376,7 +10377,15 @@ Ej:
         function ensureHTTPS(url) {
             if (!url) return url;
             
+            // NO convertir a HTTPS si la URL contiene un puerto específico (servidores internos)
+            // Los servidores WhatsApp generalmente no tienen SSL configurado
+            if (url.match(/:\d{4,5}(\/|$)/)) {
+                // URL con puerto específico, mantener el protocolo original
+                return url;
+            }
+            
             // Si la página está en HTTPS y la URL es HTTP, convertir a HTTPS
+            // Solo para URLs sin puerto específico (servicios públicos)
             if (window.location.protocol === 'https:' && url.startsWith('http://')) {
                 return url.replace('http://', 'https://');
             }
@@ -10388,12 +10397,13 @@ Ej:
             // Intentar obtener desde localStorage
             const serverUrl = localStorage.getItem('whatsappServerURL') || localStorage.getItem('whatsappServerUrl');
             if (serverUrl && serverUrl.trim() !== '') {
-                return ensureHTTPS(serverUrl.trim());
+                // NO aplicar ensureHTTPS aquí, mantener el protocolo original
+                // El usuario puede configurar HTTP o HTTPS explícitamente
+                return serverUrl.trim();
             }
             
-            // Valor por defecto (convertido a HTTPS si es necesario)
-            const defaultUrl = 'http://72.61.58.240';
-            return ensureHTTPS(defaultUrl);
+            // Valor por defecto (HTTP, no HTTPS, porque el servidor WhatsApp no tiene SSL)
+            return 'http://72.61.58.240';
         }
         
         // Función para formatear mensaje de WhatsApp
