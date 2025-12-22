@@ -8962,6 +8962,21 @@ Ej:
         async function connectWhatsApp(cardNumber) {
             console.log(`🚀🚀🚀 connectWhatsApp EJECUTÁNDOSE para tarjeta ${cardNumber} 🚀🚀🚀`);
             console.log('📋 Stack trace:', new Error().stack);
+            console.log('🔍 Argumentos recibidos:', { cardNumber, tipo: typeof cardNumber });
+            
+            // Validar argumentos
+            if (!cardNumber || (typeof cardNumber !== 'number' && typeof cardNumber !== 'string')) {
+                console.error('❌ Error: cardNumber inválido:', cardNumber);
+                alert(`Error: Número de tarjeta inválido: ${cardNumber}`);
+                return;
+            }
+            
+            cardNumber = parseInt(cardNumber);
+            if (isNaN(cardNumber) || cardNumber < 1 || cardNumber > 4) {
+                console.error('❌ Error: cardNumber fuera de rango:', cardNumber);
+                alert(`Error: Número de tarjeta debe estar entre 1 y 4. Recibido: ${cardNumber}`);
+                return;
+            }
             
             try {
                 const cardData = JSON.parse(localStorage.getItem('whatsappCards') || '{"1":{},"2":{},"3":{},"4":{}}');
@@ -9675,9 +9690,62 @@ Ej:
         // Verificar inmediatamente
         verificarFuncionesWhatsApp();
         
+        // Agregar event listeners directos a los botones como respaldo
+        function agregarEventListenersWhatsApp() {
+            console.log('🔧 Agregando event listeners directos a botones WhatsApp...');
+            
+            // Agregar listeners a todos los botones de conectar
+            for (let i = 1; i <= 4; i++) {
+                const connectBtn = document.getElementById(`whatsapp-${i}-connect-btn`);
+                if (connectBtn) {
+                    // Remover listeners anteriores para evitar duplicados
+                    connectBtn.replaceWith(connectBtn.cloneNode(true));
+                    const newBtn = document.getElementById(`whatsapp-${i}-connect-btn`);
+                    
+                    // Agregar listener directo
+                    newBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log(`🖱️ Click detectado en botón WhatsApp ${i} (event listener directo)`);
+                        if (typeof window.connectWhatsApp === 'function') {
+                            window.connectWhatsApp(i);
+                        } else {
+                            console.error(`❌ window.connectWhatsApp no está disponible para tarjeta ${i}`);
+                            alert(`Error: Función connectWhatsApp no disponible. Por favor, recarga la página.`);
+                        }
+                    });
+                    
+                    console.log(`✅ Event listener agregado a botón WhatsApp ${i}`);
+                } else {
+                    console.warn(`⚠️ Botón WhatsApp ${i} no encontrado`);
+                }
+                
+                // También agregar listeners a botones de actualizar
+                const updateBtns = document.querySelectorAll(`button[onclick="updateWhatsApp(${i})"]`);
+                updateBtns.forEach(btn => {
+                    btn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log(`🖱️ Click detectado en botón Actualizar WhatsApp ${i} (event listener directo)`);
+                        if (typeof window.updateWhatsApp === 'function') {
+                            window.updateWhatsApp(i);
+                        } else {
+                            console.error(`❌ window.updateWhatsApp no está disponible para tarjeta ${i}`);
+                        }
+                    });
+                });
+            }
+            
+            console.log('✅ Event listeners WhatsApp configurados');
+        }
+        
         // Inicializar WhatsApp al cargar la página (solo si la pestaña está visible)
         document.addEventListener('DOMContentLoaded', function() {
             verificarFuncionesWhatsApp();
+            
+            // Agregar listeners después de un pequeño delay para asegurar que el DOM esté listo
+            setTimeout(agregarEventListenersWhatsApp, 500);
+            setTimeout(agregarEventListenersWhatsApp, 2000);
             // Las tarjetas se cargarán cuando se abra la pestaña WhatsApp
         });
         
