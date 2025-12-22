@@ -1,323 +1,266 @@
-# 📱 Guía Paso a Paso: Configurar WhatsApp en EasyPanel
-
-## 🎯 Objetivo
-
-Configurar 4 servicios de WhatsApp en EasyPanel para que funcionen con el dashboard de Checkin24hs.
+# 🚀 Guía Paso a Paso: Configurar WhatsApp con SSL en EasyPanel
 
 ## 📋 Paso 1: Acceder a EasyPanel
 
-1. Abre tu navegador y ve a tu panel de EasyPanel
+1. Abre tu navegador y accede a **EasyPanel**
 2. Inicia sesión con tus credenciales
-3. Busca el proyecto **"Checkin24hs"** o crea uno nuevo si no existe
+3. Selecciona tu proyecto/servidor donde está corriendo WhatsApp
 
-## 🔧 Paso 2: Configurar el Primer Servicio (whatsapp - Instancia 1)
+---
 
-### 2.1. Editar el Servicio `whatsapp`
+## 📋 Paso 2: Crear Nuevo Servicio para WhatsApp
 
-1. En la lista de servicios, encuentra **`whatsapp`**
-2. Haz clic en el servicio para editarlo
-3. Si no existe, haz clic en **"+"** o **"Crear Servicio"** y crea uno llamado `whatsapp`
+### 2.1. Crear el Servicio
 
-### 2.2. Configurar Variables de Entorno
+1. En el panel principal, haz clic en **"Nuevo Servicio"** o **"Add Service"**
+2. Selecciona el tipo de servicio:
+   - Si tu WhatsApp es una aplicación Node.js → Selecciona **"Node.js"**
+   - Si es un servicio estático → Selecciona **"Static"**
+   - Si no estás seguro → Selecciona **"Proxy"** o **"Reverse Proxy"**
 
-1. Ve a la sección **"Variables de Entorno"** o **"Environment Variables"**
-2. Haz clic en **"Agregar Variable"** o **"Add Variable"** para cada una:
+### 2.2. Configurar el Servicio
 
-#### Variable 1: INSTANCE_NUMBER
+**Nombre del servicio:**
 ```
-Nombre: INSTANCE_NUMBER
-Valor: 1
-```
-
-#### Variable 2: PORT
-```
-Nombre: PORT
-Valor: 3001
+whatsapp-api
 ```
 
-#### Variable 3: SUPABASE_URL
+**Puerto interno (si aplica):**
 ```
-Nombre: SUPABASE_URL
-Valor: https://lmoeuyasuvoqhtvhkyia.supabase.co
+3001
 ```
+*(Este es el puerto donde corre tu primera instancia de WhatsApp)*
 
-#### Variable 4: SUPABASE_ANON_KEY
+---
+
+## 📋 Paso 3: Configurar el Dominio
+
+### 3.1. Agregar Dominio
+
+1. En la configuración del servicio, busca la sección **"Domain"** o **"Dominio"**
+2. Haz clic en **"Agregar Dominio"** o **"Add Domain"**
+3. Ingresa el dominio:
 ```
-Nombre: SUPABASE_ANON_KEY
-Valor: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxtb2V1eWFzdXZvcWh0dmhreWlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzNjE5NjAsImV4cCI6MjA3OTkzNzk2MH0.28xpqAqAa7rkeT3Ma5fPmbzYnetlq2wOPOgh9XBF3g4
-```
-
-#### Variable 5: GEMINI_API_KEY (Opcional)
-```
-Nombre: GEMINI_API_KEY
-Valor: tu_api_key_de_gemini_aqui
-```
-*(Solo si tienes una API key de Google Gemini para la IA)*
-
-### 2.3. Configurar Puerto
-
-1. Ve a la sección **"Puertos"** o **"Ports"**
-2. Configura:
-   - **Puerto Interno**: `3001`
-   - **Puerto Externo**: `3001` (o déjalo automático)
-   - **Protocolo**: `HTTP`
-
-### 2.4. Configurar Comando de Inicio
-
-1. Ve a la sección **"Start Command"** o **"Comando de Inicio"**
-2. Ingresa:
-```bash
-node whatsapp-server.js
+configwp.checkin24hs.com
 ```
 
-O si usas PM2:
-```bash
-pm2 start whatsapp-server.js --name "whatsapp-instance-1" --update-env
-```
+### 3.2. Habilitar SSL
 
-### 2.5. Guardar y Reiniciar
+1. Busca la opción **"Enable SSL"** o **"Habilitar SSL"**
+2. Activa el switch/toggle para habilitar SSL
+3. EasyPanel debería configurar automáticamente SSL con **Let's Encrypt**
+4. Haz clic en **"Guardar"** o **"Save"**
+
+**⏱️ Espera 1-2 minutos** para que se genere el certificado SSL
+
+---
+
+## 📋 Paso 4: Configurar Rutas de Proxy (OPCIÓN A)
+
+### 4.1. Acceder a Configuración de Rutas
+
+1. En la configuración del servicio `whatsapp-api`
+2. Busca la sección **"Routes"**, **"Rutas"**, **"Proxy Routes"** o **"Path Routing"**
+
+### 4.2. Agregar Rutas
+
+Agrega las siguientes rutas una por una:
+
+**Ruta 1:**
+- **Path/Ruta**: `/api1/`
+- **Target/Destino**: `127.0.0.1:3001`
+- **Preserve Path**: ✅ (marcar si existe esta opción)
+
+**Ruta 2:**
+- **Path/Ruta**: `/api2/`
+- **Target/Destino**: `127.0.0.1:3002`
+- **Preserve Path**: ✅
+
+**Ruta 3:**
+- **Path/Ruta**: `/api3/`
+- **Target/Destino**: `127.0.0.1:3003`
+- **Preserve Path**: ✅
+
+**Ruta 4:**
+- **Path/Ruta**: `/api4/`
+- **Target/Destino**: `127.0.0.1:3004`
+- **Preserve Path**: ✅
+
+### 4.3. Guardar Configuración
 
 1. Haz clic en **"Guardar"** o **"Save"**
-2. Si el servicio está corriendo, haz clic en **"Reiniciar"** o **"Restart"**
-3. Si no está corriendo, haz clic en **"Iniciar"** o **"Start"**
+2. Espera a que se apliquen los cambios (puede tardar unos segundos)
 
-## 🔧 Paso 3: Configurar el Segundo Servicio (whatsapp2 - Instancia 2)
+---
 
-### 3.1. Editar el Servicio `whatsapp2`
+## 📋 Paso 5: Verificar Configuración DNS
 
-1. En la lista de servicios, encuentra **`whatsapp2`**
-2. Haz clic en el servicio para editarlo
-3. Si no existe, créalo con el nombre `whatsapp2`
+### 5.1. Verificar Registro DNS
 
-### 3.2. Configurar Variables de Entorno
+Asegúrate de que el registro DNS esté configurado:
 
-Agrega las mismas variables que en el Paso 2.2, pero con estos valores:
+**Tipo**: `A` o `CNAME`
+**Nombre**: `configwp`
+**Valor**: IP de tu servidor (ej: `72.61.58.240`)
 
-#### Variable 1: INSTANCE_NUMBER
-```
-Nombre: INSTANCE_NUMBER
-Valor: 2
-```
+### 5.2. Verificar Propagación DNS
 
-#### Variable 2: PORT
-```
-Nombre: PORT
-Valor: 3002
+Puedes verificar con:
+```bash
+# En Windows PowerShell
+nslookup configwp.checkin24hs.com
+
+# O en navegador
+# Visita: https://www.whatsmydns.net/#A/configwp.checkin24hs.com
 ```
 
-#### Variable 3: SUPABASE_URL
+---
+
+## 📋 Paso 6: Probar SSL y Rutas
+
+### 6.1. Probar SSL
+
+1. Abre tu navegador
+2. Visita: `https://configwp.checkin24hs.com`
+3. Deberías ver:
+   - ✅ Candado verde (SSL válido)
+   - ✅ Sin errores de certificado
+   - ✅ Posiblemente una página de error o respuesta del servidor (eso está bien)
+
+### 6.2. Probar Rutas
+
+Prueba cada ruta en el navegador:
+
 ```
-Nombre: SUPABASE_URL
-Valor: https://lmoeuyasuvoqhtvhkyia.supabase.co
+https://configwp.checkin24hs.com/api1/api/qr?card=1
+https://configwp.checkin24hs.com/api2/api/qr?card=2
+https://configwp.checkin24hs.com/api3/api/qr?card=3
+https://configwp.checkin24hs.com/api4/api/qr?card=4
 ```
 
-#### Variable 4: SUPABASE_ANON_KEY
+**Resultado esperado:**
+- ✅ Sin errores SSL
+- ✅ Respuesta JSON o imagen QR (dependiendo del estado de WhatsApp)
+
+---
+
+## 📋 Paso 7: Actualizar Dashboard
+
+### 7.1. Acceder al Dashboard
+
+1. Abre tu dashboard: `https://dashboard.checkin24hs.com`
+2. Inicia sesión
+3. Ve a la sección **"Flor IA"** → **"WhatsApp"**
+
+### 7.2. Configurar URL del Servidor
+
+1. En el campo **"URL del Servidor WhatsApp"**, ingresa:
 ```
-Nombre: SUPABASE_ANON_KEY
-Valor: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxtb2V1eWFzdXZvcWh0dmhreWlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzNjE5NjAsImV4cCI6MjA3OTkzNzk2MH0.28xpqAqAa7rkeT3Ma5fPmbzYnetlq2wOPOgh9XBF3g4
+https://configwp.checkin24hs.com
 ```
 
-#### Variable 5: GEMINI_API_KEY (Opcional)
-```
-Nombre: GEMINI_API_KEY
-Valor: tu_api_key_de_gemini_aqui
-```
+2. Haz clic en **"Guardar URL"**
 
-### 3.3. Configurar Puerto
+**⚠️ IMPORTANTE:** 
+- NO incluyas puerto (no uses `:3001`)
+- NO incluyas rutas (no uses `/api1`)
+- Solo el dominio base: `https://configwp.checkin24hs.com`
 
-- **Puerto Interno**: `3002`
-- **Puerto Externo**: `3002` (o automático)
-- **Protocolo**: `HTTP`
+### 7.3. Probar Conexión
 
-### 3.4. Configurar Comando de Inicio
+1. Haz clic en **"Conectar"** en cualquier tarjeta de WhatsApp (1, 2, 3 o 4)
+2. Deberías ver:
+   - ✅ QR code generándose
+   - ✅ Sin errores de Mixed Content
+   - ✅ Sin errores SSL
+
+---
+
+## 🔍 Verificación Final
+
+### Checklist de Verificación
+
+- [ ] Servicio creado en EasyPanel
+- [ ] Dominio `configwp.checkin24hs.com` configurado
+- [ ] SSL habilitado y funcionando
+- [ ] 4 rutas configuradas (`/api1/`, `/api2/`, `/api3/`, `/api4/`)
+- [ ] DNS propagado correctamente
+- [ ] SSL funciona en navegador (candado verde)
+- [ ] Rutas responden correctamente
+- [ ] URL guardada en dashboard
+- [ ] QR code se genera correctamente
+
+---
+
+## 🆘 Solución de Problemas
+
+### Problema: SSL no se genera
+
+**Solución:**
+1. Verifica que el DNS esté propagado: `nslookup configwp.checkin24hs.com`
+2. Asegúrate de que el puerto 80 y 443 estén abiertos en el firewall
+3. Espera 5-10 minutos y vuelve a intentar
+4. Revisa los logs de EasyPanel para ver errores
+
+### Problema: Rutas no funcionan
+
+**Solución:**
+1. Verifica que las rutas estén escritas exactamente: `/api1/`, `/api2/`, etc.
+2. Asegúrate de que los puertos 3001-3004 estén corriendo
+3. Verifica que el target sea `127.0.0.1:3001` (no `localhost`)
+4. Revisa si hay opción "Preserve Path" y actívala
+
+### Problema: Mixed Content Error
+
+**Solución:**
+1. Asegúrate de usar `https://` (no `http://`)
+2. Verifica que SSL esté funcionando en el dominio
+3. Limpia caché del navegador
+4. Verifica que la URL guardada en dashboard sea `https://configwp.checkin24hs.com`
+
+### Problema: QR code no aparece
+
+**Solución:**
+1. Abre la consola del navegador (F12)
+2. Busca errores en la pestaña "Console"
+3. Verifica que la URL sea correcta
+4. Prueba la ruta directamente en el navegador
+
+---
+
+## 📞 Comandos Útiles para Verificar
+
+### Desde el Servidor (SSH)
 
 ```bash
-node whatsapp-server.js
+# Verificar que los puertos estén escuchando
+netstat -tuln | grep -E '3001|3002|3003|3004'
+
+# Probar rutas localmente
+curl http://127.0.0.1:3001/api/qr?card=1
+curl http://127.0.0.1:3002/api/qr?card=2
+
+# Verificar certificado SSL
+openssl s_client -connect configwp.checkin24hs.com:443 -servername configwp.checkin24hs.com
 ```
 
-O con PM2:
-```bash
-pm2 start whatsapp-server.js --name "whatsapp-instance-2" --update-env
+### Desde el Dashboard (Consola del Navegador)
+
+```javascript
+// Verificar URL guardada
+localStorage.getItem('whatsappServerURL')
+
+// Probar conexión manualmente
+fetch('https://configwp.checkin24hs.com/api1/api/qr?card=1')
+  .then(r => r.json())
+  .then(console.log)
+  .catch(console.error)
 ```
 
-### 3.5. Guardar y Reiniciar
+---
 
-1. Guarda los cambios
-2. Reinicia o inicia el servicio
+## ✅ ¡Listo!
 
-## 🔧 Paso 4: Configurar el Tercer Servicio (whatsapp3 - Instancia 3)
+Una vez completados todos los pasos, tu configuración de WhatsApp debería funcionar con SSL y rutas.
 
-### 4.1. Editar el Servicio `whatsapp3`
-
-1. Encuentra o crea el servicio **`whatsapp3`**
-
-### 4.2. Configurar Variables de Entorno
-
-- **INSTANCE_NUMBER**: `3`
-- **PORT**: `3003`
-- **SUPABASE_URL**: `https://lmoeuyasuvoqhtvhkyia.supabase.co`
-- **SUPABASE_ANON_KEY**: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxtb2V1eWFzdXZvcWh0dmhreWlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzNjE5NjAsImV4cCI6MjA3OTkzNzk2MH0.28xpqAqAa7rkeT3Ma5fPmbzYnetlq2wOPOgh9XBF3g4`
-- **GEMINI_API_KEY**: (opcional, misma que antes)
-
-### 4.3. Configurar Puerto
-
-- **Puerto Interno**: `3003`
-- **Puerto Externo**: `3003`
-- **Protocolo**: `HTTP`
-
-### 4.4. Configurar Comando de Inicio
-
-```bash
-node whatsapp-server.js
-```
-
-O con PM2:
-```bash
-pm2 start whatsapp-server.js --name "whatsapp-instance-3" --update-env
-```
-
-### 4.5. Guardar y Reiniciar
-
-## 🔧 Paso 5: Configurar el Cuarto Servicio (whatsapp4 - Instancia 4)
-
-### 5.1. Editar el Servicio `whatsapp4`
-
-1. Encuentra o crea el servicio **`whatsapp4`**
-
-### 5.2. Configurar Variables de Entorno
-
-- **INSTANCE_NUMBER**: `4`
-- **PORT**: `3004`
-- **SUPABASE_URL**: `https://lmoeuyasuvoqhtvhkyia.supabase.co`
-- **SUPABASE_ANON_KEY**: `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxtb2V1eWFzdXZvcWh0dmhreWlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzNjE5NjAsImV4cCI6MjA3OTkzNzk2MH0.28xpqAqAa7rkeT3Ma5fPmbzYnetlq2wOPOgh9XBF3g4`
-- **GEMINI_API_KEY**: (opcional)
-
-### 5.3. Configurar Puerto
-
-- **Puerto Interno**: `3004`
-- **Puerto Externo**: `3004`
-- **Protocolo**: `HTTP`
-
-### 5.4. Configurar Comando de Inicio
-
-```bash
-node whatsapp-server.js
-```
-
-O con PM2:
-```bash
-pm2 start whatsapp-server.js --name "whatsapp-instance-4" --update-env
-```
-
-### 5.5. Guardar y Reiniciar
-
-## ✅ Paso 6: Verificar que Todo Esté Funcionando
-
-### 6.1. Verificar Estado de los Servicios
-
-En EasyPanel, verifica que los 4 servicios estén:
-- ✅ **Verde** (Running/Corriendo)
-- ✅ Sin errores en los logs
-
-### 6.2. Verificar Logs
-
-Para cada servicio:
-1. Haz clic en el servicio
-2. Ve a la pestaña **"Logs"** o **"Registros"**
-3. Verifica que no haya errores
-4. Deberías ver mensajes como:
-   - "WhatsApp server iniciado en puerto 3001"
-   - "Esperando conexión..."
-   - O un código QR si es la primera vez
-
-### 6.3. Verificar que los Puertos Estén Abiertos
-
-Desde la terminal de EasyPanel o desde tu servidor, puedes probar:
-
-```bash
-curl http://localhost:3001/api/status
-curl http://localhost:3002/api/status
-curl http://localhost:3003/api/status
-curl http://localhost:3004/api/status
-```
-
-Cada uno debería responder con un JSON indicando el estado.
-
-## 📊 Resumen de Configuración
-
-| Servicio | INSTANCE_NUMBER | PORT | Puerto Interno |
-|----------|-----------------|------|----------------|
-| whatsapp | 1 | 3001 | 3001 |
-| whatsapp2 | 2 | 3002 | 3002 |
-| whatsapp3 | 3 | 3003 | 3003 |
-| whatsapp4 | 4 | 3004 | 3004 |
-
-## 🚀 Paso 7: Conectar desde el Dashboard
-
-Una vez que todos los servicios estén corriendo:
-
-1. **Abre el Dashboard**: Ve a tu dashboard de Checkin24hs
-2. **Ve a Flor IA**: Menú lateral → **"Flor IA"**
-3. **Abre pestaña WhatsApp**: Haz clic en **"📱 WhatsApp"**
-4. **Configura URL**: En "URL del Servidor WhatsApp", ingresa: `http://72.61.58.240`
-5. **Abre modal**: Haz clic en **"Conectar Múltiples WhatsApp (hasta 4)"**
-6. **Conecta cada instancia**: Haz clic en **"🔗 Conectar"** en cada tarjeta
-7. **Escanear QR**: Escanea cada QR con WhatsApp desde tu teléfono
-
-## 🆘 Solución de Problemas Comunes
-
-### ❌ Error: "Puerto ya en uso"
-
-**Solución**: 
-- Verifica que no haya otro servicio usando el mismo puerto
-- Detén el servicio que está usando el puerto
-- Reinicia el servicio
-
-### ❌ Error: "INSTANCE_NUMBER no definido"
-
-**Solución**:
-- Verifica que la variable de entorno `INSTANCE_NUMBER` esté configurada
-- Asegúrate de que el valor sea correcto (1, 2, 3, o 4)
-- Reinicia el servicio después de agregar la variable
-
-### ❌ Error: "No se puede conectar a Supabase"
-
-**Solución**:
-- Verifica que `SUPABASE_URL` y `SUPABASE_ANON_KEY` estén correctos
-- Verifica que no haya espacios extra en los valores
-- Reinicia el servicio
-
-### ❌ El servicio no inicia
-
-**Solución**:
-1. Revisa los logs del servicio
-2. Verifica que el archivo `whatsapp-server.js` exista
-3. Verifica que todas las variables de entorno estén configuradas
-4. Verifica que el puerto no esté en uso
-
-### ❌ El QR no aparece
-
-**Solución**:
-1. Elimina la carpeta `.wwebjs_auth` desde el File Manager de EasyPanel
-2. Reinicia el servicio
-3. Espera unos segundos y revisa los logs
-4. El QR debería aparecer en los logs o en el dashboard
-
-## 📝 Checklist Final
-
-Antes de conectar desde el dashboard, verifica:
-
-- [ ] Servicio `whatsapp` configurado con INSTANCE_NUMBER=1, PORT=3001
-- [ ] Servicio `whatsapp2` configurado con INSTANCE_NUMBER=2, PORT=3002
-- [ ] Servicio `whatsapp3` configurado con INSTANCE_NUMBER=3, PORT=3003
-- [ ] Servicio `whatsapp4` configurado con INSTANCE_NUMBER=4, PORT=3004
-- [ ] Todos los servicios tienen SUPABASE_URL y SUPABASE_ANON_KEY configurados
-- [ ] Todos los puertos están configurados correctamente (3001, 3002, 3003, 3004)
-- [ ] Todos los servicios están en verde (Running) en EasyPanel
-- [ ] No hay errores en los logs de ningún servicio
-- [ ] Los servicios responden en `/api/status`
-
-## 🎉 ¡Listo!
-
-Una vez completados todos los pasos, tus servicios de WhatsApp estarán listos para conectarse desde el dashboard. Cada instancia funcionará de forma independiente y usará Flor IA para responder automáticamente.
-
+**Próximo paso:** Probar conectando WhatsApp desde el dashboard y escanear el QR code.
