@@ -8960,18 +8960,24 @@ Ej:
         
         // Conectar WhatsApp (generar QR)
         async function connectWhatsApp(cardNumber) {
+            console.log(`🚀 connectWhatsApp llamado para tarjeta ${cardNumber}`);
+            
             try {
                 const cardData = JSON.parse(localStorage.getItem('whatsappCards') || '{"1":{},"2":{},"3":{},"4":{}}');
                 const currentData = cardData[cardNumber] || {};
                 
+                console.log(`📊 Estado actual de tarjeta ${cardNumber}:`, currentData.status);
+                
                 // Si ya está conectado, desconectar
                 if (currentData.status === 'connected') {
+                    console.log(`ℹ️ Tarjeta ${cardNumber} ya está conectada, desconectando...`);
                     await disconnectWhatsApp(cardNumber);
                     return;
                 }
                 
                 // Si está conectando, cancelar
                 if (currentData.status === 'connecting') {
+                    console.log(`ℹ️ Tarjeta ${cardNumber} está conectando, cancelando...`);
                     currentData.status = 'disconnected';
                     cardData[cardNumber] = currentData;
                     localStorage.setItem('whatsappCards', JSON.stringify(cardData));
@@ -8980,6 +8986,7 @@ Ej:
                 }
                 
                 // Cambiar estado a "conectando"
+                console.log(`🔄 Cambiando estado a "connecting" para tarjeta ${cardNumber}`);
                 currentData.status = 'connecting';
                 currentData.card_number = cardNumber;
                 cardData[cardNumber] = currentData;
@@ -8995,30 +9002,34 @@ Ej:
                 console.log(`🔗 Conectando WhatsApp ${cardNumber} a: ${serverUrl}`);
                 
                 try {
-                // Usar AbortController para timeout (compatible con más navegadores)
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000);
-                
-                const response = await fetch(`${serverUrl}/api/qr?card=${cardNumber}`, {
-                    method: 'GET',
-                    signal: controller.signal
-                });
-                
-                clearTimeout(timeoutId);
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.qr) {
-                        currentData.qr = data.qr;
-                        currentData.qrData = data.qrData || null;
-                        cardData[cardNumber] = currentData;
-                        localStorage.setItem('whatsappCards', JSON.stringify(cardData));
-                        updateWhatsAppCard(cardNumber, currentData);
-                        qrGenerated = true;
-                        
-                        // Iniciar polling para verificar conexión
-                        checkWhatsAppConnectionStatus(cardNumber);
-                    }
+                    // Usar AbortController para timeout (compatible con más navegadores)
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 5000);
+                    
+                    console.log(`📡 Intentando obtener QR del servidor...`);
+                    const response = await fetch(`${serverUrl}/api/qr?card=${cardNumber}`, {
+                        method: 'GET',
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.qr) {
+                            console.log(`✅ QR obtenido del servidor para tarjeta ${cardNumber}`);
+                            currentData.qr = data.qr;
+                            currentData.qrData = data.qrData || null;
+                            cardData[cardNumber] = currentData;
+                            localStorage.setItem('whatsappCards', JSON.stringify(cardData));
+                            updateWhatsAppCard(cardNumber, currentData);
+                            qrGenerated = true;
+                            
+                            // Iniciar polling para verificar conexión
+                            checkWhatsAppConnectionStatus(cardNumber);
+                        } else {
+                            console.log(`⚠️ Servidor respondió OK pero sin QR, generando QR local`);
+                        }
                     } else {
                         console.log(`⚠️ Servidor respondió con código ${response.status}, generando QR local`);
                     }
@@ -9033,7 +9044,18 @@ Ej:
                 
                 // Si no hay servidor, generar QR local para prueba
                 if (!qrGenerated) {
-                    await generateLocalQR(cardNumber);
+                    console.log(`🔄 QR no generado del servidor, llamando generateLocalQR(${cardNumber})...`);
+                    console.log(`🔍 Verificando si generateLocalQR existe:`, typeof generateLocalQR);
+                    
+                    if (typeof generateLocalQR === 'function') {
+                        await generateLocalQR(cardNumber);
+                        console.log(`✅ generateLocalQR completado para tarjeta ${cardNumber}`);
+                    } else {
+                        console.error(`❌ generateLocalQR no está definida!`);
+                        alert(`⚠️ Error: Función generateLocalQR no encontrada. Por favor, recarga la página.`);
+                    }
+                } else {
+                    console.log(`✅ QR ya generado del servidor, no se necesita QR local`);
                 }
             } catch (error) {
                 console.error('❌ Error en connectWhatsApp:', error);
@@ -9597,6 +9619,8 @@ Ej:
         window.checkWhatsAppConnectionStatus = checkWhatsAppConnectionStatus;
         window.getServerURL = getServerURL;
         window.ensureHTTPS = ensureHTTPS;
+        window.generateLocalQR = generateLocalQR;
+        window.loadQRCodeLibrary = loadQRCodeLibrary;
         
         // Inicializar WhatsApp al cargar la página (solo si la pestaña está visible)
         document.addEventListener('DOMContentLoaded', function() {
