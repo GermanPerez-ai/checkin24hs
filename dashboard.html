@@ -12832,45 +12832,43 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 console.log('✅ Event listeners del modal de imágenes configurados');
             }, 500);
             
-            // Verificar si hay sesión válida
-            const authSession = localStorage.getItem('dashboard_auth_session');
-            let isAuthenticated = false;
-            
-            if (authSession) {
-                try {
-                    const session = JSON.parse(authSession);
-                    const now = Date.now();
-                    if (session.expiresAt && now < session.expiresAt) {
-                        isAuthenticated = true;
-                    } else {
-                        localStorage.removeItem('dashboard_auth_session');
-                    }
-                } catch (e) {
-                    localStorage.removeItem('dashboard_auth_session');
-                }
-            }
+            // Verificar si hay sesión válida usando la función helper
+            const isAuthenticated = isUserAuthenticated();
             
             // Solo inicializar el dashboard si el usuario está autenticado
             if (isAuthenticated) {
                 console.log('✅ Usuario autenticado, inicializando dashboard...');
-            // Inicializar dashboard
+                
+                // Inicializar dashboard
                 if (typeof initializeDashboard === 'function') {
-            initializeDashboard();
+                    initializeDashboard();
                 }
-            
-            // Configurar sincronización automática
+                
+                // Configurar sincronización automática
                 if (typeof setupAutoSync === 'function') {
-            setupAutoSync();
+                    setupAutoSync();
                 }
-            
-            console.log('✅ Dashboard inicializado correctamente');
+                
+                // Inicializar WhatsApp solo después de autenticación exitosa
+                setTimeout(function() {
+                    if (typeof verificarFuncionesWhatsApp === 'function') {
+                        verificarFuncionesWhatsApp();
+                    }
+                    if (typeof agregarEventListenersWhatsApp === 'function') {
+                        agregarEventListenersWhatsApp();
+                    }
+                }, 1000);
+                
+                console.log('✅ Dashboard inicializado correctamente');
             } else {
                 console.log('🔒 Usuario no autenticado, NO inicializando dashboard');
+                console.log('🔓 No hay sesión activa');
                 // Asegurar que el dashboard esté oculto
                 const dashboardContent = document.getElementById('dashboardContent');
                 const loginContainer = document.getElementById('loginContainer');
                 if (dashboardContent) dashboardContent.classList.remove('authenticated');
                 if (loginContainer) loginContainer.classList.remove('hidden');
+                return; // Salir temprano, no inicializar nada más
             }
         });
 
