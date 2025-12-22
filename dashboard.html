@@ -9016,10 +9016,11 @@ Ej:
                 updateWhatsAppCard(cardNumber, currentData);
                 
                 // Intentar obtener QR del servidor primero
-                const baseServerUrl = getServerURL();
-                const port = 3000 + parseInt(cardNumber); // 3001, 3002, 3003, 3004
-                const serverUrl = `${baseServerUrl}:${port}`;
+                // getServerURL(cardNumber) retorna URL completa con ruta (/api1) o puerto (:3001)
+                const serverUrl = getServerURL(cardNumber);
                 let qrGenerated = false;
+                
+                console.log(`🔗 URL completa construida: ${serverUrl}`);
                 
                 console.log(`🔗 Conectando WhatsApp ${cardNumber} a: ${serverUrl}`);
                 
