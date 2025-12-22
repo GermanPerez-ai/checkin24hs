@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node puppeteer-real-cotizacion.js"
+    "test": "node puppeteer-real-cotizacion.js",
+    "dashboard": "node serve-dashboard.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

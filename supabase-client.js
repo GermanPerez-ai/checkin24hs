@@ -1729,31 +1729,48 @@ class SupabaseClient {
         }
 
         try {
-            // Primero intentar con el join a users
+            // Intentar obtener chats con ordenamiento
             let query = this.client
                 .from('whatsapp_chats')
-                .select('*, users(name, email)')
-                .order('last_message_time', { ascending: false })
+                .select('*')
                 .limit(limit);
             
-            let { data, error } = await query;
-
-            // Si hay error con el join, intentar sin el join
-            if (error && error.message && error.message.includes('users')) {
-                console.warn('⚠️ Error con join a users, intentando sin join:', error.message);
-                query = this.client
-                    .from('whatsapp_chats')
-                    .select('*')
-                    .order('last_message_time', { ascending: false })
-                    .limit(limit);
-                
-                const result = await query;
-                data = result.data;
-                error = result.error;
+            // Intentar ordenar por last_message_time si existe
+            try {
+                query = query.order('last_message_time', { ascending: false });
+            } catch (e) {
+                // Si falla el ordenamiento, continuar sin ordenar
+                console.log('ℹ️ No se pudo ordenar por last_message_time, continuando sin ordenar');
             }
 
-            if (error) {
+            let { data, error } = await query;
+
+            // Si hay error 400 o la tabla no existe, intentar sin ordenamiento
+            if (error && (error.code === 'PGRST116' || error.status === 400 || error.message?.includes('does not exist') || error.message?.includes('column'))) {
+                console.log('ℹ️ Error con ordenamiento, intentando sin ordenar...');
+                const simpleQuery = this.client
+                    .from('whatsapp_chats')
+                    .select('*')
+                    .limit(limit);
+                
+                const result = await simpleQuery;
+                if (result.error) {
+                    // Si aún falla, la tabla probablemente no existe
+                    if (result.error.code === 'PGRST116' || result.error.message?.includes('does not exist')) {
+                        console.log('ℹ️ Tabla whatsapp_chats no existe aún en Supabase');
+                        return [];
+                    }
+                    throw result.error;
+                }
+                data = result.data;
+                error = result.error;
+            } else if (error) {
                 console.error('❌ Error obteniendo chats:', error);
+                // Si es un error 400, probablemente la tabla no existe o tiene estructura diferente
+                if (error.status === 400) {
+                    console.log('ℹ️ Error 400: La tabla whatsapp_chats puede no existir o tener estructura diferente');
+                    return [];
+                }
                 throw error;
             }
 
@@ -1761,6 +1778,7 @@ class SupabaseClient {
             return data || [];
         } catch (error) {
             console.error('❌ Error obteniendo chats:', error);
+            // En caso de cualquier error, retornar array vacío para no romper la aplicación
             return [];
         }
     }
@@ -1890,6 +1908,157 @@ class SupabaseClient {
             console.error('❌ Error obteniendo interacciones:', error);
             return [];
         }
+    }
+
+    // Guardar una nueva interacción de Flor
+    async saveFlorInteraction(interactionData) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado, guardando en localStorage');
+            const interactions = JSON.parse(localStorage.getItem('flor_interactions') || '[]');
+            const newInteraction = {
+                id: 'inter-' + Date.now(),
+                ...interactionData,
+                created_at: new Date().toISOString()
+            };
+            interactions.push(newInteraction);
+            localStorage.setItem('flor_interactions', JSON.stringify(interactions));
+            return newInteraction;
+        }
+
+        try {
+            const interaction = {
+                user_message: interactionData.userMessage || interactionData.user_message || '',
+                bot_response: interactionData.botResponse || interactionData.bot_response || '',
+                intent: interactionData.intent || 'consulta_general',
+                phone: interactionData.phone || null,
+                email: interactionData.email || null,
+                success: interactionData.success !== false,
+                used_ai: interactionData.usedAI || interactionData.used_ai || true,
+                hotel_id: interactionData.hotelId || interactionData.hotel_id || null,
+                metadata: interactionData.metadata || {}
+            };
+
+            const { data, error } = await this.client
+                .from('flor_interactions')
+                .insert([interaction])
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            console.log('✅ Interacción guardada en Supabase:', data.id);
+            
+            // Sincronizar con localStorage como backup
+            const interactions = JSON.parse(localStorage.getItem('flor_interactions') || '[]');
+            interactions.push(data);
+            localStorage.setItem('flor_interactions', JSON.stringify(interactions));
+            
+            return data;
+        } catch (error) {
+            console.error('❌ Error guardando interacción:', error);
+            // Fallback a localStorage
+            const interactions = JSON.parse(localStorage.getItem('flor_interactions') || '[]');
+            const newInteraction = {
+                id: 'inter-' + Date.now(),
+                ...interactionData,
+                created_at: new Date().toISOString()
+            };
+            interactions.push(newInteraction);
+            localStorage.setItem('flor_interactions', JSON.stringify(interactions));
+            return newInteraction;
+        }
+    }
+
+    // Analizar interacciones para aprendizaje
+    async analyzeFlorInteractions(limit = 100) {
+        if (!this.isInitialized()) {
+            const interactions = JSON.parse(localStorage.getItem('flor_interactions') || '[]');
+            return this.analyzeInteractionsLocal(interactions);
+        }
+
+        try {
+            const { data, error } = await this.client
+                .from('flor_interactions')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(limit);
+
+            if (error) throw error;
+
+            return this.analyzeInteractionsLocal(data || []);
+        } catch (error) {
+            console.error('❌ Error analizando interacciones:', error);
+            const interactions = JSON.parse(localStorage.getItem('flor_interactions') || '[]');
+            return this.analyzeInteractionsLocal(interactions);
+        }
+    }
+
+    // Análisis local de interacciones
+    analyzeInteractionsLocal(interactions) {
+        const analysis = {
+            total: interactions.length,
+            successful: 0,
+            failed: 0,
+            intents: {},
+            commonWords: {},
+            averageResponseTime: 0,
+            mostCommonQuestions: [],
+            improvementSuggestions: []
+        };
+
+        interactions.forEach(inter => {
+            // Contar éxitos
+            if (inter.success !== false) {
+                analysis.successful++;
+            } else {
+                analysis.failed++;
+            }
+
+            // Contar intents
+            const intent = inter.intent || 'consulta_general';
+            analysis.intents[intent] = (analysis.intents[intent] || 0) + 1;
+
+            // Extraer palabras comunes del mensaje del usuario
+            const userMessage = (inter.user_message || inter.userMessage || '').toLowerCase();
+            const words = userMessage.split(/\s+/).filter(w => w.length > 3);
+            words.forEach(word => {
+                analysis.commonWords[word] = (analysis.commonWords[word] || 0) + 1;
+            });
+
+            // Preguntas más comunes
+            if (userMessage.includes('?')) {
+                analysis.mostCommonQuestions.push(userMessage);
+            }
+        });
+
+        // Ordenar palabras comunes
+        analysis.commonWords = Object.entries(analysis.commonWords)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 20)
+            .reduce((obj, [word, count]) => {
+                obj[word] = count;
+                return obj;
+            }, {});
+
+        // Preguntas más comunes
+        const questionCounts = {};
+        analysis.mostCommonQuestions.forEach(q => {
+            questionCounts[q] = (questionCounts[q] || 0) + 1;
+        });
+        analysis.mostCommonQuestions = Object.entries(questionCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10)
+            .map(([question, count]) => ({ question, count }));
+
+        // Sugerencias de mejora
+        if (analysis.failed > analysis.successful * 0.3) {
+            analysis.improvementSuggestions.push('Tasa de éxito baja. Revisar respuestas para intents más comunes.');
+        }
+        if (Object.keys(analysis.intents).length > 10) {
+            analysis.improvementSuggestions.push('Muchos intents diferentes. Considerar agrupar intents similares.');
+        }
+
+        return analysis;
     }
 }
 
