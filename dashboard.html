@@ -8984,6 +8984,12 @@ Ej:
                 
                 console.log(`📊 Estado actual de tarjeta ${cardNumber}:`, currentData.status);
                 
+                // Limpiar estado de error previo si existe
+                if (currentData.status === 'error') {
+                    console.log(`🔄 Limpiando estado de error previo para tarjeta ${cardNumber}`);
+                    currentData.error = null;
+                }
+                
                 // Si ya está conectado, desconectar
                 if (currentData.status === 'connected') {
                     console.log(`ℹ️ Tarjeta ${cardNumber} ya está conectada, desconectando...`);
