@@ -9053,7 +9053,7 @@ Ej:
                     if (error.name === 'AbortError') {
                         console.log('⚠️ Timeout al conectar con el servidor');
                     } else {
-                        console.log('⚠️ Servidor no disponible:', error.message);
+                        console.log('⚠️ Error al conectar:', error.message);
                     }
                 }
                 
@@ -9061,19 +9061,59 @@ Ej:
                 if (!qrGenerated) {
                     console.log(`❌ No se pudo obtener QR del servidor para tarjeta ${cardNumber}`);
                     
+                    // Detectar si es error de Mixed Content
+                    const isMixedContent = window.location.protocol === 'https:' && serverUrl.startsWith('http://');
+                    
                     // Actualizar estado a error
                     currentData.status = 'error';
-                    currentData.error = 'Servidor WhatsApp no disponible';
+                    if (isMixedContent) {
+                        currentData.error = 'Mixed Content: HTTPS bloqueando HTTP';
+                    } else {
+                        currentData.error = 'Servidor WhatsApp no disponible';
+                    }
                     cardData[cardNumber] = currentData;
                     localStorage.setItem('whatsappCards', JSON.stringify(cardData));
                     
                     // Mostrar mensaje de error en lugar de QR falso
                     const qrDiv = document.getElementById(`whatsapp-${cardNumber}-qr`);
                     if (qrDiv) {
-                        qrDiv.innerHTML = `
-                            <div style="text-align: center; padding: 20px; background: #fff3cd; border-radius: 8px; border: 2px solid #ffc107;">
-                                <div style="font-size: 48px; margin-bottom: 10px;">⚠️</div>
-                                <h4 style="margin: 0 0 10px 0; color: #856404;">Servidor WhatsApp No Disponible</h4>
+                        let errorMessage = '';
+                        let errorTitle = '';
+                        let solutions = '';
+                        
+                        if (isMixedContent) {
+                            errorTitle = '⚠️ Error de Mixed Content (HTTPS → HTTP)';
+                            errorMessage = `
+                                <p style="margin: 0 0 15px 0; color: #856404; font-size: 14px;">
+                                    El dashboard está servido sobre <strong>HTTPS</strong>, pero el servidor WhatsApp está en <strong>HTTP</strong>.
+                                    Los navegadores modernos bloquean este tipo de conexiones por seguridad.
+                                </p>
+                                <p style="margin: 0 0 15px 0; color: #856404; font-size: 14px;">
+                                    <strong>Soluciones:</strong>
+                                </p>
+                                <ol style="text-align: left; margin: 0 0 15px 0; padding-left: 25px; color: #856404; font-size: 13px;">
+                                    <li><strong>Configurar HTTPS en el servidor WhatsApp</strong> (recomendado)
+                                        <ul style="margin-top: 5px; padding-left: 20px;">
+                                            <li>Usar un dominio con certificado SSL (ej: whatsapp.checkin24hs.com)</li>
+                                            <li>Configurar un proxy reverso con SSL (nginx, Caddy, etc.)</li>
+                                        </ul>
+                                    </li>
+                                    <li><strong>Usar un proxy HTTPS</strong>
+                                        <ul style="margin-top: 5px; padding-left: 20px;">
+                                            <li>Configurar un proxy que acepte HTTPS y redirija a HTTP internamente</li>
+                                        </ul>
+                                    </li>
+                                    <li><strong>Solución temporal</strong> (no recomendado para producción)
+                                        <ul style="margin-top: 5px; padding-left: 20px;">
+                                            <li>Acceder al dashboard desde HTTP en lugar de HTTPS</li>
+                                            <li>O configurar el navegador para permitir contenido mixto (solo desarrollo)</li>
+                                        </ul>
+                                    </li>
+                                </ol>
+                            `;
+                        } else {
+                            errorTitle = '⚠️ Servidor WhatsApp No Disponible';
+                            errorMessage = `
                                 <p style="margin: 0 0 15px 0; color: #856404; font-size: 14px;">
                                     El servidor WhatsApp en <strong>${serverUrl}</strong> no está respondiendo.
                                 </p>
@@ -9084,8 +9124,17 @@ Ej:
                                     <li>Un servidor WhatsApp corriendo (whatsapp-web.js)</li>
                                     <li>La URL correcta del servidor configurada</li>
                                     <li>El servidor debe estar accesible desde este navegador</li>
+                                    <li>Si el dashboard está en HTTPS, el servidor también debe estar en HTTPS</li>
                                 </ul>
-                                <button onclick="connectWhatsApp(${cardNumber})" style="background: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer;">
+                            `;
+                        }
+                        
+                        qrDiv.innerHTML = `
+                            <div style="text-align: center; padding: 20px; background: #fff3cd; border-radius: 8px; border: 2px solid #ffc107;">
+                                <div style="font-size: 48px; margin-bottom: 10px;">⚠️</div>
+                                <h4 style="margin: 0 0 10px 0; color: #856404;">${errorTitle}</h4>
+                                ${errorMessage}
+                                <button onclick="connectWhatsApp(${cardNumber})" style="background: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-top: 10px;">
                                     🔄 Reintentar Conexión
                                 </button>
                             </div>
