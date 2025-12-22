@@ -22026,6 +22026,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
         if (tabName === 'whatsapp') {
             loadWhatsAppCards();
+            
+            // Agregar event listeners cuando se abre la pestaña WhatsApp
+            setTimeout(function() {
+                if (typeof agregarEventListenersWhatsApp === 'function') {
+                    agregarEventListenersWhatsApp();
+                }
+            }, 100);
         }
     };
 
