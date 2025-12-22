@@ -9845,8 +9845,36 @@ Ej:
             console.log('✅ Event listeners WhatsApp configurados');
         }
         
-        // Inicializar WhatsApp al cargar la página (solo si la pestaña está visible)
+        // Función helper para verificar autenticación
+        function isUserAuthenticated() {
+            const authSession = localStorage.getItem('dashboard_auth_session');
+            if (!authSession) {
+                return false;
+            }
+            try {
+                const session = JSON.parse(authSession);
+                const now = Date.now();
+                if (session.expiresAt && now < session.expiresAt) {
+                    return true;
+                } else {
+                    localStorage.removeItem('dashboard_auth_session');
+                    return false;
+                }
+            } catch (e) {
+                localStorage.removeItem('dashboard_auth_session');
+                return false;
+            }
+        }
+        
+        // Inicializar WhatsApp al cargar la página (SOLO si el usuario está autenticado)
         document.addEventListener('DOMContentLoaded', function() {
+            // Verificar autenticación antes de inicializar WhatsApp
+            if (!isUserAuthenticated()) {
+                console.log('🔒 Usuario no autenticado, NO inicializando WhatsApp');
+                return; // Salir temprano si no hay sesión
+            }
+            
+            console.log('✅ Usuario autenticado, inicializando WhatsApp...');
             verificarFuncionesWhatsApp();
             
             // Agregar listeners después de un pequeño delay para asegurar que el DOM esté listo
@@ -22140,6 +22168,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             loadHotelsForFlor();
         }
         if (tabName === 'whatsapp') {
+            // Verificar autenticación antes de cargar WhatsApp
+            if (!isUserAuthenticated()) {
+                console.log('🔒 Usuario no autenticado, NO cargando WhatsApp');
+                return; // Salir temprano si no hay sesión
+            }
+            
             loadWhatsAppCards();
             
             // Agregar event listeners cuando se abre la pestaña WhatsApp
