@@ -3477,9 +3477,9 @@
                         </label>
                         <div style="display: flex; gap: 10px; align-items: center;">
                             <input type="text" id="whatsapp-server-url" 
-                                   placeholder="http://72.61.58.240" 
+                                   placeholder="https://72.61.58.240" 
                                    style="flex: 1; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.95rem;"
-                                   value="http://72.61.58.240">
+                                   value="https://72.61.58.240">
                             <button onclick="saveWhatsAppServerUrl()" 
                                     style="background: #25D366; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer;">
                                 Guardar URL
@@ -8987,7 +8987,7 @@ Ej:
                 updateWhatsAppCard(cardNumber, currentData);
                 
                 // Intentar obtener QR del servidor primero
-                const baseServerUrl = getServerURL() || localStorage.getItem('whatsappServerUrl') || 'http://72.61.58.240';
+                const baseServerUrl = getServerURL();
                 const port = 3000 + parseInt(cardNumber); // 3001, 3002, 3003, 3004
                 const serverUrl = `${baseServerUrl}:${port}`;
                 let qrGenerated = false;
@@ -9199,7 +9199,7 @@ Ej:
         
         // Verificar estado de conexión
         async function checkWhatsAppConnectionStatus(cardNumber) {
-            const baseServerUrl = getServerURL() || localStorage.getItem('whatsappServerURL') || localStorage.getItem('whatsappServerUrl') || 'http://72.61.58.240';
+            const baseServerUrl = getServerURL();
             const port = 3000 + parseInt(cardNumber); // 3001, 3002, 3003, 3004
             const serverUrl = `${baseServerUrl}:${port}`;
             let attempts = 0;
@@ -9293,7 +9293,7 @@ Ej:
             
             if (currentData.status === 'connected') {
                 // Verificar estado actual en el servidor
-                const baseServerUrl = getServerURL() || localStorage.getItem('whatsappServerURL') || localStorage.getItem('whatsappServerUrl') || 'http://72.61.58.240';
+                const baseServerUrl = getServerURL();
                 const port = 3000 + parseInt(cardNumber); // 3001, 3002, 3003, 3004
                 const serverUrl = `${baseServerUrl}:${port}`;
                 try {
@@ -9392,11 +9392,17 @@ Ej:
                 return;
             }
             
-            const serverUrl = serverUrlInput.value.trim();
+            let serverUrl = serverUrlInput.value.trim();
             if (!serverUrl) {
                 alert('⚠️ Por favor ingresa una URL válida');
                 return;
             }
+            
+            // Convertir HTTP a HTTPS si la página está en HTTPS
+            serverUrl = ensureHTTPS(serverUrl);
+            
+            // Actualizar el input con la URL corregida
+            serverUrlInput.value = serverUrl;
             
             // Guardar en localStorage
             localStorage.setItem('whatsappServerURL', serverUrl);
@@ -9416,9 +9422,12 @@ Ej:
             console.log('📱 Cargando URL del servidor WhatsApp...');
             
             // Cargar URL del servidor desde localStorage
-            const serverUrl = localStorage.getItem('whatsappServerURL') || 
+            let serverUrl = localStorage.getItem('whatsappServerURL') || 
                              localStorage.getItem('whatsappServerUrl') || 
                              'http://72.61.58.240';
+            
+            // Convertir HTTP a HTTPS si la página está en HTTPS
+            serverUrl = ensureHTTPS(serverUrl);
             
             // Actualizar el campo de entrada si existe
             const serverUrlInput = document.getElementById('whatsapp-server-url');
@@ -9446,6 +9455,7 @@ Ej:
         window.simulateWhatsAppConnection = simulateWhatsAppConnection;
         window.checkWhatsAppConnectionStatus = checkWhatsAppConnectionStatus;
         window.getServerURL = getServerURL;
+        window.ensureHTTPS = ensureHTTPS;
         
         // Inicializar WhatsApp al cargar la página (solo si la pestaña está visible)
         document.addEventListener('DOMContentLoaded', function() {
@@ -10049,15 +10059,28 @@ Ej:
         }
         
         // Función para obtener URL del servidor
-        function getServerURL() {
-            // Intentar obtener desde localStorage
-            const serverUrl = localStorage.getItem('whatsappServerURL');
-            if (serverUrl && serverUrl.trim() !== '') {
-                return serverUrl.trim();
+        // Función helper para convertir HTTP a HTTPS si la página está en HTTPS
+        function ensureHTTPS(url) {
+            if (!url) return url;
+            
+            // Si la página está en HTTPS y la URL es HTTP, convertir a HTTPS
+            if (window.location.protocol === 'https:' && url.startsWith('http://')) {
+                return url.replace('http://', 'https://');
             }
             
-            // No devolver valor por defecto - el servidor debe estar explícitamente configurado
-            return null;
+            return url;
+        }
+        
+        function getServerURL() {
+            // Intentar obtener desde localStorage
+            const serverUrl = localStorage.getItem('whatsappServerURL') || localStorage.getItem('whatsappServerUrl');
+            if (serverUrl && serverUrl.trim() !== '') {
+                return ensureHTTPS(serverUrl.trim());
+            }
+            
+            // Valor por defecto (convertido a HTTPS si es necesario)
+            const defaultUrl = 'http://72.61.58.240';
+            return ensureHTTPS(defaultUrl);
         }
         
         // Función para formatear mensaje de WhatsApp
@@ -22232,15 +22255,23 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     window.disconnectWhatsApp = function() {
         if (!confirm('¿Estás seguro de desconectar WhatsApp?')) return;
         
-        const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://localhost:3001';
+        let serverUrl = document.getElementById('whatsapp-server-url')?.value || getServerURL() || 'http://localhost:3001';
+        
+        // Asegurar HTTPS si la página está en HTTPS
+        if (window.location.protocol === 'https:' && serverUrl.startsWith('http://')) {
+            serverUrl = serverUrl.replace('http://', 'https://');
+        }
+        
         fetch(serverUrl + '/disconnect', { method: 'POST' })
             .then(() => {
                 alert('WhatsApp desconectado');
-                checkWhatsAppConnection();
+                if (typeof checkWhatsAppConnection === 'function') {
+                    checkWhatsAppConnection();
+                }
             })
             .catch(error => {
                 console.error('Error desconectando:', error);
-                alert('Error al desconectar');
+                alert('Error al desconectar. Verifica que el servidor esté configurado con HTTPS.');
             });
     };
 
