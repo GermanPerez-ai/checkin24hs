@@ -9306,6 +9306,69 @@ Ej:
             if (serverUrlEl && config.serverUrl) serverUrlEl.value = config.serverUrl;
         }
         
+        // Guardar URL del servidor WhatsApp
+        function saveWhatsAppServerUrl() {
+            const serverUrlInput = document.getElementById('whatsapp-server-url');
+            if (!serverUrlInput) {
+                alert('⚠️ Campo de URL no encontrado');
+                return;
+            }
+            
+            const serverUrl = serverUrlInput.value.trim();
+            if (!serverUrl) {
+                alert('⚠️ Por favor ingresa una URL válida');
+                return;
+            }
+            
+            // Guardar en localStorage
+            localStorage.setItem('whatsappServerURL', serverUrl);
+            localStorage.setItem('whatsappServerUrl', serverUrl); // Compatibilidad
+            
+            // Actualizar configuración
+            const config = JSON.parse(localStorage.getItem('whatsappConfig') || '{}');
+            config.serverUrl = serverUrl;
+            localStorage.setItem('whatsappConfig', JSON.stringify(config));
+            
+            console.log('✅ URL del servidor guardada:', serverUrl);
+            alert('✅ URL del servidor guardada correctamente');
+        }
+        
+        // Cargar URL del servidor WhatsApp (función de compatibilidad)
+        function loadWhatsAppServerUrl() {
+            console.log('📱 Cargando URL del servidor WhatsApp...');
+            
+            // Cargar URL del servidor desde localStorage
+            const serverUrl = localStorage.getItem('whatsappServerURL') || 
+                             localStorage.getItem('whatsappServerUrl') || 
+                             'http://72.61.58.240';
+            
+            // Actualizar el campo de entrada si existe
+            const serverUrlInput = document.getElementById('whatsapp-server-url');
+            if (serverUrlInput) {
+                serverUrlInput.value = serverUrl;
+            }
+            
+            // También cargar la configuración completa si existe la función
+            if (typeof loadWhatsAppConfig === 'function') {
+                loadWhatsAppConfig();
+            }
+            
+            console.log('✅ URL del servidor cargada:', serverUrl);
+        }
+        
+        // Hacer funciones globales para que estén disponibles en onclick
+        window.connectWhatsApp = connectWhatsApp;
+        window.disconnectWhatsApp = disconnectWhatsApp;
+        window.updateWhatsApp = updateWhatsApp;
+        window.checkWhatsAppConnection = checkWhatsAppConnection;
+        window.saveWhatsAppServerUrl = saveWhatsAppServerUrl;
+        window.loadWhatsAppServerUrl = loadWhatsAppServerUrl; // Función de compatibilidad
+        window.saveWhatsAppConfig = saveWhatsAppConfig;
+        window.loadWhatsAppConfig = loadWhatsAppConfig;
+        window.simulateWhatsAppConnection = simulateWhatsAppConnection;
+        window.checkWhatsAppConnectionStatus = checkWhatsAppConnectionStatus;
+        window.getServerURL = getServerURL;
+        
         // Inicializar WhatsApp al cargar la página (solo si la pestaña está visible)
         document.addEventListener('DOMContentLoaded', function() {
             // Las tarjetas se cargarán cuando se abra la pestaña WhatsApp
@@ -21493,9 +21556,22 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
     // Función para mostrar tabs de Flor
     window.showFlorTab = function(tabName) {
-        // Si se abre la pestaña WhatsApp, cargar la URL del servidor
+        // Si se abre la pestaña WhatsApp, cargar la configuración
         if (tabName === 'whatsapp') {
-            loadWhatsAppServerUrl();
+            // Cargar URL del servidor desde localStorage
+            const serverUrl = localStorage.getItem('whatsappServerURL') || localStorage.getItem('whatsappServerUrl') || 'http://72.61.58.240';
+            const serverUrlInput = document.getElementById('whatsapp-server-url');
+            if (serverUrlInput) {
+                serverUrlInput.value = serverUrl;
+            }
+            // Cargar configuración completa si la función existe
+            if (typeof loadWhatsAppConfig === 'function') {
+                loadWhatsAppConfig();
+            }
+            // Cargar tarjetas de WhatsApp
+            if (typeof loadWhatsAppCards === 'function') {
+                loadWhatsAppCards();
+            }
         }
         console.log('📑 Cambiando a tab Flor:', tabName);
         
