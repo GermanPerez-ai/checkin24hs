@@ -9029,9 +9029,13 @@ Ej:
                     const timeoutId = setTimeout(() => controller.abort(), 5000);
                     
                     console.log(`📡 Intentando obtener QR del servidor...`);
+                    console.log(`🔗 URL completa: ${serverUrl}/api/qr?card=${cardNumber}`);
+                    
                     const response = await fetch(`${serverUrl}/api/qr?card=${cardNumber}`, {
                         method: 'GET',
-                        signal: controller.signal
+                        signal: controller.signal,
+                        // Permitir credenciales si es necesario
+                        credentials: 'omit'
                     });
                     
                     clearTimeout(timeoutId);
