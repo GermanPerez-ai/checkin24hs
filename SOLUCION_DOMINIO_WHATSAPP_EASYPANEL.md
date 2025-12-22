@@ -18,12 +18,12 @@ Según la consulta de dominios:
 2. **Tipo de servicio**: Node.js o Static (según tu configuración)
 3. **Nombre del servicio**: `whatsapp-api` o `whatsapp-server`
 4. **Puerto interno**: `3001` (o el puerto que uses para WhatsApp)
-5. **Dominio**: `api.checkin24hs.com` (o `whatsapp.checkin24hs.com`)
+5. **Dominio**: `configwp.checkin24hs.com`
 
 ### Paso 2: Configurar Dominio con SSL
 
 1. **En la configuración del servicio**, ve a la sección **"Domain"** o **"Dominio"**
-2. **Agrega el dominio**: `api.checkin24hs.com`
+2. **Agrega el dominio**: `configwp.checkin24hs.com`
 3. **Habilita SSL**: EasyPanel debería configurar SSL automáticamente con Let's Encrypt
 4. **Guarda los cambios**
 
@@ -48,13 +48,13 @@ Path: /
 ### Paso 4: Verificar SSL
 
 1. Espera 1-2 minutos para que se genere el certificado SSL
-2. Prueba en el navegador: `https://api.checkin24hs.com`
+2. Prueba en el navegador: `https://configwp.checkin24hs.com`
 3. Deberías ver el certificado SSL válido
 
 ### Paso 5: Actualizar URL en el Dashboard
 
 1. Ve a **Dashboard** → **Flor IA** → **WhatsApp**
-2. En **"URL del Servidor WhatsApp"**, ingresa: `https://api.checkin24hs.com`
+2. En **"URL del Servidor WhatsApp"**, ingresa: `https://configwp.checkin24hs.com`
 3. Haz clic en **"Guardar URL"**
 
 ---
@@ -106,7 +106,7 @@ Necesitarías modificar el código para usar rutas en lugar de puertos:
 
 ## 🎯 Recomendación Final
 
-**Usa la Opción 1**: Crear `api.checkin24hs.com` como nuevo servicio en EasyPanel.
+**Usa la Opción 1**: Crear `configwp.checkin24hs.com` como nuevo servicio en EasyPanel.
 
 **Ventajas:**
 - ✅ Separación clara de servicios
@@ -120,11 +120,11 @@ Necesitarías modificar el código para usar rutas en lugar de puertos:
 
 1. **EasyPanel** → Nuevo Servicio → `whatsapp-api`
 2. **Puerto**: `3001`
-3. **Dominio**: `api.checkin24hs.com`
+3. **Dominio**: `configwp.checkin24hs.com`
 4. **Habilitar SSL**: Automático en EasyPanel
 5. **Esperar 1-2 minutos** para certificado SSL
-6. **Probar**: `https://api.checkin24hs.com`
-7. **Actualizar dashboard**: URL → `https://api.checkin24hs.com`
+6. **Probar**: `https://configwp.checkin24hs.com`
+7. **Actualizar dashboard**: URL → `https://configwp.checkin24hs.com`
 
 ---
 
@@ -134,30 +134,85 @@ Después de configurar, prueba:
 
 ```bash
 # Desde el servidor
-curl https://api.checkin24hs.com/api/qr?card=1
+curl https://configwp.checkin24hs.com/api/qr?card=1
 
 # O desde el navegador
-https://api.checkin24hs.com/api/qr?card=1
+https://configwp.checkin24hs.com/api/qr?card=1
 ```
 
 Deberías ver una respuesta JSON o el QR code sin errores SSL.
 
 ---
 
-## ⚠️ Nota sobre Múltiples Instancias
+## ⚠️ Configuración para los 4 WhatsApp (Puertos 3001-3004)
 
-Si tienes 4 instancias de WhatsApp (puertos 3001-3004), puedes:
+Tienes **dos opciones** para manejar las 4 instancias de WhatsApp:
 
-**Opción A**: Crear 4 subdominios:
-- `api1.checkin24hs.com` → puerto 3001
-- `api2.checkin24hs.com` → puerto 3002
-- `api3.checkin24hs.com` → puerto 3003
-- `api4.checkin24hs.com` → puerto 3004
+---
 
-**Opción B**: Usar rutas en un solo dominio:
-- `api.checkin24hs.com/api1/` → puerto 3001
-- `api.checkin24hs.com/api2/` → puerto 3002
-- etc.
+### ✅ Opción A: Un Solo Dominio con Rutas (RECOMENDADO)
 
-La Opción A es más simple pero requiere más configuración. La Opción B requiere modificar el código del dashboard.
+**Ventajas:**
+- ✅ Solo necesitas configurar SSL una vez
+- ✅ Más fácil de mantener
+- ✅ Un solo certificado SSL
+
+**Configuración en EasyPanel:**
+
+1. **Crear UN solo servicio** con dominio `configwp.checkin24hs.com`
+2. **Configurar rutas de proxy** en EasyPanel:
+
+```
+Ruta: /api1/  → Target: 127.0.0.1:3001
+Ruta: /api2/  → Target: 127.0.0.1:3002
+Ruta: /api3/  → Target: 127.0.0.1:3003
+Ruta: /api4/  → Target: 127.0.0.1:3004
+```
+
+3. **Actualizar código del dashboard** para usar rutas en lugar de puertos (ver abajo)
+
+**URLs resultantes:**
+- WhatsApp 1: `https://configwp.checkin24hs.com/api1/api/qr?card=1`
+- WhatsApp 2: `https://configwp.checkin24hs.com/api2/api/qr?card=2`
+- WhatsApp 3: `https://configwp.checkin24hs.com/api3/api/qr?card=3`
+- WhatsApp 4: `https://configwp.checkin24hs.com/api4/api/qr?card=4`
+
+---
+
+### ✅ Opción B: 4 Subdominios Separados
+
+**Ventajas:**
+- ✅ No requiere modificar código del dashboard
+- ✅ Cada instancia es independiente
+
+**Desventajas:**
+- ❌ Necesitas configurar SSL 4 veces
+- ❌ Más configuración en EasyPanel
+
+**Configuración:**
+
+1. **Crear 4 servicios** en EasyPanel:
+   - Servicio 1: `configwp1.checkin24hs.com` → Puerto 3001
+   - Servicio 2: `configwp2.checkin24hs.com` → Puerto 3002
+   - Servicio 3: `configwp3.checkin24hs.com` → Puerto 3003
+   - Servicio 4: `configwp4.checkin24hs.com` → Puerto 3004
+
+2. **Habilitar SSL en cada uno** (EasyPanel lo hace automáticamente)
+
+3. **En el dashboard**, configurar cada instancia con su dominio:
+   - WhatsApp 1: `https://configwp1.checkin24hs.com`
+   - WhatsApp 2: `https://configwp2.checkin24hs.com`
+   - WhatsApp 3: `https://configwp3.checkin24hs.com`
+   - WhatsApp 4: `https://configwp4.checkin24hs.com`
+
+---
+
+## 🎯 Recomendación
+
+**Usa la Opción A** (un solo dominio con rutas) porque:
+- ✅ Más simple de mantener
+- ✅ Un solo certificado SSL
+- ✅ Menos configuración en EasyPanel
+
+**Solo necesitas modificar el código del dashboard** para usar rutas en lugar de puertos (ver sección siguiente).
 
