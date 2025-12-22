@@ -9082,12 +9082,21 @@ Ej:
         
         // Generar QR local para pruebas
         async function generateLocalQR(cardNumber) {
+            console.log(`🔵 Iniciando generación de QR para WhatsApp ${cardNumber}...`);
+            
             try {
                 // Verificar y cargar la librería QRCode si no está disponible
                 if (typeof QRCode === 'undefined') {
-                    console.log('📦 Cargando librería QRCode...');
-                    await loadQRCodeLibrary();
-                    console.log('✅ Librería QRCode cargada correctamente');
+                    console.log('📦 Librería QRCode no encontrada, cargando...');
+                    try {
+                        await loadQRCodeLibrary();
+                        console.log('✅ Librería QRCode cargada correctamente');
+                    } catch (loadError) {
+                        console.error('❌ Error cargando librería QRCode:', loadError);
+                        // Continuar con método alternativo
+                    }
+                } else {
+                    console.log('✅ Librería QRCode ya está disponible');
                 }
                 
                 const cardData = JSON.parse(localStorage.getItem('whatsappCards') || '{"1":{},"2":{},"3":{},"4":{}}');
@@ -9096,69 +9105,124 @@ Ej:
                 // Generar un ID único para esta conexión
                 const connectionId = `whatsapp-${cardNumber}-${Date.now()}`;
                 const qrData = `whatsapp://connect?card=${cardNumber}&id=${connectionId}&timestamp=${Date.now()}`;
+                console.log(`📝 QR Data generado: ${qrData.substring(0, 50)}...`);
                 
-                // Generar QR code
+                // Buscar elemento QR
                 const qrDiv = document.getElementById(`whatsapp-${cardNumber}-qr`);
                 if (!qrDiv) {
                     console.error(`❌ Elemento QR no encontrado: whatsapp-${cardNumber}-qr`);
+                    console.log('🔍 Buscando elementos disponibles...');
+                    const allElements = document.querySelectorAll('[id*="whatsapp"]');
+                    console.log('Elementos encontrados:', Array.from(allElements).map(el => el.id));
+                    alert(`⚠️ Error: No se encontró el elemento para mostrar el QR.\n\nPor favor, recarga la página.`);
                     return;
                 }
+                console.log(`✅ Elemento QR encontrado: whatsapp-${cardNumber}-qr`);
                 
                 // Limpiar contenido anterior
                 qrDiv.innerHTML = '';
                 
-                // Crear un canvas para el QR
-                const canvas = document.createElement('canvas');
-                qrDiv.appendChild(canvas);
-                
-                // Generar QR code en el canvas
-                await QRCode.toCanvas(canvas, qrData, {
-                    width: 200,
-                    margin: 2,
-                    color: {
-                        dark: '#000000',
-                        light: '#FFFFFF'
+                // Intentar generar QR con librería QRCode primero
+                if (typeof QRCode !== 'undefined' && typeof QRCode.toCanvas === 'function') {
+                    try {
+                        console.log('🎨 Generando QR con librería QRCode...');
+                        const canvas = document.createElement('canvas');
+                        qrDiv.appendChild(canvas);
+                        
+                        await QRCode.toCanvas(canvas, qrData, {
+                            width: 200,
+                            margin: 2,
+                            color: {
+                                dark: '#000000',
+                                light: '#FFFFFF'
+                            }
+                        });
+                        
+                        // Convertir canvas a imagen base64
+                        currentData.qr = canvas.toDataURL('image/png');
+                        currentData.qrData = qrData;
+                        currentData.connectionId = connectionId;
+                        cardData[cardNumber] = currentData;
+                        localStorage.setItem('whatsappCards', JSON.stringify(cardData));
+                        
+                        console.log(`✅ QR generado con librería QRCode para WhatsApp ${cardNumber}`);
+                    } catch (qrError) {
+                        console.warn('⚠️ Error con librería QRCode, usando método alternativo:', qrError);
+                        // Continuar con método alternativo
+                        throw qrError;
                     }
-                });
+                } else {
+                    // Método alternativo: usar API externa
+                    console.log('🌐 Usando API externa para generar QR...');
+                    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData)}`;
+                    const img = document.createElement('img');
+                    img.src = qrImageUrl;
+                    img.alt = 'Código QR WhatsApp';
+                    img.style.width = '200px';
+                    img.style.height = '200px';
+                    img.style.borderRadius = '8px';
+                    
+                    img.onload = () => {
+                        console.log('✅ Imagen QR cargada desde API externa');
+                    };
+                    
+                    img.onerror = () => {
+                        console.error('❌ Error cargando imagen QR desde API');
+                        qrDiv.innerHTML = '<p style="color: red;">Error cargando QR. Intenta recargar la página.</p>';
+                    };
+                    
+                    qrDiv.appendChild(img);
+                    
+                    currentData.qr = qrImageUrl;
+                    currentData.qrData = qrData;
+                    currentData.connectionId = connectionId;
+                    cardData[cardNumber] = currentData;
+                    localStorage.setItem('whatsappCards', JSON.stringify(cardData));
+                }
                 
-                // Convertir canvas a imagen base64
-                currentData.qr = canvas.toDataURL('image/png');
-                currentData.qrData = qrData;
-                currentData.connectionId = connectionId;
-                cardData[cardNumber] = currentData;
-                localStorage.setItem('whatsappCards', JSON.stringify(cardData));
-                
-                // Mostrar QR
+                // Mostrar QR container
                 const qrContainer = document.getElementById(`whatsapp-${cardNumber}-qr-container`);
                 if (qrContainer) {
                     qrContainer.style.display = 'block';
+                    console.log(`✅ Container QR mostrado para WhatsApp ${cardNumber}`);
+                } else {
+                    console.warn(`⚠️ Container QR no encontrado: whatsapp-${cardNumber}-qr-container`);
                 }
                 
                 // Mostrar instrucciones
                 const stateSpan = document.getElementById(`whatsapp-${cardNumber}-state`);
                 if (stateSpan) {
                     stateSpan.textContent = 'Escanea el código QR con WhatsApp';
+                    console.log(`✅ Estado actualizado para WhatsApp ${cardNumber}`);
                 }
                 
                 console.log(`✅ QR generado correctamente para WhatsApp ${cardNumber}`);
             } catch (error) {
                 console.error('❌ Error generando QR:', error);
+                console.error('Stack trace:', error.stack);
                 
-                // Si el error es que QRCode no está disponible, intentar cargarlo
-                if (error.message && (error.message.includes('QRCode') || error.message.includes('is not defined'))) {
-                    try {
-                        console.log('🔄 Intentando cargar librería QRCode...');
-                        await loadQRCodeLibrary();
-                        console.log('✅ Librería cargada, reintentando generar QR...');
-                        // Reintentar generar QR
-                        return await generateLocalQR(cardNumber);
-                    } catch (loadError) {
-                        console.error('❌ Error cargando librería QRCode:', loadError);
-                        alert('⚠️ No se pudo cargar la librería de QR Code.\n\nPor favor, recarga la página o verifica tu conexión a internet.');
+                // Intentar método alternativo con API externa
+                try {
+                    console.log('🔄 Intentando método alternativo con API externa...');
+                    const qrDiv = document.getElementById(`whatsapp-${cardNumber}-qr`);
+                    if (qrDiv) {
+                        const qrData = `whatsapp://connect?card=${cardNumber}&id=${Date.now()}`;
+                        const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrData)}`;
+                        qrDiv.innerHTML = `<img src="${qrImageUrl}" alt="QR Code" style="width: 200px; height: 200px; border-radius: 8px;">`;
+                        
+                        const qrContainer = document.getElementById(`whatsapp-${cardNumber}-qr-container`);
+                        if (qrContainer) {
+                            qrContainer.style.display = 'block';
+                        }
+                        
+                        console.log('✅ QR generado con método alternativo');
+                        return;
                     }
-                } else {
-                    alert(`⚠️ Error al generar el código QR:\n\n${error.message}\n\nVerifica la consola para más detalles.`);
+                } catch (altError) {
+                    console.error('❌ Error con método alternativo:', altError);
                 }
+                
+                alert(`⚠️ Error al generar el código QR:\n\n${error.message}\n\nVerifica la consola para más detalles.`);
                 
                 // Restaurar estado
                 const cardData = JSON.parse(localStorage.getItem('whatsappCards') || '{"1":{},"2":{},"3":{},"4":{}}');
