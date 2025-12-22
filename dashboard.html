@@ -8960,7 +8960,8 @@ Ej:
         
         // Conectar WhatsApp (generar QR)
         async function connectWhatsApp(cardNumber) {
-            console.log(`🚀 connectWhatsApp llamado para tarjeta ${cardNumber}`);
+            console.log(`🚀🚀🚀 connectWhatsApp EJECUTÁNDOSE para tarjeta ${cardNumber} 🚀🚀🚀`);
+            console.log('📋 Stack trace:', new Error().stack);
             
             try {
                 const cardData = JSON.parse(localStorage.getItem('whatsappCards') || '{"1":{},"2":{},"3":{},"4":{}}');
@@ -9607,23 +9608,76 @@ Ej:
         }
         
         // Hacer funciones globales para que estén disponibles en onclick
-        window.connectWhatsApp = connectWhatsApp;
-        window.disconnectWhatsApp = disconnectWhatsApp;
-        window.updateWhatsApp = updateWhatsApp;
-        window.checkWhatsAppConnection = checkWhatsAppConnection;
-        window.saveWhatsAppServerUrl = saveWhatsAppServerUrl;
-        window.loadWhatsAppServerUrl = loadWhatsAppServerUrl; // Función de compatibilidad
-        window.saveWhatsAppConfig = saveWhatsAppConfig;
-        window.loadWhatsAppConfig = loadWhatsAppConfig;
-        window.simulateWhatsAppConnection = simulateWhatsAppConnection;
-        window.checkWhatsAppConnectionStatus = checkWhatsAppConnectionStatus;
-        window.getServerURL = getServerURL;
-        window.ensureHTTPS = ensureHTTPS;
-        window.generateLocalQR = generateLocalQR;
-        window.loadQRCodeLibrary = loadQRCodeLibrary;
+        // IMPORTANTE: Estas asignaciones deben estar ANTES de que se renderice el HTML
+        try {
+            window.connectWhatsApp = connectWhatsApp;
+            window.disconnectWhatsApp = disconnectWhatsApp;
+            window.updateWhatsApp = updateWhatsApp;
+            window.checkWhatsAppConnection = checkWhatsAppConnection;
+            window.saveWhatsAppServerUrl = saveWhatsAppServerUrl;
+            window.loadWhatsAppServerUrl = loadWhatsAppServerUrl;
+            window.saveWhatsAppConfig = saveWhatsAppConfig;
+            window.loadWhatsAppConfig = loadWhatsAppConfig;
+            window.simulateWhatsAppConnection = simulateWhatsAppConnection;
+            window.checkWhatsAppConnectionStatus = checkWhatsAppConnectionStatus;
+            window.getServerURL = getServerURL;
+            window.ensureHTTPS = ensureHTTPS;
+            window.generateLocalQR = generateLocalQR;
+            window.loadQRCodeLibrary = loadQRCodeLibrary;
+            
+            console.log('✅ Funciones WhatsApp asignadas globalmente:', {
+                connectWhatsApp: typeof window.connectWhatsApp,
+                disconnectWhatsApp: typeof window.disconnectWhatsApp,
+                updateWhatsApp: typeof window.updateWhatsApp,
+                generateLocalQR: typeof window.generateLocalQR
+            });
+        } catch (error) {
+            console.error('❌ Error asignando funciones globales:', error);
+        }
+        
+        // También asignar inmediatamente después de definir cada función (por si acaso)
+        // Esto asegura que estén disponibles incluso si hay algún problema con el bloque anterior
+        if (typeof connectWhatsApp === 'function') {
+            window.connectWhatsApp = connectWhatsApp;
+        }
+        if (typeof disconnectWhatsApp === 'function') {
+            window.disconnectWhatsApp = disconnectWhatsApp;
+        }
+        if (typeof updateWhatsApp === 'function') {
+            window.updateWhatsApp = updateWhatsApp;
+        }
+        if (typeof generateLocalQR === 'function') {
+            window.generateLocalQR = generateLocalQR;
+        }
+        
+        // Verificar que las funciones estén disponibles cuando se carga el DOM
+        function verificarFuncionesWhatsApp() {
+            const funciones = {
+                connectWhatsApp: typeof window.connectWhatsApp,
+                disconnectWhatsApp: typeof window.disconnectWhatsApp,
+                updateWhatsApp: typeof window.updateWhatsApp,
+                generateLocalQR: typeof window.generateLocalQR
+            };
+            
+            console.log('🔍 Verificación de funciones WhatsApp:', funciones);
+            
+            // Si alguna función no está disponible, intentar asignarla de nuevo
+            if (funciones.connectWhatsApp !== 'function' && typeof connectWhatsApp === 'function') {
+                window.connectWhatsApp = connectWhatsApp;
+                console.log('✅ connectWhatsApp reasignada');
+            }
+            if (funciones.updateWhatsApp !== 'function' && typeof updateWhatsApp === 'function') {
+                window.updateWhatsApp = updateWhatsApp;
+                console.log('✅ updateWhatsApp reasignada');
+            }
+        }
+        
+        // Verificar inmediatamente
+        verificarFuncionesWhatsApp();
         
         // Inicializar WhatsApp al cargar la página (solo si la pestaña está visible)
         document.addEventListener('DOMContentLoaded', function() {
+            verificarFuncionesWhatsApp();
             // Las tarjetas se cargarán cuando se abra la pestaña WhatsApp
         });
         
