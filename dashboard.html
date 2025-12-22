@@ -10503,7 +10503,7 @@ Ej:
             return url;
         }
         
-        function getServerURL() {
+        function getServerURL(cardNumber = null) {
             // Intentar obtener desde localStorage
             let serverUrl = localStorage.getItem('whatsappServerURL') || localStorage.getItem('whatsappServerUrl');
             if (serverUrl && serverUrl.trim() !== '') {
@@ -10523,6 +10523,23 @@ Ej:
                 console.log(`   ⚠️ NOTA: El servidor WhatsApp debe tener SSL configurado para que esto funcione.`);
             }
             
+            // Si se proporciona cardNumber, construir URL completa con ruta o puerto
+            if (cardNumber) {
+                // Detectar si la URL ya tiene un puerto específico (modo puertos)
+                const hasPort = /:\d{4,5}$/.test(serverUrl.replace(/:\d+$/, '')) || serverUrl.includes(':300');
+                
+                if (hasPort) {
+                    // Modo puertos (comportamiento antiguo): agregar puerto
+                    const port = 3000 + parseInt(cardNumber);
+                    return `${serverUrl}:${port}`;
+                } else {
+                    // Modo rutas (nuevo): usar rutas /api1, /api2, etc.
+                    const route = `/api${cardNumber}`;
+                    return `${serverUrl}${route}`;
+                }
+            }
+            
+            // Si no hay cardNumber, retornar URL base
             return serverUrl;
         }
         
