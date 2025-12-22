@@ -9845,7 +9845,7 @@ Ej:
             console.log('✅ Event listeners WhatsApp configurados');
         }
         
-        // Función helper para verificar autenticación
+        // Función helper para verificar autenticación (disponible globalmente)
         function isUserAuthenticated() {
             const authSession = localStorage.getItem('dashboard_auth_session');
             if (!authSession) {
@@ -9865,6 +9865,9 @@ Ej:
                 return false;
             }
         }
+        
+        // Hacer la función disponible globalmente
+        window.isUserAuthenticated = isUserAuthenticated;
         
         // Inicializar WhatsApp al cargar la página (SOLO si el usuario está autenticado)
         document.addEventListener('DOMContentLoaded', function() {
