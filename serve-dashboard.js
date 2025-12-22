@@ -3,6 +3,16 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Prevenir caché para dashboard.html y archivos principales
+app.use((req, res, next) => {
+    if (req.path === '/' || req.path === '/dashboard.html' || req.path.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+    next();
+});
+
 // Servir archivos estáticos desde la raíz del proyecto
 app.use(express.static(__dirname));
 
