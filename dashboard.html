@@ -9051,29 +9051,62 @@ Ej:
             }
         }
         
-        // Generar QR local para pruebas
-        async function generateLocalQR(cardNumber) {
-            // Verificar que la librería QRCode esté disponible
-            if (typeof QRCode === 'undefined') {
-                alert('⚠️ Librería de QR Code no cargada. Recarga la página.');
+        // Función para cargar la librería QRCode si no está disponible
+        function loadQRCodeLibrary() {
+            return new Promise((resolve, reject) => {
+                // Si ya está cargada, resolver inmediatamente
+                if (typeof QRCode !== 'undefined') {
+                    resolve();
                     return;
                 }
                 
-            const cardData = JSON.parse(localStorage.getItem('whatsappCards') || '{"1":{},"2":{},"3":{},"4":{}}');
-            const currentData = cardData[cardNumber] || {};
-            
-            // Generar un ID único para esta conexión
-            const connectionId = `whatsapp-${cardNumber}-${Date.now()}`;
-            const qrData = `whatsapp://connect?card=${cardNumber}&id=${connectionId}&timestamp=${Date.now()}`;
-            
-            // Generar QR code
-            const qrDiv = document.getElementById(`whatsapp-${cardNumber}-qr`);
-            if (!qrDiv) return;
-            
-            // Limpiar contenido anterior
-            qrDiv.innerHTML = '';
-            
+                // Intentar cargar desde CDN
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
+                script.onload = () => {
+                    // Esperar un momento para que la librería se inicialice
+                    setTimeout(() => {
+                        if (typeof QRCode !== 'undefined') {
+                            resolve();
+                        } else {
+                            reject(new Error('QRCode no se inicializó después de cargar'));
+                        }
+                    }, 100);
+                };
+                script.onerror = () => {
+                    reject(new Error('Error cargando librería QRCode desde CDN'));
+                };
+                document.head.appendChild(script);
+            });
+        }
+        
+        // Generar QR local para pruebas
+        async function generateLocalQR(cardNumber) {
             try {
+                // Verificar y cargar la librería QRCode si no está disponible
+                if (typeof QRCode === 'undefined') {
+                    console.log('📦 Cargando librería QRCode...');
+                    await loadQRCodeLibrary();
+                    console.log('✅ Librería QRCode cargada correctamente');
+                }
+                
+                const cardData = JSON.parse(localStorage.getItem('whatsappCards') || '{"1":{},"2":{},"3":{},"4":{}}');
+                const currentData = cardData[cardNumber] || {};
+                
+                // Generar un ID único para esta conexión
+                const connectionId = `whatsapp-${cardNumber}-${Date.now()}`;
+                const qrData = `whatsapp://connect?card=${cardNumber}&id=${connectionId}&timestamp=${Date.now()}`;
+                
+                // Generar QR code
+                const qrDiv = document.getElementById(`whatsapp-${cardNumber}-qr`);
+                if (!qrDiv) {
+                    console.error(`❌ Elemento QR no encontrado: whatsapp-${cardNumber}-qr`);
+                    return;
+                }
+                
+                // Limpiar contenido anterior
+                qrDiv.innerHTML = '';
+                
                 // Crear un canvas para el QR
                 const canvas = document.createElement('canvas');
                 qrDiv.appendChild(canvas);
@@ -9107,20 +9140,35 @@ Ej:
                     stateSpan.textContent = 'Escanea el código QR con WhatsApp';
                 }
                 
-                // NO simular conexión automáticamente - el usuario debe usar el botón "Conexión de Prueba"
-                // Si quieres simulación automática, descomenta las siguientes líneas:
-                // setTimeout(() => {
-                //     simulateWhatsAppConnection(cardNumber);
-                // }, 10000);
-                } catch (error) {
-                console.error('Error generando QR:', error);
-                alert('⚠️ Error al generar el código QR. Verifica la consola para más detalles.');
+                console.log(`✅ QR generado correctamente para WhatsApp ${cardNumber}`);
+            } catch (error) {
+                console.error('❌ Error generando QR:', error);
+                
+                // Si el error es que QRCode no está disponible, intentar cargarlo
+                if (error.message && (error.message.includes('QRCode') || error.message.includes('is not defined'))) {
+                    try {
+                        console.log('🔄 Intentando cargar librería QRCode...');
+                        await loadQRCodeLibrary();
+                        console.log('✅ Librería cargada, reintentando generar QR...');
+                        // Reintentar generar QR
+                        return await generateLocalQR(cardNumber);
+                    } catch (loadError) {
+                        console.error('❌ Error cargando librería QRCode:', loadError);
+                        alert('⚠️ No se pudo cargar la librería de QR Code.\n\nPor favor, recarga la página o verifica tu conexión a internet.');
+                    }
+                } else {
+                    alert(`⚠️ Error al generar el código QR:\n\n${error.message}\n\nVerifica la consola para más detalles.`);
+                }
                 
                 // Restaurar estado
-                currentData.status = 'disconnected';
-                cardData[cardNumber] = currentData;
+                const cardData = JSON.parse(localStorage.getItem('whatsappCards') || '{"1":{},"2":{},"3":{},"4":{}}');
+                cardData[cardNumber] = {
+                    status: 'disconnected',
+                    phone: '-',
+                    name: '-'
+                };
                 localStorage.setItem('whatsappCards', JSON.stringify(cardData));
-                updateWhatsAppCard(cardNumber, currentData);
+                updateWhatsAppCard(cardNumber, cardData[cardNumber]);
             }
         }
         
