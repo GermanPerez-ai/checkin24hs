@@ -9060,10 +9060,19 @@ Ej:
                         console.log(`⚠️ Servidor respondió con código ${response.status}, generando QR local`);
                     }
                 } catch (error) {
+                    let errorMessage = error.message || 'Error desconocido';
+                    
                     if (error.name === 'AbortError') {
                         console.log('⚠️ Timeout al conectar con el servidor');
                     } else {
-                        console.log('⚠️ Error al conectar:', error.message);
+                        console.log('⚠️ Error al conectar:', errorMessage);
+                        
+                        // Detectar específicamente errores de SSL/TLS
+                        if (errorMessage.includes('SSL') || errorMessage.includes('TLS') || 
+                            errorMessage.includes('certificate') || errorMessage.includes('CERT') ||
+                            errorMessage.includes('ERR_SSL') || errorMessage.includes('ERR_CERT')) {
+                            console.error('❌ Error de certificado SSL detectado. El servidor necesita un certificado SSL válido para HTTPS.');
+                        }
                     }
                 }
                 
@@ -9071,13 +9080,23 @@ Ej:
                 if (!qrGenerated) {
                     console.log(`❌ No se pudo obtener QR del servidor para tarjeta ${cardNumber}`);
                     
-                    // Detectar si es error de Mixed Content
+                    // Detectar tipo de error
                     const isMixedContent = window.location.protocol === 'https:' && serverUrl.startsWith('http://');
+                    const isSSLError = serverUrl.startsWith('https://') && (
+                        error && (error.message.includes('SSL') || 
+                        error.message.includes('TLS') || 
+                        error.message.includes('certificate') ||
+                        error.message.includes('CERT') ||
+                        error.message.includes('ERR_SSL') ||
+                        error.message.includes('ERR_CERT'))
+                    );
                     
                     // Actualizar estado a error
                     currentData.status = 'error';
                     if (isMixedContent) {
                         currentData.error = 'Mixed Content: HTTPS bloqueando HTTP';
+                    } else if (isSSLError) {
+                        currentData.error = 'Error SSL: Servidor sin certificado válido';
                     } else {
                         currentData.error = 'Servidor WhatsApp no disponible';
                     }
