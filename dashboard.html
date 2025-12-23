@@ -10523,6 +10523,15 @@ Ej:
             
             // Si se proporciona cardNumber, construir URL completa con ruta o puerto
             if (cardNumber) {
+                // IMPORTANTE: Si el dashboard está en HTTPS, SIEMPRE usar rutas (no puertos)
+                // porque HTTPS requiere SSL y es más fácil configurar SSL para un dominio que para múltiples puertos
+                if (window.location.protocol === 'https:') {
+                    // Modo rutas (HTTPS): usar rutas /api1, /api2, etc.
+                    const route = `/api${cardNumber}`;
+                    return `${serverUrl}${route}`;
+                }
+                
+                // Si el dashboard está en HTTP, detectar si usar puertos o rutas
                 // Detectar si la URL ya tiene un puerto específico (modo puertos)
                 const hasPort = /:\d{4,5}$/.test(serverUrl.replace(/:\d+$/, '')) || serverUrl.includes(':300');
                 
