@@ -10,12 +10,14 @@ const PORT = process.env.PORT || 3000;
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(express.static('.')); // Servir archivos estáticos
 
-// Ruta principal - Dashboard de administración
+// Ruta principal - Dashboard de administración (DEBE estar ANTES de express.static)
 app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/dashboard.html');
+    res.sendFile(path.join(__dirname, 'dashboard.html'));
 });
+
+// Servir archivos estáticos (después de la ruta principal, sin index automático)
+app.use(express.static('.', { index: false })); // index: false evita que sirva index.html automáticamente
 
 // Ruta para test-cotizacion
 app.get('/test', (req, res) => {
