@@ -3470,226 +3470,82 @@
                             </div>
                         </div>
                         
-                    <!-- Configuración de URL del Servidor -->
-                    <div style="background: white; padding: 20px; border-radius: 12px; margin-bottom: 24px; border: 2px solid #e0e0e0;">
-                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">
-                            🌐 URL del Servidor WhatsApp:
-                        </label>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <input type="text" id="whatsapp-server-url" 
-                                   placeholder="https://72.61.58.240" 
-                                   style="flex: 1; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.95rem;"
-                                   value="https://72.61.58.240">
-                            <button onclick="saveWhatsAppServerUrl()" 
-                                    style="background: #25D366; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer;">
-                                Guardar URL
-                            </button>
-                        </div>
-                        <small style="color: #666; margin-top: 8px; display: block;">
-                            💡 Ingresa la IP o dominio de tu servidor. El sistema agregará automáticamente los puertos :3001, :3002, :3003, :3004
-                        </small>
-                    </div>
-                        
-                    <!-- Grid de 4 Tarjetas WhatsApp -->
+                    <!-- Grid de 4 Tarjetas WhatsApp con iFrames -->
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 24px;">
                         <!-- WhatsApp 1 -->
-                        <div id="whatsapp-card-1" class="whatsapp-card" style="background: white; border: 2px solid #e0e0e0; border-radius: 12px; padding: 24px; position: relative;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                                <h3 style="margin: 0; color: #333; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
-                                    <span style="font-size: 1rem;">📱</span>
-                                    WhatsApp 1
-                                </h3>
-                                <button id="whatsapp-1-status" class="status-btn" style="background: #ff9800; color: white; border: none; padding: 6px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; cursor: default;">
-                                    Desconectado
-                                </button>
-                    </div>
-
-                            <div style="margin-bottom: 16px;">
-                                <div style="margin-bottom: 8px;">
-                                    <strong style="color: #666; font-size: 0.9rem;">Estado:</strong>
-                                    <span id="whatsapp-1-state" style="color: #333; margin-left: 8px;">Esperando conexión</span>
+                        <div style="background: white; border: 2px solid #e0e0e0; border-radius: 12px; padding: 20px; position: relative;">
+                            <h3 style="margin: 0 0 15px 0; color: #333; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 1rem;">📱</span>
+                                WhatsApp 1
+                            </h3>
+                            <div style="border: 2px solid #25D366; border-radius: 8px; overflow: hidden; background: #f0f7ff;">
+                                <iframe 
+                                    src="http://72.61.58.240:3001/" 
+                                    style="width: 100%; height: 600px; border: none; display: block;"
+                                    title="WhatsApp 1 Connection"
+                                    allow="camera; microphone">
+                                </iframe>
                             </div>
-                                <div style="margin-bottom: 8px;">
-                                    <strong style="color: #666; font-size: 0.9rem;">Número:</strong>
-                                    <span id="whatsapp-1-phone" style="color: #333; margin-left: 8px;">-</span>
-                        </div>
-                                <div>
-                                    <strong style="color: #666; font-size: 0.9rem;">Nombre:</strong>
-                                    <span id="whatsapp-1-name" style="color: #333; margin-left: 8px;">-</span>
-                                </div>
-                                </div>
-                            
-                            <div id="whatsapp-1-qr-container" style="display: none; text-align: center; margin: 16px 0; padding: 16px; background: #f5f5f5; border-radius: 8px;">
-                                <p style="color: #666; font-size: 0.85rem; margin-bottom: 12px;">Escanea este código QR con WhatsApp:</p>
-                                <div id="whatsapp-1-qr" style="display: inline-block; background: white; padding: 16px; border-radius: 8px;"></div>
-                                <p style="color: #666; font-size: 0.75rem; margin-top: 12px;">O haz clic en "Simular Conexión" para probar</p>
-                                <button onclick="simulateWhatsAppConnection(1)" style="background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; margin-top: 8px;">
-                                    Simular Conexión
-                                </button>
-                            </div>
-                            
-                            <p style="color: #666; font-size: 0.85rem; margin: 16px 0; text-align: center;">
-                                Haz clic en "Conectar" para generar el código QR
+                            <p style="color: #666; font-size: 0.85rem; margin-top: 10px; text-align: center;">
+                                Escanea el QR que aparece arriba con tu WhatsApp
                             </p>
-                            
-                            <div style="display: flex; gap: 10px; margin-top: 16px;">
-                                <button onclick="connectWhatsApp(1)" id="whatsapp-1-connect-btn" class="connect-btn" style="flex: 1; background: #25D366; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer;">
-                                    Conectar
-                                </button>
-                                <button onclick="updateWhatsApp(1)" class="update-btn" style="background: #1976d2; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 600; cursor: pointer;">
-                                    Actualizar
-                            </button>
                         </div>
-                    </div>
 
                         <!-- WhatsApp 2 -->
-                        <div id="whatsapp-card-2" class="whatsapp-card" style="background: white; border: 2px solid #e0e0e0; border-radius: 12px; padding: 24px; position: relative;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                                <h3 style="margin: 0; color: #333; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
-                                    <span style="font-size: 1rem;">📱</span>
-                                    WhatsApp 2
-                                </h3>
-                                <button id="whatsapp-2-status" class="status-btn" style="background: #ff9800; color: white; border: none; padding: 6px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; cursor: default;">
-                                    Desconectado
-                                </button>
+                        <div style="background: white; border: 2px solid #e0e0e0; border-radius: 12px; padding: 20px; position: relative;">
+                            <h3 style="margin: 0 0 15px 0; color: #333; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 1rem;">📱</span>
+                                WhatsApp 2
+                            </h3>
+                            <div style="border: 2px solid #25D366; border-radius: 8px; overflow: hidden; background: #f0f7ff;">
+                                <iframe 
+                                    src="http://72.61.58.240:3002/" 
+                                    style="width: 100%; height: 600px; border: none; display: block;"
+                                    title="WhatsApp 2 Connection"
+                                    allow="camera; microphone">
+                                </iframe>
                             </div>
-                            
-                            <div style="margin-bottom: 16px;">
-                                <div style="margin-bottom: 8px;">
-                                    <strong style="color: #666; font-size: 0.9rem;">Estado:</strong>
-                                    <span id="whatsapp-2-state" style="color: #333; margin-left: 8px;">Esperando conexión</span>
-                            </div>
-                                <div style="margin-bottom: 8px;">
-                                    <strong style="color: #666; font-size: 0.9rem;">Número:</strong>
-                                    <span id="whatsapp-2-phone" style="color: #333; margin-left: 8px;">-</span>
-                            </div>
-                                <div>
-                                    <strong style="color: #666; font-size: 0.9rem;">Nombre:</strong>
-                                    <span id="whatsapp-2-name" style="color: #333; margin-left: 8px;">-</span>
-                    </div>
-                </div>
-
-                            <div id="whatsapp-2-qr-container" style="display: none; text-align: center; margin: 16px 0; padding: 16px; background: #f5f5f5; border-radius: 8px;">
-                                <p style="color: #666; font-size: 0.85rem; margin-bottom: 12px;">Escanea este código QR con WhatsApp:</p>
-                                <div id="whatsapp-2-qr" style="display: inline-block; background: white; padding: 16px; border-radius: 8px;"></div>
-                                <p style="color: #666; font-size: 0.75rem; margin-top: 12px;">O haz clic en "Simular Conexión" para probar</p>
-                                <button onclick="simulateWhatsAppConnection(2)" style="background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; margin-top: 8px;">
-                                    Simular Conexión
-                                </button>
-                        </div>
-                        
-                            <p style="color: #666; font-size: 0.85rem; margin: 16px 0; text-align: center;">
-                                Haz clic en "Conectar" para generar el código QR
+                            <p style="color: #666; font-size: 0.85rem; margin-top: 10px; text-align: center;">
+                                Escanea el QR que aparece arriba con tu WhatsApp
                             </p>
-                            
-                            <div style="display: flex; gap: 10px; margin-top: 16px;">
-                                <button onclick="connectWhatsApp(2)" id="whatsapp-2-connect-btn" class="connect-btn" style="flex: 1; background: #25D366; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer;">
-                                    Conectar
-                                </button>
-                                <button onclick="updateWhatsApp(2)" class="update-btn" style="background: #1976d2; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 600; cursor: pointer;">
-                                    Actualizar
-                                </button>
-                            </div>
-                            </div>
+                        </div>
                             
                         <!-- WhatsApp 3 -->
-                        <div id="whatsapp-card-3" class="whatsapp-card" style="background: white; border: 2px solid #e0e0e0; border-radius: 12px; padding: 24px; position: relative;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                                <h3 style="margin: 0; color: #333; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
-                                    <span style="font-size: 1rem;">📱</span>
-                                    WhatsApp 3
-                                </h3>
-                                <button id="whatsapp-3-status" class="status-btn" style="background: #ff9800; color: white; border: none; padding: 6px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; cursor: default;">
-                                    Desconectado
-                                </button>
-                                </div>
-                            
-                            <div style="margin-bottom: 16px;">
-                                <div style="margin-bottom: 8px;">
-                                    <strong style="color: #666; font-size: 0.9rem;">Estado:</strong>
-                                    <span id="whatsapp-3-state" style="color: #333; margin-left: 8px;">Esperando conexión</span>
-                                    </div>
-                                <div style="margin-bottom: 8px;">
-                                    <strong style="color: #666; font-size: 0.9rem;">Número:</strong>
-                                    <span id="whatsapp-3-phone" style="color: #333; margin-left: 8px;">-</span>
-                                </div>
-                                <div>
-                                    <strong style="color: #666; font-size: 0.9rem;">Nombre:</strong>
-                                    <span id="whatsapp-3-name" style="color: #333; margin-left: 8px;">-</span>
-                                </div>
+                        <div style="background: white; border: 2px solid #e0e0e0; border-radius: 12px; padding: 20px; position: relative;">
+                            <h3 style="margin: 0 0 15px 0; color: #333; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 1rem;">📱</span>
+                                WhatsApp 3
+                            </h3>
+                            <div style="border: 2px solid #25D366; border-radius: 8px; overflow: hidden; background: #f0f7ff;">
+                                <iframe 
+                                    src="http://72.61.58.240:3003/" 
+                                    style="width: 100%; height: 600px; border: none; display: block;"
+                                    title="WhatsApp 3 Connection"
+                                    allow="camera; microphone">
+                                </iframe>
                             </div>
-                            
-                            <div id="whatsapp-3-qr-container" style="display: none; text-align: center; margin: 16px 0; padding: 16px; background: #f5f5f5; border-radius: 8px;">
-                                <p style="color: #666; font-size: 0.85rem; margin-bottom: 12px;">Escanea este código QR con WhatsApp:</p>
-                                <div id="whatsapp-3-qr" style="display: inline-block; background: white; padding: 16px; border-radius: 8px;"></div>
-                                <p style="color: #666; font-size: 0.75rem; margin-top: 12px;">O haz clic en "Simular Conexión" para probar</p>
-                                <button onclick="simulateWhatsAppConnection(3)" style="background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; margin-top: 8px;">
-                                    Simular Conexión
-                                </button>
-                                    </div>
-                            
-                            <p style="color: #666; font-size: 0.85rem; margin: 16px 0; text-align: center;">
-                                Haz clic en "Conectar" para generar el código QR
+                            <p style="color: #666; font-size: 0.85rem; margin-top: 10px; text-align: center;">
+                                Escanea el QR que aparece arriba con tu WhatsApp
                             </p>
-                            
-                            <div style="display: flex; gap: 10px; margin-top: 16px;">
-                                <button onclick="connectWhatsApp(3)" id="whatsapp-3-connect-btn" class="connect-btn" style="flex: 1; background: #25D366; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer;">
-                                    Conectar
-                                </button>
-                                <button onclick="updateWhatsApp(3)" class="update-btn" style="background: #1976d2; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 600; cursor: pointer;">
-                                    Actualizar
-                                </button>
-                            </div>
-                                </div>
+                        </div>
                                 
                         <!-- WhatsApp 4 -->
-                        <div id="whatsapp-card-4" class="whatsapp-card" style="background: white; border: 2px solid #e0e0e0; border-radius: 12px; padding: 24px; position: relative;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                                <h3 style="margin: 0; color: #333; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
-                                    <span style="font-size: 1rem;">📱</span>
-                                    WhatsApp 4
-                                </h3>
-                                <button id="whatsapp-4-status" class="status-btn" style="background: #ff9800; color: white; border: none; padding: 6px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: 600; cursor: default;">
-                                    Desconectado
-                                </button>
-                                        </div>
-                            
-                            <div style="margin-bottom: 16px;">
-                                <div style="margin-bottom: 8px;">
-                                    <strong style="color: #666; font-size: 0.9rem;">Estado:</strong>
-                                    <span id="whatsapp-4-state" style="color: #333; margin-left: 8px;">Esperando conexión</span>
-                                        </div>
-                                <div style="margin-bottom: 8px;">
-                                    <strong style="color: #666; font-size: 0.9rem;">Número:</strong>
-                                    <span id="whatsapp-4-phone" style="color: #333; margin-left: 8px;">-</span>
-                                        </div>
-                                <div>
-                                    <strong style="color: #666; font-size: 0.9rem;">Nombre:</strong>
-                                    <span id="whatsapp-4-name" style="color: #333; margin-left: 8px;">-</span>
-                                    </div>
-                                </div>
-                                
-                            <div id="whatsapp-4-qr-container" style="display: none; text-align: center; margin: 16px 0; padding: 16px; background: #f5f5f5; border-radius: 8px;">
-                                <p style="color: #666; font-size: 0.85rem; margin-bottom: 12px;">Escanea este código QR con WhatsApp:</p>
-                                <div id="whatsapp-4-qr" style="display: inline-block; background: white; padding: 16px; border-radius: 8px;"></div>
-                                <p style="color: #666; font-size: 0.75rem; margin-top: 12px;">O haz clic en "Simular Conexión" para probar</p>
-                                <button onclick="simulateWhatsAppConnection(4)" style="background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; cursor: pointer; margin-top: 8px;">
-                                    Simular Conexión
-                                </button>
+                        <div style="background: white; border: 2px solid #e0e0e0; border-radius: 12px; padding: 20px; position: relative;">
+                            <h3 style="margin: 0 0 15px 0; color: #333; font-size: 1.2rem; display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 1rem;">📱</span>
+                                WhatsApp 4
+                            </h3>
+                            <div style="border: 2px solid #25D366; border-radius: 8px; overflow: hidden; background: #f0f7ff;">
+                                <iframe 
+                                    src="http://72.61.58.240:3004/" 
+                                    style="width: 100%; height: 600px; border: none; display: block;"
+                                    title="WhatsApp 4 Connection"
+                                    allow="camera; microphone">
+                                </iframe>
                             </div>
-                            
-                            <p style="color: #666; font-size: 0.85rem; margin: 16px 0; text-align: center;">
-                                Haz clic en "Conectar" para generar el código QR
+                            <p style="color: #666; font-size: 0.85rem; margin-top: 10px; text-align: center;">
+                                Escanea el QR que aparece arriba con tu WhatsApp
                             </p>
-                            
-                            <div style="display: flex; gap: 10px; margin-top: 16px;">
-                                <button onclick="connectWhatsApp(4)" id="whatsapp-4-connect-btn" class="connect-btn" style="flex: 1; background: #25D366; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: 600; cursor: pointer;">
-                                    Conectar
-                                </button>
-                                <button onclick="updateWhatsApp(4)" class="update-btn" style="background: #1976d2; color: white; border: none; padding: 12px 20px; border-radius: 8px; font-weight: 600; cursor: pointer;">
-                                    Actualizar
-                                </button>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -8848,6 +8704,8 @@ Ej:
         // ============================================
         
         // Cargar estado de las 4 tarjetas WhatsApp
+        // CÓDIGO COMPLEJO ELIMINADO - Usar enlaces simples en su lugar
+        /*
         async function loadWhatsAppCards() {
             // Cargar datos desde localStorage o Supabase
             let whatsappData = JSON.parse(localStorage.getItem('whatsappCards') || '{"1":{},"2":{},"3":{},"4":{}}');
@@ -8887,7 +8745,50 @@ Ej:
             
             // Actualizar cada tarjeta
             for (let i = 1; i <= 4; i++) {
-                updateWhatsAppCard(i, whatsappData[i] || {});
+                const cardData = whatsappData[i] || {};
+                
+                // Si está conectando, obtener QR más reciente del servidor
+                if (cardData.status === 'connecting') {
+                    console.log(`🔄 Tarjeta ${i} está conectando, obteniendo QR más reciente del servidor...`);
+                    
+                    // Obtener QR más reciente del servidor inmediatamente
+                    const serverUrl = getServerURL(i);
+                    fetch(`${serverUrl}/api/qr?card=${i}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.qr) {
+                                console.log(`✅ QR más reciente obtenido del servidor para tarjeta ${i}`);
+                                const updatedCardData = JSON.parse(localStorage.getItem('whatsappCards') || '{"1":{},"2":{},"3":{},"4":{}}');
+                                updatedCardData[i] = {
+                                    ...updatedCardData[i],
+                                    qr: data.qr,
+                                    qrTimestamp: Date.now(),
+                                    status: 'connecting'
+                                };
+                                localStorage.setItem('whatsappCards', JSON.stringify(updatedCardData));
+                                updateWhatsAppCard(i, updatedCardData[i]);
+                                
+                                // Reiniciar la actualización automática
+                                startQRRefresh(i);
+                                checkWhatsAppConnectionStatus(i);
+                            } else {
+                                // Si no hay QR, actualizar normalmente
+                                updateWhatsAppCard(i, cardData);
+                            }
+                        })
+                        .catch(error => {
+                            console.warn(`⚠️ Error obteniendo QR del servidor para tarjeta ${i}:`, error);
+                            // Si falla, usar el QR guardado
+                            updateWhatsAppCard(i, cardData);
+                            if (cardData.qr) {
+                                startQRRefresh(i);
+                                checkWhatsAppConnectionStatus(i);
+                            }
+                        });
+                } else {
+                    // Si no está conectando, actualizar normalmente
+                    updateWhatsAppCard(i, cardData);
+                }
             }
         }
         
@@ -8915,15 +8816,17 @@ Ej:
                 connectBtn.textContent = 'Desconectar';
                 connectBtn.style.background = '#ff4757';
                 connectBtn.disabled = false;
-                connectBtn.setAttribute('onclick', `disconnectWhatsApp(${cardNumber})`);
+                // NO agregar onclick, los event listeners lo manejan
                 if (card) card.style.borderColor = '#25D366';
             } else if (isConnecting) {
                 statusBtn.textContent = 'Conectando...';
                 statusBtn.style.background = '#1976d2';
-                stateSpan.textContent = 'Generando código QR...';
-                connectBtn.textContent = 'Conectando...';
-                connectBtn.disabled = true;
-                connectBtn.setAttribute('onclick', '');
+                // Si ya tiene QR, mostrar "Escanea el QR", si no, "Generando código QR..."
+                stateSpan.textContent = data.qr ? 'Escanea el código QR' : 'Generando código QR...';
+                connectBtn.textContent = 'Cancelar';
+                connectBtn.style.background = '#ff9800';
+                connectBtn.disabled = false; // Habilitar para poder cancelar
+                // NO agregar onclick, los event listeners lo manejan
                 if (card) card.style.borderColor = '#1976d2';
             } else {
                 statusBtn.textContent = 'Desconectado';
@@ -8932,7 +8835,7 @@ Ej:
                 connectBtn.textContent = 'Conectar';
                 connectBtn.style.background = '#25D366';
                 connectBtn.disabled = false;
-                connectBtn.setAttribute('onclick', `connectWhatsApp(${cardNumber})`);
+                // NO agregar onclick, los event listeners lo manejan
                 if (card) card.style.borderColor = '#e0e0e0';
             }
             
@@ -8943,15 +8846,153 @@ Ej:
             // Mostrar/ocultar QR
             if (qrContainer) {
                 qrContainer.style.display = isConnecting ? 'block' : 'none';
+                console.log(`🔍 Actualizando QR para tarjeta ${cardNumber}:`, {
+                    isConnecting,
+                    tieneQR: !!data.qr,
+                    tipoQR: typeof data.qr,
+                    qrPreview: data.qr ? data.qr.substring(0, 50) : 'null',
+                    qrLength: data.qr ? data.qr.length : 0
+                });
+                
+                // SIEMPRE mostrar QR si existe y está conectando
                 if (isConnecting && data.qr) {
+                    console.log(`✅ Renderizando QR para tarjeta ${cardNumber}...`);
                     const qrDiv = document.getElementById(`whatsapp-${cardNumber}-qr`);
+                    console.log(`🔍 qrDiv encontrado:`, !!qrDiv);
                     if (qrDiv) {
-                        // Si el QR es una imagen base64, mostrarla
+                        // Limpiar contenido previo
+                        qrDiv.innerHTML = '';
+                        
+                        // Si el QR es una imagen base64, mostrarla directamente
                         if (data.qr.startsWith('data:image')) {
-                            qrDiv.innerHTML = `<img src="${data.qr}" style="width: 200px; height: 200px; border-radius: 8px;">`;
+                            qrDiv.innerHTML = `
+                                <div style="text-align: center;">
+                                    <div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+                                        <p style="margin: 0; color: #856404; font-size: 12px; font-weight: bold;">⏱️ Este QR expira en 20-30 segundos</p>
+                                        <p style="margin: 5px 0 0 0; color: #856404; font-size: 11px;">Escanéalo rápido con WhatsApp</p>
+                                    </div>
+                                    <img src="${data.qr}" style="width: 200px; height: 200px; border-radius: 8px; display: block; margin: 0 auto; border: 3px solid #25D366;">
+                                    <div style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+                                        <p style="margin: 0 0 5px 0; font-size: 12px; font-weight: bold; color: #333;">📱 Cómo escanear:</p>
+                                        <ol style="margin: 0; padding-left: 20px; text-align: left; font-size: 11px; color: #666;">
+                                            <li>Abre WhatsApp en tu teléfono</li>
+                                            <li>Ve a <strong>Dispositivos vinculados</strong></li>
+                                            <li>Toca <strong>Vincular un dispositivo</strong></li>
+                                            <li>Escanea este código QR</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            `;
+                            console.log(`✅ QR mostrado como imagen base64 para tarjeta ${cardNumber}`);
+                        } else if (typeof QRCode !== 'undefined' && typeof QRCode.toCanvas === 'function') {
+                            // Si es un string y tenemos la librería QRCode, renderizarlo
+                            try {
+                                console.log(`🎨 Renderizando QR string para tarjeta ${cardNumber}...`);
+                                const canvas = document.createElement('canvas');
+                                qrDiv.appendChild(canvas);
+                                
+                                QRCode.toCanvas(canvas, data.qr, {
+                                    width: 200,
+                                    margin: 2,
+                                    color: {
+                                        dark: '#000000',
+                                        light: '#FFFFFF'
+                                    }
+                                }, function(error) {
+                                    if (error) {
+                                        console.error(`❌ Error renderizando QR:`, error);
+                                        qrDiv.innerHTML = `<div style="padding: 20px; text-align: center; color: #ff4757;">Error al mostrar QR</div>`;
+                                    } else {
+                                        console.log(`✅ QR renderizado correctamente para tarjeta ${cardNumber}`);
+                                        
+                                        // Agregar advertencia y instrucciones después de renderizar
+                                        const warningDiv = document.createElement('div');
+                                        warningDiv.style.cssText = 'text-align: center; margin-top: 10px;';
+                                        warningDiv.innerHTML = `
+                                            <div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+                                                <p style="margin: 0; color: #856404; font-size: 12px; font-weight: bold;">⏱️ Este QR expira en 20-30 segundos</p>
+                                                <p style="margin: 5px 0 0 0; color: #856404; font-size: 11px;">Se actualiza automáticamente. Escanéalo rápido.</p>
+                                            </div>
+                                            <div style="padding: 10px; background: #f8f9fa; border-radius: 8px; margin-top: 10px;">
+                                                <p style="margin: 0 0 5px 0; font-size: 12px; font-weight: bold; color: #333;">📱 Cómo escanear:</p>
+                                                <ol style="margin: 0; padding-left: 20px; text-align: left; font-size: 11px; color: #666;">
+                                                    <li>Abre WhatsApp → <strong>Dispositivos vinculados</strong></li>
+                                                    <li>Toca <strong>Vincular un dispositivo</strong></li>
+                                                    <li>Escanea este código QR</li>
+                                                </ol>
+                                            </div>
+                                        `;
+                                        qrDiv.appendChild(warningDiv);
+                                    }
+                                });
+                            } catch (error) {
+                                console.error(`❌ Error al renderizar QR:`, error);
+                                qrDiv.innerHTML = `<div style="padding: 20px; text-align: center; color: #ff4757;">Error: ${error.message}</div>`;
+                            }
                         } else {
-                            // Si es un canvas, ya está renderizado
-                            // No hacer nada, el canvas ya está ahí
+                            // Si no tenemos la librería, usar API de QR online como alternativa (SIEMPRE FUNCIONA)
+                            console.log(`⚠️ QR recibido pero sin librería QRCode. Usando API de QR online...`);
+                            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(data.qr)}`;
+                            console.log(`🔗 URL del QR generada: ${qrImageUrl.substring(0, 100)}...`);
+                            
+                            // Agregar advertencia y instrucciones
+                            qrDiv.innerHTML = `
+                                <div style="text-align: center;">
+                                    <div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+                                        <p style="margin: 0; color: #856404; font-size: 12px; font-weight: bold;">⏱️ Este QR expira en 20-30 segundos</p>
+                                        <p style="margin: 5px 0 0 0; color: #856404; font-size: 11px;">Escanéalo rápido con WhatsApp</p>
+                                    </div>
+                                    <img src="${qrImageUrl}" alt="QR Code" style="width: 200px; height: 200px; border-radius: 8px; display: block; margin: 0 auto; border: 3px solid #25D366;">
+                                    <div style="margin-top: 10px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+                                        <p style="margin: 0 0 5px 0; font-size: 12px; font-weight: bold; color: #333;">📱 Cómo escanear:</p>
+                                        <ol style="margin: 0; padding-left: 20px; text-align: left; font-size: 11px; color: #666;">
+                                            <li>Abre WhatsApp en tu teléfono</li>
+                                            <li>Ve a <strong>Dispositivos vinculados</strong></li>
+                                            <li>Toca <strong>Vincular un dispositivo</strong></li>
+                                            <li>Escanea este código QR</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            `;
+                            console.log(`✅ QR mostrado usando API online para tarjeta ${cardNumber}`);
+                            console.log(`✅ Contenido del div QR:`, qrDiv.innerHTML.substring(0, 100));
+                            
+                            // También intentar cargar la librería para futuros usos
+                            if (typeof loadQRCodeLibrary === 'function') {
+                                loadQRCodeLibrary().catch(() => {
+                                    console.log(`ℹ️ No se pudo cargar librería QRCode, usando API online`);
+                                });
+                            }
+                        } else {
+                            console.warn(`⚠️ Tarjeta ${cardNumber} está conectando pero NO tiene QR guardado`);
+                        }
+                } else {
+                    console.log(`ℹ️ Tarjeta ${cardNumber} no está conectando o no tiene QR (isConnecting: ${isConnecting}, tieneQR: ${!!data.qr})`);
+                }
+                        
+                        // Agregar advertencia también cuando se usa QRCode library
+                        if (qrDiv && qrDiv.querySelector('canvas')) {
+                            const existingWarning = qrDiv.querySelector('.qr-warning');
+                            if (!existingWarning) {
+                                const warningDiv = document.createElement('div');
+                                warningDiv.className = 'qr-warning';
+                                warningDiv.style.cssText = 'text-align: center; margin-top: 10px;';
+                                warningDiv.innerHTML = `
+                                    <div style="background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; padding: 10px; margin-bottom: 10px;">
+                                        <p style="margin: 0; color: #856404; font-size: 12px; font-weight: bold;">⏱️ Este QR expira en 20-30 segundos</p>
+                                        <p style="margin: 5px 0 0 0; color: #856404; font-size: 11px;">Se actualiza automáticamente. Escanéalo rápido.</p>
+                                    </div>
+                                    <div style="padding: 10px; background: #f8f9fa; border-radius: 8px; margin-top: 10px;">
+                                        <p style="margin: 0 0 5px 0; font-size: 12px; font-weight: bold; color: #333;">📱 Cómo escanear:</p>
+                                        <ol style="margin: 0; padding-left: 20px; text-align: left; font-size: 11px; color: #666;">
+                                            <li>Abre WhatsApp → <strong>Dispositivos vinculados</strong></li>
+                                            <li>Toca <strong>Vincular un dispositivo</strong></li>
+                                            <li>Escanea este código QR</li>
+                                        </ol>
+                                    </div>
+                                `;
+                                qrDiv.appendChild(warningDiv);
+                            }
                         }
                     }
                 }
@@ -9000,6 +9041,10 @@ Ej:
                 // Si está conectando, cancelar
                 if (currentData.status === 'connecting') {
                     console.log(`ℹ️ Tarjeta ${cardNumber} está conectando, cancelando...`);
+                    
+                    // Detener actualización de QR
+                    stopQRRefresh(cardNumber);
+                    
                     currentData.status = 'disconnected';
                     cardData[cardNumber] = currentData;
                     localStorage.setItem('whatsappCards', JSON.stringify(cardData));
@@ -9048,12 +9093,23 @@ Ej:
                         const data = await response.json();
                         if (data.qr) {
                             console.log(`✅ QR obtenido del servidor para tarjeta ${cardNumber}`);
+                            console.log(`📦 Formato del QR:`, {
+                                tipo: typeof data.qr,
+                                longitud: data.qr ? data.qr.length : 0,
+                                empiezaCon: data.qr ? data.qr.substring(0, 50) : 'null',
+                                esBase64: data.qr ? data.qr.startsWith('data:image') : false
+                            });
                             currentData.qr = data.qr;
                             currentData.qrData = data.qrData || null;
+                            currentData.qrTimestamp = Date.now(); // Guardar timestamp para verificar expiración
                             cardData[cardNumber] = currentData;
                             localStorage.setItem('whatsappCards', JSON.stringify(cardData));
+                            console.log(`🔄 Actualizando tarjeta visualmente...`);
                             updateWhatsAppCard(cardNumber, currentData);
                             qrGenerated = true;
+                            
+                            // Iniciar actualización automática del QR cada 15 segundos (antes de que expire)
+                            startQRRefresh(cardNumber);
                             
                             // Iniciar polling para verificar conexión
                             checkWhatsAppConnectionStatus(cardNumber);
@@ -9456,6 +9512,96 @@ Ej:
             }
         }
         
+        // Actualizar QR automáticamente (expira cada 20-30 segundos)
+        const qrRefreshIntervals = {}; // Almacenar intervalos por tarjeta
+        
+        function startQRRefresh(cardNumber) {
+            // Limpiar intervalo anterior si existe
+            if (qrRefreshIntervals[cardNumber]) {
+                clearInterval(qrRefreshIntervals[cardNumber]);
+            }
+            
+            console.log(`🔄 Iniciando actualización automática de QR para tarjeta ${cardNumber}`);
+            
+            // Actualizar QR cada 15 segundos mientras esté en estado "connecting" (antes de que expire)
+            qrRefreshIntervals[cardNumber] = setInterval(async () => {
+                const cardData = JSON.parse(localStorage.getItem('whatsappCards') || '{"1":{},"2":{},"3":{},"4":{}}');
+                const currentData = cardData[cardNumber] || {};
+                
+                // Solo actualizar si está en estado "connecting"
+                if (currentData.status !== 'connecting') {
+                    clearInterval(qrRefreshIntervals[cardNumber]);
+                    delete qrRefreshIntervals[cardNumber];
+                    return;
+                }
+                
+                // Verificar si el QR actual expiró (más de 25 segundos)
+                if (currentData.qrTimestamp) {
+                    const age = Date.now() - currentData.qrTimestamp;
+                    const ageSeconds = Math.floor(age / 1000);
+                    if (ageSeconds > 25) {
+                        console.log(`⏱️ QR de tarjeta ${cardNumber} expiró (${ageSeconds}s), actualizando...`);
+                    }
+                }
+                
+                try {
+                    const serverUrl = getServerURL(cardNumber);
+                    const qrUrl = `${serverUrl}/api/qr?card=${cardNumber}`;
+                    
+                    const response = await fetch(qrUrl, {
+                        method: 'GET',
+                        credentials: 'omit'
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.qr) {
+                            // SIEMPRE actualizar el QR del servidor (puede ser nuevo aunque el estado sea "connecting")
+                            const qrChanged = data.qr !== currentData.qr;
+                            if (qrChanged) {
+                                console.log(`🔄 QR actualizado para tarjeta ${cardNumber} (nuevo QR del servidor)`);
+                                console.log(`   QR anterior: ${currentData.qr ? currentData.qr.substring(0, 30) + '...' : 'null'}`);
+                                console.log(`   QR nuevo: ${data.qr.substring(0, 30)}...`);
+                            } else {
+                                console.log(`🔄 QR refrescado para tarjeta ${cardNumber} (mismo QR, actualizando timestamp)`);
+                            }
+                            currentData.qr = data.qr;
+                            currentData.qrTimestamp = Date.now(); // Actualizar timestamp
+                            cardData[cardNumber] = currentData;
+                            localStorage.setItem('whatsappCards', JSON.stringify(cardData));
+                            updateWhatsAppCard(cardNumber, currentData);
+                        } else if (data.status === 'connected') {
+                            // Si el servidor dice que está conectado, actualizar estado
+                            console.log(`✅ Tarjeta ${cardNumber} conectada según servidor`);
+                            currentData.status = 'connected';
+                            cardData[cardNumber] = currentData;
+                            localStorage.setItem('whatsappCards', JSON.stringify(cardData));
+                            updateWhatsAppCard(cardNumber, currentData);
+                            stopQRRefresh(cardNumber);
+                        } else if (data.status === 'waiting_scan' && data.qr) {
+                            // Si el servidor tiene un QR nuevo en estado "waiting_scan", actualizarlo
+                            console.log(`🔄 Servidor tiene QR nuevo en estado "waiting_scan", actualizando...`);
+                            currentData.qr = data.qr;
+                            currentData.qrTimestamp = Date.now();
+                            cardData[cardNumber] = currentData;
+                            localStorage.setItem('whatsappCards', JSON.stringify(cardData));
+                            updateWhatsAppCard(cardNumber, currentData);
+                        }
+                    }
+                } catch (error) {
+                    console.log(`⚠️ Error actualizando QR para tarjeta ${cardNumber}:`, error);
+                }
+            }, 15000); // Actualizar cada 15 segundos (antes de que expire a los 20-30s)
+        }
+        
+        function stopQRRefresh(cardNumber) {
+            if (qrRefreshIntervals[cardNumber]) {
+                clearInterval(qrRefreshIntervals[cardNumber]);
+                delete qrRefreshIntervals[cardNumber];
+                console.log(`⏹️ Deteniendo actualización de QR para tarjeta ${cardNumber}`);
+            }
+        }
+        
         // Verificar estado de conexión
         async function checkWhatsAppConnectionStatus(cardNumber) {
             // getServerURL(cardNumber) retorna URL completa con ruta (/api1) o puerto (:3001)
@@ -9467,6 +9613,10 @@ Ej:
                 attempts++;
                 if (attempts > maxAttempts) {
                     clearInterval(checkInterval);
+                    
+                    // Detener actualización de QR cuando se desconecta
+                    stopQRRefresh(cardNumber);
+                    
                     const cardData = JSON.parse(localStorage.getItem('whatsappCards') || '{"1":{},"2":{},"3":{},"4":{}}');
                     cardData[cardNumber].status = 'disconnected';
                     localStorage.setItem('whatsappCards', JSON.stringify(cardData));
@@ -9480,6 +9630,10 @@ Ej:
                         const data = await response.json();
                         if (data.connected) {
                             clearInterval(checkInterval);
+                            
+                            // Detener actualización de QR cuando se conecta
+                            stopQRRefresh(cardNumber);
+                            
                             const cardData = JSON.parse(localStorage.getItem('whatsappCards') || '{"1":{},"2":{},"3":{},"4":{}}');
                             cardData[cardNumber] = {
                                 ...cardData[cardNumber],
@@ -9514,6 +9668,9 @@ Ej:
             if (!confirm(`¿Estás seguro de que deseas desconectar WhatsApp ${cardNumber}?`)) {
                 return;
             }
+            
+            // Detener actualización de QR
+            stopQRRefresh(cardNumber);
             
             const cardData = JSON.parse(localStorage.getItem('whatsappCards') || '{"1":{},"2":{},"3":{},"4":{}}');
             cardData[cardNumber] = {
@@ -9736,9 +9893,14 @@ Ej:
             window.connectWhatsApp = connectWhatsApp;
             window.disconnectWhatsApp = disconnectWhatsApp;
             window.updateWhatsApp = updateWhatsApp;
+            window.updateWhatsAppCard = updateWhatsAppCard;
             window.checkWhatsAppConnection = checkWhatsAppConnection;
+            window.checkWhatsAppConnectionStatus = checkWhatsAppConnectionStatus;
             window.saveWhatsAppServerUrl = saveWhatsAppServerUrl;
             window.loadWhatsAppServerUrl = loadWhatsAppServerUrl;
+            window.startQRRefresh = startQRRefresh;
+            window.stopQRRefresh = stopQRRefresh;
+            window.loadWhatsAppCards = loadWhatsAppCards;
             window.saveWhatsAppConfig = saveWhatsAppConfig;
             window.loadWhatsAppConfig = loadWhatsAppConfig;
             window.simulateWhatsAppConnection = simulateWhatsAppConnection;
@@ -9806,21 +9968,86 @@ Ej:
             for (let i = 1; i <= 4; i++) {
                 const connectBtn = document.getElementById(`whatsapp-${i}-connect-btn`);
                 if (connectBtn) {
-                    // Remover listeners anteriores para evitar duplicados
-                    connectBtn.replaceWith(connectBtn.cloneNode(true));
-                    const newBtn = document.getElementById(`whatsapp-${i}-connect-btn`);
+                    // Remover listeners anteriores si existen
+                    const newConnectBtn = connectBtn.cloneNode(true);
+                    // ELIMINAR el atributo onclick para evitar doble ejecución
+                    newConnectBtn.removeAttribute('onclick');
+                    connectBtn.parentNode.replaceChild(newConnectBtn, connectBtn);
                     
                     // Agregar listener directo
-                    newBtn.addEventListener('click', function(e) {
+                    newConnectBtn.addEventListener('click', function(e) {
                         e.preventDefault();
                         e.stopPropagation();
-                        console.log(`🖱️ Click detectado en botón WhatsApp ${i} (event listener directo)`);
-                        if (typeof window.connectWhatsApp === 'function') {
-                            window.connectWhatsApp(i);
-                        } else {
-                            console.error(`❌ window.connectWhatsApp no está disponible para tarjeta ${i}`);
-                            alert(`Error: Función connectWhatsApp no disponible. Por favor, recarga la página.`);
+                        e.stopImmediatePropagation(); // Prevenir otros listeners
+                        console.log(`🖱️🖱️🖱️ Click detectado en botón WhatsApp ${i} 🖱️🖱️🖱️`);
+                        console.log(`🔍 Estado del botón:`, {
+                            disabled: this.disabled,
+                            textContent: this.textContent,
+                            id: this.id
+                        });
+                        
+                        // Si el botón está deshabilitado, no hacer nada
+                        if (this.disabled) {
+                            console.log(`⚠️ Botón deshabilitado, ignorando click`);
+                            return false;
                         }
+                        
+                        // Detectar si es "Conectar" o "Desconectar" basado en el texto del botón
+                        const buttonText = this.textContent.trim().toLowerCase();
+                        const isDisconnect = buttonText === 'desconectar' || buttonText.includes('desconectar') || buttonText === 'cancelar';
+                        
+                        console.log(`🔍 Acción detectada: ${isDisconnect ? 'DESCONECTAR' : 'CONECTAR'}`);
+                        
+                        if (isDisconnect) {
+                            // Desconectar
+                            console.log(`🔍 Verificando disponibilidad de disconnectWhatsApp...`);
+                            console.log(`   - typeof window.disconnectWhatsApp: ${typeof window.disconnectWhatsApp}`);
+                            if (typeof window.disconnectWhatsApp === 'function') {
+                                console.log(`🚀 Llamando a disconnectWhatsApp(${i})...`);
+                                try {
+                                    const result = window.disconnectWhatsApp(i);
+                                    console.log(`✅ disconnectWhatsApp ejecutado, resultado:`, result);
+                                } catch (error) {
+                                    console.error(`❌ Error al ejecutar disconnectWhatsApp(${i}):`, error);
+                                    console.error(`   Stack:`, error.stack);
+                                    alert(`Error: ${error.message}`);
+                                }
+                            } else {
+                                console.error(`❌ window.disconnectWhatsApp no está disponible para tarjeta ${i}`);
+                                console.error(`   Funciones disponibles en window:`, Object.keys(window).filter(k => k.includes('WhatsApp')));
+                                alert(`Error: Función disconnectWhatsApp no disponible. Por favor, recarga la página.`);
+                            }
+                        } else {
+                            // Conectar
+                            console.log(`🔍 Verificando disponibilidad de connectWhatsApp...`);
+                            console.log(`   - typeof window.connectWhatsApp: ${typeof window.connectWhatsApp}`);
+                            console.log(`   - window.connectWhatsApp:`, window.connectWhatsApp);
+                            
+                            if (typeof window.connectWhatsApp === 'function') {
+                                console.log(`🚀 Llamando a connectWhatsApp(${i})...`);
+                                try {
+                                    const result = window.connectWhatsApp(i);
+                                    console.log(`✅ connectWhatsApp ejecutado, resultado:`, result);
+                                    // Si es una promesa, esperar
+                                    if (result && typeof result.then === 'function') {
+                                        result.then(() => {
+                                            console.log(`✅ Promesa de connectWhatsApp resuelta`);
+                                        }).catch((err) => {
+                                            console.error(`❌ Error en promesa de connectWhatsApp:`, err);
+                                        });
+                                    }
+                                } catch (error) {
+                                    console.error(`❌ Error al ejecutar connectWhatsApp(${i}):`, error);
+                                    console.error(`   Stack:`, error.stack);
+                                    alert(`Error: ${error.message}\n\nRevisa la consola para más detalles.`);
+                                }
+                            } else {
+                                console.error(`❌ window.connectWhatsApp no está disponible para tarjeta ${i}`);
+                                console.error(`   Funciones disponibles en window:`, Object.keys(window).filter(k => k.includes('WhatsApp')));
+                                alert(`Error: Función connectWhatsApp no disponible.\n\nPor favor:\n1. Recarga la página (F5)\n2. Si persiste, ejecuta en consola: testConnectWhatsApp(${i})`);
+                            }
+                        }
+                        return false;
                     });
                     
                     console.log(`✅ Event listener agregado a botón WhatsApp ${i}`);
@@ -9871,22 +10098,12 @@ Ej:
         // Hacer la función disponible globalmente
         window.isUserAuthenticated = isUserAuthenticated;
         
-        // Inicializar WhatsApp al cargar la página (SOLO si el usuario está autenticado)
-        document.addEventListener('DOMContentLoaded', function() {
-            // Verificar autenticación antes de inicializar WhatsApp
-            if (!isUserAuthenticated()) {
-                console.log('🔒 Usuario no autenticado, NO inicializando WhatsApp');
-                return; // Salir temprano si no hay sesión
-            }
-            
-            console.log('✅ Usuario autenticado, inicializando WhatsApp...');
-            verificarFuncionesWhatsApp();
-            
-            // Agregar listeners después de un pequeño delay para asegurar que el DOM esté listo
-            setTimeout(agregarEventListenersWhatsApp, 500);
-            setTimeout(agregarEventListenersWhatsApp, 2000);
-            // Las tarjetas se cargarán cuando se abra la pestaña WhatsApp
-        });
+        // ============================================
+        // CÓDIGO DE WHATSAPP - ELIMINADO COMPLETAMENTE
+        // ============================================
+        // Todo el código JavaScript de WhatsApp fue eliminado.
+        // Ahora se usan iframes simples que muestran las páginas del servidor.
+        // Las páginas del servidor manejan todo automáticamente con Socket.IO.
         
         // Función para cargar hoteles en el selector
         function loadHotelsForQuote() {
@@ -12891,14 +13108,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 }
                 
                 // Inicializar WhatsApp solo después de autenticación exitosa
-                setTimeout(function() {
-                    if (typeof verificarFuncionesWhatsApp === 'function') {
-                        verificarFuncionesWhatsApp();
-                    }
-                    if (typeof agregarEventListenersWhatsApp === 'function') {
-                        agregarEventListenersWhatsApp();
-                    }
-                }, 1000);
+                // CÓDIGO COMPLEJO DE WHATSAPP ELIMINADO
+                // Los enlaces simples ya funcionan sin necesidad de estas funciones
                 
                 console.log('✅ Dashboard inicializado correctamente');
             } else {
@@ -22161,10 +22372,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             if (typeof loadWhatsAppConfig === 'function') {
                 loadWhatsAppConfig();
             }
-            // Cargar tarjetas de WhatsApp
-            if (typeof loadWhatsAppCards === 'function') {
-                loadWhatsAppCards();
-            }
+            // WhatsApp ahora usa iframes simples - no necesita código JavaScript
         }
         console.log('📑 Cambiando a tab Flor:', tabName);
         
@@ -22213,14 +22421,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 return; // Salir temprano si no hay sesión
             }
             
-            loadWhatsAppCards();
+            // WhatsApp ahora usa iframes simples - no necesita código JavaScript
             
             // Agregar event listeners cuando se abre la pestaña WhatsApp
-            setTimeout(function() {
-                if (typeof agregarEventListenersWhatsApp === 'function') {
-                    agregarEventListenersWhatsApp();
-                }
-            }, 100);
+            // CÓDIGO COMPLEJO DE WHATSAPP ELIMINADO
+            // Los enlaces simples ya funcionan sin necesidad de estas funciones
         }
     };
 
