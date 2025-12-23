@@ -9019,6 +9019,7 @@ Ej:
                 // getServerURL(cardNumber) retorna URL completa con ruta (/api1) o puerto (:3001)
                 const serverUrl = getServerURL(cardNumber);
                 let qrGenerated = false;
+                let fetchError = null; // Variable para almacenar el error fuera del catch
                 
                 console.log(`🔗 URL completa construida: ${serverUrl}`);
                 
@@ -9030,9 +9031,11 @@ Ej:
                     const timeoutId = setTimeout(() => controller.abort(), 5000);
                     
                     console.log(`📡 Intentando obtener QR del servidor...`);
-                    console.log(`🔗 URL completa: ${serverUrl}/api/qr?card=${cardNumber}`);
+                    // La URL ya incluye la ruta (/api1, /api2, etc.), solo agregamos /api/qr?card=X
+                    const qrUrl = `${serverUrl}/api/qr?card=${cardNumber}`;
+                    console.log(`🔗 URL completa: ${qrUrl}`);
                     
-                    const response = await fetch(`${serverUrl}/api/qr?card=${cardNumber}`, {
+                    const response = await fetch(qrUrl, {
                         method: 'GET',
                         signal: controller.signal,
                         // Permitir credenciales si es necesario
@@ -9061,6 +9064,7 @@ Ej:
                         console.log(`⚠️ Servidor respondió con código ${response.status}, generando QR local`);
                     }
                 } catch (error) {
+                    fetchError = error; // Guardar el error para usarlo después
                     let errorMessage = error.message || 'Error desconocido';
                     
                     if (error.name === 'AbortError') {
@@ -9083,13 +9087,13 @@ Ej:
                     
                     // Detectar tipo de error
                     const isMixedContent = window.location.protocol === 'https:' && serverUrl.startsWith('http://');
-                    const isSSLError = serverUrl.startsWith('https://') && (
-                        error && (error.message.includes('SSL') || 
-                        error.message.includes('TLS') || 
-                        error.message.includes('certificate') ||
-                        error.message.includes('CERT') ||
-                        error.message.includes('ERR_SSL') ||
-                        error.message.includes('ERR_CERT'))
+                    const isSSLError = serverUrl.startsWith('https://') && fetchError && (
+                        fetchError.message.includes('SSL') || 
+                        fetchError.message.includes('TLS') || 
+                        fetchError.message.includes('certificate') ||
+                        fetchError.message.includes('CERT') ||
+                        fetchError.message.includes('ERR_SSL') ||
+                        fetchError.message.includes('ERR_CERT')
                     );
                     
                     // Actualizar estado a error
