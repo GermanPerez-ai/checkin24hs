@@ -8963,9 +8963,11 @@ Ej:
                                     console.log(`ℹ️ No se pudo cargar librería QRCode, usando API online`);
                                 });
                             }
-                        } else {
-                            console.warn(`⚠️ Tarjeta ${cardNumber} está conectando pero NO tiene QR guardado`);
                         }
+                    } else {
+                        // Si no hay qrDiv, mostrar advertencia
+                        console.warn(`⚠️ Tarjeta ${cardNumber} está conectando pero NO tiene contenedor QR`);
+                    }
                 } else {
                     console.log(`ℹ️ Tarjeta ${cardNumber} no está conectando o no tiene QR (isConnecting: ${isConnecting}, tieneQR: ${!!data.qr})`);
                 }
