@@ -13,13 +13,18 @@ app.use((req, res, next) => {
     next();
 });
 
-// Servir archivos estáticos desde la raíz del proyecto
-app.use(express.static(__dirname));
-
-// Servir dashboard.html como página principal
+// Servir dashboard.html como página principal (ANTES de express.static)
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'dashboard.html'));
 });
+
+// Redirigir index.html a dashboard.html
+app.get('/index.html', (req, res) => {
+    res.redirect('/dashboard.html');
+});
+
+// Servir archivos estáticos desde la raíz del proyecto (sin index automático)
+app.use(express.static(__dirname, { index: false }));
 
 // También servir dashboard.html directamente
 app.get('/dashboard.html', (req, res) => {
