@@ -1,7 +1,10 @@
 const express = require('express');
 const path = require('path');
 const app = express();
-const PORT = process.env.PORT || 3005;
+// Forzar puerto 3005 para evitar conflicto con webmail (puerto 80)
+// Si EasyPanel pasa PORT=80, lo cambiamos a 3005
+const ENV_PORT = process.env.PORT || 3005;
+const PORT = ENV_PORT === 80 || ENV_PORT === '80' ? 3005 : ENV_PORT;
 
 // Prevenir caché para crm.html y archivos principales
 app.use((req, res, next) => {
