@@ -1436,7 +1436,7 @@ app.get('/', (req, res) => {
 
 // ===== INICIAR SERVIDOR =====
 
-server.listen(CONFIG.PORT, async () => {
+server.listen(CONFIG.PORT, '0.0.0.0', async () => {
     console.log('\n========================================');
     console.log('🌸 Servidor WhatsApp Futura Flor - Checkin24hs');
     console.log('========================================');
