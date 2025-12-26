@@ -445,13 +445,6 @@ const client = new Client({
     puppeteer: puppeteerConfig
 });
 
-// Asegurar que las librerías estén disponibles antes de inicializar
-client.on('qr', async () => {
-    // Cuando se genera el QR, Chromium ya debería estar descargado
-    await ensureChromiumLibs();
-});
-});
-
 // ===== EVENTOS DE WHATSAPP =====
 
 // Evento: Código QR generado
