@@ -1526,12 +1526,9 @@ server.listen(CONFIG.PORT, '0.0.0.0', async () => {
     }
 });
 
-// Iniciar cliente de WhatsApp (con delay para asegurar librerías)
-setTimeout(async () => {
-    await ensureChromiumLibs();
-    console.log('🚀 Inicializando cliente de WhatsApp...');
-    client.initialize();
-}, 2000); // Esperar 2 segundos para dar tiempo a que Puppeteer descargue Chromium si es necesario
+// Iniciar cliente de WhatsApp
+// Nota: Usamos Chromium del sistema, no necesitamos esperar descargas
+client.initialize();
 
 // Manejo de cierre
 process.on('SIGINT', async () => {
