@@ -371,12 +371,56 @@ if (fs.existsSync(chromiumPath)) {
     // Esto se hará cuando se inicialice el cliente
 }
 
+// Función para copiar librerías con retry (por si Puppeteer aún no ha descargado Chromium)
+async function ensureChromiumLibs() {
+    const maxRetries = 5;
+    const retryDelay = 2000; // 2 segundos
+    
+    for (let i = 0; i < maxRetries; i++) {
+        copyLibsToChromium();
+        
+        // Verificar si las librerías fueron copiadas correctamente
+        const chromiumDir = path.join(__dirname, 'node_modules', 'puppeteer-core', '.local-chromium');
+        if (fs.existsSync(chromiumDir)) {
+            const chromiumSubdirs = fs.readdirSync(chromiumDir, { withFileTypes: true })
+                .filter(dirent => dirent.isDirectory())
+                .map(dirent => dirent.name);
+            
+            for (const subdir of chromiumSubdirs) {
+                const chromeDir = path.join(chromiumDir, subdir, 'chrome-linux');
+                if (fs.existsSync(chromeDir)) {
+                    const libDir = path.join(chromeDir, 'lib');
+                    const libnss3Path = path.join(libDir, 'libnss3.so');
+                    if (fs.existsSync(libnss3Path)) {
+                        console.log(`✅ Librerías copiadas correctamente en intento ${i + 1}`);
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        if (i < maxRetries - 1) {
+            console.log(`⏳ Esperando descarga de Chromium... (intento ${i + 1}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
+    }
+    
+    console.log(`⚠️  No se pudieron copiar todas las librerías después de ${maxRetries} intentos`);
+    return false;
+}
+
 const client = new Client({
     authStrategy: new LocalAuth({
         dataPath: sessionDataPath
     }),
     puppeteer: puppeteerConfig
-    }
+});
+
+// Asegurar que las librerías estén disponibles antes de inicializar
+client.on('qr', async () => {
+    // Cuando se genera el QR, Chromium ya debería estar descargado
+    await ensureChromiumLibs();
+});
 });
 
 // ===== EVENTOS DE WHATSAPP =====
