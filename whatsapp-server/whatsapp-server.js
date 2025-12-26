@@ -26,6 +26,15 @@ const { createClient } = require('@supabase/supabase-js');
 
 console.log('✅ Dependencias cargadas');
 
+// ===== CONFIGURAR LD_LIBRARY_PATH PARA PUPPETEER =====
+// Asegurar que las librerías del sistema sean accesibles para Chromium de Puppeteer
+if (!process.env.LD_LIBRARY_PATH) {
+    process.env.LD_LIBRARY_PATH = '/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:/usr/lib';
+} else {
+    process.env.LD_LIBRARY_PATH = `/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:/usr/lib:${process.env.LD_LIBRARY_PATH}`;
+}
+console.log(`📚 LD_LIBRARY_PATH configurado: ${process.env.LD_LIBRARY_PATH}`);
+
 // ===== CONFIGURACIÓN =====
 const CONFIG = {
     PORT: process.env.PORT || 3001,
@@ -264,29 +273,42 @@ console.log(`📁 Usando directorio de sesión: ${sessionDataPath} (Instancia ${
 cleanChromeLocks(sessionDataPath);
 
 // Crear cliente de WhatsApp con autenticación local (persiste la sesión)
+// Usar Chromium del sistema si está disponible, de lo contrario usar el de Puppeteer
+const chromiumPath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium';
+const puppeteerConfig = {
+    headless: true,
+    args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu',
+        '--disable-software-rasterizer',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--disable-features=TranslateUI',
+        '--disable-ipc-flooding-protection',
+        `--user-data-dir=${path.join(__dirname, sessionDataPath, 'session')}`
+    ]
+};
+
+// Solo agregar executablePath si el archivo existe
+if (fs.existsSync(chromiumPath)) {
+    puppeteerConfig.executablePath = chromiumPath;
+    console.log(`✅ Usando Chromium del sistema: ${chromiumPath}`);
+} else {
+    console.log(`⚠️  Chromium del sistema no encontrado en ${chromiumPath}, usando el de Puppeteer`);
+}
+
 const client = new Client({
     authStrategy: new LocalAuth({
         dataPath: sessionDataPath
     }),
-    puppeteer: {
-        headless: true,
-        args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--single-process',
-            '--disable-gpu',
-            '--disable-software-rasterizer',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding',
-            '--disable-features=TranslateUI',
-            '--disable-ipc-flooding-protection',
-            `--user-data-dir=${path.join(__dirname, sessionDataPath, 'session')}`
-        ]
+    puppeteer: puppeteerConfig
     }
 });
 
