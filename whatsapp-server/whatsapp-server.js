@@ -1437,26 +1437,36 @@ app.get('/', (req, res) => {
 // ===== INICIAR SERVIDOR =====
 
 server.listen(CONFIG.PORT, '0.0.0.0', async () => {
-    console.log('\n========================================');
-    console.log('🌸 Servidor WhatsApp Futura Flor - Checkin24hs');
-    console.log('========================================');
-    console.log(`📡 Servidor corriendo en puerto ${CONFIG.PORT}`);
-    console.log(`🌐 Panel: http://localhost:${CONFIG.PORT}`);
-    console.log('========================================\n');
-    
-    // Cargar base de conocimiento desde Supabase al iniciar
-    await loadFlorKnowledgeFromSupabase();
-    
-    console.log('⏳ Inicializando WhatsApp...\n');
-    
-    // Health check cada 5 minutos para mantener la sesión activa
-    setInterval(() => {
-        if (clientReady) {
-            console.log('💓 Heartbeat: WhatsApp conectado ✅');
-        } else {
-            console.log('💔 Heartbeat: WhatsApp desconectado ❌');
+    try {
+        console.log('\n========================================');
+        console.log('🌸 Servidor WhatsApp Futura Flor - Checkin24hs');
+        console.log('========================================');
+        console.log(`📡 Servidor corriendo en puerto ${CONFIG.PORT}`);
+        console.log(`🌐 Panel: http://localhost:${CONFIG.PORT}`);
+        console.log('========================================\n');
+        
+        // Cargar base de conocimiento desde Supabase al iniciar
+        try {
+            await loadFlorKnowledgeFromSupabase();
+        } catch (error) {
+            console.error('⚠️ Error cargando base de conocimiento:', error.message);
+            console.log('📚 Continuando con base de conocimiento básica...');
         }
-    }, 5 * 60 * 1000); // 5 minutos
+        
+        console.log('⏳ Inicializando WhatsApp...\n');
+        
+        // Health check cada 5 minutos para mantener la sesión activa
+        setInterval(() => {
+            if (clientReady) {
+                console.log('💓 Heartbeat: WhatsApp conectado ✅');
+            } else {
+                console.log('💔 Heartbeat: WhatsApp desconectado ❌');
+            }
+        }, 5 * 60 * 1000); // 5 minutos
+    } catch (error) {
+        console.error('❌ Error en callback de inicio del servidor:', error);
+        console.error(error.stack);
+    }
 });
 
 // Iniciar cliente de WhatsApp
