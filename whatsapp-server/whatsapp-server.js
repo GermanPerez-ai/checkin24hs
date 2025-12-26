@@ -272,70 +272,8 @@ console.log(`📁 Usando directorio de sesión: ${sessionDataPath} (Instancia ${
 // Limpiar locks antes de crear el cliente
 cleanChromeLocks(sessionDataPath);
 
-// Función para copiar librerías necesarias al Chromium de Puppeteer
-function copyLibsToChromium() {
-    try {
-        const chromiumDir = path.join(__dirname, 'node_modules', 'puppeteer-core', '.local-chromium');
-        if (fs.existsSync(chromiumDir)) {
-            // Buscar el directorio de Chromium descargado
-            const chromiumSubdirs = fs.readdirSync(chromiumDir, { withFileTypes: true })
-                .filter(dirent => dirent.isDirectory())
-                .map(dirent => dirent.name);
-            
-            for (const subdir of chromiumSubdirs) {
-                const chromeDir = path.join(chromiumDir, subdir, 'chrome-linux');
-                if (fs.existsSync(chromeDir)) {
-                    const libDir = path.join(chromeDir, 'lib');
-                    if (!fs.existsSync(libDir)) {
-                        fs.mkdirSync(libDir, { recursive: true });
-                    }
-                    
-                    // Buscar y copiar librerías necesarias
-                    const libsToCopy = ['libnss3.so', 'libnssutil3.so', 'libnspr4.so', 'libssl3.so'];
-                    const searchPaths = [
-                        '/usr/lib/x86_64-linux-gnu',
-                        '/lib/x86_64-linux-gnu',
-                        '/usr/lib'
-                    ];
-                    
-                    for (const libName of libsToCopy) {
-                        for (const searchPath of searchPaths) {
-                            try {
-                                if (fs.existsSync(searchPath)) {
-                                    const files = fs.readdirSync(searchPath);
-                                    const matchingFiles = files.filter(f => f.startsWith(libName));
-                                    if (matchingFiles.length > 0) {
-                                        const srcPath = path.join(searchPath, matchingFiles[0]);
-                                        const destPath = path.join(libDir, libName);
-                                        fs.copyFileSync(srcPath, destPath);
-                                        console.log(`✅ Copiada librería: ${libName} → ${destPath}`);
-                                        break;
-                                    }
-                                }
-                            } catch (e) {
-                                // Continuar buscando en otros directorios
-                            }
-                        }
-                    }
-                    
-                    // Actualizar LD_LIBRARY_PATH para incluir el directorio de librerías
-                    if (!process.env.LD_LIBRARY_PATH) {
-                        process.env.LD_LIBRARY_PATH = libDir;
-                    } else {
-                        process.env.LD_LIBRARY_PATH = `${libDir}:${process.env.LD_LIBRARY_PATH}`;
-                    }
-                    console.log(`📚 LD_LIBRARY_PATH actualizado: ${process.env.LD_LIBRARY_PATH}`);
-                    break;
-                }
-            }
-        }
-    } catch (error) {
-        console.log(`⚠️  Error al copiar librerías (continuando): ${error.message}`);
-    }
-}
-
-// Copiar librerías ANTES de crear el cliente
-copyLibsToChromium();
+// Nota: Usamos Chromium del sistema (PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true)
+// por lo que no necesitamos copiar librerías al Chromium de Puppeteer
 
 // Crear cliente de WhatsApp con autenticación local (persiste la sesión)
 // Usar Chromium del sistema si está disponible, de lo contrario usar el de Puppeteer
@@ -400,43 +338,7 @@ if (fs.existsSync(chromiumPath)) {
     }
 }
 
-// Función para copiar librerías con retry (por si Puppeteer aún no ha descargado Chromium)
-async function ensureChromiumLibs() {
-    const maxRetries = 5;
-    const retryDelay = 2000; // 2 segundos
-    
-    for (let i = 0; i < maxRetries; i++) {
-        copyLibsToChromium();
-        
-        // Verificar si las librerías fueron copiadas correctamente
-        const chromiumDir = path.join(__dirname, 'node_modules', 'puppeteer-core', '.local-chromium');
-        if (fs.existsSync(chromiumDir)) {
-            const chromiumSubdirs = fs.readdirSync(chromiumDir, { withFileTypes: true })
-                .filter(dirent => dirent.isDirectory())
-                .map(dirent => dirent.name);
-            
-            for (const subdir of chromiumSubdirs) {
-                const chromeDir = path.join(chromiumDir, subdir, 'chrome-linux');
-                if (fs.existsSync(chromeDir)) {
-                    const libDir = path.join(chromeDir, 'lib');
-                    const libnss3Path = path.join(libDir, 'libnss3.so');
-                    if (fs.existsSync(libnss3Path)) {
-                        console.log(`✅ Librerías copiadas correctamente en intento ${i + 1}`);
-                        return true;
-                    }
-                }
-            }
-        }
-        
-        if (i < maxRetries - 1) {
-            console.log(`⏳ Esperando descarga de Chromium... (intento ${i + 1}/${maxRetries})`);
-            await new Promise(resolve => setTimeout(resolve, retryDelay));
-        }
-    }
-    
-    console.log(`⚠️  No se pudieron copiar todas las librerías después de ${maxRetries} intentos`);
-    return false;
-}
+// Nota: ensureChromiumLibs() eliminada - ya no es necesaria con Chromium del sistema
 
 const client = new Client({
     authStrategy: new LocalAuth({
