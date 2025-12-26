@@ -4,6 +4,7 @@
 FROM node:18-slim
 
 # Instalar dependencias de Chromium (versión completa con todas las librerías)
+# Incluyendo todas las dependencias necesarias para Chromium/Puppeteer
 RUN apt-get update && apt-get install -y \
     chromium \
     chromium-sandbox \
@@ -29,6 +30,8 @@ RUN apt-get update && apt-get install -y \
     libnss3 \
     libnss3-dev \
     libnss3-tools \
+    libnssutil3 \
+    libssl3 \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
     libstdc++6 \
@@ -52,8 +55,11 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean
 
 # Variables de entorno para Puppeteer
+# Usar Chromium del sistema (ya instalado arriba)
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+ENV CHROME_BIN=/usr/bin/chromium
+ENV CHROMIUM_FLAGS="--no-sandbox --disable-setuid-sandbox"
 
 # Crear directorio de trabajo
 WORKDIR /app
@@ -76,6 +82,6 @@ EXPOSE 3001
 # Variable de entorno para el puerto
 ENV PORT=3001
 
-# Comando de inicio
-CMD ["node", "whatsapp-server.js"]
+# Comando de inicio (el código ya tiene el fix de 0.0.0.0 aplicado)
+CMD ["node", "/app/whatsapp-server.js"]
 
