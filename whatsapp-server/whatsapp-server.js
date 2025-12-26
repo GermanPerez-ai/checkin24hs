@@ -361,14 +361,43 @@ const puppeteerConfig = {
     ]
 };
 
-// Solo agregar executablePath si el archivo existe
+// FORZAR uso del Chromium del sistema (ya instalado en el Dockerfile)
 if (fs.existsSync(chromiumPath)) {
     puppeteerConfig.executablePath = chromiumPath;
     console.log(`✅ Usando Chromium del sistema: ${chromiumPath}`);
 } else {
-    console.log(`⚠️  Chromium del sistema no encontrado en ${chromiumPath}, usando el de Puppeteer`);
-    // Intentar copiar librerías nuevamente después de que Puppeteer descargue Chromium
-    // Esto se hará cuando se inicialice el cliente
+    // Si no está en /usr/bin/chromium, buscar en otras ubicaciones comunes
+    const alternativePaths = [
+        '/usr/bin/chromium-browser',
+        '/usr/bin/google-chrome',
+        '/snap/bin/chromium'
+    ];
+    
+    let found = false;
+    for (const altPath of alternativePaths) {
+        if (fs.existsSync(altPath)) {
+            puppeteerConfig.executablePath = altPath;
+            console.log(`✅ Usando Chromium encontrado en: ${altPath}`);
+            found = true;
+            break;
+        }
+    }
+    
+    if (!found) {
+        console.log(`❌ ERROR: Chromium del sistema no encontrado. El servicio fallará.`);
+        console.log(`Buscando Chromium en el sistema...`);
+        // Intentar encontrar Chromium usando which
+        const { execSync } = require('child_process');
+        try {
+            const chromiumFound = execSync('which chromium chromium-browser 2>/dev/null | head -1', { encoding: 'utf8' }).trim();
+            if (chromiumFound) {
+                puppeteerConfig.executablePath = chromiumFound;
+                console.log(`✅ Chromium encontrado en: ${chromiumFound}`);
+            }
+        } catch (e) {
+            console.log(`⚠️  No se pudo encontrar Chromium automáticamente`);
+        }
+    }
 }
 
 // Función para copiar librerías con retry (por si Puppeteer aún no ha descargado Chromium)

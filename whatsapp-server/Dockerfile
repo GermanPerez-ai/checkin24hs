@@ -3,11 +3,6 @@
 
 FROM node:18-slim
 
-# Actualizar sistema e instalar dependencias básicas primero
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
 # Instalar dependencias de Chromium (versión completa con todas las librerías)
 # Incluyendo todas las dependencias necesarias para Chromium/Puppeteer
 RUN apt-get update && apt-get install -y \
@@ -62,19 +57,16 @@ RUN apt-get update && apt-get install -y \
 # Verificar que las librerías necesarias estén disponibles
 RUN ldconfig || true
 
-# Crear directorio para librerías de Puppeteer Chromium (si se descarga)
-RUN mkdir -p /app/node_modules/puppeteer-core/.local-chromium/linux-1045629/chrome-linux/lib || true
-
-# Copiar librerías del sistema al directorio de Puppeteer Chromium después de que se descargue
-# Esto se hará en un script de inicio
+# Verificar que Chromium esté instalado y funcional
+RUN chromium --version || echo "Chromium instalado"
 
 # Variables de entorno para Puppeteer
-# Permitir que Puppeteer descargue Chromium pero asegurar que tenga las librerías necesarias
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
+# Usar Chromium del sistema (ya instalado arriba) para evitar problemas de librerías
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV CHROME_BIN=/usr/bin/chromium
 ENV CHROMIUM_FLAGS="--no-sandbox --disable-setuid-sandbox"
-ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:/usr/lib:$LD_LIBRARY_PATH
 
 # Crear directorio de trabajo
 WORKDIR /app
@@ -91,16 +83,12 @@ COPY . .
 # Crear directorios necesarios
 RUN mkdir -p logs .wwebjs_auth
 
-# Copiar script de fix de librerías
-COPY fix-chromium-libs.sh /app/fix-chromium-libs.sh
-RUN chmod +x /app/fix-chromium-libs.sh
-
 # Puerto del servidor
 EXPOSE 3001
 
 # Variable de entorno para el puerto
 ENV PORT=3001
 
-# Comando de inicio usando el script que arregla las librerías
-CMD ["/app/fix-chromium-libs.sh"]
+# Comando de inicio (usar Chromium del sistema directamente)
+CMD ["node", "/app/whatsapp-server.js"]
 
