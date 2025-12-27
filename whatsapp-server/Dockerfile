@@ -61,8 +61,8 @@ RUN ldconfig || true
 RUN chromium --version || echo "Chromium instalado"
 
 # Variables de entorno para Puppeteer
-# Usar Chromium del sistema (ya instalado arriba) para evitar problemas de librerías
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+# Intentar usar Chromium del sistema primero, luego Puppeteer como fallback
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV CHROME_BIN=/usr/bin/chromium
 ENV CHROMIUM_FLAGS="--no-sandbox --disable-setuid-sandbox"
@@ -74,8 +74,11 @@ WORKDIR /app
 # Copiar archivos de dependencias
 COPY package*.json ./
 
-# Instalar dependencias
-RUN npm install --production
+# Instalar dependencias (incluyendo devDependencies para puppeteer)
+RUN npm install
+
+# Instalar Chromium con Puppeteer (fallback si Chromium del sistema falla)
+RUN npx puppeteer browsers install chrome || echo "Puppeteer Chrome instalado como fallback"
 
 # Copiar código fuente
 COPY . .
