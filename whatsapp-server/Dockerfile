@@ -30,7 +30,6 @@ RUN apt-get update && apt-get install -y \
     libnss3 \
     libnss3-dev \
     libnss3-tools \
-    libnssutil3 \
     libssl3 \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
@@ -66,7 +65,7 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=false
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 ENV CHROME_BIN=/usr/bin/chromium
 ENV CHROMIUM_FLAGS="--no-sandbox --disable-setuid-sandbox"
-ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:/usr/lib:$LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:/usr/lib
 
 # Crear directorio de trabajo
 WORKDIR /app
