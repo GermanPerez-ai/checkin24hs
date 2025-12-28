@@ -1553,6 +1553,247 @@
     <script src="supabase-client.js?v=3.1.0"></script>
     <!-- Migration Script (opcional - descomentar si quieres migrar automáticamente) -->
     <!-- <script src="migrate-to-supabase.js"></script> -->
+    
+    <!-- FUNCIONES GLOBALES - Deben estar ANTES del HTML que las usa -->
+    <script>
+        // Función global showSection - debe estar disponible inmediatamente
+        window.showSection = function(section, event) {
+            console.log('Cambiando a seccion:', section);
+            document.querySelectorAll('[id$="-section"]').forEach(el => {
+                el.style.display = 'none';
+            });
+            const targetSection = document.getElementById(section + '-section');
+            if (targetSection) {
+                targetSection.style.display = 'block';
+                console.log('Seccion mostrada:', section);
+            } else {
+                console.error('Seccion no encontrada:', section + '-section');
+            }
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            if (event && event.target) {
+                event.target.classList.add('active');
+            } else {
+                const menuItem = document.querySelector(`[onclick*="window.showSection('${section}')"]`);
+                if (menuItem) menuItem.classList.add('active');
+            }
+            if (section === 'users') {
+                setTimeout(() => {
+                    if (typeof loadUsersData === 'function') loadUsersData();
+                }, 100);
+            }
+            if (section === 'hotels') {
+                setTimeout(() => {
+                    if (typeof loadHotelsTable === 'function') loadHotelsTable();
+                }, 100);
+            }
+            if (section === 'reservations') {
+                setTimeout(() => {
+                    if (typeof loadReservationsTable === 'function') loadReservationsTable();
+                    if (typeof updateReservationsStats === 'function') updateReservationsStats();
+                }, 100);
+            }
+        };
+
+        // Función global searchUsers - debe estar disponible inmediatamente
+        window.searchUsers = function searchUsers() {
+            const searchInput = document.getElementById('usersSearchInput');
+            const searchInfo = document.getElementById('usersSearchInfo');
+            const searchCount = document.getElementById('usersSearchCount');
+            if (!searchInput) return;
+            const searchTerm = searchInput.value.trim().toLowerCase();
+            if (searchTerm === '') {
+                if (typeof allUsersData !== 'undefined' && Array.isArray(allUsersData)) {
+                    if (typeof loadUsersTable === 'function') {
+                        loadUsersTable(allUsersData.slice(0, 20));
+                    }
+                }
+                if (searchInfo) searchInfo.style.display = 'none';
+                return;
+            }
+            if (typeof allUsersData !== 'undefined' && Array.isArray(allUsersData)) {
+                const filteredUsers = allUsersData.filter(user => {
+                    const name = (user.name || '').toLowerCase();
+                    const email = (user.email || '').toLowerCase();
+                    const phone = (user.phone || '').toLowerCase();
+                    return name.includes(searchTerm) || email.includes(searchTerm) || phone.includes(searchTerm);
+                });
+                if (typeof loadUsersTable === 'function') {
+                    loadUsersTable(filteredUsers);
+                }
+                if (searchInfo) {
+                    searchInfo.style.display = 'block';
+                    searchInfo.textContent = `Mostrando ${filteredUsers.length} resultado(s) para "${searchTerm}"`;
+                }
+                if (searchCount) {
+                    searchCount.textContent = filteredUsers.length;
+                }
+            }
+        };
+
+        // Función global handleLogin - debe estar disponible inmediatamente
+        window.handleLogin = function handleLogin(event) {
+            if (event) {
+                event.preventDefault();
+            }
+            console.log('Intentando iniciar sesion...');
+            const usernameInput = document.getElementById('loginUsername');
+            const passwordInput = document.getElementById('loginPassword');
+            const errorDiv = document.getElementById('loginError');
+            const loginButton = document.getElementById('loginButton');
+            if (!usernameInput || !passwordInput || !errorDiv || !loginButton) {
+                console.error('Elementos del formulario no encontrados');
+                return;
+            }
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value;
+            if (!username || !password) {
+                if (typeof showError === 'function') {
+                    showError('Por favor, completa todos los campos');
+                } else {
+                    errorDiv.textContent = 'Por favor, completa todos los campos';
+                    errorDiv.classList.add('show');
+                }
+                return;
+            }
+            loginButton.disabled = true;
+            loginButton.textContent = 'Iniciando sesion...';
+            setTimeout(async () => {
+                let user = null;
+                if (typeof getAdminUsers === 'function') {
+                    const adminUsers = getAdminUsers();
+                    user = adminUsers.find(u => 
+                        u.username.toLowerCase() === username.toLowerCase() && 
+                        (u.password === password || u.password_hash === password) &&
+                        u.status === 'active'
+                    );
+                }
+                if (!user && window.supabaseClient && typeof window.supabaseClient.isInitialized === 'function' && window.supabaseClient.isInitialized()) {
+                    try {
+                        console.log('Buscando usuario en Supabase...');
+                        if (typeof window.supabaseClient.getAdmins === 'function') {
+                            const admins = await window.supabaseClient.getAdmins();
+                            user = admins.find(u => 
+                                u.username.toLowerCase() === username.toLowerCase() && 
+                                (u.password === password || u.password_hash === password) &&
+                                u.status === 'active'
+                            );
+                            if (user) {
+                                console.log('Usuario encontrado en Supabase');
+                                localStorage.setItem('dashboard_admin_users', JSON.stringify(admins));
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error consultando Supabase:', error);
+                    }
+                }
+                if (user) {
+                    if (typeof saveAdminUsers === 'function') {
+                        const adminUsers = getAdminUsers();
+                        user.lastLogin = new Date().toISOString();
+                        saveAdminUsers(adminUsers);
+                    }
+                    const session = {
+                        username: user.username,
+                        name: user.name,
+                        role: user.role,
+                        userId: user.id,
+                        loginTime: Date.now(),
+                        expiresAt: Date.now() + (24 * 60 * 60 * 1000)
+                    };
+                    localStorage.setItem('dashboard_auth_session', JSON.stringify(session));
+                    const loginForm = document.getElementById('loginForm');
+                    if (loginForm) {
+                        loginForm.reset();
+                    }
+                    if (typeof showDashboard === 'function') {
+                        showDashboard();
+                    }
+                    if (typeof updateUserMenu === 'function') {
+                        updateUserMenu(user.name, user.role);
+                    }
+                    setTimeout(() => {
+                        if (typeof updateAdminMenuVisibility === 'function') {
+                            updateAdminMenuVisibility();
+                        }
+                    }, 100);
+                    if (typeof initializeDashboard === 'function') {
+                        initializeDashboard();
+                    }
+                    if (typeof setupAutoSync === 'function') {
+                        setupAutoSync();
+                    }
+                    console.log('Login exitoso:', user.username, 'Rol:', user.role);
+                } else {
+                    console.log('Credenciales incorrectas');
+                    if (typeof showError === 'function') {
+                        showError('Usuario o contraseña incorrectos');
+                    } else {
+                        errorDiv.textContent = 'Usuario o contraseña incorrectos';
+                        errorDiv.classList.add('show');
+                    }
+                    passwordInput.value = '';
+                    passwordInput.focus();
+                }
+                loginButton.disabled = false;
+                loginButton.textContent = 'Iniciar Sesion';
+            }, 500);
+        };
+        
+        // Función global showFlorTab - debe estar disponible inmediatamente
+        window.showFlorTab = function(tabName) {
+            console.log('📑 Cambiando a tab Flor:', tabName);
+            
+            // Ocultar todos los tabs
+            document.querySelectorAll('.flor-tab-content').forEach(tab => {
+                tab.style.display = 'none';
+                tab.classList.remove('active');
+            });
+            
+            // Desactivar todos los botones de tab
+            document.querySelectorAll('.flor-tab').forEach(btn => {
+                btn.classList.remove('active');
+                // Reset color for tabs
+                btn.style.background = '#f5f5f5';
+                btn.style.color = '#333';
+            });
+            
+            // Mostrar tab seleccionado
+            const tabContent = document.getElementById('flor-tab-' + tabName);
+            if (tabContent) {
+                tabContent.style.display = 'block';
+                tabContent.classList.add('active');
+            }
+            
+            // Activar botón
+            const tabBtn = document.querySelector(`.flor-tab[data-tab="${tabName}"]`);
+            if (tabBtn) {
+                tabBtn.classList.add('active');
+                if (tabName === 'whatsapp') {
+                    tabBtn.style.background = '#25D366';
+                    tabBtn.style.color = 'white';
+                } else {
+                    tabBtn.style.background = '#1976d2';
+                    tabBtn.style.color = 'white';
+                }
+            }
+            
+            // Cargar datos específicos del tab (solo si las funciones están disponibles)
+            if (typeof loadHotelsForFlor === 'function' && (tabName === 'knowledge' || tabName === 'policies')) {
+                loadHotelsForFlor();
+            }
+            if (typeof loadWhatsAppCards === 'function' && tabName === 'whatsapp') {
+                loadWhatsAppCards();
+                // Actualizar indicador de URL del servidor
+                setTimeout(async () => {
+                    if (typeof updateWhatsAppServerStatus === 'function') {
+                        await updateWhatsAppServerStatus();
+                    }
+                }, 500);
+            }
+        };
+    </script>
 </head>
 <body>
     <!-- Pantalla de Login -->
@@ -3453,10 +3694,16 @@
                 <div id="flor-tab-whatsapp" class="flor-tab-content" style="display: none;">
                     <!-- Título y Descripción -->
                     <div style="margin-bottom: 24px;">
-                        <h2 style="color: #25D366; margin: 0 0 8px 0; font-size: 1.8rem; display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 1.2rem;">📱</span>
-                            Conectar Múltiples WhatsApp con IA
-                        </h2>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 16px;">
+                            <h2 style="color: #25D366; margin: 0; font-size: 1.8rem; display: flex; align-items: center; gap: 10px;">
+                                <span style="font-size: 1.2rem;">📱</span>
+                                Conectar Múltiples WhatsApp con IA
+                            </h2>
+                            <button onclick="showWhatsAppConfig()" class="form-button" style="background: #ff9800; color: white; padding: 12px 24px; font-size: 1rem; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">
+                                <span style="font-size: 1.2rem;">⚙️</span>
+                                <span>Configurar Servidor</span>
+                            </button>
+                        </div>
                         <div style="background: #e3f2fd; padding: 16px; border-radius: 8px; border-left: 4px solid #2196f3; margin-top: 16px;">
                             <div style="display: flex; align-items: start; gap: 12px;">
                                 <span style="font-size: 1.5rem;">💡</span>
@@ -3467,29 +3714,25 @@
                                     </p>
                                 </div>
                             </div>
-                            </div>
                         </div>
-                        
-                    <!-- Configuración de URL del Servidor -->
-                    <div style="background: white; padding: 20px; border-radius: 12px; margin-bottom: 24px; border: 2px solid #e0e0e0;">
-                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #333;">
-                            🌐 URL del Servidor WhatsApp:
-                        </label>
-                        <div style="display: flex; gap: 10px; align-items: center;">
-                            <input type="text" id="whatsapp-server-url" 
-                                   placeholder="http://72.61.58.240" 
-                                   style="flex: 1; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 0.95rem;"
-                                   value="http://72.61.58.240">
-                            <button onclick="saveWhatsAppServerUrl()" 
-                                    style="background: #25D366; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer;">
-                                Guardar URL
+                    </div>
+                    
+                    <!-- Indicador de URL Configurada -->
+                    <div id="whatsapp-server-status" style="background: #fff3cd; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #ff9800; margin-bottom: 24px; display: none;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 1.2rem;">🔗</span>
+                                <div>
+                                    <strong style="color: #856404;">Servidor Configurado:</strong>
+                                    <span id="whatsapp-server-url-display" style="color: #333; font-family: monospace; margin-left: 8px;">-</span>
+                                </div>
+                            </div>
+                            <button onclick="showWhatsAppConfig()" style="background: #ff9800; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 0.9rem; cursor: pointer;">
+                                Cambiar
                             </button>
                         </div>
-                        <small style="color: #666; margin-top: 8px; display: block;">
-                            💡 Ingresa la IP o dominio de tu servidor. El sistema agregará automáticamente los puertos :3001, :3002, :3003, :3004
-                        </small>
                     </div>
-                        
+                    
                     <!-- Grid de 4 Tarjetas WhatsApp -->
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 24px;">
                         <!-- WhatsApp 1 -->
@@ -4791,22 +5034,45 @@ Ej:
         <div class="modal-content" style="max-width: 600px;">
             <span class="close" onclick="closeWhatsAppConfig()">&times;</span>
             <h2 class="modal-title">⚙️ Configuración de WhatsApp Business API</h2>
-            <form id="whatsappConfigForm" onsubmit="saveWhatsAppConfig(event)">
+            <form id="whatsappConfigForm" onsubmit="event.preventDefault(); saveWhatsAppConfig();">
+                <div style="padding: 15px; background: #e3f2fd; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #2196f3;">
+                    <p style="margin: 0; color: #1565c0; font-size: 0.9rem;">
+                        <strong>💡 Opciones de Configuración:</strong><br>
+                        • <strong>Servidor Propio:</strong> Solo completa la URL del servidor (recomendado si tienes whatsapp-server.js corriendo)<br>
+                        • <strong>WhatsApp Business API:</strong> Completa Access Token y Phone Number ID (requiere cuenta de Facebook Developers)
+                    </p>
+                </div>
+                
                 <div class="form-group">
-                    <label class="form-label">Access Token *</label>
-                    <input type="text" id="whatsappAccessToken" class="form-input" required 
-                           placeholder="Tu Access Token de WhatsApp Business API">
+                    <label class="form-label">URL del Servidor</label>
+                    <input type="text" id="whatsappServerURL" class="form-input" 
+                           placeholder="http://72.61.58.240 o https://api.checkin24hs.com">
                     <small style="color: #666; margin-top: 5px; display: block;">
-                        Obtén tu Access Token desde el panel de Facebook Developers
+                        URL de tu servidor WhatsApp (ej: http://72.61.58.240). Si usas servidor propio, solo necesitas este campo.
+                    </small>
+                </div>
+                
+                <div style="margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 8px;">
+                    <p style="margin: 0 0 10px 0; color: #666; font-size: 0.9rem; font-weight: 600;">
+                        ⚙️ WhatsApp Business API (Opcional - Solo si NO usas servidor propio)
+                    </p>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Access Token</label>
+                    <input type="text" id="whatsappAccessToken" class="form-input" 
+                           placeholder="Tu Access Token de WhatsApp Business API (opcional)">
+                    <small style="color: #666; margin-top: 5px; display: block;">
+                        Solo necesario si usas WhatsApp Business API oficial. Obtén tu Access Token desde el panel de Facebook Developers
                     </small>
                 </div>
                 
                 <div class="form-group">
-                    <label class="form-label">Phone Number ID *</label>
-                    <input type="text" id="whatsappPhoneNumberId" class="form-input" required 
-                           placeholder="Tu Phone Number ID">
+                    <label class="form-label">Phone Number ID</label>
+                    <input type="text" id="whatsappPhoneNumberId" class="form-input" 
+                           placeholder="Tu Phone Number ID (opcional)">
                     <small style="color: #666; margin-top: 5px; display: block;">
-                        ID del número de teléfono verificado en WhatsApp Business
+                        Solo necesario si usas WhatsApp Business API oficial. ID del número de teléfono verificado en WhatsApp Business
                     </small>
                 </div>
                 
@@ -4815,22 +5081,13 @@ Ej:
                     <input type="text" id="whatsappApiVersion" class="form-input" 
                            value="v18.0" placeholder="v18.0">
                     <small style="color: #666; margin-top: 5px; display: block;">
-                        Versión de la API de Facebook (por defecto: v18.0)
-                    </small>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">URL del Servidor (Opcional)</label>
-                    <input type="text" id="whatsappServerURL" class="form-input" 
-                           placeholder="https://api.checkin24hs.com">
-                    <small style="color: #666; margin-top: 5px; display: block;">
-                        Si tienes un servidor con endpoint de WhatsApp, ingresa su URL aquí
+                        Versión de la API de Facebook (por defecto: v18.0). Solo necesario si usas WhatsApp Business API oficial.
                     </small>
                 </div>
                 
                 <div style="padding: 15px; background: #fff3cd; border-radius: 8px; margin-bottom: 15px;">
                     <p style="margin: 0; color: #856404; font-size: 0.9rem;">
-                        <strong>ℹ️ Información:</strong> Para obtener tus credenciales de WhatsApp Business API, visita 
+                        <strong>ℹ️ Información:</strong> Si usas servidor propio, solo necesitas configurar la URL del servidor. Para usar WhatsApp Business API oficial, visita 
                         <a href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started" target="_blank" style="color: #1976d2;">Facebook Developers</a>
                     </p>
                 </div>
@@ -4867,14 +5124,14 @@ Ej:
         // ============================================
         // SOLUCIÓN INMEDIATA PARA MODAL DE IMÁGENES
         // ============================================
-        // Esta función se ejecuta inmediatamente y sobrescribe cualquier función en caché
+        // Esta funcion se ejecuta inmediatamente y sobrescribe cualquier funcion en cache
         (function() {
             window.abrirModalImagenesDirecto = function(mode) {
-                console.log('🚀 ABRIENDO MODAL DIRECTO - Modo:', mode);
+                console.log('ABRIENDO MODAL DIRECTO - Modo:', mode);
                 const modal = document.getElementById('imageManagerModal');
                 if (!modal) {
-                    console.error('❌ Modal no encontrado');
-                    alert('Error: Modal no encontrado. Recarga la página.');
+                    console.error('Modal no encontrado');
+                    alert('Error: Modal no encontrado. Recarga la pagina.');
                     return;
                 }
                 modal.style.display = 'block';
@@ -4885,7 +5142,7 @@ Ej:
                 modal.style.width = '100%';
                 modal.style.height = '100%';
                 modal.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
-                console.log('✅ Modal abierto directamente');
+                console.log('Modal abierto directamente');
                 
                 // Configurar nombre del hotel
                 const hotelNameSpan = document.getElementById('currentHotelName');
@@ -4898,7 +5155,7 @@ Ej:
                     }
                 }
             };
-            console.log('✅ Función abrirModalImagenesDirecto disponible globalmente');
+            console.log('Funcion abrirModalImagenesDirecto disponible globalmente');
         })();
 
         // ============================================
@@ -6034,7 +6291,7 @@ Ej:
                         <h2 style="margin: 0; color: #333;">✏️ Editar Hotel</h2>
                         <button onclick="document.getElementById('editHotelModalDynamic').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer;">&times;</button>
                     </div>
-                    <form id="editHotelForm" onsubmit="saveHotelChangesDynamic(event, '${hotelId}')">
+                    <form id="editHotelForm" onsubmit="saveHotelChanges(event, '${hotelId}')">
                         <div style="margin-bottom: 15px;">
                             <label style="display: block; margin-bottom: 5px; font-weight: 500;">Nombre del Hotel *</label>
                             <input type="text" id="editHotelName" value="${hotelName}" required style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
@@ -6070,7 +6327,7 @@ Ej:
             modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
         }
         
-        async function saveHotelChangesDynamic(event, hotelId) {
+        async function saveHotelChanges(event, hotelId) {
             event.preventDefault();
             
             const updates = {
@@ -8812,7 +9069,7 @@ Ej:
         }
         
         // Función para mostrar modal de configuración de WhatsApp
-        function showWhatsAppConfig() {
+        async function showWhatsAppConfig() {
             console.log('⚙️ Abriendo configuración de WhatsApp...');
             
             const modal = document.getElementById('whatsappConfigModal');
@@ -8823,12 +9080,17 @@ Ej:
             
             // Cargar configuración existente
             const config = getWhatsAppConfig();
-            const serverUrl = getServerURL();
+            
+            // Cargar configuración desde Supabase/localStorage
+            await loadWhatsAppConfig();
+            
+            // Obtener URL del servidor (puede venir de loadWhatsAppConfig o localStorage)
+            const serverUrl = getServerURLSync() || localStorage.getItem('whatsappServerURL') || '';
             
             document.getElementById('whatsappAccessToken').value = config.accessToken || '';
             document.getElementById('whatsappPhoneNumberId').value = config.phoneNumberId || '';
             document.getElementById('whatsappApiVersion').value = config.apiVersion || 'v18.0';
-            document.getElementById('whatsappServerURL').value = serverUrl || '';
+            document.getElementById('whatsappServerURL').value = serverUrl;
             
             // Mostrar modal
             modal.style.display = 'flex';
@@ -8968,18 +9230,33 @@ Ej:
             localStorage.setItem('whatsappCards', JSON.stringify(cardData));
             updateWhatsAppCard(cardNumber, currentData);
             
-            // Intentar obtener QR del servidor primero
-            const baseServerUrl = getServerURL() || localStorage.getItem('whatsappServerUrl') || 'http://72.61.58.240';
-            const port = 3000 + parseInt(cardNumber); // 3001, 3002, 3003, 3004
-            const serverUrl = `${baseServerUrl}:${port}`;
-            let qrGenerated = false;
+            // Obtener URL del servidor desde configuración (Supabase o localStorage)
+            const baseUrl = await getServerURL();
+            if (!baseUrl) {
+                alert('⚠️ Por favor configura la URL del servidor WhatsApp primero.\n\nVe a la configuración de WhatsApp e ingresa la URL base del servidor (ej: https://api1.checkin24hs.com o http://72.61.58.240)');
+                currentData.status = 'disconnected';
+                cardData[cardNumber] = currentData;
+                localStorage.setItem('whatsappCards', JSON.stringify(cardData));
+                updateWhatsAppCard(cardNumber, currentData);
+                return;
+            }
             
-            console.log(`🔗 Conectando WhatsApp ${cardNumber} a: ${serverUrl}`);
+            // Construir URL según la tarjeta (soporta HTTPS con subdominios o HTTP con puertos)
+            const serverUrl = buildServerURL(baseUrl, cardNumber);
+            if (!serverUrl) {
+                alert('⚠️ Error construyendo URL del servidor');
+                currentData.status = 'disconnected';
+                cardData[cardNumber] = currentData;
+                localStorage.setItem('whatsappCards', JSON.stringify(cardData));
+                updateWhatsAppCard(cardNumber, currentData);
+                return;
+            }
+            let qrGenerated = false;
             
             try {
                 const response = await fetch(`${serverUrl}/api/qr?card=${cardNumber}`, {
                     method: 'GET',
-                    signal: AbortSignal.timeout(5000) // 5 segundos de timeout
+                    signal: AbortSignal.timeout(3000) // 3 segundos de timeout
                 });
                 
                 if (response.ok) {
@@ -8997,7 +9274,21 @@ Ej:
                     }
                 }
             } catch (error) {
-                console.log('⚠️ Servidor no disponible, generando QR local para prueba');
+                if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                    // Puede ser Mixed Content o servidor no disponible
+                    if (window.location.protocol === 'https:' && serverUrl.startsWith('http:')) {
+                        console.error('❌ Error de Mixed Content: El dashboard está en HTTPS pero el servidor es HTTP. El navegador bloquea estas conexiones por seguridad.');
+                        console.log('💡 Solución automática: La función buildServerURL debería convertir automáticamente a HTTPS. Verificando...');
+                        alert('⚠️ Error de seguridad: El dashboard está en HTTPS pero el servidor WhatsApp está configurado como HTTP.\n\n' +
+                              'El navegador bloquea estas conexiones por seguridad.\n\n' +
+                              '✅ Solución: La URL se convertirá automáticamente a HTTPS usando los subdominios configurados (api1.checkin24hs.com, api2.checkin24hs.com, etc.).\n\n' +
+                              'Si el error persiste, verifica que los subdominios HTTPS estén configurados en EasyPanel/Traefik.');
+                    } else {
+                        console.log('⚠️ Servidor no disponible, generando QR local para prueba');
+                    }
+                } else {
+                    console.log('⚠️ Servidor no disponible, generando QR local para prueba:', error.message);
+                }
             }
             
             // Si no hay servidor, generar QR local para prueba
@@ -9106,15 +9397,25 @@ Ej:
                 try {
                     window.supabaseClient.client
                         .from('whatsapp_cards')
-                        .upsert([{
+                        .upsert({
                             card_number: cardNumber,
-                            ...currentData
-                        }], { onConflict: 'card_number' })
-                        .then(() => {
-                            console.log(`✅ WhatsApp ${cardNumber} guardado en Supabase`);
+                            status: currentData.status,
+                            phone: currentData.phone,
+                            name: currentData.name,
+                            connectedAt: currentData.connectedAt
+                        }, { 
+                            onConflict: 'card_number',
+                            ignoreDuplicates: false
+                        })
+                        .then(({ error }) => {
+                            if (error) {
+                                console.error(`❌ Error guardando WhatsApp ${cardNumber} en Supabase:`, error);
+                            } else {
+                                console.log(`✅ WhatsApp ${cardNumber} guardado en Supabase`);
+                            }
                         });
                 } catch (e) {
-                    console.log('⚠️ Error guardando en Supabase');
+                    console.error('⚠️ Error guardando en Supabase:', e);
                 }
             }
             
@@ -9126,9 +9427,18 @@ Ej:
         
         // Verificar estado de conexión
         async function checkWhatsAppConnectionStatus(cardNumber) {
-            const baseServerUrl = getServerURL() || localStorage.getItem('whatsappServerURL') || localStorage.getItem('whatsappServerUrl') || 'http://72.61.58.240';
-            const port = 3000 + parseInt(cardNumber); // 3001, 3002, 3003, 3004
-            const serverUrl = `${baseServerUrl}:${port}`;
+            const baseUrl = await getServerURL();
+            if (!baseUrl) {
+                console.error('❌ No hay URL del servidor configurada');
+                return;
+            }
+            
+            // Construir URL según la tarjeta (soporta HTTPS con subdominios o HTTP con puertos)
+            const serverUrl = buildServerURL(baseUrl, cardNumber);
+            if (!serverUrl) {
+                console.error('❌ Error construyendo URL del servidor');
+                return;
+            }
             let attempts = 0;
             const maxAttempts = 60;
             
@@ -9215,9 +9525,19 @@ Ej:
             
             if (currentData.status === 'connected') {
                 // Verificar estado actual en el servidor
-                const baseServerUrl = getServerURL() || localStorage.getItem('whatsappServerURL') || localStorage.getItem('whatsappServerUrl') || 'http://72.61.58.240';
-                const port = 3000 + parseInt(cardNumber); // 3001, 3002, 3003, 3004
-                const serverUrl = `${baseServerUrl}:${port}`;
+                const baseUrl = await getServerURL();
+                if (!baseUrl) {
+                    console.error('❌ No hay URL del servidor configurada');
+                    return;
+                }
+                
+                // Construir URL según la tarjeta (soporta HTTPS con subdominios o HTTP con puertos)
+                const serverUrl = buildServerURL(baseUrl, cardNumber);
+                if (!serverUrl) {
+                    console.error('❌ Error construyendo URL del servidor');
+                    return;
+                }
+                
                 try {
                     const response = await fetch(`${serverUrl}/api/status?card=${cardNumber}`);
                     if (response.ok) {
@@ -9227,7 +9547,15 @@ Ej:
                         currentData.name = data.name || currentData.name || '-';
                     }
                 } catch (error) {
-                    console.log('⚠️ Error actualizando estado');
+                    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+                        if (window.location.protocol === 'https:' && serverUrl.startsWith('http:')) {
+                            console.error('❌ Error de Mixed Content al actualizar estado. El navegador bloquea conexiones HTTP desde HTTPS.');
+                        } else {
+                            console.log('⚠️ Error actualizando estado:', error.message);
+                        }
+                    } else {
+                        console.log('⚠️ Error actualizando estado:', error.message);
+                    }
                 }
             }
             
@@ -9238,7 +9566,14 @@ Ej:
         
         // Verificar conexión del servidor (función antigua, mantener por compatibilidad)
         async function checkWhatsAppConnection() {
-            const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://localhost:3001';
+            const baseUrl = await getServerURL() || document.getElementById('whatsapp-server-url')?.value || document.getElementById('whatsappServerURL')?.value;
+            if (!baseUrl) {
+                alert('⚠️ Por favor configura la URL del servidor WhatsApp primero');
+                return;
+            }
+            
+            // Construir URL para tarjeta 1 (verificación de salud del servidor)
+            const serverUrl = buildServerURL(baseUrl, 1) || (baseUrl.includes(':') ? baseUrl : `${baseUrl}:3001`);
             
             try {
                 const controller = new AbortController();
@@ -9267,43 +9602,163 @@ Ej:
             }
         }
         
-        // Guardar configuración de WhatsApp
-        function saveWhatsAppConfig() {
+        // Guardar configuración de WhatsApp (en Supabase y localStorage)
+        window.saveWhatsAppConfig = async function saveWhatsAppConfig() {
             console.log('💾 Guardando configuración de WhatsApp...');
             
             const autoReply = document.getElementById('whatsapp-auto-reply')?.checked || false;
             const businessHoursOnly = document.getElementById('whatsapp-business-hours-only')?.checked || false;
             const outOfHoursMessage = document.getElementById('whatsapp-out-of-hours-message')?.value || '';
-            const serverUrl = document.getElementById('whatsapp-server-url')?.value || 
-                            getServerURL() || 
-                            localStorage.getItem('whatsappServerURL') || 
-                            'http://72.61.58.240';
+            const serverUrl = document.getElementById('whatsappServerURL')?.value || document.getElementById('whatsapp-server-url')?.value || '';
+            const accessToken = document.getElementById('whatsappAccessToken')?.value?.trim() || '';
+            const phoneNumberId = document.getElementById('whatsappPhoneNumberId')?.value?.trim() || '';
+            const apiVersion = document.getElementById('whatsappApiVersion')?.value?.trim() || 'v18.0';
+            
+            // Validar que haya al menos una configuración
+            if (!serverUrl && (!accessToken || !phoneNumberId)) {
+                alert('⚠️ Debes configurar al menos:\n\n' +
+                      '• URL del Servidor (si usas servidor propio)\n' +
+                      'O\n' +
+                      '• Access Token y Phone Number ID (si usas WhatsApp Business API)');
+                return;
+            }
             
             const config = {
                 autoReply,
                 businessHoursOnly,
                 outOfHoursMessage,
-                serverUrl
+                serverUrl: serverUrl.trim(),
+                accessToken: accessToken,
+                phoneNumberId: phoneNumberId,
+                apiVersion: apiVersion
             };
             
+            // Guardar en localStorage (caché local)
             localStorage.setItem('whatsappConfig', JSON.stringify(config));
+            if (config.serverUrl) {
+                localStorage.setItem('whatsappServerURL', config.serverUrl);
+            }
+            
+            // Guardar en Supabase (servidor) para que sea compartida
+            if (window.supabaseClient && window.supabaseClient.isInitialized() && config.serverUrl) {
+                try {
+                    const { error } = await window.supabaseClient.client
+                        .from('system_config')
+                        .upsert({
+                            key: 'whatsapp_server_config',
+                            value: JSON.stringify(config),
+                            updated_at: new Date().toISOString()
+                        }, { onConflict: 'key' });
+                    
+                    if (error) {
+                        console.error('❌ Error guardando en Supabase:', error);
+                    } else {
+                        console.log('✅ Configuración guardada en Supabase (servidor)');
+                    }
+                } catch (e) {
+                    console.error('❌ Error guardando en Supabase:', e);
+                }
+            }
+            
             console.log('✅ Configuración guardada:', config);
-            alert('✅ Configuración de WhatsApp guardada correctamente');
+            console.log('✅ URL del servidor guardada:', config.serverUrl);
+            
+            // Mostrar mensaje de éxito primero
+            alert('✅ Configuración de WhatsApp guardada correctamente\n\nLa configuración está guardada en el servidor y será compartida entre todos los usuarios.');
+            
+            // Cerrar el modal después del alert
+            closeWhatsAppConfig();
+            
+            // Actualizar indicador de URL inmediatamente (desde localStorage)
+            updateWhatsAppServerStatus();
+            
+            // También actualizar después de un breve delay para asegurar que se cargue desde Supabase
+            setTimeout(async () => {
+                await updateWhatsAppServerStatus();
+            }, 500);
         }
         
-        // Cargar configuración de WhatsApp
-        function loadWhatsAppConfig() {
-            const config = JSON.parse(localStorage.getItem('whatsappConfig') || '{}');
+        // Actualizar indicador de URL del servidor
+        async function updateWhatsAppServerStatus() {
+            const statusDiv = document.getElementById('whatsapp-server-status');
+            const urlDisplay = document.getElementById('whatsapp-server-url-display');
+            
+            if (!statusDiv || !urlDisplay) return;
+            
+            // Primero verificar localStorage (más rápido, se actualiza inmediatamente)
+            let serverUrl = getServerURLSync();
+            
+            // Si no hay en localStorage, intentar desde Supabase
+            if (!serverUrl) {
+                serverUrl = await getServerURL();
+            }
+            
+            if (serverUrl && serverUrl.trim() !== '') {
+                statusDiv.style.display = 'block';
+                urlDisplay.textContent = serverUrl.trim();
+                statusDiv.style.background = '#d4edda';
+                statusDiv.style.borderLeftColor = '#28a745';
+                console.log('✅ Estado del servidor actualizado:', serverUrl.trim());
+            } else {
+                statusDiv.style.display = 'block';
+                urlDisplay.textContent = 'No configurado';
+                statusDiv.style.background = '#fff3cd';
+                statusDiv.style.borderLeftColor = '#ff9800';
+                console.log('⚠️ Servidor no configurado');
+            }
+        }
+        
+        // Cargar configuración de WhatsApp (desde Supabase primero, luego localStorage)
+        async function loadWhatsAppConfig() {
+            let config = {};
+            
+            // Intentar cargar desde Supabase (servidor) primero
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    const { data, error } = await window.supabaseClient.client
+                        .from('system_config')
+                        .select('value')
+                        .eq('key', 'whatsapp_server_config')
+                        .maybeSingle();
+                    
+                    if (!error && data && data.value) {
+                        try {
+                            config = JSON.parse(data.value);
+                            console.log('✅ Configuración cargada desde Supabase (servidor)');
+                            
+                            // Sincronizar con localStorage
+                            localStorage.setItem('whatsappConfig', JSON.stringify(config));
+                            if (config.serverUrl) {
+                                localStorage.setItem('whatsappServerURL', config.serverUrl);
+                            }
+                        } catch (parseError) {
+                            console.error('⚠️ Error parseando configuración desde Supabase:', parseError);
+                        }
+                    } else if (error && error.code !== 'PGRST116') {
+                        // PGRST116 es "no rows returned", que es normal si no hay configuración
+                        console.log('⚠️ No se pudo cargar desde Supabase:', error.message);
+                    }
+                } catch (e) {
+                    console.log('⚠️ No se pudo cargar desde Supabase, usando localStorage:', e.message);
+                }
+            }
+            
+            // Si no hay configuración en Supabase, usar localStorage
+            if (!config.serverUrl) {
+                config = JSON.parse(localStorage.getItem('whatsappConfig') || '{}');
+            }
             
             const autoReplyEl = document.getElementById('whatsapp-auto-reply');
             const businessHoursEl = document.getElementById('whatsapp-business-hours-only');
             const outOfHoursEl = document.getElementById('whatsapp-out-of-hours-message');
             const serverUrlEl = document.getElementById('whatsapp-server-url');
+            const serverUrlEl2 = document.getElementById('whatsappServerURL');
             
             if (autoReplyEl) autoReplyEl.checked = config.autoReply || false;
             if (businessHoursEl) businessHoursEl.checked = config.businessHoursOnly || false;
             if (outOfHoursEl && config.outOfHoursMessage) outOfHoursEl.value = config.outOfHoursMessage;
             if (serverUrlEl && config.serverUrl) serverUrlEl.value = config.serverUrl;
+            if (serverUrlEl2 && config.serverUrl) serverUrlEl2.value = config.serverUrl;
         }
         
         // Inicializar WhatsApp al cargar la página (solo si la pestaña está visible)
@@ -9907,9 +10362,39 @@ Ej:
             };
         }
         
-        // Función para obtener URL del servidor
-        function getServerURL() {
-            // Intentar obtener desde localStorage
+        // Función para obtener URL del servidor (desde Supabase primero, luego localStorage)
+        async function getServerURL() {
+            // Intentar cargar desde Supabase (servidor) primero
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    const { data, error } = await window.supabaseClient.client
+                        .from('system_config')
+                        .select('value')
+                        .eq('key', 'whatsapp_server_config')
+                        .maybeSingle();
+                    
+                    if (!error && data && data.value) {
+                        try {
+                            const config = JSON.parse(data.value);
+                            if (config.serverUrl && config.serverUrl.trim() !== '') {
+                                // Sincronizar con localStorage
+                                localStorage.setItem('whatsappServerURL', config.serverUrl.trim());
+                                return config.serverUrl.trim();
+                            }
+                        } catch (parseError) {
+                            console.error('⚠️ Error parseando configuración desde Supabase:', parseError);
+                        }
+                    } else if (error && error.code !== 'PGRST116') {
+                        // PGRST116 es "no rows returned", que es normal si no hay configuración
+                        console.log('⚠️ No se pudo cargar desde Supabase:', error.message);
+                    }
+                } catch (e) {
+                    // Continuar con localStorage si falla Supabase
+                    console.log('⚠️ Error cargando desde Supabase:', e.message);
+                }
+            }
+            
+            // Si no hay en Supabase, intentar desde localStorage
             const serverUrl = localStorage.getItem('whatsappServerURL');
             if (serverUrl && serverUrl.trim() !== '') {
                 return serverUrl.trim();
@@ -9917,6 +10402,71 @@ Ej:
             
             // No devolver valor por defecto - el servidor debe estar explícitamente configurado
             return null;
+        }
+        
+        // Versión síncrona para compatibilidad (usa caché de localStorage)
+        function getServerURLSync() {
+            const serverUrl = localStorage.getItem('whatsappServerURL');
+            if (serverUrl && serverUrl.trim() !== '') {
+                return serverUrl.trim();
+            }
+            return null;
+        }
+        
+        // Función helper para construir la URL del servidor según la tarjeta
+        // Soporta tanto HTTPS con subdominios (api1.checkin24hs.com) como HTTP con puertos (IP:3001)
+        function buildServerURL(baseUrl, cardNumber) {
+            if (!baseUrl) return null;
+            
+            baseUrl = baseUrl.trim();
+            
+            // Detectar si el dashboard está en HTTPS
+            const isDashboardHTTPS = window.location.protocol === 'https:';
+            
+            // Si la URL base es HTTPS y contiene un dominio (no IP)
+            if (baseUrl.startsWith('https://')) {
+                try {
+                    const url = new URL(baseUrl);
+                    const hostname = url.hostname;
+                    
+                    // Si ya tiene un subdominio api1-4, usar ese dominio directamente
+                    if (hostname.match(/^api[1-4]\.checkin24hs\.com$/)) {
+                        return baseUrl; // Ya está configurado correctamente
+                    }
+                    
+                    // Si es checkin24hs.com o tiene otro subdominio, construir api1-4 según cardNumber
+                    if (hostname.includes('checkin24hs.com')) {
+                        // Extraer el dominio base (checkin24hs.com)
+                        const domainBase = hostname.replace(/^[^.]+\./, ''); // Remover cualquier subdominio
+                        // Construir URL con subdominio correcto
+                        return `https://api${cardNumber}.${domainBase}`;
+                    }
+                    
+                    // Si es otro dominio HTTPS, usar directamente (compatibilidad)
+                    return baseUrl;
+                } catch (e) {
+                    // Si no es una URL válida, tratar como HTTP/IP
+                    console.log('⚠️ URL HTTPS no válida, tratando como HTTP/IP:', e);
+                }
+            }
+            
+            // Si el dashboard está en HTTPS pero la URL base es HTTP/IP, convertir a HTTPS
+            if (isDashboardHTTPS && (baseUrl.startsWith('http://') || !baseUrl.includes('://'))) {
+                // Si es una IP o URL HTTP, convertir a HTTPS con subdominios
+                // Asumimos que los subdominios están configurados en Traefik/EasyPanel
+                return `https://api${cardNumber}.checkin24hs.com`;
+            }
+            
+            // Para HTTP o IPs (cuando el dashboard también es HTTP), agregar puerto según la tarjeta
+            const port = 3000 + cardNumber;
+            
+            // Si ya tiene puerto, no agregar otro
+            if (baseUrl.includes(':')) {
+                return baseUrl;
+            }
+            
+            // Agregar puerto
+            return `${baseUrl}:${port}`;
         }
         
         // Función para formatear mensaje de WhatsApp
@@ -14259,8 +14809,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         // Variable global para almacenar todos los usuarios
         let allUsersData = [];
         
-        // Función para buscar usuarios (disponible globalmente)
-        window.searchUsers = function searchUsers() {
+        // Función para buscar usuarios
+        function searchUsers() {
             const searchInput = document.getElementById('usersSearchInput');
             const searchInfo = document.getElementById('usersSearchInfo');
             const searchCount = document.getElementById('usersSearchCount');
@@ -21491,56 +22041,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     // MÓDULO FLOR IA - INTERACCIONES Y CHATS
     // =====================================================
 
-    // Función para mostrar tabs de Flor
-    window.showFlorTab = function(tabName) {
-        // Si se abre la pestaña WhatsApp, cargar la URL del servidor
-        if (tabName === 'whatsapp') {
-            loadWhatsAppServerUrl();
-        }
-        console.log('📑 Cambiando a tab Flor:', tabName);
-        
-        // Ocultar todos los tabs
-        document.querySelectorAll('.flor-tab-content').forEach(tab => {
-            tab.style.display = 'none';
-            tab.classList.remove('active');
-        });
-        
-        // Desactivar todos los botones de tab
-        document.querySelectorAll('.flor-tab').forEach(btn => {
-            btn.classList.remove('active');
-            // Reset color for tabs
-                btn.style.background = '#f5f5f5';
-                btn.style.color = '#333';
-        });
-        
-        // Mostrar tab seleccionado
-        const tabContent = document.getElementById('flor-tab-' + tabName);
-        if (tabContent) {
-            tabContent.style.display = 'block';
-            tabContent.classList.add('active');
-        }
-        
-        // Activar botón
-        const tabBtn = document.querySelector(`.flor-tab[data-tab="${tabName}"]`);
-        if (tabBtn) {
-            tabBtn.classList.add('active');
-            if (tabName === 'whatsapp') {
-                tabBtn.style.background = '#25D366';
-                tabBtn.style.color = 'white';
-            } else {
-                tabBtn.style.background = '#1976d2';
-                tabBtn.style.color = 'white';
-            }
-        }
-        
-        // Cargar datos específicos del tab
-        if (tabName === 'knowledge' || tabName === 'policies') {
-            loadHotelsForFlor();
-        }
-        if (tabName === 'whatsapp') {
-            loadWhatsAppCards();
-        }
-    };
+    // Función showFlorTab ya está definida en el <head> - no duplicar
 
     // Cargar hoteles para selectores de Flor
     // Función para sincronizar automáticamente la información del hotel con Flor IA
@@ -21995,77 +22496,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
     };
 
-    // Verificar conexión WhatsApp
-    window.checkWhatsAppConnection = function() {
-        const baseServerUrl = getServerURL() || localStorage.getItem('whatsappServerURL') || localStorage.getItem('whatsappServerUrl') || 'http://72.61.58.240';
-        const serverUrl = `${baseServerUrl}:3001`;
-        const statusIndicator = document.getElementById('whatsapp-status-indicator');
-        const statusText = document.getElementById('whatsapp-status-text');
-        const statusDetail = document.getElementById('whatsapp-status-detail');
-        
-        if (statusText) statusText.textContent = 'Verificando conexión...';
-        if (statusDetail) statusDetail.textContent = 'Conectando con ' + serverUrl;
-        
-        fetch(serverUrl + '/status')
-            .then(response => response.json())
-            .then(data => {
-                if (data.connected || data.status === 'connected') {
-                    if (statusIndicator) statusIndicator.style.background = '#4caf50';
-                    if (statusText) statusText.textContent = '✅ Conectado';
-                    if (statusDetail) statusDetail.textContent = 'WhatsApp está funcionando correctamente';
-                    
-                    document.getElementById('whatsapp-qr-section').style.display = 'none';
-                    document.getElementById('whatsapp-info-section').style.display = 'block';
-                    
-                    if (data.phone) document.getElementById('whatsapp-phone-number').textContent = data.phone;
-                    if (data.name) document.getElementById('whatsapp-user-name').textContent = data.name;
-                } else if (data.qr) {
-                    if (statusIndicator) statusIndicator.style.background = '#ff9800';
-                    if (statusText) statusText.textContent = '📲 Esperando escaneo QR';
-                    if (statusDetail) statusDetail.textContent = 'Escanea el código QR con tu teléfono';
-                    
-                    document.getElementById('whatsapp-qr-section').style.display = 'block';
-                    document.getElementById('whatsapp-info-section').style.display = 'none';
-                    document.getElementById('whatsapp-qr-code').textContent = data.qr;
-                } else {
-                    if (statusIndicator) statusIndicator.style.background = '#9e9e9e';
-                    if (statusText) statusText.textContent = '⚠️ Desconectado';
-                    if (statusDetail) statusDetail.textContent = 'Servidor disponible pero WhatsApp no conectado';
-                }
-            })
-            .catch(error => {
-                console.error('Error verificando WhatsApp:', error);
-                if (statusIndicator) statusIndicator.style.background = '#f44336';
-                if (statusText) statusText.textContent = '❌ Error de conexión';
-                if (statusDetail) statusDetail.textContent = 'No se pudo conectar con el servidor';
-            });
-    };
+    // Verificar conexión WhatsApp - Función eliminada, ahora se usa la función async checkWhatsAppConnectionStatus() definida anteriormente
 
-    // Guardar config WhatsApp
-    window.saveWhatsAppConfig = function() {
-        const config = {
-            serverUrl: document.getElementById('whatsapp-server-url')?.value || '',
-            autoReply: document.getElementById('whatsapp-auto-reply')?.checked || false
-        };
-        localStorage.setItem('flor_whatsapp_config', JSON.stringify(config));
-        alert('✅ Configuración de WhatsApp guardada');
-    };
+    // Guardar config WhatsApp - Función eliminada, ahora se usa la función async saveWhatsAppConfig() definida anteriormente
 
-    // Desconectar WhatsApp
-    window.disconnectWhatsApp = function() {
-        if (!confirm('¿Estás seguro de desconectar WhatsApp?')) return;
-        
-        const serverUrl = document.getElementById('whatsapp-server-url')?.value || 'http://localhost:3001';
-        fetch(serverUrl + '/disconnect', { method: 'POST' })
-            .then(() => {
-                alert('WhatsApp desconectado');
-                checkWhatsAppConnection();
-            })
-            .catch(error => {
-                console.error('Error desconectando:', error);
-                alert('Error al desconectar');
-            });
-    };
+    // Desconectar WhatsApp - Función eliminada, ahora se usa la función async disconnectWhatsApp(cardNumber) definida anteriormente
 
     // Cargar interacciones
     window.loadInteractions = async function() {
