@@ -1,0 +1,26 @@
+{
+  "name": "checkin24hs-whatsapp-flor",
+  "version": "2.0.0",
+  "description": "Servidor de WhatsApp para Flor - Checkin24hs con integración Supabase",
+  "main": "whatsapp-server.js",
+  "scripts": {
+    "start": "node whatsapp-server.js",
+    "dev": "nodemon whatsapp-server.js"
+  },
+  "dependencies": {
+    "whatsapp-web.js": "^1.23.0",
+    "puppeteer": "^21.0.0",
+    "qrcode-terminal": "^0.12.0",
+    "qrcode": "^1.5.3",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "socket.io": "^4.7.2",
+    "@supabase/supabase-js": "^2.39.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

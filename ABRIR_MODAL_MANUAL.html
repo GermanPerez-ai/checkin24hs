@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Modal de Imágenes</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 10px;
+            cursor: pointer;
+            background: #1976d2;
+            color: white;
+            border: none;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #1565c0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test: Abrir Modal de Imágenes</h1>
+    
+    <div>
+        <h2>Instrucciones:</h2>
+        <ol>
+            <li>Abre el dashboard en otra pestaña</li>
+            <li>Edita un hotel</li>
+            <li>Haz clic en el botón de abajo para abrir el modal</li>
+        </ol>
+    </div>
+    
+    <button onclick="testAbrirModal()">Abrir Modal de Imágenes</button>
+    
+    <script>
+        function testAbrirModal() {
+            // Intentar abrir el modal desde otra ventana/pestaña
+            console.log('🧪 Test: Intentando abrir modal...');
+            
+            // Si el dashboard está en otra pestaña, esto no funcionará
+            // Mejor es ejecutarlo directamente en la consola del dashboard
+            
+            alert('Por favor, ejecuta esto en la consola del dashboard (F12):\n\nopenImageManager("main");\n\nO ejecuta:\n\nconst modal = document.getElementById("imageManagerModal");\nif (modal) {\n    modal.style.display = "block";\n    console.log("✅ Modal abierto");\n}');
+        }
+    </script>
+</body>
+</html>
+

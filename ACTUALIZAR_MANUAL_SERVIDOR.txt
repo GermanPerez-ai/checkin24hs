@@ -1,0 +1,36 @@
+# Comandos para actualizar manualmente desde el servidor
+
+# 1. Encontrar el contenedor del dashboard
+CONTAINER_ID=$(docker ps | grep dashboard | grep -v nginx | awk '{print $1}' | head -1)
+echo "Contenedor: $CONTAINER_ID"
+
+# 2. Encontrar la ruta del archivo dashboard.html
+CONTAINER_PATH=$(docker exec $CONTAINER_ID find / -name "dashboard.html" -type f 2>/dev/null | head -1)
+echo "Ruta: $CONTAINER_PATH"
+
+# Si no encuentra, probar rutas comunes:
+# docker exec $CONTAINER_ID ls -la /app
+# docker exec $CONTAINER_ID ls -la /usr/share/nginx/html
+# docker exec $CONTAINER_ID ls -la /var/www/html
+
+# 3. Crear directorio temporal y clonar repositorio
+mkdir -p /tmp/dashboard_update
+cd /tmp/dashboard_update
+git clone https://github.com/GermanPerez-ai/checkin24hs.git Checkin24hs
+cd Checkin24hs
+
+# 4. Copiar el archivo actualizado al contenedor
+docker cp deploy/dashboard.html $CONTAINER_ID:$CONTAINER_PATH
+
+# 5. Verificar que se copió correctamente
+docker exec $CONTAINER_ID grep -q "checkWhatsAppConnection BLOQUEADO" $CONTAINER_PATH && echo "✅ Código actualizado" || echo "❌ Error"
+
+# 6. Reiniciar el contenedor
+docker restart $CONTAINER_ID
+
+# 7. Esperar 10 segundos
+sleep 10
+
+# 8. Verificar que el contenedor está corriendo
+docker ps | grep dashboard
+

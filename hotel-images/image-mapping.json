@@ -1,0 +1,50 @@
+{
+  "hotel-2-huilo-huilo": {
+    "main": "IMG-20250728-WA0006.jpg",
+    "gallery": [
+      "IMG-20250728-WA0007.jpg",
+      "IMG-20250728-WA0008.jpg", 
+      "IMG-20250728-WA0009.jpg",
+      "IMG-20250728-WA0010.jpg",
+      "IMG-20250728-WA0011.jpg",
+      "IMG-20250728-WA0012.jpg",
+      "IMG-20250728-WA0013.jpg",
+      "IMG-20250728-WA0014.jpg",
+      "IMG-20250728-WA0015.jpg",
+      "IMG-20250728-WA0016.jpg"
+    ]
+  },
+  "hotel-1-puyehue": {
+    "main": "IMG-20250728-WA0006.jpg",
+    "gallery": [
+      "IMG-20250728-WA0007.jpg",
+      "IMG-20250728-WA0008.jpg",
+      "IMG-20250728-WA0009.jpg",
+      "IMG-20250728-WA0010.jpg"
+    ]
+  },
+  "hotel-3-corralco": {
+    "main": "IMG-20250728-WA0011.jpg",
+    "gallery": [
+      "IMG-20250728-WA0012.jpg",
+      "IMG-20250728-WA0013.jpg",
+      "IMG-20250728-WA0014.jpg"
+    ]
+  },
+  "hotel-4-futangue": {
+    "main": "IMG-20250728-WA0015.jpg",
+    "gallery": [
+      "IMG-20250728-WA0016.jpg",
+      "IMG-20250728-WA0006.jpg",
+      "IMG-20250728-WA0007.jpg"
+    ]
+  },
+  "hotel-5-aguas-calientes": {
+    "main": "IMG-20250728-WA0008.jpg",
+    "gallery": [
+      "IMG-20250728-WA0009.jpg",
+      "IMG-20250728-WA0010.jpg",
+      "IMG-20250728-WA0011.jpg"
+    ]
+  }
+} 

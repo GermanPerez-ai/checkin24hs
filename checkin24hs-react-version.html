@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔔 Checkin24hs - Call Center 24hs</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        .app {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1976d2, #42a5f5);
+            color: white;
+            padding: 25px 20px;
+            text-align: left;
+        }
+
+        .header h1 {
+            font-size: 2.2rem;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            font-size: 1rem;
+            opacity: 0.9;
+            margin-left: 115px;
+        }
+
+        .logo-header {
+            width: 90px;
+            height: 90px;
+            margin-right: 25px;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 20px;
+        }
+
+        .hotels-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .hotel-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            cursor: pointer;
+        }
+
+        .hotel-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+
+        .hotel-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .hotel-info {
+            padding: 20px;
+        }
+
+        .hotel-name {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #1976d2;
+        }
+
+        .hotel-location {
+            color: #666;
+            margin-bottom: 12px;
+            font-size: 0.9rem;
+        }
+
+        .hotel-rating {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .stars {
+            color: #ffc107;
+            margin-right: 8px;
+        }
+
+        .section-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #1976d2;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        .hotel-details {
+            margin: 20px 0;
+        }
+
+        .hotel-detail-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .hotel-detail-label {
+            font-weight: 500;
+            color: #666;
+        }
+
+        .hotel-detail-value {
+            color: #333;
+        }
+
+        .hotel-detail-value a {
+            color: #1976d2;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            transition: color 0.3s ease;
+        }
+
+        .hotel-detail-value a:hover {
+            color: #1565c0;
+            text-decoration: underline;
+        }
+
+        .form-button {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin: 5px;
+            transition: background-color 0.3s ease;
+        }
+
+        .form-button:hover {
+            background: #1565c0;
+        }
+
+        .form-button.secondary {
+            background: #6c757d;
+        }
+
+        .form-button.secondary:hover {
+            background: #5a6268;
+        }
+
+        .amenities {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .amenity {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+        }
+
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .gallery img {
+            width: 100%;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .gallery img:hover {
+            transform: scale(1.05);
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .hotels-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .main-content {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="header">
+            <div style="display: flex; align-items: center; justify-content: flex-start; margin-bottom: 15px; padding-left: 20px;">
+                <svg class="logo-header" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="oliveGradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#556B2F;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#6B8E23;stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                    
+                    <!-- Círculo exterior con doble borde -->
+                    <circle cx="100" cy="100" r="95" fill="white" stroke="#556B2F" stroke-width="3"/>
+                    <circle cx="100" cy="100" r="90" fill="white" stroke="#556B2F" stroke-width="1"/>
+                    
+                    <!-- Timbre de servicio -->
+                    <g transform="translate(100, 70)">
+                        <!-- Cuerpo del timbre -->
+                        <ellipse cx="0" cy="0" rx="12" ry="15" fill="#556B2F"/>
+                        
+                        <!-- Interior del timbre -->
+                        <ellipse cx="0" cy="0" rx="8" ry="11" fill="white" opacity="0.9"/>
+                        
+                        <!-- Badajo del timbre -->
+                        <circle cx="0" cy="5" r="2" fill="#556B2F"/>
+                        <rect x="-0.5" y="5" width="1" height="6" fill="#556B2F"/>
+                        <circle cx="0" cy="11" r="1.5" fill="#556B2F"/>
+                        
+                        <!-- Soporte del timbre -->
+                        <rect x="-2" y="-8" width="4" height="6" fill="#556B2F"/>
+                        <rect x="-3" y="-10" width="6" height="3" rx="1.5" fill="#556B2F"/>
+                        
+                        <!-- Ondas de sonido -->
+                        <path d="M -15,0 Q -20,-5 -25,0 Q -20,5 -15,0" fill="none" stroke="#556B2F" stroke-width="1.5"/>
+                        <path d="M 15,0 Q 20,-5 25,0 Q 20,5 15,0" fill="none" stroke="#556B2F" stroke-width="1.5"/>
+                    </g>
+                    
+                    <!-- Texto "CHECKIN" -->
+                    <text x="100" y="115" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="#556B2F">
+                        CHECKIN
+                    </text>
+                    
+                    <!-- Texto "CALL CENTER 24hs" -->
+                    <text x="100" y="135" font-family="Arial, sans-serif" font-size="12" font-weight="normal" text-anchor="middle" fill="#556B2F">
+                        CALL CENTER 24hs
+                    </text>
+                    
+                    <!-- Línea bajo "CALL CENTER" -->
+                    <line x1="70" y1="140" x2="130" y2="140" stroke="#556B2F" stroke-width="1"/>
+                </svg>
+                <h1>Checkin24hs</h1>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: 15px;">
+                <div style="text-align: left; flex: 1;">
+                    <h3 class="rewards-text" style="font-size: 1.4rem; margin: 0; color: #FFD700; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);">
+                        🎁 Te presentamos My Rewards
+                    </h3>
+                </div>
+                <div style="text-align: center; flex: 2;">
+                    <h2 class="fun-text" style="font-size: 1.8rem; margin: 0; color: #FF6B35; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); font-weight: bold; transform: rotate(-2deg);">
+                        🎉 ¡Ahora tus reservas tienen BENEFICIOS! 🎉
+                    </h2>
+                </div>
+                <div style="flex: 1;"></div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <h2 class="section-title">Hoteles de Experiencias</h2>
+            <div class="hotels-grid" id="hotelsGrid">
+                <!-- Los hoteles se cargarán dinámicamente -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para detalles del hotel -->
+    <div id="hotelModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('hotelModal')">&times;</span>
+            <div id="hotelModalContent">
+                <!-- Contenido dinámico -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Datos de hoteles actualizados (versión React)
+        const hotels = [
+            {
+                id: "1",
+                name: "Hotel Terma de Puyehue",
+                location: "Puyehue, Chile",
+                image: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400",
+                rating: 4.8,
+                description: "Hotel de lujo en el corazón de las termas de Puyehue con vistas espectaculares a los volcanes. Disfruta de aguas termales y servicio personalizado.",
+                amenities: ["Aguas Termales", "Spa", "Restaurante", "Gimnasio", "Vistas a Volcanes"],
+                photos: [
+                    "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400",
+                    "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=400",
+                    "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=400"
+                ]
+            },
+            {
+                id: "2",
+                name: "Hotel Huilo-Huilo",
+                location: "Panguipulli, Chile",
+                image: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=400",
+                rating: 4.6,
+                description: "Resort de montaña con acceso directo al bosque nativo y piscina natural. Perfecto para unas vacaciones en la Patagonia.",
+                amenities: ["Bosque Nativo", "Piscina Natural", "Restaurante", "Bar", "Actividades de Montaña"],
+                photos: [
+                    "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=400",
+                    "https://images.unsplash.com/photo-1571003123894-1f0594d2b5d9?w=400",
+                    "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=400"
+                ]
+            },
+            {
+                id: "3",
+                name: "Hotel Corralco Resort",
+                location: "Lonquimay, Chile",
+                image: "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=400",
+                rating: 4.7,
+                description: "Hotel boutique con encanto de montaña en el corazón de la reserva natural, cerca de las pistas de esquí. Arquitectura tradicional con comodidades modernas.",
+                amenities: ["Pistas de Esquí", "Vistas a la Montaña", "Desayuno Incluido", "WiFi", "Parking"],
+                photos: [
+                    "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=400",
+                    "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=400",
+                    "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400"
+                ]
+            },
+            {
+                id: "4",
+                name: "Hotel Futangue",
+                location: "Lago Ranco, Chile",
+                image: "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=400",
+                rating: 4.5,
+                description: "Hotel moderno ideal para viajes de aventura con salas de conferencias y centro de fitness. Ubicado en el corazón de la naturaleza.",
+                amenities: ["Centro de Aventuras", "Gimnasio", "Restaurante", "WiFi", "Estacionamiento"],
+                photos: [
+                    "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=400",
+                    "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400",
+                    "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=400"
+                ]
+            },
+            {
+                id: "5",
+                name: "Termas de Aguas Calientes",
+                location: "San José de Maipo, Chile",
+                image: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=400",
+                rating: 4.9,
+                description: "Históricas termas ubicadas en un edificio del siglo XIX. Experiencia única combinando historia y aguas termales.",
+                amenities: ["Aguas Termales", "Restaurante Gourmet", "Vistas Panorámicas", "Guía Turístico", "Spa"],
+                photos: [
+                    "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=400",
+                    "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=400",
+                    "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400"
+                ]
+            }
+        ];
+
+        // Función para mostrar estrellas
+        function getStars(rating) {
+            let stars = '';
+            for (let i = 1; i <= 5; i++) {
+                if (i <= rating) {
+                    stars += '<span class="material-icons" style="color: #ffc107;">star</span>';
+                } else if (i - 0.5 <= rating) {
+                    stars += '<span class="material-icons" style="color: #ffc107;">star_half</span>';
+                } else {
+                    stars += '<span class="material-icons" style="color: #e0e0e0;">star</span>';
+                }
+            }
+            return stars;
+        }
+
+        // Función para renderizar hoteles
+        function renderHotels() {
+            const hotelsGrid = document.getElementById('hotelsGrid');
+            hotelsGrid.innerHTML = hotels.map(hotel => `
+                <div class="hotel-card" onclick="showHotelDetail(${JSON.stringify(hotel).replace(/"/g, '&quot;')})">
+                    <img src="${hotel.image}" alt="${hotel.name}" class="hotel-image">
+                    <div class="hotel-info">
+                        <h3 class="hotel-name">${hotel.name}</h3>
+                        <p class="hotel-location">${hotel.location}</p>
+                        <div class="hotel-rating">
+                            <span class="stars">${getStars(hotel.rating)}</span>
+                            <span>${hotel.rating}/5</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Función para mostrar detalles del hotel
+        function showHotelDetail(hotel) {
+            const modal = document.getElementById('hotelModal');
+            const content = document.getElementById('hotelModalContent');
+            
+            // Crear enlace de Google Maps
+            const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(hotel.name + ' ' + hotel.location)}`;
+            
+            content.innerHTML = `
+                <h2 class="modal-title">${hotel.name}</h2>
+                <img src="${hotel.image}" alt="${hotel.name}" style="width: 100%; height: 250px; object-fit: cover; border-radius: 8px; margin-bottom: 15px;">
+                
+                <div style="margin-bottom: 20px;">
+                    <button class="form-button" onclick="openQuoteModal('${hotel.name}')" style="width: 100%; margin-bottom: 10px;">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">request_quote</span>
+                        Solicitar Cotización
+                    </button>
+                </div>
+                
+                <div class="hotel-details">
+                    <div class="hotel-detail-item">
+                        <span class="hotel-detail-label">Ubicación:</span>
+                        <span class="hotel-detail-value">
+                            <a href="${mapsUrl}" target="_blank" style="color: #1976d2; text-decoration: none; display: flex; align-items: center;">
+                                <span class="material-icons" style="font-size: 16px; margin-right: 5px;">location_on</span>
+                                ${hotel.location}
+                            </a>
+                        </span>
+                    </div>
+                    <div class="hotel-detail-item">
+                        <span class="hotel-detail-label">Calificación:</span>
+                        <span class="hotel-detail-value">${getStars(hotel.rating)} ${hotel.rating}/5</span>
+                    </div>
+                </div>
+                
+                <p style="margin: 20px 0; line-height: 1.6;">${hotel.description}</p>
+                
+                <h3 style="margin: 20px 0 10px 0;">Comodidades</h3>
+                <div class="amenities">
+                    ${hotel.amenities.map(amenity => `<span class="amenity">${amenity}</span>`).join('')}
+                </div>
+                
+                <h3 style="margin: 20px 0 10px 0;">Galería de Fotos</h3>
+                <div class="gallery">
+                    ${hotel.photos.map(photo => `<img src="${photo}" alt="${hotel.name}" onclick="openImage('${photo}')">`).join('')}
+                </div>
+                
+                <div style="margin-top: 30px;">
+                    <button class="form-button secondary" onclick="closeModal('hotelModal')">
+                        Cerrar
+                    </button>
+                </div>
+            `;
+            
+            modal.style.display = 'block';
+        }
+
+        // Función para abrir modal de cotización
+        function openQuoteModal(hotelName) {
+            alert(`¡Cotización solicitada para ${hotelName}!\n\nTe contactaremos pronto con los detalles de tu reserva.`);
+            closeModal('hotelModal');
+        }
+
+        // Función para cerrar modales
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // Función para abrir imagen en tamaño completo
+        function openImage(imageUrl) {
+            window.open(imageUrl, '_blank');
+        }
+
+        // Cerrar modales al hacer clic fuera de ellos
+        window.onclick = function(event) {
+            const modals = document.querySelectorAll('.modal');
+            modals.forEach(modal => {
+                if (event.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        };
+
+        // Cargar hoteles al iniciar
+        document.addEventListener('DOMContentLoaded', function() {
+            renderHotels();
+        });
+    </script>
+</body>
+</html> 

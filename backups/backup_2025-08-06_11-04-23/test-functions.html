@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test de Funciones</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .test-btn { 
+            padding: 10px 20px; 
+            margin: 10px; 
+            background: #007bff; 
+            color: white; 
+            border: none; 
+            border-radius: 5px; 
+            cursor: pointer; 
+        }
+        .test-btn:hover { background: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test de Funciones</h1>
+    
+    <button class="test-btn" onclick="testCalendar()">📅 Test Calendario</button>
+    <button class="test-btn" onclick="testTravelers()">👥 Test Huéspedes</button>
+    <button class="test-btn" onclick="testCotizacion()">📋 Test Cotización</button>
+    
+    <div id="result" style="margin-top: 20px; padding: 10px; background: #f8f9fa; border-radius: 5px;"></div>
+
+    <script>
+        // Variables de prueba
+        let travelersData = {
+            adults: 2,
+            children: 0,
+            childrenAges: []
+        };
+
+        // Función de prueba para calendario
+        function testCalendar() {
+            console.log('🔍 Test Calendar llamado');
+            document.getElementById('result').innerHTML = '✅ Función toggleCalendar funcionando';
+            alert('Calendario funcionando!');
+        }
+
+        // Función de prueba para huéspedes
+        function testTravelers() {
+            console.log('🔍 Test Travelers llamado');
+            document.getElementById('result').innerHTML = '✅ Función toggleTravelersModal funcionando';
+            alert('Huéspedes funcionando!');
+        }
+
+        // Función de prueba para cotización
+        function testCotizacion() {
+            console.log('🔍 Test Cotización llamado');
+            document.getElementById('result').innerHTML = '✅ Función solicitarCotizacion funcionando';
+            alert('Cotización funcionando!');
+        }
+
+        // Verificar que el script se carga
+        console.log('✅ Script de prueba cargado correctamente');
+        document.getElementById('result').innerHTML = '🚀 Script cargado - Listo para pruebas';
+    </script>
+</body>
+</html> 

@@ -1,0 +1,31 @@
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Copiar package.json e instalar dependencias
+COPY package.json package-lock.json* ./
+RUN npm install
+
+# Copiar archivos esenciales del CRM
+COPY deploy/crm.html ./crm.html
+COPY serve-crm.js ./
+
+# Copiar archivos JavaScript del CRM
+COPY deploy/crm.js ./crm.js
+
+# Copiar archivos opcionales (solo si existen en el build context)
+COPY supabase-client.js* ./
+COPY supabase-config.js* ./
+COPY flor-knowledge-base.js* ./
+COPY flor-ai-service.js* ./
+COPY flor-learning-system.js* ./
+COPY flor-agent.js* ./
+COPY logo*.png ./
+COPY logo*.svg ./
+
+# Exponer el puerto (será configurado por EasyPanel)
+EXPOSE 3005
+
+# Comando para iniciar el servidor
+CMD ["node", "serve-crm.js"]
+

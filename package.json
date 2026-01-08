@@ -1,0 +1,25 @@
+{
+  "name": "checkin24hs-puyehue-cotizacion",
+  "version": "1.0.0",
+  "description": "Sistema de cotización automática para Termas de Puyehue",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node puppeteer-real-cotizacion.js",
+    "dashboard": "node serve-dashboard.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "puppeteer": "^21.0.0"
+  },
+  "keywords": [
+    "puyehue",
+    "cotizacion",
+    "reservas",
+    "automation"
+  ],
+  "author": "Checkin24hs",
+  "license": "MIT"
+}

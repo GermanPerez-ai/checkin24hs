@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Reward Banner</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #f0f0f0;
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .banner-container {
+            width: 900px;
+            height: 500px;
+            border-radius: 25px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            padding: 40px;
+        }
+
+        /* Video de fondo */
+        .background-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+        }
+
+        /* Overlay para mejorar legibilidad del texto */
+        .video-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(139, 92, 246, 0.7); /* Overlay púrpura semi-transparente */
+            z-index: 2;
+        }
+
+        .left-content {
+            flex: 1;
+            color: white;
+            z-index: 10;
+            position: relative;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: #6B7280;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-size: 20px;
+        }
+
+        .logo-text {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: white;
+        }
+
+        .main-title {
+            font-size: 3.5rem;
+            font-weight: bold;
+            color: #FCD34D;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            margin-bottom: 15px;
+            line-height: 1.1;
+        }
+
+        .subtitle {
+            font-size: 1.3rem;
+            color: white;
+            font-weight: 500;
+            margin-bottom: 30px;
+            line-height: 1.4;
+        }
+
+        .download-section {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .download-text {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #FCD34D;
+        }
+
+        .store-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .store-button {
+            background: #1F2937;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 8px 15px;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .store-button:hover {
+            background: #374151;
+            transform: translateY(-2px);
+        }
+
+        .phone-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            z-index: 10;
+        }
+
+        .phone {
+            width: 200px;
+            height: 350px;
+            background: #1F2937;
+            border-radius: 25px;
+            border: 8px solid #374151;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .phone-screen {
+            flex: 1;
+            background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            color: white;
+        }
+
+        .phone-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .phone-illustration {
+            width: 80px;
+            height: 60px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 10px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .phone-text {
+            font-size: 0.8rem;
+            line-height: 1.3;
+        }
+
+        .phone-dots {
+            display: flex;
+            gap: 5px;
+            margin-top: 15px;
+        }
+
+        .dot {
+            width: 6px;
+            height: 6px;
+            background: white;
+            border-radius: 50%;
+        }
+
+        .available-text {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: white;
+            font-size: 0.9rem;
+            text-align: right;
+        }
+
+        .sparkles {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            font-size: 24px;
+            animation: twinkle 2s ease-in-out infinite;
+        }
+
+        @keyframes twinkle {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        .download-btn {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 30px;
+            background: #FCD34D;
+            color: #1F2937;
+            border: none;
+            border-radius: 25px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+            z-index: 10;
+        }
+
+        .download-btn:hover {
+            background: #F59E0B;
+            transform: translateX(-50%) translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+        }
+
+        .download-btn:active {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Controles de video */
+        .video-controls {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            z-index: 15;
+            display: flex;
+            gap: 10px;
+        }
+
+        .video-btn {
+            background: rgba(0,0,0,0.7);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .video-btn:hover {
+            background: rgba(0,0,0,0.9);
+        }
+    </style>
+</head>
+<body>
+    <div class="banner-container">
+        <!-- Video de fondo -->
+        <video class="background-video" autoplay muted loop playsinline>
+            <source src="banner cyber monday morado.mp4" type="video/mp4">
+            Tu navegador no soporta videos.
+        </video>
+        
+        <!-- Overlay para mejorar legibilidad -->
+        <div class="video-overlay"></div>
+        
+        <div class="sparkles">⭐</div>
+        
+        <div class="left-content">
+            <div class="logo">
+                <div class="logo-icon">⭐</div>
+                <div class="logo-text">MY REWARD</div>
+            </div>
+            
+            <h1 class="main-title">¡CADA COMPRA CUENTA!</h1>
+            <p class="subtitle">DESCARGA MYREWARD Y CONVIERTE TUS COMPRAS EN RECOMPENSAS EXCLUSIVAS!</p>
+            
+            <div class="download-section">
+                <div class="download-text">DESCARGA</div>
+                <div class="store-buttons">
+                    <button class="store-button">
+                        <span style="color: #34D399;">▶</span>
+                        <span>Google Play</span>
+                    </button>
+                    <button class="store-button">
+                        <span style="color: #60A5FA;">🍎</span>
+                        <span>App Store</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="phone-container">
+            <div class="phone">
+                <div class="phone-screen">
+                    <div class="phone-title">Gana Recompensas</div>
+                    <div class="phone-illustration">👥🎁</div>
+                    <div class="phone-text">Al completar Tus Tarjetas de Beneficios!</div>
+                    <div class="phone-dots">
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                        <div class="dot"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="available-text">
+            DISPONIBLE EN<br>
+            <span style="font-size: 0.8rem;">Disponible en el</span>
+        </div>
+        
+        <!-- Controles de video -->
+        <div class="video-controls">
+            <button class="video-btn" onclick="toggleVideo()">⏸️ Pausar</button>
+            <button class="video-btn" onclick="toggleMute()">🔇 Silenciar</button>
+        </div>
+        
+        <button class="download-btn" onclick="downloadImage()">📥 Descargar Imagen</button>
+    </div>
+
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <script>
+        const video = document.querySelector('.background-video');
+        let isPaused = false;
+        let isMuted = true;
+
+        function toggleVideo() {
+            if (isPaused) {
+                video.play();
+                isPaused = false;
+                event.target.textContent = '⏸️ Pausar';
+            } else {
+                video.pause();
+                isPaused = true;
+                event.target.textContent = '▶️ Reproducir';
+            }
+        }
+
+        function toggleMute() {
+            if (isMuted) {
+                video.muted = false;
+                isMuted = false;
+                event.target.textContent = '🔊 Sonido';
+            } else {
+                video.muted = true;
+                isMuted = true;
+                event.target.textContent = '🔇 Silenciar';
+            }
+        }
+
+        function downloadImage() {
+            const banner = document.querySelector('.banner-container');
+            
+            // Ocultar controles temporalmente para la captura
+            const downloadBtn = document.querySelector('.download-btn');
+            const videoControls = document.querySelector('.video-controls');
+            downloadBtn.style.display = 'none';
+            videoControls.style.display = 'none';
+            
+            html2canvas(banner, {
+                backgroundColor: null,
+                scale: 2,
+                useCORS: true,
+                allowTaint: true
+            }).then(canvas => {
+                // Mostrar controles nuevamente
+                downloadBtn.style.display = 'block';
+                videoControls.style.display = 'flex';
+                
+                // Crear enlace de descarga
+                const link = document.createElement('a');
+                link.download = 'my-reward-banner-with-video.png';
+                link.href = canvas.toDataURL();
+                link.click();
+            });
+        }
+    </script>
+</body>
+</html>

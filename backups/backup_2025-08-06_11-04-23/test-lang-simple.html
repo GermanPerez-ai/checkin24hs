@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Simple de Cambio de Idioma</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 50px;
+            text-align: center;
+        }
+        
+        .language-selector {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .language-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            margin: 0 5px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        
+        .language-btn.active {
+            background: #0056b3;
+        }
+        
+        [data-lang] {
+            display: none;
+        }
+        
+        [data-lang="es"] {
+            display: block;
+        }
+        
+        .test-content {
+            margin-top: 100px;
+            padding: 20px;
+            border: 2px solid #ccc;
+            border-radius: 10px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .test-content h1,
+        .test-content p,
+        .test-content button {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="language-selector">
+        <button class="language-btn active" onclick="changeLanguage('es')">ES</button>
+        <button class="language-btn" onclick="changeLanguage('en')">EN</button>
+        <button class="language-btn" onclick="changeLanguage('pt')">PT</button>
+    </div>
+
+    <div class="test-content">
+        <h1 data-lang="es">¡Hola Mundo!</h1>
+        <h1 data-lang="en">Hello World!</h1>
+        <h1 data-lang="pt">Olá Mundo!</h1>
+        
+        <p data-lang="es">Este es un texto de prueba en español.</p>
+        <p data-lang="en">This is a test text in English.</p>
+        <p data-lang="pt">Este é um texto de teste em português.</p>
+        
+        <button data-lang="es" onclick="alert('Español')">Botón Español</button>
+        <button data-lang="en" onclick="alert('English')">English Button</button>
+        <button data-lang="pt" onclick="alert('Português')">Botão Português</button>
+    </div>
+
+    <script>
+        function changeLanguage(lang) {
+            console.log('🌐 Cambiando idioma a:', lang);
+            
+            // Actualizar botones
+            document.querySelectorAll('.language-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Activar botón seleccionado
+            document.querySelectorAll('.language-btn').forEach(btn => {
+                if (btn.textContent === lang.toUpperCase()) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            // Ocultar todos los elementos
+            document.querySelectorAll('[data-lang]').forEach(element => {
+                element.style.display = 'none';
+            });
+            
+            // Mostrar elementos del idioma seleccionado
+            const elementsToShow = document.querySelectorAll(`[data-lang="${lang}"]`);
+            elementsToShow.forEach(element => {
+                element.style.display = 'block';
+            });
+            
+            // Actualizar atributo lang del HTML
+            document.documentElement.lang = lang;
+            
+            console.log('✅ Idioma cambiado a:', lang, '- Elementos mostrados:', elementsToShow.length);
+        }
+        
+        // Inicializar
+        document.addEventListener('DOMContentLoaded', function() {
+            changeLanguage('es');
+            console.log('🚀 Test iniciado');
+        });
+    </script>
+</body>
+</html> 

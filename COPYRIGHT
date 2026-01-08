@@ -1,0 +1,120 @@
+COPYRIGHT NOTICE
+
+Checkin24hs - Sistema de Reservas de Hoteles
+Copyright (c) 2024 German Perez
+Todos los derechos reservados.
+
+===============================================================================
+
+PROPIEDAD INTELECTUAL
+
+Este proyecto es propiedad intelectual de German Perez, desarrollado en 2024.
+Todos los derechos sobre el código fuente, diseño, logos, marcas y contenido
+original están reservados.
+
+===============================================================================
+
+ELEMENTOS PROTEGIDOS
+
+1. CÓDIGO FUENTE
+   - Aplicación Android (Kotlin/Jetpack Compose)
+   - Aplicación Web (React/TypeScript)
+   - Panel de Administración (React/TypeScript)
+   - Base de datos y scripts SQL
+   - Configuraciones de proyecto
+
+2. DISEÑO Y UI/UX
+   - Interfaces de usuario
+   - Componentes personalizados
+   - Flujo de navegación
+   - Paleta de colores
+   - Tipografía y estilos
+
+3. LOGOS Y MARCA
+   - logo-checkin24hs.svg
+   - logo-checkin24hs-bell.svg
+   - logo-checkin24hs-olive.svg
+   - logo-checkin24hs-circular-olive.svg
+   - Todas las variaciones de logos
+
+4. CONTENIDO ORIGINAL
+   - Textos y descripciones
+   - Datos de muestra
+   - Documentación técnica
+   - Imágenes y recursos
+
+===============================================================================
+
+LICENCIA
+
+Este proyecto está licenciado bajo la Licencia MIT.
+Ver archivo LICENSE para más detalles.
+
+===============================================================================
+
+CONDICIONES DE USO
+
+✅ PERMITIDO:
+- Uso comercial
+- Modificación del código
+- Distribución
+- Uso privado
+- Sublicenciamiento
+
+❌ REQUERIDO:
+- Mantener copyright notice
+- Incluir licencia MIT
+- Atribución al autor original
+
+❌ NO PERMITIDO:
+- Eliminar copyright notices
+- Eliminar licencia MIT
+- Reclamar autoría ajena
+- Uso sin atribución
+
+===============================================================================
+
+CONTACTO
+
+Desarrollador: German Perez
+Proyecto: Checkin24hs
+Año: 2024
+Licencia: MIT License
+
+===============================================================================
+
+ESTRUCTURA DEL PROYECTO
+
+/app/                    # Aplicación Android
+/src/                    # Aplicación Web React
+/checkin24hs-admin/      # Panel de Administración
+/hotel-images/           # Imágenes de hoteles
+/database.sql            # Base de datos
+/LICENSE                 # Licencia MIT
+/README.md              # Documentación principal
+/AUTHORS                # Información de autores
+/INTELLECTUAL_PROPERTY.md # Documentación de PI
+
+===============================================================================
+
+REGISTRO DE VERSIONES
+
+v1.0 (2024)
+- Desarrollo inicial de aplicación Android
+- Conversión a aplicación web React
+- Panel de administración
+- Sistema de logos y marca
+- Documentación completa
+
+===============================================================================
+
+NOTA LEGAL
+
+Este aviso de copyright establece los derechos de propiedad intelectual
+de German Perez sobre el proyecto Checkin24hs. Cualquier uso del código,
+diseño o contenido debe respetar la licencia MIT y mantener la atribución
+al autor original.
+
+Para consultas sobre derechos de autor o licencias, contactar al desarrollador.
+
+=============================================================================== 

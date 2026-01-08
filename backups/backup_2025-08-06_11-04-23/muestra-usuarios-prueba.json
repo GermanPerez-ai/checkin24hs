@@ -1,0 +1,201 @@
+{
+  "usuarios_prueba": [
+    {
+      "id": "1703123456789abc123",
+      "name": "Prueba1",
+      "email": "prueba1@example.com",
+      "phone": "+56 9 0001 0111",
+      "fechaRegistro": "2024-01-20T10:30:00.000Z",
+      "ultimaActividad": "2024-01-21T08:30:00.000Z",
+      "status": "Activo",
+      "cotizaciones": []
+    },
+    {
+      "id": "1703123456789def456",
+      "name": "Prueba2",
+      "email": "prueba2@example.com",
+      "phone": "+56 9 0002 0222",
+      "fechaRegistro": "2024-01-19T10:30:00.000Z",
+      "ultimaActividad": "2024-01-21T06:30:00.000Z",
+      "status": "Activo",
+      "cotizaciones": [
+        {
+          "id": "cotizacion_2_0",
+          "hotel": "Hotel Prueba 1",
+          "fecha": "2024-01-14T10:30:00.000Z",
+          "monto": 85000
+        }
+      ]
+    },
+    {
+      "id": "1703123456789ghi789",
+      "name": "Prueba3",
+      "email": "prueba3@example.com",
+      "phone": "+56 9 0003 0333",
+      "fechaRegistro": "2024-01-18T10:30:00.000Z",
+      "ultimaActividad": "2024-01-21T04:30:00.000Z",
+      "status": "Activo",
+      "cotizaciones": [
+        {
+          "id": "cotizacion_3_0",
+          "hotel": "Hotel Prueba 1",
+          "fecha": "2024-01-07T10:30:00.000Z",
+          "monto": 120000
+        },
+        {
+          "id": "cotizacion_3_1",
+          "hotel": "Hotel Prueba 2",
+          "fecha": "2024-01-14T10:30:00.000Z",
+          "monto": 95000
+        }
+      ]
+    },
+    {
+      "id": "1703123456789jkl012",
+      "name": "Prueba4",
+      "email": "prueba4@example.com",
+      "phone": "+56 9 0004 0444",
+      "fechaRegistro": "2024-01-17T10:30:00.000Z",
+      "ultimaActividad": "2024-01-21T02:30:00.000Z",
+      "status": "Activo",
+      "cotizaciones": [
+        {
+          "id": "cotizacion_4_0",
+          "hotel": "Hotel Prueba 1",
+          "fecha": "2024-01-07T10:30:00.000Z",
+          "monto": 75000
+        },
+        {
+          "id": "cotizacion_4_1",
+          "hotel": "Hotel Prueba 2",
+          "fecha": "2024-01-14T10:30:00.000Z",
+          "monto": 110000
+        },
+        {
+          "id": "cotizacion_4_2",
+          "hotel": "Hotel Prueba 3",
+          "fecha": "2024-01-21T10:30:00.000Z",
+          "monto": 135000
+        }
+      ]
+    },
+    {
+      "id": "1703123456789mno345",
+      "name": "Prueba5",
+      "email": "prueba5@example.com",
+      "phone": "+56 9 0005 0555",
+      "fechaRegistro": "2024-01-16T10:30:00.000Z",
+      "ultimaActividad": "2024-01-21T00:30:00.000Z",
+      "status": "Activo",
+      "cotizaciones": [
+        {
+          "id": "cotizacion_5_0",
+          "hotel": "Hotel Prueba 1",
+          "fecha": "2024-01-14T10:30:00.000Z",
+          "monto": 90000
+        }
+      ]
+    },
+    {
+      "id": "1703123456789pqr678",
+      "name": "Prueba6",
+      "email": "prueba6@example.com",
+      "phone": "+56 9 0006 0666",
+      "fechaRegistro": "2024-01-15T10:30:00.000Z",
+      "ultimaActividad": "2024-01-20T22:30:00.000Z",
+      "status": "Activo",
+      "cotizaciones": []
+    },
+    {
+      "id": "1703123456789stu901",
+      "name": "Prueba7",
+      "email": "prueba7@example.com",
+      "phone": "+56 9 0007 0777",
+      "fechaRegistro": "2024-01-14T10:30:00.000Z",
+      "ultimaActividad": "2024-01-20T20:30:00.000Z",
+      "status": "Activo",
+      "cotizaciones": [
+        {
+          "id": "cotizacion_7_0",
+          "hotel": "Hotel Prueba 1",
+          "fecha": "2024-01-07T10:30:00.000Z",
+          "monto": 105000
+        },
+        {
+          "id": "cotizacion_7_1",
+          "hotel": "Hotel Prueba 2",
+          "fecha": "2024-01-14T10:30:00.000Z",
+          "monto": 125000
+        }
+      ]
+    },
+    {
+      "id": "1703123456789vwx234",
+      "name": "Prueba8",
+      "email": "prueba8@example.com",
+      "phone": "+56 9 0008 0888",
+      "fechaRegistro": "2024-01-13T10:30:00.000Z",
+      "ultimaActividad": "2024-01-20T18:30:00.000Z",
+      "status": "Activo",
+      "cotizaciones": [
+        {
+          "id": "cotizacion_8_0",
+          "hotel": "Hotel Prueba 1",
+          "fecha": "2024-01-14T10:30:00.000Z",
+          "monto": 80000
+        },
+        {
+          "id": "cotizacion_8_1",
+          "hotel": "Hotel Prueba 2",
+          "fecha": "2024-01-21T10:30:00.000Z",
+          "monto": 115000
+        },
+        {
+          "id": "cotizacion_8_2",
+          "hotel": "Hotel Prueba 3",
+          "fecha": "2024-01-28T10:30:00.000Z",
+          "monto": 140000
+        }
+      ]
+    },
+    {
+      "id": "1703123456789yza567",
+      "name": "Prueba9",
+      "email": "prueba9@example.com",
+      "phone": "+56 9 0009 0999",
+      "fechaRegistro": "2024-01-12T10:30:00.000Z",
+      "ultimaActividad": "2024-01-20T16:30:00.000Z",
+      "status": "Activo",
+      "cotizaciones": [
+        {
+          "id": "cotizacion_9_0",
+          "hotel": "Hotel Prueba 1",
+          "fecha": "2024-01-07T10:30:00.000Z",
+          "monto": 95000
+        }
+      ]
+    },
+    {
+      "id": "1703123456789bcd890",
+      "name": "Prueba10",
+      "email": "prueba10@example.com",
+      "phone": "+56 9 0010 1110",
+      "fechaRegistro": "2024-01-11T10:30:00.000Z",
+      "ultimaActividad": "2024-01-20T14:30:00.000Z",
+      "status": "Activo",
+      "cotizaciones": []
+    }
+  ],
+  "resumen": {
+    "total_usuarios": 10,
+    "usuarios_con_cotizaciones": 6,
+    "usuarios_sin_cotizaciones": 4,
+    "total_cotizaciones": 12,
+    "promedio_cotizaciones_por_usuario": 1.2,
+    "usuarios_por_valor_marketing": {
+      "alto": 2,
+      "medio": 4,
+      "bajo": 4
+    }
+  }
+} 

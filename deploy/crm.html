@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM - Checkin24hs</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="logo-checkin24hs-circular-olive.svg">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            display: flex;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background-color: #1976d2;
+            color: white;
+            height: 100vh;
+            position: fixed;
+            left: 0;
+            top: 0;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 24px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .sidebar-header h2 {
+            font-size: 1.3rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sidebar-menu {
+            padding: 16px 0;
+        }
+
+        .menu-item {
+            padding: 14px 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: background-color 0.3s;
+            border-left: 3px solid transparent;
+        }
+
+        .menu-item:hover {
+            background-color: rgba(255,255,255,0.1);
+        }
+
+        .menu-item.active {
+            background-color: rgba(255,255,255,0.15);
+            border-left-color: white;
+        }
+
+        .menu-item .material-icons {
+            font-size: 22px;
+        }
+
+        /* Main Content */
+        .main-content {
+            margin-left: 260px;
+            flex: 1;
+            padding: 24px;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .page-title {
+            font-size: 2rem;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background-color: #1976d2;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: #1565c0;
+        }
+
+        .btn-success {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background-color: #218838;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 1rem;
+            color: #666;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            color: #1976d2;
+            border-bottom-color: #1976d2;
+            font-weight: 500;
+        }
+
+        .tab:hover {
+            color: #1976d2;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 24px;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 1.3rem;
+            font-weight: 500;
+            color: #333;
+        }
+
+        /* Table */
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th,
+        .table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .table th {
+            background-color: #f5f5f5;
+            font-weight: 500;
+            color: #666;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+
+        .table tr:hover {
+            background-color: #f9f9f9;
+        }
+
+        /* Status Badge */
+        .badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            display: inline-block;
+        }
+
+        .badge-pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .badge-approved {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .badge-cancelled {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        /* Form */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .form-input,
+        .form-select,
+        .form-textarea {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        .form-textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #1976d2;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+    </style>
+    <!-- Script inline para declarar showSection inmediatamente -->
+    <script>
+        // Declarar showSection INMEDIATAMENTE antes de que se ejecute el HTML
+        window.showSection = function(sectionId, event) {
+            console.log('[CRM] 🔄 Cambiando a sección:', sectionId);
+            
+            // Ocultar todas las secciones
+            const sections = document.querySelectorAll('.section');
+            if (sections.length > 0) {
+                sections.forEach(section => {
+                    section.style.display = 'none';
+                });
+            }
+            
+            // Remover clase active de todos los items del menú
+            const menuItems = document.querySelectorAll('.menu-item');
+            if (menuItems.length > 0) {
+                menuItems.forEach(item => {
+                    item.classList.remove('active');
+                });
+            }
+            
+            // Mostrar sección seleccionada
+            const section = document.getElementById(sectionId + '-section');
+            if (section) {
+                section.style.display = 'block';
+                console.log('[CRM] ✅ Sección mostrada:', sectionId);
+                
+                // Activar item del menú
+                if (event && event.target) {
+                    const menuItem = event.target.closest('.menu-item');
+                    if (menuItem) {
+                        menuItem.classList.add('active');
+                    }
+                } else {
+                    // Si no hay evento, buscar el elemento del menú correspondiente
+                    const menuItem = document.querySelector('.menu-item[onclick*="showSection(\'' + sectionId + '\')"]');
+                    if (menuItem) {
+                        menuItem.classList.add('active');
+                    }
+                }
+                
+                // Cargar datos específicos de la sección (se cargará cuando el script principal esté listo)
+                if (typeof loadSectionData === 'function') {
+                    loadSectionData(sectionId);
+                }
+            } else {
+                console.error('[CRM] ❌ Sección no encontrada:', sectionId + '-section');
+            }
+        };
+        
+        // Declarar showFlorTab INMEDIATAMENTE antes de que se ejecute el HTML
+        window.showFlorTab = function(tabId) {
+            console.log('[CRM] 🔄 Cambiando a pestaña Flor:', tabId);
+            
+            // Ocultar todos los tabs
+            const tabContents = document.querySelectorAll('#flor-config-section .tab-content');
+            if (tabContents.length > 0) {
+                tabContents.forEach(tab => {
+                    tab.classList.remove('active');
+                });
+            }
+            const tabs = document.querySelectorAll('#flor-config-section .tab');
+            if (tabs.length > 0) {
+                tabs.forEach(tab => {
+                    tab.classList.remove('active');
+                });
+            }
+            
+            // Mostrar tab seleccionado
+            const tabContent = document.getElementById('flor-tab-' + tabId);
+            if (tabContent) {
+                tabContent.classList.add('active');
+            }
+            
+            // Activar botón de tab
+            const tabButton = event && event.target ? event.target : document.querySelector('.tab[onclick*="showFlorTab(\'' + tabId + '\')"]');
+            if (tabButton) {
+                tabButton.classList.add('active');
+            }
+            
+            // Cargar datos específicos de la pestaña (se cargará cuando el script principal esté listo)
+            if (tabId === 'policies' && typeof loadPoliciesHotelSelector === 'function') {
+                loadPoliciesHotelSelector();
+            }
+            if (tabId === 'knowledge' && typeof loadServicesList === 'function') {
+                loadServicesList();
+            }
+        };
+    </script>
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h2>
+                <span class="material-icons">business</span>
+                CRM Checkin24hs
+            </h2>
+        </div>
+        <div class="sidebar-menu">
+            <div class="menu-item active" onclick="showSection('dashboard', event)">
+                <span class="material-icons">dashboard</span>
+                <span>Dashboard</span>
+            </div>
+            <div class="menu-item" onclick="showSection('customers', event)">
+                <span class="material-icons">people</span>
+                <span>Clientes</span>
+            </div>
+            <div class="menu-item" onclick="showSection('reservations', event)">
+                <span class="material-icons">event</span>
+                <span>Reservas</span>
+            </div>
+            <div class="menu-item" onclick="showSection('quotes', event)">
+                <span class="material-icons">description</span>
+                <span>Cotizaciones</span>
+            </div>
+            <div class="menu-item" onclick="showSection('interactions', event)">
+                <span class="material-icons">chat</span>
+                <span>Interacciones</span>
+            </div>
+            <div class="menu-item" onclick="showSection('chats', event)">
+                <span class="material-icons">forum</span>
+                <span>Chats</span>
+            </div>
+            <div class="menu-item" onclick="showSection('agents', event)">
+                <span class="material-icons">person</span>
+                <span>Agentes</span>
+            </div>
+            <div class="menu-item" onclick="showSection('flor-config', event)">
+                <span class="material-icons">settings</span>
+                <span>Configuración Flor</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Dashboard Section -->
+        <div id="dashboard-section" class="section active">
+            <div class="page-header">
+                <h1 class="page-title">Dashboard CRM</h1>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalCustomers">0</div>
+                    <div class="stat-label">Total Clientes</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="activeReservations">0</div>
+                    <div class="stat-label">Reservas Activas</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="pendingQuotes">0</div>
+                    <div class="stat-label">Cotizaciones Pendientes</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="monthlyRevenue">$0</div>
+                    <div class="stat-label">Ingresos del Mes</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Reservas Recientes</h2>
+                </div>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Cliente</th>
+                            <th>Hotel</th>
+                            <th>Check-in</th>
+                            <th>Check-out</th>
+                            <th>Estado</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recentReservations">
+                        <tr>
+                            <td colspan="6" style="text-align: center; padding: 40px;">
+                                No hay reservas recientes
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Customers Section -->
+        <div id="customers-section" class="section" style="display: none;">
+            <div class="page-header">
+                <h1 class="page-title">Gestión de Clientes</h1>
+                <button class="btn btn-primary" onclick="openCustomerModal()">
+                    <span class="material-icons">add</span>
+                    Nuevo Cliente
+                </button>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Lista de Clientes</h2>
+                    <input type="text" class="form-input" placeholder="Buscar cliente..." 
+                           style="width: 300px;" id="customerSearch" onkeyup="filterCustomers()">
+                </div>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Nombre</th>
+                            <th>Email</th>
+                            <th>Teléfono</th>
+                            <th>Reservas</th>
+                            <th>Última Visita</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customersTable">
+                        <!-- Se llena dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Reservations Section -->
+        <div id="reservations-section" class="section" style="display: none;">
+            <div class="page-header">
+                <h1 class="page-title">Gestión de Reservas</h1>
+                <button class="btn btn-primary" onclick="openReservationModal()">
+                    <span class="material-icons">add</span>
+                    Nueva Reserva
+                </button>
+            </div>
+
+            <div class="tabs">
+                <button class="tab active" onclick="showReservationTab('all')">Todas</button>
+                <button class="tab" onclick="showReservationTab('pending')">Pendientes</button>
+                <button class="tab" onclick="showReservationTab('confirmed')">Confirmadas</button>
+                <button class="tab" onclick="showReservationTab('cancelled')">Canceladas</button>
+            </div>
+
+            <div class="card">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Cliente</th>
+                            <th>Hotel</th>
+                            <th>Check-in</th>
+                            <th>Check-out</th>
+                            <th>Huéspedes</th>
+                            <th>Total</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reservationsTable">
+                        <!-- Se llena dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Quotes Section -->
+        <div id="quotes-section" class="section" style="display: none;">
+            <div class="page-header">
+                <h1 class="page-title">Cotizaciones</h1>
+            </div>
+
+            <div class="card">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Cliente</th>
+                            <th>Hotel</th>
+                            <th>Fechas</th>
+                            <th>Huéspedes</th>
+                            <th>Total</th>
+                            <th>Estado</th>
+                            <th>Fecha</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="quotesTable">
+                        <!-- Se llena dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Interactions Section -->
+        <div id="interactions-section" class="section" style="display: none;">
+            <div class="page-header">
+                <h1 class="page-title">Interacciones con Flor</h1>
+            </div>
+
+            <div class="card">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 class="card-title">Historial de Conversaciones</h2>
+                    <button class="btn btn-primary" onclick="loadInteractions()" style="padding: 8px 16px; font-size: 0.9rem;">
+                        <span class="material-icons" style="font-size: 18px; vertical-align: middle;">refresh</span>
+                        Actualizar
+                    </button>
+                </div>
+                <div style="padding: 16px; background: #e3f2fd; border-left: 4px solid #1976d2; margin: 16px; border-radius: 4px;">
+                    <strong>ℹ️ Cómo funciona el aprendizaje de Flor:</strong>
+                    <ul style="margin: 8px 0 0 20px; color: #666;">
+                        <li>Flor guarda automáticamente cada interacción con los usuarios</li>
+                        <li>Analiza patrones en las conversaciones para mejorar sus respuestas</li>
+                        <li>Identifica palabras clave comunes y respuestas exitosas</li>
+                        <li>Actualiza su base de conocimiento automáticamente</li>
+                        <li>Puedes ver las estadísticas en la pestaña "🧠 Aprendizaje"</li>
+                    </ul>
+                </div>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Fecha</th>
+                            <th>Cliente</th>
+                            <th>Mensajes</th>
+                            <th>Resuelto por</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="interactionsTable">
+                        <!-- Se llena dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Chats Section -->
+        <div id="chats-section" class="section" style="display: none;">
+            <div class="page-header">
+                <h1 class="page-title">Chats Activos</h1>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 300px 1fr; gap: 20px; height: calc(100vh - 200px);">
+                <!-- Lista de Chats -->
+                <div class="card" style="overflow-y: auto;">
+                    <div style="padding: 16px; border-bottom: 1px solid #e0e0e0;">
+                        <h2 class="card-title" style="margin: 0; font-size: 1.2rem;">Conversaciones</h2>
+                        <button class="btn btn-primary" onclick="loadChats()" style="margin-top: 8px; padding: 6px 12px; font-size: 0.85rem;">
+                            <span class="material-icons" style="font-size: 16px; vertical-align: middle;">refresh</span>
+                            Actualizar
+                        </button>
+                    </div>
+                    <div id="chatsList" style="padding: 8px;">
+                        <!-- Se llena dinámicamente -->
+                    </div>
+                </div>
+
+                <!-- Área de Chat -->
+                <div class="card" style="display: flex; flex-direction: column;">
+                    <div id="chatHeader" style="padding: 16px; border-bottom: 1px solid #e0e0e0; background: #f5f5f5;">
+                        <h3 style="margin: 0; font-size: 1.1rem;">Selecciona un chat para ver la conversación</h3>
+                    </div>
+                    <div id="chatMessages" style="flex: 1; overflow-y: auto; padding: 16px; background: #fafafa;">
+                        <p style="text-align: center; color: #666; margin-top: 40px;">Selecciona un chat de la lista para comenzar</p>
+                    </div>
+                    <div id="chatInputContainer" style="padding: 16px; border-top: 1px solid #e0e0e0; display: none;">
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="chatMessageInput" placeholder="Escribe tu respuesta..." 
+                                   style="flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem;"
+                                   onkeypress="if(event.key === 'Enter') sendChatMessage()">
+                            <button class="btn btn-primary" onclick="sendChatMessage()" style="padding: 12px 24px;">
+                                <span class="material-icons" style="font-size: 18px; vertical-align: middle;">send</span>
+                                Enviar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Agents Section -->
+        <div id="agents-section" class="section" style="display: none;">
+            <div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h1 class="page-title">Gestión de Agentes</h1>
+                <button class="btn btn-primary" onclick="openNewAgentModal()">
+                    <span class="material-icons" style="font-size: 18px; vertical-align: middle;">add</span>
+                    Nuevo Agente
+                </button>
+            </div>
+
+            <div class="card">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 class="card-title">Lista de Agentes</h2>
+                    <input type="text" id="agentsSearchInput" placeholder="Buscar agente..." 
+                           style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; width: 300px;"
+                           onkeyup="searchAgents()" oninput="searchAgents()">
+                </div>
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Nombre</th>
+                            <th>Agencia</th>
+                            <th>Estado</th>
+                            <th>Reservas</th>
+                            <th>Fecha Creación</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="agentsTable">
+                        <!-- Se llena dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Modal para Nuevo/Editar Agente -->
+        <div id="agentModal" class="modal" style="display: none;">
+            <div class="modal-content" style="max-width: 500px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2 id="agentModalTitle">Nuevo Agente</h2>
+                    <button onclick="closeAgentModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
+                </div>
+                <form id="agentForm" onsubmit="saveAgent(event)">
+                    <input type="hidden" id="agentId">
+                    <div class="form-group">
+                        <label class="form-label">Código del Agente *</label>
+                        <input type="text" id="agentCode" class="form-input" required>
+                        <small style="color: #666;">Se generará automáticamente si se deja vacío</small>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Nombre del Agente *</label>
+                        <input type="text" id="agentName" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Agencia *</label>
+                        <input type="text" id="agentAgency" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Estado</label>
+                        <select id="agentActive" class="form-input">
+                            <option value="true">Activo</option>
+                            <option value="false">Inactivo</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                        <button type="button" class="btn btn-secondary" onclick="closeAgentModal()">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Guardar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Flor Configuration Section -->
+        <div id="flor-config-section" class="section" style="display: none;">
+            <div class="page-header">
+                <h1 class="page-title">Configuración de Flor</h1>
+            </div>
+
+            <div class="tabs">
+                <button class="tab active" onclick="showFlorTab('general')">General</button>
+                <button class="tab" onclick="showFlorTab('knowledge')">Base de Conocimiento</button>
+                <button class="tab" onclick="showFlorTab('responses')">Respuestas</button>
+                <button class="tab" onclick="showFlorTab('policies')">Políticas</button>
+                <button class="tab" onclick="showFlorTab('intents')">Palabras Clave</button>
+                <button class="tab" onclick="showFlorTab('escalation')">Escalación</button>
+                <button class="tab" onclick="showFlorTab('ai')">🤖 Inteligencia Artificial</button>
+                <button class="tab" onclick="showFlorTab('learning')">🧠 Aprendizaje</button>
+                <button class="tab" onclick="showFlorTab('analytics')">Analytics</button>
+            </div>
+
+            <!-- General Tab -->
+            <div id="flor-tab-general" class="tab-content active">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Configuración General</h2>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Nombre del Agente</label>
+                        <input type="text" class="form-input" id="flor-name" value="Flor">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Rol</label>
+                        <input type="text" class="form-input" id="flor-role" value="Asistente Virtual">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Mensaje de Bienvenida</label>
+                        <textarea class="form-textarea" id="flor-greeting" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Personalidad</label>
+                        <input type="text" class="form-input" id="flor-personality" value="Amable, eficiente y profesional">
+                    </div>
+                    <button class="btn btn-primary" onclick="saveFlorGeneral()">Guardar Configuración</button>
+                </div>
+            </div>
+
+            <!-- Knowledge Base Tab -->
+            <div id="flor-tab-knowledge" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Base de Conocimiento por Hotel</h2>
+                        <p style="color: #666; margin-top: 8px; font-size: 0.9rem;">
+                            Configure la información específica para cada hotel. Si Flor no encuentra información sobre un aspecto del hotel, derivará a un agente humano.
+                        </p>
+                    </div>
+                    <div style="margin-bottom: 24px; padding: 16px; background: #f5f5f5; border-radius: 8px;">
+                        <label class="form-label" style="font-weight: 500; margin-bottom: 8px; display: block;">
+                            🏨 Seleccionar Hotel:
+                        </label>
+                        <select id="knowledge-hotel-selector" class="form-input" style="width: 100%; max-width: 400px; padding: 10px; font-size: 1rem;" onchange="loadSelectedHotelKnowledge()">
+                            <option value="">-- Seleccione un hotel --</option>
+                        </select>
+                    </div>
+                    <div id="hotels-knowledge-list">
+                        <!-- Se llena dinámicamente con el hotel seleccionado -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Responses Tab -->
+            <div id="flor-tab-responses" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Respuestas Predefinidas</h2>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">No Entendido</label>
+                        <textarea class="form-textarea" id="response-no-entendido" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Transferir a Humano</label>
+                        <textarea class="form-textarea" id="response-transferir" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Despedida</label>
+                        <textarea class="form-textarea" id="response-despedida" rows="3"></textarea>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveFlorResponses()">Guardar Respuestas</button>
+                </div>
+            </div>
+
+            <!-- Policies Tab -->
+            <div id="flor-tab-policies" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Políticas por Hotel</h2>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 24px;">
+                        <label class="form-label" style="font-weight: bold; font-size: 1rem; margin-bottom: 8px;">
+                            🏨 Seleccionar Hotel:
+                        </label>
+                        <select class="form-input" id="policy-hotel-select" style="font-size: 1rem; padding: 10px;" onchange="loadHotelPolicies()">
+                            <option value="">-- Selecciona un hotel --</option>
+                        </select>
+                        <p style="color: #666; font-size: 0.85rem; margin-top: 8px;">
+                            Las políticas se configuran de forma independiente para cada hotel.
+                        </p>
+                    </div>
+                    
+                    <div id="hotel-policies-form" style="display: none;">
+                        <h3 style="margin-bottom: 16px; color: #1976d2;">1. Condiciones para la Reserva</h3>
+                    <div class="form-group">
+                        <label class="form-label">Condiciones para la Reserva</label>
+                        <textarea class="form-textarea" id="policy-condiciones-reserva" rows="6" 
+                                  placeholder="Ej: Se requiere un depósito del 30% para confirmar la reserva. Métodos de pago: Tarjeta de crédito, Transferencia bancaria, PayPal. Las reservas se confirman dentro de 24 horas. Check-in desde las 15:00 horas. Check-out hasta las 11:00 horas."></textarea>
+                        <p style="color: #666; font-size: 0.85rem; margin-top: 8px;">
+                            Incluye información sobre depósito, métodos de pago, plazo de confirmación, horarios de check-in/check-out, y cualquier otra condición relevante para la reserva.
+                        </p>
+                    </div>
+
+                    <h3 style="margin: 24px 0 16px 0; color: #1976d2;">2. Políticas de Cancelación o Modificación</h3>
+                    <div class="form-group">
+                        <label class="form-label">Políticas de Cancelación o Modificación</label>
+                        <textarea class="form-textarea" id="policy-cancelacion-modificacion" rows="6" 
+                                  placeholder="Ej: Cancelación gratuita hasta 72 horas antes del check-in. Penalizaciones: 50% del total si se cancela entre 48-72 horas antes, 100% si se cancela con menos de 48 horas. Las modificaciones están sujetas a disponibilidad y pueden tener costo adicional."></textarea>
+                        <p style="color: #666; font-size: 0.85rem; margin-top: 8px;">
+                            Incluye información sobre cancelación gratuita, penalizaciones, políticas de modificación, y cualquier otra condición relacionada con cancelaciones o cambios.
+                        </p>
+                    </div>
+
+                        <button class="btn btn-primary" onclick="saveFlorPolicies()">Guardar Políticas</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Intents Tab -->
+            <div id="flor-tab-intents" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Palabras Clave para Detectar Intenciones</h2>
+                    </div>
+                    <div id="intents-list">
+                        <!-- Se llena dinámicamente -->
+                    </div>
+                    <button class="btn btn-primary" onclick="saveFlorIntents()">Guardar Palabras Clave</button>
+                </div>
+            </div>
+
+            <!-- Escalation Tab -->
+            <div id="flor-tab-escalation" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Reglas de Escalación</h2>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="escalate-reservar" checked>
+                            Escalar cuando cliente quiere reservar
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="escalate-humano" checked>
+                            Escalar cuando cliente solicita humano explícitamente
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="escalate-problema" checked>
+                            Escalar cuando detecta problemas
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="escalate-no-entendido" checked>
+                            Escalar cuando no entiende completamente la consulta
+                        </label>
+                    </div>
+                    <button class="btn btn-primary" onclick="saveFlorEscalation()">Guardar Reglas</button>
+                </div>
+            </div>
+
+            <!-- AI Configuration Tab -->
+            <div id="flor-tab-ai" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">🤖 Configuración de Inteligencia Artificial</h2>
+                        <p style="color: #666; margin-top: 8px; font-size: 0.9rem;">
+                            Conecta Flor con una API de IA para respuestas más naturales e inteligentes. El sistema de reglas seguirá funcionando como respaldo automático.
+                        </p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="ai-enabled" onchange="toggleAIConfig()">
+                            <span style="font-weight: 500;">Habilitar respuestas con IA</span>
+                        </label>
+                        <p style="color: #666; font-size: 0.85rem; margin-top: 4px; margin-left: 28px;">
+                            Cuando está activado, Flor usa IA para generar respuestas más naturales. Si falla o no está disponible, usa el sistema de reglas automáticamente.
+                        </p>
+                    </div>
+
+                    <div id="ai-config-fields" style="display: none;">
+                        <h3 style="margin: 24px 0 16px 0;">Proveedor de IA</h3>
+                        <div class="form-group">
+                            <label class="form-label">Proveedor</label>
+                            <select class="form-input" id="ai-provider" onchange="changeAIProvider()">
+                                <option value="openai">OpenAI (GPT-4, GPT-3.5) - Pago</option>
+                                <option value="gemini">Google Gemini - GRATIS</option>
+                                <option value="claude">Claude (Anthropic) - Pago</option>
+                                <option value="custom">API Personalizada</option>
+                            </select>
+                        </div>
+
+                        <h3 style="margin: 24px 0 16px 0;">Configuración de API</h3>
+                        <div class="form-group">
+                            <label class="form-label">API Key</label>
+                            <input type="password" class="form-input" id="ai-api-key" placeholder="sk-... o tu API key">
+                            <p style="color: #666; font-size: 0.85rem; margin-top: 4px;">
+                                Tu API key se guarda localmente en tu navegador. Nunca se envía a servidores externos.
+                            </p>
+                        </div>
+
+                        <div class="form-group" id="ai-api-url-group" style="display: none;">
+                            <label class="form-label">URL de la API</label>
+                            <input type="text" class="form-input" id="ai-api-url" placeholder="https://api.ejemplo.com/v1/chat">
+                            <p style="color: #666; font-size: 0.85rem; margin-top: 4px;">
+                                URL completa del endpoint de tu API personalizada
+                            </p>
+                        </div>
+
+                        <h3 style="margin: 24px 0 16px 0;">Configuración Avanzada</h3>
+                        <div class="form-group">
+                            <label class="form-label">Modelo</label>
+                            <input type="text" class="form-input" id="ai-model" value="gpt-4o-mini" placeholder="gpt-4o-mini, gemini-1.5-flash, claude-3-haiku">
+                            <p style="color: #666; font-size: 0.85rem; margin-top: 4px;">
+                                <strong>OpenAI:</strong> gpt-4o-mini (recomendado), gpt-4, gpt-3.5-turbo<br>
+                                <strong>Gemini:</strong> gemini-1.5-flash (recomendado), gemini-1.5-pro, gemini-1.0-pro<br>
+                                <strong>Claude:</strong> claude-3-haiku, claude-3-sonnet
+                            </p>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Temperatura (0.0 - 2.0)</label>
+                            <input type="number" class="form-input" id="ai-temperature" value="0.7" min="0" max="2" step="0.1">
+                            <p style="color: #666; font-size: 0.85rem; margin-top: 4px;">
+                                Controla la creatividad: menor = más determinista, mayor = más creativo (recomendado: 0.7)
+                            </p>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Máximo de Tokens</label>
+                            <input type="number" class="form-input" id="ai-max-tokens" value="500" min="100" max="2000">
+                            <p style="color: #666; font-size: 0.85rem; margin-top: 4px;">
+                                Longitud máxima de la respuesta (recomendado: 500 para respuestas concisas)
+                            </p>
+                        </div>
+
+                        <div style="background: #e3f2fd; border-left: 4px solid #2196f3; padding: 16px; margin: 24px 0; border-radius: 4px;">
+                            <h4 style="margin: 0 0 8px 0; color: #1976d2;">💡 Información</h4>
+                            <p style="margin: 0; color: #555; font-size: 0.9rem;">
+                                <strong>OpenAI:</strong> Obtén tu API key en <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a><br>
+                                <strong>Claude:</strong> Obtén tu API key en <a href="https://console.anthropic.com/" target="_blank">console.anthropic.com</a><br>
+                                <strong>Costos:</strong> Las llamadas a la API tienen costo según el proveedor y modelo elegido. Revisa sus planes de precios.
+                            </p>
+                        </div>
+
+                        <button class="btn btn-primary" onclick="saveAIConfig()">Guardar Configuración de IA</button>
+                        <button class="btn btn-secondary" onclick="testAIConfig()" style="margin-left: 12px;">Probar Conexión</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Tab -->
+            <!-- Learning Tab -->
+            <div id="flor-tab-learning" class="tab-content">
+                <div class="card" style="margin-bottom: 24px;">
+                    <div class="card-header">
+                        <h2 class="card-title">🧠 Sistema de Aprendizaje Continuo</h2>
+                        <p style="color: #666; margin-top: 8px; font-size: 0.9rem;">
+                            Flor aprende automáticamente de cada interacción con los usuarios para mejorar sus respuestas.
+                        </p>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                            <input type="checkbox" id="learning-enabled" onchange="toggleLearningSystem()" checked>
+                            <span style="font-weight: 500;">Sistema de aprendizaje activo</span>
+                        </label>
+                        <p style="color: #666; font-size: 0.85rem; margin-top: 4px; margin-left: 28px;">
+                            Cuando está activado, Flor guarda y analiza todas las interacciones para mejorar continuamente.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom: 24px;">
+                    <div class="card-header">
+                        <h2 class="card-title">📊 Estadísticas de Aprendizaje</h2>
+                    </div>
+                    <div class="stats-grid" id="learning-stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="learning-total-interactions">0</div>
+                            <div class="stat-label">Total Interacciones</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="learning-success-rate">0%</div>
+                            <div class="stat-label">Tasa de Éxito</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="learning-patterns">0</div>
+                            <div class="stat-label">Patrones Identificados</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="learning-last-update">-</div>
+                            <div class="stat-label">Última Actualización</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom: 24px;">
+                    <div class="card-header">
+                        <h2 class="card-title">📈 Interacciones por Intención</h2>
+                    </div>
+                    <div id="learning-intents-chart" style="padding: 16px;">
+                        <p style="color: #666; text-align: center;">Cargando datos...</p>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom: 24px;">
+                    <div class="card-header">
+                        <h2 class="card-title">💡 Recomendaciones de Mejora</h2>
+                    </div>
+                    <div id="learning-recommendations" style="padding: 16px;">
+                        <p style="color: #666; text-align: center;">Cargando recomendaciones...</p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">🔧 Configuración Avanzada</h2>
+                    </div>
+                    <div style="padding: 16px;">
+                        <div class="form-group">
+                            <label class="form-label">Mínimo de interacciones para aprender</label>
+                            <input type="number" class="form-input" id="learning-min-interactions" value="3" min="1" max="10" onchange="updateLearningConfig()">
+                            <p style="color: #666; font-size: 0.85rem; margin-top: 4px;">
+                                Número mínimo de interacciones similares necesarias para identificar un patrón.
+                            </p>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Umbral de confianza</label>
+                            <input type="number" class="form-input" id="learning-threshold" value="0.7" min="0" max="1" step="0.1" onchange="updateLearningConfig()">
+                            <p style="color: #666; font-size: 0.85rem; margin-top: 4px;">
+                                Nivel de confianza mínimo (0-1) para aplicar aprendizaje automático.
+                            </p>
+                        </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="learning-auto-update" onchange="updateLearningConfig()" checked>
+                                <span style="font-weight: 500;">Actualizar base de conocimiento automáticamente</span>
+                            </label>
+                        </div>
+                        <button class="btn btn-primary" onclick="cleanupLearningData()" style="margin-top: 16px;">
+                            🧹 Limpiar Datos Antiguos (30+ días)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="flor-tab-analytics" class="tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Estadísticas de Flor</h2>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="flor-total-conversations">0</div>
+                            <div class="stat-label">Total Conversaciones</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="flor-resolved">0</div>
+                            <div class="stat-label">Resueltas Autónomamente</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="flor-escalated">0</div>
+                            <div class="stat-label">Escaladas a Humano</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="flor-satisfaction">0%</div>
+                            <div class="stat-label">Satisfacción</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="supabase-config.js"></script>
+    <script src="supabase-client.js"></script>
+    <script src="flor-knowledge-base.js"></script>
+    <script src="flor-ai-service.js"></script>
+    <script src="flor-learning-system.js"></script>
+    <script src="flor-agent.js"></script>
+    <script src="crm.js"></script>
+</body>
+</html>
+
