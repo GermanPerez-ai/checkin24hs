@@ -4,9 +4,8 @@ FROM nginx:alpine
 RUN rm -rf /usr/share/nginx/html/*
 RUN rm /etc/nginx/conf.d/default.conf
 
-# Copiar archivos del dashboard desde deploy/
-# Build Path es / (raíz), entonces copiar desde deploy/ relativo a la raíz
-COPY deploy/ /usr/share/nginx/html/
+# Copiar archivos del dashboard
+COPY . /usr/share/nginx/html/
 
 # Crear configuración de nginx
 RUN printf 'server {\n\
