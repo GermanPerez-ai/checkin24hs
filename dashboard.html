@@ -354,6 +354,37 @@
         .table-container table tbody td {
             display: table-cell;
             visibility: visible;
+            color: #333;
+            background-color: white;
+        }
+        
+        /* Forzar visibilidad de la tabla completa */
+        #expenses-section .table-container {
+            position: relative;
+            z-index: 1;
+            opacity: 1 !important;
+            background-color: white;
+        }
+        
+        #expenses-section .table-container table {
+            opacity: 1 !important;
+            background-color: white !important;
+        }
+        
+        #expenses-section .table-container table tbody {
+            opacity: 1 !important;
+            background-color: white !important;
+        }
+        
+        #expenses-section .table-container table tbody tr {
+            opacity: 1 !important;
+            background-color: white !important;
+        }
+        
+        #expenses-section .table-container table tbody td {
+            opacity: 1 !important;
+            background-color: white !important;
+            color: #333 !important;
         }
 
         .activity-card, .chart-card {
@@ -18216,8 +18247,27 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             if (expensesSection) {
                 console.log('📐 Estilos de expenses-section:', {
                     display: window.getComputedStyle(expensesSection).display,
-                    visibility: window.getComputedStyle(expensesSection).visibility
+                    visibility: window.getComputedStyle(expensesSection).visibility,
+                    height: window.getComputedStyle(expensesSection).height,
+                    overflow: window.getComputedStyle(expensesSection).overflow,
+                    position: window.getComputedStyle(expensesSection).position,
+                    zIndex: window.getComputedStyle(expensesSection).zIndex
                 });
+                
+                // Verificar si hay elementos que puedan estar bloqueando
+                const allChildren = expensesSection.querySelectorAll('*');
+                console.log(`🔍 Total de elementos hijos en expenses-section: ${allChildren.length}`);
+                
+                // Verificar el contenedor principal
+                const mainContent = document.querySelector('.main-content');
+                if (mainContent) {
+                    console.log('📐 Estilos de main-content:', {
+                        display: window.getComputedStyle(mainContent).display,
+                        visibility: window.getComputedStyle(mainContent).visibility,
+                        height: window.getComputedStyle(mainContent).height,
+                        overflow: window.getComputedStyle(mainContent).overflow
+                    });
+                }
             }
         }
 
