@@ -18265,39 +18265,59 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         // Abrir modal para agregar gasto - NUEVO
         function addNewExpenseNew() {
             console.log('🚀 addNewExpenseNew() llamado');
-            const modal = document.getElementById('expenseModalNew');
-            if (!modal) {
-                console.error('❌ Modal expenseModalNew no encontrado');
-                alert('❌ Error: Modal no encontrado. Verifica que el código se haya actualizado.');
-                return;
+            try {
+                const modal = document.getElementById('expenseModalNew');
+                if (!modal) {
+                    console.error('❌ Modal expenseModalNew no encontrado');
+                    alert('❌ Error: Modal no encontrado. Verifica que el código se haya actualizado.');
+                    return;
+                }
+                console.log('✅ Modal encontrado:', modal);
+                
+                const titleEl = document.getElementById('expenseModalNewTitle');
+                const formEl = document.getElementById('expenseFormNew');
+                const idEl = document.getElementById('expenseIdNew');
+                
+                if (!titleEl || !formEl || !idEl) {
+                    console.error('❌ Elementos del formulario no encontrados');
+                    alert('❌ Error: Elementos del formulario no encontrados');
+                    return;
+                }
+                
+                titleEl.textContent = 'Agregar Gasto';
+                formEl.reset();
+                idEl.value = '';
+                
+                // Usar fecha de Argentina
+                const now = new Date();
+                const argentinaDate = new Date(now.toLocaleString('en-US', {timeZone: 'America/Argentina/Buenos_Aires'}));
+                const dateStr = argentinaDate.toISOString().split('T')[0];
+                const dateEl = document.getElementById('expenseDateNew');
+                if (dateEl) dateEl.value = dateStr;
+                
+                // Limpiar imagen
+                if (typeof removeExpenseImageNew === 'function') {
+                    removeExpenseImageNew();
+                }
+                
+                // Actualizar categorías
+                if (typeof updateExpenseCategoriesNew === 'function') {
+                    updateExpenseCategoriesNew();
+                }
+                
+                // Mostrar modal con múltiples métodos
+                modal.style.cssText = 'display: flex !important; visibility: visible !important; opacity: 1 !important; z-index: 10000 !important;';
+                
+                console.log('✅ Modal mostrado, display:', modal.style.display);
+                console.log('✅ Modal computed style:', window.getComputedStyle(modal).display);
+            } catch (error) {
+                console.error('❌ Error en addNewExpenseNew:', error);
+                alert('❌ Error al abrir el modal: ' + error.message);
             }
-            console.log('✅ Modal encontrado:', modal);
-            
-            document.getElementById('expenseModalNewTitle').textContent = 'Agregar Gasto';
-            document.getElementById('expenseFormNew').reset();
-            document.getElementById('expenseIdNew').value = '';
-            
-            // Usar fecha de Argentina
-            const now = new Date();
-            const argentinaDate = new Date(now.toLocaleString('en-US', {timeZone: 'America/Argentina/Buenos_Aires'}));
-            const dateStr = argentinaDate.toISOString().split('T')[0];
-            document.getElementById('expenseDateNew').value = dateStr;
-            
-            // Limpiar imagen
-            removeExpenseImageNew();
-            
-            // Actualizar categorías
-            updateExpenseCategoriesNew();
-            
-            // Mostrar modal con múltiples métodos
-            modal.style.display = 'flex';
-            modal.style.visibility = 'visible';
-            modal.style.opacity = '1';
-            modal.style.zIndex = '10000';
-            
-            console.log('✅ Modal mostrado, display:', modal.style.display);
-            console.log('✅ Modal computed style:', window.getComputedStyle(modal).display);
         }
+        
+        // Hacer función global
+        window.addNewExpenseNew = addNewExpenseNew;
         
         // Abrir modal para editar gasto - NUEVO
         async function editExpenseNew(expenseId) {
@@ -18530,33 +18550,56 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         // Abrir modal de cotización - NUEVO
         function openQuoteModalNew() {
             console.log('🚀 openQuoteModalNew() llamado');
-            const modal = document.getElementById('quoteModalNew');
-            if (!modal) {
-                console.error('❌ Modal quoteModalNew no encontrado');
-                alert('❌ Error: Modal no encontrado. Verifica que el código se haya actualizado.');
-                return;
+            try {
+                const modal = document.getElementById('quoteModalNew');
+                if (!modal) {
+                    console.error('❌ Modal quoteModalNew no encontrado');
+                    alert('❌ Error: Modal no encontrado. Verifica que el código se haya actualizado.');
+                    return;
+                }
+                console.log('✅ Modal encontrado:', modal);
+                
+                if (typeof loadHotelsForQuoteNew === 'function') {
+                    loadHotelsForQuoteNew();
+                }
+                
+                const formEl = document.getElementById('quoteFormNew');
+                if (formEl) formEl.reset();
+                
+                const adultsEl = document.getElementById('quoteAdultsNew');
+                if (adultsEl) adultsEl.value = '1';
+                
+                const childrenEl = document.getElementById('quoteChildrenNew');
+                if (childrenEl) childrenEl.value = '0';
+                
+                const infantsEl = document.getElementById('quoteInfantsNew');
+                if (infantsEl) infantsEl.value = '0';
+                
+                const discountEl = document.getElementById('quoteDiscountNew');
+                if (discountEl) discountEl.value = '0';
+                
+                const finalTariffEl = document.getElementById('quoteFinalTariffNew');
+                if (finalTariffEl) finalTariffEl.value = '0.00';
+                
+                const nightsDisplayEl = document.getElementById('nightsDisplayNew');
+                if (nightsDisplayEl) nightsDisplayEl.style.display = 'none';
+                
+                const childrenAgesEl = document.getElementById('childrenAgesContainerNew');
+                if (childrenAgesEl) childrenAgesEl.style.display = 'none';
+                
+                // Mostrar modal con múltiples métodos
+                modal.style.cssText = 'display: flex !important; visibility: visible !important; opacity: 1 !important; z-index: 10000 !important;';
+                
+                console.log('✅ Modal mostrado, display:', modal.style.display);
+                console.log('✅ Modal computed style:', window.getComputedStyle(modal).display);
+            } catch (error) {
+                console.error('❌ Error en openQuoteModalNew:', error);
+                alert('❌ Error al abrir el modal: ' + error.message);
             }
-            console.log('✅ Modal encontrado:', modal);
-            
-            loadHotelsForQuoteNew();
-            document.getElementById('quoteFormNew').reset();
-            document.getElementById('quoteAdultsNew').value = '1';
-            document.getElementById('quoteChildrenNew').value = '0';
-            document.getElementById('quoteInfantsNew').value = '0';
-            document.getElementById('quoteDiscountNew').value = '0';
-            document.getElementById('quoteFinalTariffNew').value = '0.00';
-            document.getElementById('nightsDisplayNew').style.display = 'none';
-            document.getElementById('childrenAgesContainerNew').style.display = 'none';
-            
-            // Mostrar modal con múltiples métodos
-            modal.style.display = 'flex';
-            modal.style.visibility = 'visible';
-            modal.style.opacity = '1';
-            modal.style.zIndex = '10000';
-            
-            console.log('✅ Modal mostrado, display:', modal.style.display);
-            console.log('✅ Modal computed style:', window.getComputedStyle(modal).display);
         }
+        
+        // Hacer función global
+        window.openQuoteModalNew = openQuoteModalNew;
         
         // Cerrar modal de cotización - NUEVO
         function closeQuoteModalNew() {
