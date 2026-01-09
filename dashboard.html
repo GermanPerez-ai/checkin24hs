@@ -18295,22 +18295,24 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         tableContainer.style.position = 'relative';
                         tableContainer.style.overflow = 'visible';
                         
-                        const tableEl = tableContainer.querySelector('table');
-                        if (tableEl) {
-                            tableEl.style.display = 'table';
-                            tableEl.style.visibility = 'visible';
-                            tableEl.style.opacity = '1';
-                            tableEl.style.backgroundColor = 'white';
-                            tableEl.style.width = '100%';
-                            tableEl.style.minWidth = '100%';
-                            tableEl.style.height = 'auto';
-                            tableEl.style.minHeight = '200px';
-                            tableEl.style.tableLayout = 'auto';
-                            tableEl.style.borderCollapse = 'collapse';
-                            
-                    const tbody = tableEl.querySelector('tbody');
-                    let rows = null; // Definir rows en scope más amplio
-                    if (tbody) {
+                const tableEl = tableContainer.querySelector('table');
+                let rows = null; // Definir rows en scope más amplio ANTES del if
+                let savedTbody = null;
+                
+                if (tableEl) {
+                    tableEl.style.display = 'table';
+                    tableEl.style.visibility = 'visible';
+                    tableEl.style.opacity = '1';
+                    tableEl.style.backgroundColor = 'white';
+                    tableEl.style.width = '100%';
+                    tableEl.style.minWidth = '100%';
+                    tableEl.style.height = 'auto';
+                    tableEl.style.minHeight = '200px';
+                    tableEl.style.tableLayout = 'auto';
+                    tableEl.style.borderCollapse = 'collapse';
+                    
+                    savedTbody = tableEl.querySelector('tbody');
+                    if (savedTbody) {
                         tbody.style.display = 'table-row-group';
                         tbody.style.visibility = 'visible';
                         tbody.style.opacity = '1';
@@ -18353,8 +18355,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 
                 // Guardar referencias para usar en requestAnimationFrame
                 const savedTableEl = tableEl;
-                const savedTbody = tableEl ? tableEl.querySelector('tbody') : null;
-                const savedRows = rows;
+                const savedRows = rows; // rows ya está definido en scope más amplio
                 
                 // Esperar un frame más para que el navegador procese los cambios
                 requestAnimationFrame(() => {
