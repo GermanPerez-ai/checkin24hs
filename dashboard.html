@@ -3832,7 +3832,7 @@
                 <!-- Controles de Cotizaciones -->
                 <div class="action-bar">
                     <div class="action-buttons">
-                        <button class="action-btn primary" onclick="showNewQuoteModal()" style="background: #28a745;">
+                        <button class="action-btn primary" onclick="openQuoteModalNew()" style="background: #28a745;">
                             <span class="material-icons">add</span>
                             Nueva Cotización
                         </button>
@@ -3983,7 +3983,7 @@
                 <!-- Controles de Gastos -->
                 <div class="action-bar" style="margin-bottom: 24px;">
                     <div class="action-buttons" style="flex-wrap: wrap;">
-                        <button class="action-btn primary" onclick="addNewExpense()">
+                        <button class="action-btn primary" onclick="addNewExpenseNew()">
                             <span class="material-icons">add</span>
                             Agregar Gasto
                         </button>
@@ -4507,7 +4507,9 @@ Ej:
         </div>
     </div>
 
-    <!-- Modal de Agregar/Editar Gasto -->
+    <!-- ============================================
+         MODAL ANTIGUO DE GASTOS - ELIMINADO (usar expenseModalNew)
+         ============================================
     <div id="expenseModal" class="modal" style="display: none;">
         <div class="modal-content" style="max-width: 600px;">
             <span class="close" onclick="closeExpenseModal()">&times;</span>
@@ -4596,6 +4598,106 @@ Ej:
             <div style="display: flex; gap: 12px; justify-content: center; margin-top: 16px;">
                 <button type="button" class="form-button secondary" onclick="closeCameraModal()">Cancelar</button>
                 <button type="button" class="form-button" onclick="capturePhoto()" style="background: #4caf50;">
+                    <span class="material-icons" style="vertical-align: middle; margin-right: 4px;">camera</span>
+                    Capturar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================
+         NUEVO MODAL DE GASTOS - VERSIÓN SIMPLIFICADA
+         ============================================ -->
+    <div id="expenseModalNew" class="modal" style="display: none; z-index: 10000;">
+        <div class="modal-content" style="max-width: 650px; position: relative; background: white; border-radius: 12px; padding: 24px;">
+            <span class="close" onclick="closeExpenseModalNew()" style="position: absolute; top: 16px; right: 16px; font-size: 28px; font-weight: bold; cursor: pointer; color: #666;">&times;</span>
+            <h2 class="modal-title" id="expenseModalNewTitle" style="margin-top: 0; margin-bottom: 24px; color: #1976d2;">Agregar Gasto</h2>
+            <form id="expenseFormNew" onsubmit="saveExpenseNew(event)">
+                <div class="form-group">
+                    <label class="form-label">Fecha *</label>
+                    <input type="date" id="expenseDateNew" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tipo de Gasto *</label>
+                    <select id="expenseTypeNew" class="form-input" required onchange="updateExpenseCategoriesNew()">
+                        <option value="">Seleccionar tipo</option>
+                        <option value="fixed">Fijo</option>
+                        <option value="variable">Variable</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Categoría *</label>
+                    <select id="expenseCategoryNew" class="form-input" required>
+                        <option value="">Seleccionar categoría</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Subcategoría</label>
+                    <input type="text" id="expenseSubcategoryNew" class="form-input" placeholder="Ej: Meta Ads, Google Ads, etc.">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Descripción *</label>
+                    <textarea id="expenseDescriptionNew" class="form-input" rows="3" required placeholder="Descripción detallada del gasto"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Monto (ARS) *</label>
+                    <input type="number" id="expenseAmountNew" class="form-input" step="0.01" min="0" required placeholder="0.00" oninput="calculateUSDNew()">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Tipo de Cambio *</label>
+                    <input type="number" id="expenseExchangeRateNew" class="form-input" step="0.01" min="0" required placeholder="0.00" oninput="calculateUSDNew()">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">USD (calculado automáticamente)</label>
+                    <input type="number" id="expenseUSDNew" class="form-input" step="0.01" min="0" placeholder="0.00" readonly style="background-color: #f5f5f5;">
+                </div>
+                
+                <!-- Campo de Imagen/Comprobante -->
+                <div class="form-group">
+                    <label class="form-label">📷 Comprobante (opcional)</label>
+                    <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+                        <button type="button" class="form-button secondary" onclick="document.getElementById('expenseImageFileNew').click()" style="flex: 1;">
+                            <span class="material-icons" style="vertical-align: middle; margin-right: 4px;">upload_file</span>
+                            Subir Archivo
+                        </button>
+                        <button type="button" class="form-button secondary" onclick="openCameraCaptureNew()" style="flex: 1;">
+                            <span class="material-icons" style="vertical-align: middle; margin-right: 4px;">photo_camera</span>
+                            Tomar Foto
+                        </button>
+                    </div>
+                    <input type="file" id="expenseImageFileNew" accept="image/*" style="display: none;" onchange="previewExpenseImageNew(this)">
+                    <div id="expenseImagePreviewNew" style="display: none; margin-top: 12px; position: relative;">
+                        <img id="expenseImagePreviewImgNew" src="" alt="Preview" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 2px solid #ddd;">
+                        <button type="button" onclick="removeExpenseImageNew()" style="position: absolute; top: -8px; right: -8px; background: #f44336; color: white; border: none; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                            <span class="material-icons" style="font-size: 18px;">close</span>
+                        </button>
+                    </div>
+                    <input type="hidden" id="expenseImageUrlNew">
+                    <input type="hidden" id="expenseImageNameNew">
+                </div>
+                
+                <input type="hidden" id="expenseIdNew">
+                
+                <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+                    <button type="button" class="form-button secondary" onclick="closeExpenseModalNew()">Cancelar</button>
+                    <button type="submit" class="form-button">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Modal de Captura de Cámara - NUEVO -->
+    <div id="cameraModalNew" class="modal" style="display: none; z-index: 10001;">
+        <div class="modal-content" style="max-width: 500px; position: relative; background: white; border-radius: 12px; padding: 24px;">
+            <span class="close" onclick="closeCameraModalNew()" style="position: absolute; top: 16px; right: 16px; font-size: 28px; font-weight: bold; cursor: pointer; color: #666;">&times;</span>
+            <h2 class="modal-title" style="margin-top: 0; margin-bottom: 16px;">📷 Capturar Comprobante</h2>
+            <div style="text-align: center;">
+                <video id="cameraVideoNew" autoplay playsinline style="width: 100%; max-height: 300px; border-radius: 8px; background: #000;"></video>
+                <canvas id="cameraCanvasNew" style="display: none;"></canvas>
+            </div>
+            <div style="display: flex; gap: 12px; justify-content: center; margin-top: 16px;">
+                <button type="button" class="form-button secondary" onclick="closeCameraModalNew()">Cancelar</button>
+                <button type="button" class="form-button" onclick="capturePhotoNew()" style="background: #4caf50;">
                     <span class="material-icons" style="vertical-align: middle; margin-right: 4px;">camera</span>
                     Capturar
                 </button>
@@ -4701,7 +4803,127 @@ Ej:
                     </p>
                 </div>
                 
-                <div style="display: flex; gap: 12px; justify-content: space-between; margin-top: 24px; align-items: center;">
+                <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+                    <button type="button" class="form-button secondary" onclick="closeNewQuoteModal()">Cancelar</button>
+                    <button type="submit" class="form-button">Crear y Enviar Cotización</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============================================
+         NUEVO MODAL DE COTIZACIONES - VERSIÓN SIMPLIFICADA
+         ============================================ -->
+    <div id="quoteModalNew" class="modal" style="display: none; z-index: 10000;">
+        <div class="modal-content" style="max-width: 750px; max-height: 90vh; overflow-y: auto; position: relative; background: white; border-radius: 12px; padding: 24px;">
+            <span class="close" onclick="closeQuoteModalNew()" style="position: absolute; top: 16px; right: 16px; font-size: 28px; font-weight: bold; cursor: pointer; color: #666;">&times;</span>
+            <h2 class="modal-title" style="margin-top: 0; margin-bottom: 24px; color: #1976d2;">📋 Nueva Cotización</h2>
+            <form id="quoteFormNew" onsubmit="createAndSendQuoteNew(event)">
+                <div class="form-group">
+                    <label class="form-label">Hotel *</label>
+                    <select id="quoteHotelNew" class="form-input" required>
+                        <option value="">Seleccionar hotel</option>
+                    </select>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="form-group">
+                        <label class="form-label">Check-in *</label>
+                        <input type="date" id="quoteCheckInNew" class="form-input" required onchange="calculateNightsNew()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Check-out *</label>
+                        <input type="date" id="quoteCheckOutNew" class="form-input" required onchange="calculateNightsNew()">
+                    </div>
+                </div>
+                
+                <div id="nightsDisplayNew" style="padding: 10px; background: #e3f2fd; border-radius: 5px; margin-bottom: 15px; display: none;">
+                    <strong>Noches: <span id="nightsCountNew">0</span></strong>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+                    <div class="form-group">
+                        <label class="form-label">Adultos *</label>
+                        <input type="number" id="quoteAdultsNew" class="form-input" min="1" value="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Niños</label>
+                        <input type="number" id="quoteChildrenNew" class="form-input" min="0" value="0" onchange="toggleChildrenAgesNew()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Infantes</label>
+                        <input type="number" id="quoteInfantsNew" class="form-input" min="0" value="0">
+                    </div>
+                </div>
+                
+                <div id="childrenAgesContainerNew" style="display: none; margin-bottom: 15px;">
+                    <label class="form-label">Edades de los niños</label>
+                    <div id="childrenAgesInputsNew"></div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Módulo *</label>
+                    <select id="quoteModuleNew" class="form-input" required>
+                        <option value="">Seleccionar módulo</option>
+                        <option value="Nothofagus">Nothofagus</option>
+                        <option value="Reino Fungi">Reino Fungi</option>
+                        <option value="Montaña Magica">Montaña Magica</option>
+                    </select>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div class="form-group">
+                        <label class="form-label">Tarifa *</label>
+                        <input type="number" id="quoteTariffNew" class="form-input" min="0" step="0.01" required placeholder="0.00" oninput="calculateFinalTariffNew()">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Descuento</label>
+                        <input type="number" id="quoteDiscountNew" class="form-input" min="0" step="0.01" value="0" placeholder="0.00" oninput="calculateFinalTariffNew()">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Tarifa Final</label>
+                    <input type="number" id="quoteFinalTariffNew" class="form-input" step="0.01" readonly style="background: #e3f2fd; font-weight: bold; font-size: 1.1rem;" value="0.00">
+                    <small style="color: #666; margin-top: 5px; display: block;">
+                        Se calcula automáticamente: Tarifa - Descuento
+                    </small>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Notas adicionales (opcional)</label>
+                    <textarea id="quoteNotesNew" class="form-input" rows="3" placeholder="Agregar notas o comentarios adicionales para la cotización"></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Número de WhatsApp del destinatario *</label>
+                    <input type="tel" id="quotePhoneNumberNew" class="form-input" required 
+                           placeholder="Ej: +56912345678 o 56912345678" 
+                           pattern="[+]?[0-9]{10,15}">
+                    <small style="color: #666; margin-top: 5px; display: block;">
+                        Ingresa el número de teléfono con código de país (ej: +56912345678). El mensaje se enviará directamente por WhatsApp Business API.
+                    </small>
+                </div>
+                
+                <div style="padding: 15px; background: #e3f2fd; border-radius: 8px; margin-bottom: 15px;">
+                    <p style="margin: 0; color: #1976d2; font-size: 0.9rem;">
+                        <strong>📱 Envío directo por WhatsApp:</strong> La cotización se enviará automáticamente al número ingresado usando WhatsApp Business API. Asegúrate de tener configuradas las credenciales de WhatsApp Business.
+                    </p>
+                </div>
+                
+                <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+                    <button type="button" class="form-button secondary" onclick="closeQuoteModalNew()">Cancelar</button>
+                    <button type="submit" class="form-button">Crear y Enviar Cotización</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============================================
+         FIN DE NUEVOS MODALES
+         ============================================ -->
+
+    <div style="display: flex; gap: 12px; justify-content: space-between; margin-top: 24px; align-items: center;">
                     <!-- Botón Configurar WhatsApp - ELIMINADO -->
                     <div style="display: flex; gap: 12px;">
                         <button type="button" class="form-button secondary" onclick="closeNewQuoteModal()">Cancelar</button>
@@ -18011,6 +18233,477 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             document.getElementById('cameraModal').style.display = 'none';
         }
         
+        // ============================================
+        // FUNCIONES PARA NUEVO MODAL DE GASTOS
+        // ============================================
+        
+        let cameraStreamNew = null;
+        let pendingImageFileNew = null;
+        
+        // Abrir modal para agregar gasto - NUEVO
+        function addNewExpenseNew() {
+            document.getElementById('expenseModalNewTitle').textContent = 'Agregar Gasto';
+            document.getElementById('expenseFormNew').reset();
+            document.getElementById('expenseIdNew').value = '';
+            
+            // Usar fecha de Argentina
+            const now = new Date();
+            const argentinaDate = new Date(now.toLocaleString('en-US', {timeZone: 'America/Argentina/Buenos_Aires'}));
+            const dateStr = argentinaDate.toISOString().split('T')[0];
+            document.getElementById('expenseDateNew').value = dateStr;
+            
+            // Limpiar imagen
+            removeExpenseImageNew();
+            
+            // Actualizar categorías
+            updateExpenseCategoriesNew();
+            
+            document.getElementById('expenseModalNew').style.display = 'flex';
+        }
+        
+        // Abrir modal para editar gasto - NUEVO
+        async function editExpenseNew(expenseId) {
+            let expenses = [];
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    expenses = await window.supabaseClient.getExpenses();
+                } catch (error) {
+                    expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+                }
+            } else {
+                expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+            }
+            
+            const expense = expenses.find(e => e.id === expenseId);
+            if (!expense) {
+                alert('❌ Gasto no encontrado');
+                return;
+            }
+            
+            document.getElementById('expenseModalNewTitle').textContent = 'Editar Gasto';
+            document.getElementById('expenseIdNew').value = expenseId;
+            document.getElementById('expenseDateNew').value = expense.date;
+            document.getElementById('expenseTypeNew').value = expense.type;
+            updateExpenseCategoriesNew();
+            setTimeout(() => {
+                document.getElementById('expenseCategoryNew').value = expense.category;
+            }, 100);
+            document.getElementById('expenseSubcategoryNew').value = expense.subcategory || '';
+            document.getElementById('expenseDescriptionNew').value = expense.description || '';
+            document.getElementById('expenseAmountNew').value = expense.amount || '';
+            document.getElementById('expenseExchangeRateNew').value = expense.exchange_rate || expense.exchangeRate || '';
+            calculateUSDNew();
+            
+            // Cargar imagen si existe
+            if (expense.image_url || expense.imageUrl) {
+                document.getElementById('expenseImageUrlNew').value = expense.image_url || expense.imageUrl;
+                document.getElementById('expenseImagePreviewImgNew').src = expense.image_url || expense.imageUrl;
+                document.getElementById('expenseImagePreviewNew').style.display = 'block';
+            } else {
+                removeExpenseImageNew();
+            }
+            
+            document.getElementById('expenseModalNew').style.display = 'flex';
+        }
+        
+        // Cerrar modal de gasto - NUEVO
+        function closeExpenseModalNew() {
+            document.getElementById('expenseModalNew').style.display = 'none';
+            document.getElementById('expenseFormNew').reset();
+            document.getElementById('expenseIdNew').value = '';
+            removeExpenseImageNew();
+        }
+        
+        // Actualizar categorías - NUEVO
+        function updateExpenseCategoriesNew() {
+            const categorySelect = document.getElementById('expenseCategoryNew');
+            categorySelect.innerHTML = '<option value="">Seleccionar categoría</option>';
+            
+            Object.keys(expenseCategories).forEach(key => {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = expenseCategories[key];
+                categorySelect.appendChild(option);
+            });
+        }
+        
+        // Calcular USD - NUEVO
+        function calculateUSDNew() {
+            const amount = parseFloat(document.getElementById('expenseAmountNew').value) || 0;
+            const exchangeRate = parseFloat(document.getElementById('expenseExchangeRateNew').value) || 0;
+            const usdField = document.getElementById('expenseUSDNew');
+            
+            if (exchangeRate > 0) {
+                const usd = amount / exchangeRate;
+                usdField.value = usd.toFixed(2);
+            } else {
+                usdField.value = '0.00';
+            }
+        }
+        
+        // Preview de imagen - NUEVO
+        function previewExpenseImageNew(input) {
+            const file = input.files[0];
+            if (file) {
+                pendingImageFileNew = file;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('expenseImagePreviewImgNew').src = e.target.result;
+                    document.getElementById('expenseImagePreviewNew').style.display = 'block';
+                    document.getElementById('expenseImageNameNew').value = file.name;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+        
+        // Eliminar imagen - NUEVO
+        function removeExpenseImageNew() {
+            document.getElementById('expenseImagePreviewNew').style.display = 'none';
+            document.getElementById('expenseImagePreviewImgNew').src = '';
+            document.getElementById('expenseImageFileNew').value = '';
+            document.getElementById('expenseImageUrlNew').value = '';
+            document.getElementById('expenseImageNameNew').value = '';
+            pendingImageFileNew = null;
+        }
+        
+        // Abrir cámara - NUEVO
+        async function openCameraCaptureNew() {
+            try {
+                cameraStreamNew = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' } 
+                });
+                document.getElementById('cameraVideoNew').srcObject = cameraStreamNew;
+                document.getElementById('cameraModalNew').style.display = 'flex';
+            } catch (error) {
+                console.error('Error accediendo a la cámara:', error);
+                alert('❌ No se pudo acceder a la cámara. Verifica los permisos.');
+            }
+        }
+        
+        // Cerrar cámara - NUEVO
+        function closeCameraModalNew() {
+            if (cameraStreamNew) {
+                cameraStreamNew.getTracks().forEach(track => track.stop());
+                cameraStreamNew = null;
+            }
+            document.getElementById('cameraModalNew').style.display = 'none';
+        }
+        
+        // Capturar foto - NUEVO
+        function capturePhotoNew() {
+            const video = document.getElementById('cameraVideoNew');
+            const canvas = document.getElementById('cameraCanvasNew');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            ctx.drawImage(video, 0, 0);
+            
+            canvas.toBlob(function(blob) {
+                const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' });
+                pendingImageFileNew = file;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('expenseImagePreviewImgNew').src = e.target.result;
+                    document.getElementById('expenseImagePreviewNew').style.display = 'block';
+                    document.getElementById('expenseImageNameNew').value = 'camera-capture.jpg';
+                };
+                reader.readAsDataURL(file);
+                closeCameraModalNew();
+            }, 'image/jpeg', 0.9);
+        }
+        
+        // Guardar gasto - NUEVO
+        async function saveExpenseNew(event) {
+            event.preventDefault();
+            try {
+                const expenseId = document.getElementById('expenseIdNew').value;
+                const expenseData = {
+                    date: document.getElementById('expenseDateNew').value,
+                    type: document.getElementById('expenseTypeNew').value,
+                    category: document.getElementById('expenseCategoryNew').value,
+                    subcategory: document.getElementById('expenseSubcategoryNew').value,
+                    description: document.getElementById('expenseDescriptionNew').value,
+                    amount: parseFloat(document.getElementById('expenseAmountNew').value),
+                    exchange_rate: parseFloat(document.getElementById('expenseExchangeRateNew').value),
+                    usd_amount: parseFloat(document.getElementById('expenseUSDNew').value)
+                };
+                
+                // Subir imagen si hay una
+                if (pendingImageFileNew) {
+                    if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                        try {
+                            const imageUrl = await window.supabaseClient.uploadFile(pendingImageFileNew, `expenses/${expenseId || Date.now()}`);
+                            expenseData.image_url = imageUrl;
+                            expenseData.imageUrl = imageUrl;
+                        } catch (error) {
+                            console.error('Error subiendo imagen:', error);
+                        }
+                    }
+                } else if (document.getElementById('expenseImageUrlNew').value) {
+                    expenseData.image_url = document.getElementById('expenseImageUrlNew').value;
+                    expenseData.imageUrl = document.getElementById('expenseImageUrlNew').value;
+                }
+                
+                // Guardar en Supabase
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    if (expenseId) {
+                        await window.supabaseClient.updateExpense(expenseId, expenseData);
+                    } else {
+                        await window.supabaseClient.createExpense(expenseData);
+                    }
+                    alert('✅ Gasto guardado correctamente');
+                } else {
+                    // Fallback a localStorage
+                    let expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+                    const expense = {
+                        id: expenseId || Date.now().toString(),
+                        ...expenseData,
+                        exchangeRate: expenseData.exchange_rate,
+                        usd: expenseData.usd_amount,
+                        createdAt: expenseId ? expenses.find(e => e.id === expenseId)?.createdAt : new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
+                    };
+                    
+                    if (expenseId) {
+                        const index = expenses.findIndex(e => e.id === expenseId);
+                        if (index !== -1) {
+                            expenses[index] = expense;
+                        }
+                    } else {
+                        expenses.push(expense);
+                    }
+                    localStorage.setItem('expensesDB', JSON.stringify(expenses));
+                    alert('✅ Gasto guardado correctamente (guardado localmente)');
+                }
+                
+                closeExpenseModalNew();
+                loadExpensesData();
+            } catch (error) {
+                console.error('❌ Error guardando gasto:', error);
+                alert('❌ Error al guardar el gasto');
+            }
+        }
+        
+        // ============================================
+        // FUNCIONES PARA NUEVO MODAL DE COTIZACIONES
+        // ============================================
+        
+        // Abrir modal de cotización - NUEVO
+        function openQuoteModalNew() {
+            loadHotelsForQuoteNew();
+            document.getElementById('quoteFormNew').reset();
+            document.getElementById('quoteAdultsNew').value = '1';
+            document.getElementById('quoteChildrenNew').value = '0';
+            document.getElementById('quoteInfantsNew').value = '0';
+            document.getElementById('quoteDiscountNew').value = '0';
+            document.getElementById('quoteFinalTariffNew').value = '0.00';
+            document.getElementById('nightsDisplayNew').style.display = 'none';
+            document.getElementById('childrenAgesContainerNew').style.display = 'none';
+            document.getElementById('quoteModalNew').style.display = 'flex';
+        }
+        
+        // Cerrar modal de cotización - NUEVO
+        function closeQuoteModalNew() {
+            document.getElementById('quoteModalNew').style.display = 'none';
+            document.getElementById('quoteFormNew').reset();
+        }
+        
+        // Cargar hoteles - NUEVO
+        async function loadHotelsForQuoteNew() {
+            let hotels = [];
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    hotels = await window.supabaseClient.getHotels();
+                } catch (error) {
+                    hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                }
+            } else {
+                hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            }
+            
+            const select = document.getElementById('quoteHotelNew');
+            if (!select) return;
+            
+            select.innerHTML = '<option value="">Seleccionar hotel</option>';
+            
+            if (hotels.length === 0) {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = 'No hay hoteles disponibles';
+                select.appendChild(option);
+                return;
+            }
+            
+            hotels.forEach(hotel => {
+                const option = document.createElement('option');
+                option.value = hotel.id || hotel.name;
+                option.textContent = hotel.name || 'Hotel sin nombre';
+                select.appendChild(option);
+            });
+        }
+        
+        // Calcular noches - NUEVO
+        function calculateNightsNew() {
+            const checkIn = document.getElementById('quoteCheckInNew').value;
+            const checkOut = document.getElementById('quoteCheckOutNew').value;
+            const display = document.getElementById('nightsDisplayNew');
+            const count = document.getElementById('nightsCountNew');
+            
+            if (!checkIn || !checkOut) {
+                display.style.display = 'none';
+                return;
+            }
+            
+            const checkInDate = new Date(checkIn);
+            const checkOutDate = new Date(checkOut);
+            
+            if (checkOutDate <= checkInDate) {
+                display.style.display = 'none';
+                alert('⚠️ La fecha de check-out debe ser posterior al check-in');
+                return;
+            }
+            
+            const diffTime = Math.abs(checkOutDate - checkInDate);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            count.textContent = diffDays;
+            display.style.display = 'block';
+        }
+        
+        // Calcular tarifa final - NUEVO
+        function calculateFinalTariffNew() {
+            const tariff = parseFloat(document.getElementById('quoteTariffNew').value) || 0;
+            const discount = parseFloat(document.getElementById('quoteDiscountNew').value) || 0;
+            const finalTariff = Math.max(0, tariff - discount);
+            
+            document.getElementById('quoteFinalTariffNew').value = finalTariff.toFixed(2);
+        }
+        
+        // Toggle edades de niños - NUEVO
+        function toggleChildrenAgesNew() {
+            const childrenCount = parseInt(document.getElementById('quoteChildrenNew').value) || 0;
+            const container = document.getElementById('childrenAgesContainerNew');
+            const inputsContainer = document.getElementById('childrenAgesInputsNew');
+            
+            if (childrenCount > 0) {
+                container.style.display = 'block';
+                inputsContainer.innerHTML = '';
+                
+                for (let i = 0; i < childrenCount; i++) {
+                    const div = document.createElement('div');
+                    div.style.marginBottom = '10px';
+                    div.innerHTML = `
+                        <label style="display: block; margin-bottom: 5px; font-size: 0.9rem; color: #666;">
+                            Edad del niño ${i + 1}:
+                        </label>
+                        <input type="number" class="form-input" min="0" max="17" 
+                               id="childAgeNew${i}" placeholder="Edad" required 
+                               style="width: 100%;">
+                    `;
+                    inputsContainer.appendChild(div);
+                }
+            } else {
+                container.style.display = 'none';
+            }
+        }
+        
+        // Crear y enviar cotización - NUEVO
+        async function createAndSendQuoteNew(event) {
+            event.preventDefault();
+            console.log('📋 Creando y enviando cotización (nuevo modal)...');
+            
+            try {
+                const hotelId = document.getElementById('quoteHotelNew').value;
+                const hotelName = document.getElementById('quoteHotelNew').selectedOptions[0].text;
+                const checkIn = document.getElementById('quoteCheckInNew').value;
+                const checkOut = document.getElementById('quoteCheckOutNew').value;
+                const adults = parseInt(document.getElementById('quoteAdultsNew').value) || 1;
+                const children = parseInt(document.getElementById('quoteChildrenNew').value) || 0;
+                const infants = parseInt(document.getElementById('quoteInfantsNew').value) || 0;
+                const module = document.getElementById('quoteModuleNew').value;
+                const tariff = parseFloat(document.getElementById('quoteTariffNew').value) || 0;
+                const discount = parseFloat(document.getElementById('quoteDiscountNew').value) || 0;
+                const finalTariff = parseFloat(document.getElementById('quoteFinalTariffNew').value) || 0;
+                const notes = document.getElementById('quoteNotesNew').value;
+                const phoneNumber = document.getElementById('quotePhoneNumberNew').value;
+                
+                // Validaciones
+                if (!hotelId || !checkIn || !checkOut || !module || tariff <= 0 || !phoneNumber) {
+                    alert('❌ Por favor completa todos los campos obligatorios');
+                    return;
+                }
+                
+                // Obtener edades de niños
+                const childrenAges = [];
+                if (children > 0) {
+                    for (let i = 0; i < children; i++) {
+                        const ageInput = document.getElementById(`childAgeNew${i}`);
+                        if (ageInput) {
+                            const age = parseInt(ageInput.value);
+                            if (age) childrenAges.push(age);
+                        }
+                    }
+                }
+                
+                // Calcular noches
+                const checkInDate = new Date(checkIn);
+                const checkOutDate = new Date(checkOut);
+                const diffTime = Math.abs(checkOutDate - checkInDate);
+                const nights = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                // Crear objeto de cotización
+                const quoteData = {
+                    hotel_id: hotelId,
+                    hotel_name: hotelName,
+                    check_in: checkIn,
+                    check_out: checkOut,
+                    nights: nights,
+                    adults: adults,
+                    children: children,
+                    children_ages: childrenAges,
+                    infants: infants,
+                    module: module,
+                    tariff: tariff,
+                    discount: discount,
+                    final_tariff: finalTariff,
+                    notes: notes,
+                    phone_number: phoneNumber,
+                    status: 'pending',
+                    created_at: new Date().toISOString()
+                };
+                
+                // Guardar en Supabase
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    try {
+                        await window.supabaseClient.createQuote(quoteData);
+                        alert('✅ Cotización creada y enviada correctamente');
+                        closeQuoteModalNew();
+                        if (typeof loadQuotesTable === 'function') {
+                            loadQuotesTable();
+                        }
+                    } catch (error) {
+                        console.error('Error guardando cotización:', error);
+                        alert('❌ Error al guardar la cotización');
+                    }
+                } else {
+                    // Fallback a localStorage
+                    let quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
+                    quoteData.id = Date.now().toString();
+                    quotes.push(quoteData);
+                    localStorage.setItem('quotesDB', JSON.stringify(quotes));
+                    alert('✅ Cotización creada (guardada localmente)');
+                    closeQuoteModalNew();
+                    if (typeof loadQuotesTable === 'function') {
+                        loadQuotesTable();
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Error creando cotización:', error);
+                alert('❌ Error al crear la cotización');
+            }
+        }
+        
         // Capturar foto
         function capturePhoto() {
             const video = document.getElementById('cameraVideo');
@@ -18288,7 +18981,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         <td>${exchangeRate ? exchangeRate.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</td>
                         <td style="font-weight: 600; color: #1976d2;">${usdAmount ? '$' + usdAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</td>
                         <td>
-                            <button onclick="editExpense('${expense.id}')" style="background: #1976d2; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-right: 4px;">
+                            <button onclick="editExpenseNew('${expense.id}')" style="background: #1976d2; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-right: 4px;">
                                 <span class="material-icons" style="font-size: 16px; vertical-align: middle;">edit</span>
                             </button>
                             <button onclick="deleteExpense('${expense.id}')" style="background: #d32f2f; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
