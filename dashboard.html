@@ -19175,6 +19175,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         // Cargar tabla de gastos - VERSIÓN SIMPLIFICADA
         async function loadExpensesTable() {
             console.log('🚀 loadExpensesTable INICIADO - Versión simplificada');
+            console.log('🔍 DEBUG: Verificando funciones disponibles...');
+            console.log('  - forceExpensesSectionDimensions:', typeof forceExpensesSectionDimensions);
+            console.log('  - forceMainContentDimensions:', typeof forceMainContentDimensions);
             
             // FORZAR DIMENSIONES PRIMERO (antes de cargar datos) - MÚLTIPLES INTENTOS
             if (typeof forceExpensesSectionDimensions === 'function') {
@@ -19190,7 +19193,32 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     forceExpensesSectionDimensions();
                 }, 100);
             } else {
-                console.warn('⚠️ forceExpensesSectionDimensions no está definida');
+                console.error('❌ forceExpensesSectionDimensions NO está definida - el código nuevo no se cargó');
+                // Intentar forzar dimensiones manualmente como fallback
+                console.log('🔧 Fallback: Forzando dimensiones manualmente...');
+                const mainContent = document.querySelector('.main-content');
+                const expensesSection = document.getElementById('expenses-section');
+                if (mainContent && expensesSection) {
+                    const viewportWidth = window.innerWidth;
+                    const sidebarWidth = 220;
+                    const mainWidth = Math.max(800, viewportWidth - sidebarWidth);
+                    const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
+                    
+                    mainContent.style.cssText = `
+                        display: block !important;
+                        width: ${mainWidth}px !important;
+                        min-width: ${mainWidth}px !important;
+                        margin-left: ${sidebarWidth}px !important;
+                    `;
+                    expensesSection.style.cssText = `
+                        display: block !important;
+                        width: ${availableWidth}px !important;
+                        min-width: ${availableWidth}px !important;
+                        padding: 20px !important;
+                    `;
+                    void mainContent.offsetWidth;
+                    void expensesSection.offsetWidth;
+                }
             }
             
             try {
