@@ -327,8 +327,17 @@
         .table-container {
             width: 100%;
             min-width: 100%;
+            min-height: 200px;
             overflow-x: auto;
             margin-top: 24px;
+            display: block;
+            visibility: visible;
+        }
+        
+        .table-container table {
+            width: 100%;
+            display: table;
+            visibility: visible;
         }
 
         .activity-card, .chart-card {
@@ -18047,7 +18056,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             const tbody = document.getElementById('expensesTableBody');
             const noExpensesMessage = document.getElementById('noExpensesMessage');
             
-            if (!tbody) return;
+            if (!tbody) {
+                console.error('❌ No se encontró el tbody de gastos (expensesTableBody)');
+                console.error('🔍 Buscando elementos relacionados...');
+                console.error('expenses-section:', document.getElementById('expenses-section'));
+                console.error('table-container:', document.querySelector('#expenses-section .table-container'));
+                return;
+            }
+            
+            console.log('✅ Tbody de gastos encontrado, cargando', expenses.length, 'gastos...');
             
             if (expenses.length === 0) {
                 tbody.innerHTML = '';
@@ -18100,6 +18117,29 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 `;
                 tbody.appendChild(row);
             });
+            
+            console.log(`✅ ${expenses.length} filas agregadas a la tabla de gastos`);
+            console.log('🔍 Verificando visibilidad de la tabla...');
+            const tableContainer = document.querySelector('#expenses-section .table-container');
+            if (tableContainer) {
+                console.log('✅ table-container encontrado');
+                console.log('📐 Estilos del table-container:', {
+                    display: window.getComputedStyle(tableContainer).display,
+                    width: window.getComputedStyle(tableContainer).width,
+                    height: window.getComputedStyle(tableContainer).height,
+                    visibility: window.getComputedStyle(tableContainer).visibility
+                });
+            } else {
+                console.error('❌ table-container NO encontrado');
+            }
+            
+            const expensesSection = document.getElementById('expenses-section');
+            if (expensesSection) {
+                console.log('📐 Estilos de expenses-section:', {
+                    display: window.getComputedStyle(expensesSection).display,
+                    visibility: window.getComputedStyle(expensesSection).visibility
+                });
+            }
         }
 
         // Editar gasto
