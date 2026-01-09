@@ -17870,9 +17870,25 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         // Cargar todos los datos de gastos
         function loadExpensesData() {
             console.log('💰 Cargando datos de gastos...');
-            loadExpensesTable();
-            updateExpensesKPIs();
-            updateExpensesCharts();
+            console.log('🔍 Verificando si loadExpensesTable existe:', typeof loadExpensesTable);
+            try {
+                if (typeof loadExpensesTable === 'function') {
+                    console.log('✅ Llamando a loadExpensesTable...');
+                    loadExpensesTable().catch(err => {
+                        console.error('❌ Error en loadExpensesTable:', err);
+                    });
+                } else {
+                    console.error('❌ loadExpensesTable no es una función');
+                }
+            } catch (error) {
+                console.error('❌ Error al llamar loadExpensesTable:', error);
+            }
+            if (typeof updateExpensesKPIs === 'function') {
+                updateExpensesKPIs();
+            }
+            if (typeof updateExpensesCharts === 'function') {
+                updateExpensesCharts();
+            }
         }
 
         // Actualizar categorías según tipo de gasto
@@ -18295,18 +18311,33 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         visibility: sectionComputed.visibility
                     });
                     
-                    // Si la sección no tiene ancho, forzarlo
+                    // Si la sección no tiene ancho, calcularlo desde el viewport
                     if (sectionRect.width === 0) {
-                        console.log('🔧 Forzando dimensiones en expenses-section...');
+                        console.log('🔧 Forzando dimensiones en expenses-section usando viewport...');
+                        
+                        // Calcular ancho disponible: viewport - sidebar (220px) - padding
+                        const viewportWidth = window.innerWidth;
+                        const sidebarWidth = 220; // Ancho del sidebar
+                        const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40); // Mínimo 800px, menos padding
+                        
+                        console.log(`📏 Viewport: ${viewportWidth}px, Sidebar: ${sidebarWidth}px, Disponible: ${availableWidth}px`);
+                        
                         expensesSection.style.cssText = `
                             display: block !important;
-                            width: 100% !important;
-                            min-width: 100% !important;
+                            width: ${availableWidth}px !important;
+                            min-width: ${availableWidth}px !important;
+                            max-width: ${availableWidth}px !important;
                             visibility: visible !important;
                             position: relative !important;
+                            padding: 20px !important;
+                            box-sizing: border-box !important;
                         `;
                         // Forzar reflow
                         void expensesSection.offsetHeight;
+                        
+                        // Verificar después del reflow
+                        const newRect = expensesSection.getBoundingClientRect();
+                        console.log(`✅ Dimensiones después de forzar: ${newRect.width}x${newRect.height}`);
                     }
                 }
                 
@@ -18365,25 +18396,63 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                     visibility: computed.visibility
                                 });
                                 
-                                if (rect.width === 0 || rect.height === 0) {
-                                    console.error('⚠️ Tabla aún tiene dimensiones 0x0 después de aplicar estilos');
-                                    console.log('🔧 Forzando dimensiones explícitas con valores absolutos...');
-                                    
-                                    // Obtener el ancho del contenedor padre
-                                    const parentWidth = expensesSection ? expensesSection.getBoundingClientRect().width : window.innerWidth - 300;
-                                    console.log(`📏 Ancho del padre: ${parentWidth}px`);
-                                    
-                                    tableContainer.style.width = `${parentWidth}px`;
-                                    tableContainer.style.minWidth = `${parentWidth}px`;
-                                    tableContainer.style.height = `${minHeight}px`;
-                                    table.style.width = `${parentWidth}px`;
-                                    table.style.minWidth = `${parentWidth}px`;
-                                    
-                                    // Forzar otro reflow
-                                    void tableContainer.offsetHeight;
-                                } else {
-                                    console.log('✅ Tabla tiene dimensiones correctas');
+                            if (rect.width === 0 || rect.height === 0) {
+                                console.error('⚠️ Tabla aún tiene dimensiones 0x0 después de aplicar estilos');
+                                console.log('🔧 Forzando dimensiones explícitas con valores absolutos desde viewport...');
+                                
+                                // Calcular ancho desde viewport si el padre no tiene dimensiones
+                                let containerWidth = 0;
+                                if (expensesSection) {
+                                    const sectionRect = expensesSection.getBoundingClientRect();
+                                    containerWidth = sectionRect.width;
                                 }
+                                
+                                // Si aún no tiene ancho, calcular desde viewport
+                                if (containerWidth === 0) {
+                                    const viewportWidth = window.innerWidth;
+                                    const sidebarWidth = 220;
+                                    containerWidth = Math.max(800, viewportWidth - sidebarWidth - 80); // Menos padding
+                                    console.log(`📏 Calculando desde viewport: ${containerWidth}px`);
+                                } else {
+                                    console.log(`📏 Usando ancho del padre: ${containerWidth}px`);
+                                }
+                                
+                                // Aplicar dimensiones absolutas
+                                tableContainer.style.cssText = `
+                                    display: block !important;
+                                    visibility: visible !important;
+                                    width: ${containerWidth}px !important;
+                                    min-width: ${containerWidth}px !important;
+                                    max-width: ${containerWidth}px !important;
+                                    height: ${minHeight}px !important;
+                                    min-height: ${minHeight}px !important;
+                                    overflow-x: auto !important;
+                                    overflow-y: visible !important;
+                                    background-color: white !important;
+                                    position: relative !important;
+                                    z-index: 1 !important;
+                                    box-sizing: border-box !important;
+                                `;
+                                
+                                table.style.cssText = `
+                                    width: ${containerWidth}px !important;
+                                    min-width: ${containerWidth}px !important;
+                                    display: table !important;
+                                    visibility: visible !important;
+                                    border-collapse: collapse !important;
+                                    table-layout: auto !important;
+                                `;
+                                
+                                // Forzar otro reflow
+                                void tableContainer.offsetHeight;
+                                void table.offsetHeight;
+                                
+                                // Verificar final
+                                const finalRect = tableContainer.getBoundingClientRect();
+                                console.log(`✅ Dimensiones finales: ${finalRect.width}x${finalRect.height}`);
+                            } else {
+                                console.log('✅ Tabla tiene dimensiones correctas');
+                            }
                             }, 200);
                         });
                     } else {
