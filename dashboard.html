@@ -19109,10 +19109,19 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         async function loadExpensesTable() {
             console.log('🚀 loadExpensesTable INICIADO - Versión simplificada');
             
-            // FORZAR DIMENSIONES PRIMERO (antes de cargar datos)
+            // FORZAR DIMENSIONES PRIMERO (antes de cargar datos) - MÚLTIPLES INTENTOS
             if (typeof forceExpensesSectionDimensions === 'function') {
                 console.log('🔧 Llamando a forceExpensesSectionDimensions desde loadExpensesTable...');
+                // Ejecutar inmediatamente
                 forceExpensesSectionDimensions();
+                // Ejecutar después de un frame
+                requestAnimationFrame(() => {
+                    forceExpensesSectionDimensions();
+                });
+                // Ejecutar después de un pequeño delay
+                setTimeout(() => {
+                    forceExpensesSectionDimensions();
+                }, 100);
             } else {
                 console.warn('⚠️ forceExpensesSectionDimensions no está definida');
             }
@@ -24475,6 +24484,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             if (florOriginalShowSection) {
                 florOriginalShowSection(section, event);
             }
+            
+            // IMPORTANTE: Ejecutar forceExpensesSectionDimensions si es expenses
+            // Esto asegura que se ejecute incluso si otras versiones de showSection no lo hacen
+            if (section === 'expenses' && typeof forceExpensesSectionDimensions === 'function') {
+                requestAnimationFrame(() => {
+                    forceExpensesSectionDimensions();
+                });
+            }
+            
             if (section === 'flor-config') {
                 loadFlorGeneral();
                 loadFlorResponses();
