@@ -18367,7 +18367,18 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     console.error('Error verificando viewport:', e);
                 }
                 
-                console.log('✅ Visibilidad forzada - La tabla debería ser visible ahora');
+                    console.log('✅ Visibilidad forzada - La tabla debería ser visible ahora');
+                } else {
+                    console.error('❌ table-container NO encontrado después del timeout');
+                }
+                } catch (error) {
+                    console.error('❌ ERROR al forzar visibilidad de la tabla:', error);
+                    console.error('Stack trace:', error.stack);
+                }
+            }, 100);
+            } catch (error) {
+                console.error('❌ ERROR en loadExpensesTable:', error);
+                console.error('Stack trace:', error.stack);
             }
         }
 
