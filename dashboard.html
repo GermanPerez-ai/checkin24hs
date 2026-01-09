@@ -18281,10 +18281,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 tableContainer.style.display = 'block';
                 tableContainer.style.visibility = 'visible';
                 tableContainer.style.opacity = '1';
+                tableContainer.style.width = '100%';
+                tableContainer.style.minWidth = '100%';
                 tableContainer.style.height = 'auto';
                 tableContainer.style.minHeight = '400px';
                 tableContainer.style.backgroundColor = 'white';
                 tableContainer.style.zIndex = '999';
+                tableContainer.style.position = 'relative';
+                tableContainer.style.overflow = 'visible';
                 
                 const table = tableContainer.querySelector('table');
                 if (table) {
@@ -18293,19 +18297,30 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     table.style.opacity = '1';
                     table.style.backgroundColor = 'white';
                     table.style.width = '100%';
+                    table.style.minWidth = '100%';
+                    table.style.height = 'auto';
+                    table.style.minHeight = '200px';
+                    table.style.tableLayout = 'auto';
+                    table.style.borderCollapse = 'collapse';
                     
                     const tbody = table.querySelector('tbody');
                     if (tbody) {
                         tbody.style.display = 'table-row-group';
                         tbody.style.visibility = 'visible';
                         tbody.style.opacity = '1';
+                        tbody.style.width = '100%';
+                        tbody.style.height = 'auto';
                         
                         const rows = tbody.querySelectorAll('tr');
-                        rows.forEach(row => {
+                        console.log(`🔧 Aplicando estilos a ${rows.length} filas...`);
+                        rows.forEach((row, index) => {
                             row.style.display = 'table-row';
                             row.style.visibility = 'visible';
                             row.style.opacity = '1';
-                            row.style.backgroundColor = 'white';
+                            row.style.backgroundColor = index % 2 === 0 ? 'white' : '#f9f9f9';
+                            row.style.width = '100%';
+                            row.style.height = 'auto';
+                            row.style.minHeight = '40px';
                             
                             const cells = row.querySelectorAll('td');
                             cells.forEach(cell => {
@@ -18313,9 +18328,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                 cell.style.visibility = 'visible';
                                 cell.style.opacity = '1';
                                 cell.style.color = '#333';
-                                cell.style.backgroundColor = 'white';
+                                cell.style.backgroundColor = 'transparent';
+                                cell.style.padding = '12px';
+                                cell.style.borderBottom = '1px solid #e0e0e0';
+                                cell.style.width = 'auto';
+                                cell.style.height = 'auto';
+                                cell.style.minHeight = '40px';
                             });
                         });
+                        console.log(`✅ Estilos aplicados a ${rows.length} filas`);
                     }
                 }
                 
