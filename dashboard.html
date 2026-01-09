@@ -358,33 +358,51 @@
             background-color: white;
         }
         
-        /* Forzar visibilidad de la tabla completa */
-        #expenses-section {
-            min-height: 500px !important;
-            height: auto !important;
+        /* Estilos simplificados para tablas de gastos y cotizaciones */
+        #expenses-section .table-container,
+        #quotes-section .table-container {
             display: block !important;
             visibility: visible !important;
-        }
-        
-        #expenses-section .table-container {
-            position: relative !important;
-            z-index: 1 !important;
-            opacity: 1 !important;
-            background-color: white !important;
+            width: 100% !important;
+            min-width: 100% !important;
             min-height: 400px !important;
             height: auto !important;
-            width: 100% !important;
-            min-width: 100% !important;
-            display: block !important;
-            visibility: visible !important;
-            overflow: visible !important;
+            overflow-x: auto !important;
+            overflow-y: visible !important;
+            background-color: white !important;
+            position: relative !important;
+            z-index: 1 !important;
+            margin-top: 24px !important;
         }
         
-        #expenses-section .table-container table {
+        #expenses-section .table-container table,
+        #quotes-section .table-container table {
             width: 100% !important;
             min-width: 100% !important;
-            table-layout: auto !important;
+            display: table !important;
+            visibility: visible !important;
             border-collapse: collapse !important;
+            table-layout: auto !important;
+            background-color: white !important;
+        }
+        
+        #expenses-section .table-container table tbody,
+        #quotes-section .table-container table tbody {
+            display: table-row-group !important;
+            visibility: visible !important;
+        }
+        
+        #expenses-section .table-container table tbody tr,
+        #quotes-section .table-container table tbody tr {
+            display: table-row !important;
+            visibility: visible !important;
+        }
+        
+        #expenses-section .table-container table tbody td,
+        #quotes-section .table-container table tbody td {
+            display: table-cell !important;
+            visibility: visible !important;
+            color: #333 !important;
         }
         
         #expenses-section .table-container table {
@@ -7777,74 +7795,107 @@ Ej:
         }
         
         // Función para cargar tabla de cotizaciones
+        // Cargar tabla de cotizaciones - VERSIÓN SIMPLIFICADA
         async function loadQuotesTable() {
-            console.log('📋 Cargando tabla de cotizaciones...');
-            
-            // Intentar cargar desde Supabase primero
-            let quotes = [];
-            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
-                try {
-                    console.log('☁️ Cargando cotizaciones desde Supabase...');
-                    quotes = await window.supabaseClient.getQuotes();
-                    console.log(`✅ ${quotes.length} cotizaciones cargadas desde Supabase`);
-                } catch (error) {
-                    console.warn('Error cargando desde Supabase, usando localStorage:', error);
+            try {
+                // Cargar datos desde Supabase o localStorage
+                let quotes = [];
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    try {
+                        quotes = await window.supabaseClient.getQuotes();
+                    } catch (error) {
+                        quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
+                    }
+                } else {
                     quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
                 }
-            } else {
-                console.log('💾 Cargando cotizaciones desde localStorage...');
-                quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
-            }
-            const tbody = document.getElementById('quotesTableBody');
-            const noQuotesMessage = document.getElementById('noQuotesMessage');
-            
-            if (!tbody) {
-                console.error('❌ No se encontró el tbody de cotizaciones');
-                return;
-            }
-            
-            if (quotes.length === 0) {
+                
+                const tbody = document.getElementById('quotesTableBody');
+                const noQuotesMessage = document.getElementById('noQuotesMessage');
+                const tableContainer = document.querySelector('#quotes-section .table-container');
+                
+                if (!tbody) {
+                    console.error('❌ No se encontró quotesTableBody');
+                    return;
+                }
+                
+                // Ocultar mensaje de "no hay cotizaciones" si hay datos
+                if (noQuotesMessage) {
+                    noQuotesMessage.style.display = quotes.length === 0 ? 'block' : 'none';
+                }
+                
+                if (quotes.length === 0) {
+                    tbody.innerHTML = '';
+                    return;
+                }
+                
+                // Limpiar y renderizar tabla
                 tbody.innerHTML = '';
-                if (noQuotesMessage) noQuotesMessage.style.display = 'block';
-                console.log('📋 No hay cotizaciones para mostrar');
-                return;
+                quotes.forEach((quote, index) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${quote.id || `COT-${String(index + 1).padStart(3, '0')}`}</td>
+                        <td>${quote.hotel}</td>
+                        <td>${quote.clientName || 'Anónimo'}</td>
+                        <td>${quote.dateRange}</td>
+                        <td>${quote.travelers}</td>
+                        <td><span class="quote-status ${quote.status || 'pending'}">${getStatusLabel(quote.status || 'pending')}</span></td>
+                        <td>${formatDate(quote.timestamp || new Date())}</td>
+                        <td>
+                            <button onclick="viewQuote('${quote.id || index}')" class="action-btn view" title="Ver detalles">
+                                <span class="material-icons">visibility</span>
+                            </button>
+                            ${(quote.status === 'pending' || !quote.status) ? `
+                            <button onclick="editQuote('${quote.id || index}')" class="action-btn edit" title="Editar y Cotizar" style="background: #ff9800;">
+                                <span class="material-icons">edit</span>
+                            </button>
+                            ` : ''}
+                            <button onclick="processQuote('${quote.id || index}')" class="action-btn edit" title="Procesar">
+                                <span class="material-icons">check_circle</span>
+                            </button>
+                            <button onclick="deleteQuote('${quote.id || index}')" class="action-btn delete" title="Eliminar">
+                                <span class="material-icons">delete</span>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+                // Asegurar que el contenedor tenga dimensiones visibles
+                if (tableContainer) {
+                    const rowCount = quotes.length;
+                    const minHeight = Math.max(400, rowCount * 50);
+                    tableContainer.style.cssText = `
+                        display: block !important;
+                        visibility: visible !important;
+                        width: 100% !important;
+                        min-width: 100% !important;
+                        min-height: ${minHeight}px !important;
+                        height: auto !important;
+                        overflow-x: auto !important;
+                        overflow-y: visible !important;
+                        background-color: white !important;
+                        position: relative !important;
+                        z-index: 1 !important;
+                    `;
+                    
+                    const table = tableContainer.querySelector('table');
+                    if (table) {
+                        table.style.cssText = `
+                            width: 100% !important;
+                            min-width: 100% !important;
+                            display: table !important;
+                            visibility: visible !important;
+                            border-collapse: collapse !important;
+                            table-layout: auto !important;
+                        `;
+                    }
+                }
+                
+                console.log(`✅ ${quotes.length} cotizaciones cargadas en la tabla`);
+            } catch (error) {
+                console.error('❌ Error en loadQuotesTable:', error);
             }
-            
-            if (noQuotesMessage) noQuotesMessage.style.display = 'none';
-            
-            tbody.innerHTML = '';
-            
-            quotes.forEach((quote, index) => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${quote.id || `COT-${String(index + 1).padStart(3, '0')}`}</td>
-                    <td>${quote.hotel}</td>
-                    <td>${quote.clientName || 'Anónimo'}</td>
-                    <td>${quote.dateRange}</td>
-                    <td>${quote.travelers}</td>
-                    <td><span class="quote-status ${quote.status || 'pending'}">${getStatusLabel(quote.status || 'pending')}</span></td>
-                    <td>${formatDate(quote.timestamp || new Date())}</td>
-                    <td>
-                        <button onclick="viewQuote('${quote.id || index}')" class="action-btn view" title="Ver detalles">
-                            <span class="material-icons">visibility</span>
-                        </button>
-                        ${(quote.status === 'pending' || !quote.status) ? `
-                        <button onclick="editQuote('${quote.id || index}')" class="action-btn edit" title="Editar y Cotizar" style="background: #ff9800;">
-                            <span class="material-icons">edit</span>
-                        </button>
-                        ` : ''}
-                        <button onclick="processQuote('${quote.id || index}')" class="action-btn edit" title="Procesar">
-                            <span class="material-icons">check_circle</span>
-                        </button>
-                        <button onclick="deleteQuote('${quote.id || index}')" class="action-btn delete" title="Eliminar">
-                            <span class="material-icons">delete</span>
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(row);
-            });
-            
-            console.log(`✅ Tabla de cotizaciones cargada: ${quotes.length} cotizaciones`);
         }
         
         // Función para actualizar estadísticas de cotizaciones
@@ -18126,335 +18177,128 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }
         }
 
-        // Cargar tabla de gastos
+        // Cargar tabla de gastos - VERSIÓN SIMPLIFICADA
         async function loadExpensesTable() {
             try {
-                console.log('🚀 Iniciando loadExpensesTable...');
-                // Intentar cargar desde Supabase primero
+                // Cargar datos desde Supabase o localStorage
                 let expenses = [];
-            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
-                try {
-                    console.log('☁️ Cargando gastos desde Supabase...');
-                    expenses = await window.supabaseClient.getExpenses();
-                    console.log(`✅ ${expenses.length} gastos cargados desde Supabase`);
-                } catch (error) {
-                    console.warn('Error cargando desde Supabase, usando localStorage:', error);
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    try {
+                        expenses = await window.supabaseClient.getExpenses();
+                    } catch (error) {
+                        expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+                    }
+                } else {
                     expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
                 }
-            } else {
-                console.log('💾 Cargando gastos desde localStorage...');
-                expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
-            }
-            
-            const tbody = document.getElementById('expensesTableBody');
-            const noExpensesMessage = document.getElementById('noExpensesMessage');
-            
-            if (!tbody) {
-                console.error('❌ No se encontró el tbody de gastos (expensesTableBody)');
-                console.error('🔍 Buscando elementos relacionados...');
-                console.error('expenses-section:', document.getElementById('expenses-section'));
-                console.error('table-container:', document.querySelector('#expenses-section .table-container'));
-                return;
-            }
-            
-            console.log('✅ Tbody de gastos encontrado, cargando', expenses.length, 'gastos...');
-            
-            if (expenses.length === 0) {
-                tbody.innerHTML = '';
-                if (noExpensesMessage) noExpensesMessage.style.display = 'block';
-                return;
-            }
-            
-            if (noExpensesMessage) noExpensesMessage.style.display = 'none';
-            
-            // Ordenar por fecha descendente
-            expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
-            
-            tbody.innerHTML = '';
-            expenses.forEach((expense, index) => {
-                // Validar datos del gasto
-                if (!expense) {
-                    console.warn(`⚠️ Gasto en índice ${index} es null o undefined`);
+                
+                const tbody = document.getElementById('expensesTableBody');
+                const noExpensesMessage = document.getElementById('noExpensesMessage');
+                const tableContainer = document.querySelector('#expenses-section .table-container');
+                
+                if (!tbody) {
+                    console.error('❌ No se encontró expensesTableBody');
                     return;
                 }
                 
-                const row = document.createElement('tr');
-                const categoryName = expenseCategories[expense.category] || expense.category || 'Sin categoría';
-                const typeLabel = expense.type === 'fixed' ? 'Fijo' : 'Variable';
-                const typeColor = expense.type === 'fixed' ? '#1976d2' : '#f57c00';
-                
-                // Normalizar nombres de campos (Supabase usa snake_case, localStorage usa camelCase)
-                const exchangeRate = expense.exchange_rate || expense.exchangeRate || null;
-                const usdAmount = expense.usd_amount || expense.usd || null;
-                
-                // Validar y formatear monto
-                const amount = parseFloat(expense.amount) || 0;
-                
-                // Formatear fecha en zona horaria Argentina
-                let formattedDate = '-';
-                if (expense.date) {
-                    try {
-                        const expenseDate = new Date(expense.date + 'T12:00:00');
-                        formattedDate = expenseDate.toLocaleDateString('es-AR', { 
-                            timeZone: 'America/Argentina/Buenos_Aires',
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric'
-                        });
-                    } catch (e) {
-                        console.warn('Error formateando fecha:', e);
-                        formattedDate = expense.date;
-                    }
+                // Ocultar mensaje de "no hay gastos" si hay datos
+                if (noExpensesMessage) {
+                    noExpensesMessage.style.display = expenses.length === 0 ? 'block' : 'none';
                 }
                 
-                // Log del primer gasto para debugging
-                if (index === 0) {
-                    console.log('📋 Primer gasto:', {
-                        id: expense.id,
-                        date: expense.date,
-                        formattedDate: formattedDate,
-                        category: expense.category,
-                        amount: amount,
-                        description: expense.description
-                    });
+                if (expenses.length === 0) {
+                    tbody.innerHTML = '';
+                    return;
                 }
                 
-                row.innerHTML = `
-                    <td>${formattedDate}</td>
-                    <td>${categoryName}</td>
-                    <td>${expense.subcategory || '-'}</td>
-                    <td><span style="background: ${typeColor}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">${typeLabel}</span></td>
-                    <td>${expense.description || '-'}</td>
-                    <td style="font-weight: 600; color: #d32f2f;">$${amount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                    <td>${exchangeRate ? exchangeRate.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</td>
-                    <td style="font-weight: 600; color: #1976d2;">${usdAmount ? '$' + usdAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</td>
-                    <td>
-                        <button onclick="editExpense('${expense.id}')" style="background: #1976d2; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-right: 4px;">
-                            <span class="material-icons" style="font-size: 16px; vertical-align: middle;">edit</span>
-                        </button>
-                        <button onclick="deleteExpense('${expense.id}')" style="background: #d32f2f; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
-                            <span class="material-icons" style="font-size: 16px; vertical-align: middle;">delete</span>
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(row);
-            });
-            
-            console.log(`✅ ${expenses.length} filas agregadas a la tabla de gastos`);
-            console.log('🔍 Verificando visibilidad de la tabla...');
-            
-            // Esperar un momento para que el DOM se actualice
-            setTimeout(() => {
-                try {
-                    console.log('⏰ Timeout ejecutado, buscando table-container...');
-                    const tableContainer = document.querySelector('#expenses-section .table-container');
-                    if (tableContainer) {
-                        console.log('✅ table-container encontrado');
-                        console.log('📐 Estilos del table-container:', {
-                            display: window.getComputedStyle(tableContainer).display,
-                            width: window.getComputedStyle(tableContainer).width,
-                            height: window.getComputedStyle(tableContainer).height,
-                            visibility: window.getComputedStyle(tableContainer).visibility
-                        });
-                        
-                        // Verificar el contenido de la tabla
-                        const table = tableContainer.querySelector('table');
-                        if (table) {
-                            const rows = table.querySelectorAll('tbody tr');
-                            console.log(`📊 Filas en la tabla: ${rows.length}`);
-                            if (rows.length > 0) {
-                                console.log('✅ Primera fila encontrada:', rows[0]);
-                                console.log('📝 Contenido de la primera fila:', rows[0].innerHTML.substring(0, 200));
-                            }
-                        }
-                        
-                        const expensesSection = document.getElementById('expenses-section');
-                        if (expensesSection) {
-                            console.log('📐 Estilos de expenses-section:', {
-                                display: window.getComputedStyle(expensesSection).display,
-                                visibility: window.getComputedStyle(expensesSection).visibility,
-                                height: window.getComputedStyle(expensesSection).height,
-                                overflow: window.getComputedStyle(expensesSection).overflow,
-                                position: window.getComputedStyle(expensesSection).position,
-                                zIndex: window.getComputedStyle(expensesSection).zIndex
-                            });
-                            
-                            // Verificar si hay elementos que puedan estar bloqueando
-                            const allChildren = expensesSection.querySelectorAll('*');
-                            console.log(`🔍 Total de elementos hijos en expenses-section: ${allChildren.length}`);
-                            
-                            // Verificar el contenedor principal
-                            const mainContent = document.querySelector('.main-content');
-                            if (mainContent) {
-                                console.log('📐 Estilos de main-content:', {
-                                    display: window.getComputedStyle(mainContent).display,
-                                    visibility: window.getComputedStyle(mainContent).visibility,
-                                    height: window.getComputedStyle(mainContent).height,
-                                    overflow: window.getComputedStyle(mainContent).overflow
-                                });
-                            }
-                        }
-                        
-                        // FORZAR VISIBILIDAD DIRECTAMENTE
-                        console.log('🔧 FORZANDO VISIBILIDAD DE LA TABLA...');
-                        tableContainer.style.display = 'block';
-                        tableContainer.style.visibility = 'visible';
-                        tableContainer.style.opacity = '1';
-                        tableContainer.style.width = '100%';
-                        tableContainer.style.minWidth = '100%';
-                        tableContainer.style.height = 'auto';
-                        tableContainer.style.minHeight = '400px';
-                        tableContainer.style.backgroundColor = 'white';
-                        tableContainer.style.zIndex = '999';
-                        tableContainer.style.position = 'relative';
-                        tableContainer.style.overflow = 'visible';
-                        
-                const tableEl = tableContainer.querySelector('table');
-                let rows = null; // Definir rows en scope más amplio ANTES del if
-                let savedTbody = null;
+                // Ordenar por fecha descendente
+                expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
                 
-                if (tableEl) {
-                    tableEl.style.display = 'table';
-                    tableEl.style.visibility = 'visible';
-                    tableEl.style.opacity = '1';
-                    tableEl.style.backgroundColor = 'white';
-                    tableEl.style.width = '100%';
-                    tableEl.style.minWidth = '100%';
-                    tableEl.style.height = 'auto';
-                    tableEl.style.minHeight = '200px';
-                    tableEl.style.tableLayout = 'auto';
-                    tableEl.style.borderCollapse = 'collapse';
+                // Limpiar y renderizar tabla
+                tbody.innerHTML = '';
+                expenses.forEach((expense) => {
+                    if (!expense) return;
                     
-                    savedTbody = tableEl.querySelector('tbody');
-                    if (savedTbody) {
-                        savedTbody.style.display = 'table-row-group';
-                        savedTbody.style.visibility = 'visible';
-                        savedTbody.style.opacity = '1';
-                        savedTbody.style.width = '100%';
-                        savedTbody.style.height = 'auto';
-                        
-                        rows = savedTbody.querySelectorAll('tr');
-                        console.log(`🔧 Aplicando estilos a ${rows.length} filas...`);
-                        rows.forEach((row, index) => {
-                            row.style.display = 'table-row';
-                            row.style.visibility = 'visible';
-                            row.style.opacity = '1';
-                            row.style.backgroundColor = index % 2 === 0 ? 'white' : '#f9f9f9';
-                            row.style.width = '100%';
-                            row.style.height = 'auto';
-                            row.style.minHeight = '40px';
-                            
-                            const cells = row.querySelectorAll('td');
-                            cells.forEach(cell => {
-                                cell.style.display = 'table-cell';
-                                cell.style.visibility = 'visible';
-                                cell.style.opacity = '1';
-                                cell.style.color = '#333';
-                                cell.style.backgroundColor = 'transparent';
-                                cell.style.padding = '12px';
-                                cell.style.borderBottom = '1px solid #e0e0e0';
-                                cell.style.width = 'auto';
-                                cell.style.height = 'auto';
-                                cell.style.minHeight = '40px';
+                    const row = document.createElement('tr');
+                    const categoryName = expenseCategories[expense.category] || expense.category || 'Sin categoría';
+                    const typeLabel = expense.type === 'fixed' ? 'Fijo' : 'Variable';
+                    const typeColor = expense.type === 'fixed' ? '#1976d2' : '#f57c00';
+                    const exchangeRate = expense.exchange_rate || expense.exchangeRate || null;
+                    const usdAmount = expense.usd_amount || expense.usd || null;
+                    const amount = parseFloat(expense.amount) || 0;
+                    
+                    // Formatear fecha
+                    let formattedDate = '-';
+                    if (expense.date) {
+                        try {
+                            const expenseDate = new Date(expense.date + 'T12:00:00');
+                            formattedDate = expenseDate.toLocaleDateString('es-AR', { 
+                                timeZone: 'America/Argentina/Buenos_Aires',
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric'
                             });
-                        });
-                        console.log(`✅ Estilos aplicados a ${rows.length} filas`);
-                    }
-                }
-                
-                // FORZAR REFLOW para asegurar que los estilos se apliquen
-                console.log('🔄 Forzando reflow del navegador...');
-                void tableContainer.offsetHeight; // Forzar reflow
-                if (tableEl) void tableEl.offsetHeight; // Forzar reflow
-                
-                // Guardar referencias para usar en requestAnimationFrame
-                const savedTableEl = tableEl;
-                const savedRows = rows; // rows ya está definido en scope más amplio
-                
-                // Esperar un frame más para que el navegador procese los cambios
-                requestAnimationFrame(() => {
-                    // Verificar si la tabla está en el viewport DESPUÉS del reflow
-                    try {
-                        const tableRect = tableContainer.getBoundingClientRect();
-                        console.log('📍 Posición de la tabla en el viewport:', {
-                            top: tableRect.top,
-                            left: tableRect.left,
-                            width: tableRect.width,
-                            height: tableRect.height,
-                            visible: tableRect.top >= 0 && tableRect.left >= 0 && 
-                                     tableRect.bottom <= window.innerHeight && 
-                                     tableRect.right <= window.innerWidth
-                        });
-                        
-                        // Forzar scroll a la tabla si es necesario
-                        if (tableRect.top < 0 || tableRect.top > window.innerHeight || tableRect.height === 0) {
-                            console.log('📍 Tabla fuera del viewport o altura 0, haciendo scroll...');
-                            tableContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                            
-                            // Si aún tiene altura 0, forzar dimensiones explícitas
-                            if (tableRect.width === 0 || tableRect.height === 0) {
-                                console.log('⚠️ Tabla aún tiene dimensiones 0, forzando dimensiones explícitas...');
-                                const computedWidth = window.getComputedStyle(tableContainer).width;
-                                const computedHeight = window.getComputedStyle(tableContainer).height;
-                                console.log('📐 Dimensiones calculadas:', { width: computedWidth, height: computedHeight });
-                                
-                                // Forzar dimensiones basadas en el contenido
-                                if (savedTableEl && savedTbody && savedRows && savedRows.length > 0) {
-                                    const firstRow = savedRows[0];
-                                    if (firstRow) {
-                                        const rowHeight = firstRow.offsetHeight || 40;
-                                        const estimatedHeight = rowHeight * savedRows.length;
-                                        
-                                        // Forzar altura y ancho explícitamente
-                                        tableContainer.style.height = `${estimatedHeight}px`;
-                                        tableContainer.style.minHeight = `${estimatedHeight}px`;
-                                        tableContainer.style.width = '100%';
-                                        tableContainer.style.minWidth = '100%';
-                                        
-                                        // También forzar en la tabla
-                                        if (savedTableEl) {
-                                            savedTableEl.style.height = `${estimatedHeight}px`;
-                                            savedTableEl.style.minHeight = `${estimatedHeight}px`;
-                                            savedTableEl.style.width = '100%';
-                                            savedTableEl.style.minWidth = '100%';
-                                        }
-                                        
-                                        console.log(`📏 Altura estimada basada en filas: ${estimatedHeight}px (${savedRows.length} filas × ${rowHeight}px)`);
-                                        
-                                        // Forzar otro reflow después de aplicar dimensiones
-                                        void tableContainer.offsetHeight;
-                                        
-                                        // Verificar dimensiones después de aplicar
-                                        setTimeout(() => {
-                                            const newRect = tableContainer.getBoundingClientRect();
-                                            console.log('📐 Dimensiones después de forzar:', {
-                                                width: newRect.width,
-                                                height: newRect.height,
-                                                computedWidth: window.getComputedStyle(tableContainer).width,
-                                                computedHeight: window.getComputedStyle(tableContainer).height
-                                            });
-                                        }, 50);
-                                    }
-                                }
-                            }
+                        } catch (e) {
+                            formattedDate = expense.date;
                         }
-                    } catch (e) {
-                        console.error('Error verificando viewport:', e);
                     }
                     
-                    console.log('✅ Visibilidad forzada - La tabla debería ser visible ahora');
+                    row.innerHTML = `
+                        <td>${formattedDate}</td>
+                        <td>${categoryName}</td>
+                        <td>${expense.subcategory || '-'}</td>
+                        <td><span style="background: ${typeColor}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">${typeLabel}</span></td>
+                        <td>${expense.description || '-'}</td>
+                        <td style="font-weight: 600; color: #d32f2f;">$${amount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                        <td>${exchangeRate ? exchangeRate.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</td>
+                        <td style="font-weight: 600; color: #1976d2;">${usdAmount ? '$' + usdAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</td>
+                        <td>
+                            <button onclick="editExpense('${expense.id}')" style="background: #1976d2; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-right: 4px;">
+                                <span class="material-icons" style="font-size: 16px; vertical-align: middle;">edit</span>
+                            </button>
+                            <button onclick="deleteExpense('${expense.id}')" style="background: #d32f2f; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">
+                                <span class="material-icons" style="font-size: 16px; vertical-align: middle;">delete</span>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
                 });
-                    } else {
-                        console.error('❌ table-container NO encontrado después del timeout');
+                
+                // Asegurar que el contenedor tenga dimensiones visibles
+                if (tableContainer) {
+                    // Forzar dimensiones mínimas basadas en el número de filas
+                    const rowCount = expenses.length;
+                    const minHeight = Math.max(400, rowCount * 50); // Mínimo 50px por fila
+                    tableContainer.style.cssText = `
+                        display: block !important;
+                        visibility: visible !important;
+                        width: 100% !important;
+                        min-width: 100% !important;
+                        min-height: ${minHeight}px !important;
+                        height: auto !important;
+                        overflow-x: auto !important;
+                        overflow-y: visible !important;
+                        background-color: white !important;
+                        position: relative !important;
+                        z-index: 1 !important;
+                    `;
+                    
+                    const table = tableContainer.querySelector('table');
+                    if (table) {
+                        table.style.cssText = `
+                            width: 100% !important;
+                            min-width: 100% !important;
+                            display: table !important;
+                            visibility: visible !important;
+                            border-collapse: collapse !important;
+                            table-layout: auto !important;
+                        `;
                     }
-                } catch (error) {
-                    console.error('❌ ERROR al forzar visibilidad de la tabla:', error);
-                    console.error('Stack trace:', error.stack);
                 }
-            }, 100);
+                
+                console.log(`✅ ${expenses.length} gastos cargados en la tabla`);
             } catch (error) {
-                console.error('❌ ERROR en loadExpensesTable:', error);
-                console.error('Stack trace:', error.stack);
+                console.error('❌ Error en loadExpensesTable:', error);
             }
         }
 
