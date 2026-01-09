@@ -19102,90 +19102,60 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     tbody.appendChild(row);
                 });
                 
-                // Asegurar que la sección tenga dimensiones antes de aplicar estilos al contenedor
+                // SOLUCIÓN AGRESIVA: Forzar dimensiones en TODOS los contenedores padres
+                console.log('🔧 SOLUCIÓN AGRESIVA: Forzando dimensiones en todos los contenedores...');
+                
+                // 1. Forzar .main-content SIEMPRE (sin verificar)
+                const mainContent = document.querySelector('.main-content');
+                if (mainContent) {
+                    const viewportWidth = window.innerWidth;
+                    const sidebarWidth = 220;
+                    const mainWidth = Math.max(800, viewportWidth - sidebarWidth);
+                    
+                    console.log(`🔧 Forzando .main-content a ${mainWidth}px (sin verificar)`);
+                    mainContent.style.cssText = `
+                        display: block !important;
+                        width: ${mainWidth}px !important;
+                        min-width: ${mainWidth}px !important;
+                        margin-left: ${sidebarWidth}px !important;
+                        flex: 1 !important;
+                        position: relative !important;
+                        visibility: visible !important;
+                        overflow: visible !important;
+                    `;
+                    void mainContent.offsetHeight;
+                }
+                
+                // 2. Forzar expenses-section SIEMPRE
                 const expensesSection = document.getElementById('expenses-section');
                 if (expensesSection) {
-                    const sectionRect = expensesSection.getBoundingClientRect();
-                    const sectionComputed = window.getComputedStyle(expensesSection);
-                    console.log('📐 Dimensiones de expenses-section:', {
-                        width: sectionRect.width,
-                        height: sectionRect.height,
-                        display: sectionComputed.display,
-                        visibility: sectionComputed.visibility
-                    });
+                    const viewportWidth = window.innerWidth;
+                    const sidebarWidth = 220;
+                    const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
                     
-                    // Si la sección no tiene ancho, verificar y forzar contenedores padres primero
-                    if (sectionRect.width === 0) {
-                        console.log('🔧 Forzando dimensiones en expenses-section usando viewport...');
-                        
-                        // 1. Verificar y forzar .main-content primero
-                        const mainContent = document.querySelector('.main-content');
-                        if (mainContent) {
-                            const mainRect = mainContent.getBoundingClientRect();
-                            console.log('📐 Dimensiones de .main-content:', {
-                                width: mainRect.width,
-                                height: mainRect.height,
-                                display: window.getComputedStyle(mainContent).display
-                            });
-                            
-                            if (mainRect.width === 0) {
-                                console.log('🔧 Forzando dimensiones en .main-content...');
-                                const viewportWidth = window.innerWidth;
-                                const sidebarWidth = 220;
-                                const mainWidth = Math.max(800, viewportWidth - sidebarWidth);
-                                
-                                mainContent.style.cssText = `
-                                    display: block !important;
-                                    width: ${mainWidth}px !important;
-                                    min-width: ${mainWidth}px !important;
-                                    margin-left: ${sidebarWidth}px !important;
-                                    flex: 1 !important;
-                                    position: relative !important;
-                                    visibility: visible !important;
-                                `;
-                                void mainContent.offsetHeight;
-                                console.log(`✅ .main-content forzado a ${mainWidth}px`);
-                            }
-                        }
-                        
-                        // 2. Calcular ancho disponible: viewport - sidebar (220px) - padding
-                        const viewportWidth = window.innerWidth;
-                        const sidebarWidth = 220;
-                        const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
-                        
-                        console.log(`📏 Viewport: ${viewportWidth}px, Sidebar: ${sidebarWidth}px, Disponible: ${availableWidth}px`);
-                        
-                        // 3. Forzar dimensiones en expenses-section
-                        expensesSection.style.cssText = `
-                            display: block !important;
-                            width: ${availableWidth}px !important;
-                            min-width: ${availableWidth}px !important;
-                            max-width: ${availableWidth}px !important;
-                            visibility: visible !important;
-                            position: relative !important;
-                            padding: 20px !important;
-                            box-sizing: border-box !important;
-                            overflow: visible !important;
-                        `;
-                        
-                        // 4. Forzar múltiples reflows
-                        void expensesSection.offsetHeight;
-                        requestAnimationFrame(() => {
-                            void expensesSection.offsetHeight;
-                            setTimeout(() => {
-                                const newRect = expensesSection.getBoundingClientRect();
-                                const offsetWidth = expensesSection.offsetWidth;
-                                const offsetHeight = expensesSection.offsetHeight;
-                                console.log(`✅ Dimensiones después de forzar:`);
-                                console.log(`   - getBoundingClientRect: ${newRect.width}x${newRect.height}`);
-                                console.log(`   - offsetWidth/Height: ${offsetWidth}x${offsetHeight}`);
-                                
-                                if (newRect.width === 0 && offsetWidth > 0) {
-                                    console.log('⚠️ getBoundingClientRect devuelve 0 pero offsetWidth tiene valor - usando offsetWidth');
-                                }
-                            }, 100);
-                        });
-                    }
+                    console.log(`🔧 Forzando expenses-section a ${availableWidth}px (sin verificar)`);
+                    expensesSection.style.cssText = `
+                        display: block !important;
+                        width: ${availableWidth}px !important;
+                        min-width: ${availableWidth}px !important;
+                        max-width: ${availableWidth}px !important;
+                        visibility: visible !important;
+                        position: relative !important;
+                        padding: 20px !important;
+                        box-sizing: border-box !important;
+                        overflow: visible !important;
+                    `;
+                    void expensesSection.offsetHeight;
+                    
+                    // Verificar después
+                    setTimeout(() => {
+                        const sectionRect = expensesSection.getBoundingClientRect();
+                        const offsetWidth = expensesSection.offsetWidth;
+                        const offsetHeight = expensesSection.offsetHeight;
+                        console.log('📐 Dimensiones de expenses-section después de forzar:');
+                        console.log(`   - getBoundingClientRect: ${sectionRect.width}x${sectionRect.height}`);
+                        console.log(`   - offsetWidth/Height: ${offsetWidth}x${offsetHeight}`);
+                    }, 50);
                 }
                 
                 // Asegurar que el contenedor tenga dimensiones visibles
