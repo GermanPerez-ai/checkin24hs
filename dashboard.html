@@ -5398,7 +5398,7 @@ Ej:
         };
         
         // Función auxiliar para forzar dimensiones en .main-content (compartida)
-        function forceMainContentDimensions() {
+        window.forceMainContentDimensions = function forceMainContentDimensions() {
             const mainContent = document.querySelector('.main-content');
             if (mainContent) {
                 const viewportWidth = window.innerWidth;
@@ -5426,7 +5426,7 @@ Ej:
         }
         
         // Función auxiliar para forzar dimensiones en expenses-section
-        function forceExpensesSectionDimensions() {
+        window.forceExpensesSectionDimensions = function forceExpensesSectionDimensions() {
             console.log('🔧 SOLUCIÓN ULTRA AGRESIVA: Forzando dimensiones antes de cargar expenses...');
             
             // 1. Forzar .main-content PRIMERO (SIEMPRE)
@@ -5499,7 +5499,7 @@ Ej:
         }
         
         // Función auxiliar para forzar dimensiones en quotes-section
-        function forceQuotesSectionDimensions() {
+        window.forceQuotesSectionDimensions = function forceQuotesSectionDimensions() {
             console.log('🔧 SOLUCIÓN ULTRA AGRESIVA: Forzando dimensiones antes de cargar quotes...');
             
             // 1. Forzar .main-content PRIMERO (SIEMPRE)
