@@ -18114,8 +18114,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
         // Cargar tabla de gastos
         async function loadExpensesTable() {
-            // Intentar cargar desde Supabase primero
-            let expenses = [];
+            try {
+                console.log('🚀 Iniciando loadExpensesTable...');
+                // Intentar cargar desde Supabase primero
+                let expenses = [];
             if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                 try {
                     console.log('☁️ Cargando gastos desde Supabase...');
@@ -18374,6 +18376,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     console.error('Stack trace:', error.stack);
                 }
             }, 100);
+            } catch (error) {
+                console.error('❌ ERROR en loadExpensesTable:', error);
+                console.error('Stack trace:', error.stack);
+            }
         }
 
         // Editar gasto
