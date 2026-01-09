@@ -18277,6 +18277,37 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         // Cargar todos los datos de gastos
         function loadExpensesData() {
             console.log('💰 Cargando datos de gastos...');
+            
+            // FORZAR DIMENSIONES PRIMERO (antes de cargar datos)
+            console.log('🔧 FORZANDO DIMENSIONES desde loadExpensesData...');
+            if (typeof window.forceExpensesSectionDimensions === 'function') {
+                console.log('✅ forceExpensesSectionDimensions disponible, ejecutando...');
+                window.forceExpensesSectionDimensions();
+                // Ejecutar múltiples veces para asegurar
+                requestAnimationFrame(() => {
+                    window.forceExpensesSectionDimensions();
+                });
+                setTimeout(() => {
+                    window.forceExpensesSectionDimensions();
+                }, 100);
+            } else {
+                console.warn('⚠️ forceExpensesSectionDimensions NO disponible, usando fallback manual...');
+                // Fallback manual
+                const mainContent = document.querySelector('.main-content');
+                const expensesSection = document.getElementById('expenses-section');
+                if (mainContent && expensesSection) {
+                    const viewportWidth = window.innerWidth;
+                    const sidebarWidth = 220;
+                    const mainWidth = Math.max(800, viewportWidth - sidebarWidth);
+                    const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
+                    
+                    mainContent.style.cssText = `display: block !important; width: ${mainWidth}px !important; min-width: ${mainWidth}px !important; margin-left: ${sidebarWidth}px !important; flex: 1 !important; position: relative !important; visibility: visible !important; overflow: visible !important;`;
+                    expensesSection.style.cssText = `display: block !important; width: ${availableWidth}px !important; min-width: ${availableWidth}px !important; max-width: ${availableWidth}px !important; visibility: visible !important; position: relative !important; padding: 20px !important; box-sizing: border-box !important; overflow: visible !important;`;
+                    void mainContent.offsetHeight;
+                    void expensesSection.offsetHeight;
+                }
+            }
+            
             console.log('🔍 Verificando si loadExpensesTable existe:', typeof loadExpensesTable);
             try {
                 if (typeof loadExpensesTable === 'function') {
