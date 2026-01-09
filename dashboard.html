@@ -5494,11 +5494,6 @@ Ej:
                 originalShowSection(section, event);
             }
             
-            // SIEMPRE forzar dimensiones si es expenses-section (ANTES de cargar datos)
-            if (section === 'expenses') {
-                forceExpensesSectionDimensions();
-            }
-            
             // Ocultar todas las secciones
             document.querySelectorAll('[id$="-section"]').forEach(el => {
                 el.style.display = 'none';
@@ -5510,6 +5505,16 @@ Ej:
             if (targetSection) {
                 targetSection.style.display = 'block';
                 console.log('Seccion mostrada:', section);
+                
+                // SIEMPRE forzar dimensiones si es expenses-section (DESPUÉS de mostrar)
+                if (section === 'expenses') {
+                    // Esperar un frame para que el display: block se aplique
+                    requestAnimationFrame(() => {
+                        if (typeof forceExpensesSectionDimensions === 'function') {
+                            forceExpensesSectionDimensions();
+                        }
+                    });
+                }
             } else {
                 console.error('Seccion no encontrada:', section + '-section');
             }
@@ -19103,6 +19108,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         // Cargar tabla de gastos - VERSIÓN SIMPLIFICADA
         async function loadExpensesTable() {
             console.log('🚀 loadExpensesTable INICIADO - Versión simplificada');
+            
+            // FORZAR DIMENSIONES PRIMERO (antes de cargar datos)
+            if (typeof forceExpensesSectionDimensions === 'function') {
+                console.log('🔧 Llamando a forceExpensesSectionDimensions desde loadExpensesTable...');
+                forceExpensesSectionDimensions();
+            } else {
+                console.warn('⚠️ forceExpensesSectionDimensions no está definida');
+            }
+            
             try {
                 // Cargar datos desde Supabase o localStorage
                 let expenses = [];
