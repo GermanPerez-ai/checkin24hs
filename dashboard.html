@@ -18308,39 +18308,40 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             tableEl.style.tableLayout = 'auto';
                             tableEl.style.borderCollapse = 'collapse';
                             
-                            const tbody = tableEl.querySelector('tbody');
-                            if (tbody) {
-                                tbody.style.display = 'table-row-group';
-                                tbody.style.visibility = 'visible';
-                                tbody.style.opacity = '1';
-                                tbody.style.width = '100%';
-                                tbody.style.height = 'auto';
-                                
-                                const rows = tbody.querySelectorAll('tr');
-                                console.log(`🔧 Aplicando estilos a ${rows.length} filas...`);
-                                rows.forEach((row, index) => {
-                                    row.style.display = 'table-row';
-                                    row.style.visibility = 'visible';
-                                    row.style.opacity = '1';
-                                    row.style.backgroundColor = index % 2 === 0 ? 'white' : '#f9f9f9';
-                                    row.style.width = '100%';
-                                    row.style.height = 'auto';
-                                    row.style.minHeight = '40px';
-                                    
-                                    const cells = row.querySelectorAll('td');
-                                    cells.forEach(cell => {
-                                        cell.style.display = 'table-cell';
-                                        cell.style.visibility = 'visible';
-                                        cell.style.opacity = '1';
-                                        cell.style.color = '#333';
-                                        cell.style.backgroundColor = 'transparent';
-                                        cell.style.padding = '12px';
-                                        cell.style.borderBottom = '1px solid #e0e0e0';
-                                        cell.style.width = 'auto';
-                                        cell.style.height = 'auto';
-                                        cell.style.minHeight = '40px';
-                                    });
-                                });
+                    const tbody = tableEl.querySelector('tbody');
+                    let rows = null; // Definir rows en scope más amplio
+                    if (tbody) {
+                        tbody.style.display = 'table-row-group';
+                        tbody.style.visibility = 'visible';
+                        tbody.style.opacity = '1';
+                        tbody.style.width = '100%';
+                        tbody.style.height = 'auto';
+                        
+                        rows = tbody.querySelectorAll('tr');
+                        console.log(`🔧 Aplicando estilos a ${rows.length} filas...`);
+                        rows.forEach((row, index) => {
+                            row.style.display = 'table-row';
+                            row.style.visibility = 'visible';
+                            row.style.opacity = '1';
+                            row.style.backgroundColor = index % 2 === 0 ? 'white' : '#f9f9f9';
+                            row.style.width = '100%';
+                            row.style.height = 'auto';
+                            row.style.minHeight = '40px';
+                            
+                            const cells = row.querySelectorAll('td');
+                            cells.forEach(cell => {
+                                cell.style.display = 'table-cell';
+                                cell.style.visibility = 'visible';
+                                cell.style.opacity = '1';
+                                cell.style.color = '#333';
+                                cell.style.backgroundColor = 'transparent';
+                                cell.style.padding = '12px';
+                                cell.style.borderBottom = '1px solid #e0e0e0';
+                                cell.style.width = 'auto';
+                                cell.style.height = 'auto';
+                                cell.style.minHeight = '40px';
+                            });
+                        });
                         console.log(`✅ Estilos aplicados a ${rows.length} filas`);
                     }
                 }
@@ -18348,23 +18349,28 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 // FORZAR REFLOW para asegurar que los estilos se apliquen
                 console.log('🔄 Forzando reflow del navegador...');
                 void tableContainer.offsetHeight; // Forzar reflow
-                void tableEl.offsetHeight; // Forzar reflow
+                if (tableEl) void tableEl.offsetHeight; // Forzar reflow
+                
+                // Guardar referencias para usar en requestAnimationFrame
+                const savedTableEl = tableEl;
+                const savedTbody = tableEl ? tableEl.querySelector('tbody') : null;
+                const savedRows = rows;
                 
                 // Esperar un frame más para que el navegador procese los cambios
                 requestAnimationFrame(() => {
                     // Verificar si la tabla está en el viewport DESPUÉS del reflow
                     try {
                         const tableRect = tableContainer.getBoundingClientRect();
-                            console.log('📍 Posición de la tabla en el viewport:', {
-                                top: tableRect.top,
-                                left: tableRect.left,
-                                width: tableRect.width,
-                                height: tableRect.height,
-                                visible: tableRect.top >= 0 && tableRect.left >= 0 && 
-                                         tableRect.bottom <= window.innerHeight && 
-                                         tableRect.right <= window.innerWidth
-                            });
-                            
+                        console.log('📍 Posición de la tabla en el viewport:', {
+                            top: tableRect.top,
+                            left: tableRect.left,
+                            width: tableRect.width,
+                            height: tableRect.height,
+                            visible: tableRect.top >= 0 && tableRect.left >= 0 && 
+                                     tableRect.bottom <= window.innerHeight && 
+                                     tableRect.right <= window.innerWidth
+                        });
+                        
                         // Forzar scroll a la tabla si es necesario
                         if (tableRect.top < 0 || tableRect.top > window.innerHeight || tableRect.height === 0) {
                             console.log('📍 Tabla fuera del viewport o altura 0, haciendo scroll...');
@@ -18378,14 +18384,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                 console.log('📐 Dimensiones calculadas:', { width: computedWidth, height: computedHeight });
                                 
                                 // Forzar dimensiones basadas en el contenido
-                                if (tableEl && tbody) {
-                                    const firstRow = tbody.querySelector('tr');
+                                if (savedTableEl && savedTbody && savedRows && savedRows.length > 0) {
+                                    const firstRow = savedRows[0];
                                     if (firstRow) {
                                         const rowHeight = firstRow.offsetHeight || 40;
-                                        const estimatedHeight = rowHeight * rows.length;
+                                        const estimatedHeight = rowHeight * savedRows.length;
                                         tableContainer.style.height = `${estimatedHeight}px`;
                                         tableContainer.style.minHeight = `${estimatedHeight}px`;
-                                        console.log(`📏 Altura estimada basada en filas: ${estimatedHeight}px`);
+                                        console.log(`📏 Altura estimada basada en filas: ${estimatedHeight}px (${savedRows.length} filas × ${rowHeight}px)`);
                                     }
                                 }
                             }
