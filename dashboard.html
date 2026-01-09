@@ -834,6 +834,28 @@
             justify-content: center;
         }
         
+        /* Estilos específicos para los nuevos modales */
+        #expenseModalNew,
+        #quoteModalNew,
+        #cameraModalNew {
+            display: none !important;
+            position: fixed !important;
+            z-index: 10000 !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            background-color: rgba(0,0,0,0.5) !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        
+        #expenseModalNew[style*="display: flex"],
+        #quoteModalNew[style*="display: flex"],
+        #cameraModalNew[style*="display: flex"] {
+            display: flex !important;
+        }
+        
         /* MOSTRAR CAMPOS DE IMAGEN - AHORA VISIBLES */
         #editHotelModal .form-group {
             position: relative;
@@ -18242,6 +18264,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         
         // Abrir modal para agregar gasto - NUEVO
         function addNewExpenseNew() {
+            console.log('🚀 addNewExpenseNew() llamado');
+            const modal = document.getElementById('expenseModalNew');
+            if (!modal) {
+                console.error('❌ Modal expenseModalNew no encontrado');
+                alert('❌ Error: Modal no encontrado. Verifica que el código se haya actualizado.');
+                return;
+            }
+            console.log('✅ Modal encontrado:', modal);
+            
             document.getElementById('expenseModalNewTitle').textContent = 'Agregar Gasto';
             document.getElementById('expenseFormNew').reset();
             document.getElementById('expenseIdNew').value = '';
@@ -18258,7 +18289,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             // Actualizar categorías
             updateExpenseCategoriesNew();
             
-            document.getElementById('expenseModalNew').style.display = 'flex';
+            // Mostrar modal con múltiples métodos
+            modal.style.display = 'flex';
+            modal.style.visibility = 'visible';
+            modal.style.opacity = '1';
+            modal.style.zIndex = '10000';
+            
+            console.log('✅ Modal mostrado, display:', modal.style.display);
+            console.log('✅ Modal computed style:', window.getComputedStyle(modal).display);
         }
         
         // Abrir modal para editar gasto - NUEVO
@@ -18491,6 +18529,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         
         // Abrir modal de cotización - NUEVO
         function openQuoteModalNew() {
+            console.log('🚀 openQuoteModalNew() llamado');
+            const modal = document.getElementById('quoteModalNew');
+            if (!modal) {
+                console.error('❌ Modal quoteModalNew no encontrado');
+                alert('❌ Error: Modal no encontrado. Verifica que el código se haya actualizado.');
+                return;
+            }
+            console.log('✅ Modal encontrado:', modal);
+            
             loadHotelsForQuoteNew();
             document.getElementById('quoteFormNew').reset();
             document.getElementById('quoteAdultsNew').value = '1';
@@ -18500,7 +18547,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             document.getElementById('quoteFinalTariffNew').value = '0.00';
             document.getElementById('nightsDisplayNew').style.display = 'none';
             document.getElementById('childrenAgesContainerNew').style.display = 'none';
-            document.getElementById('quoteModalNew').style.display = 'flex';
+            
+            // Mostrar modal con múltiples métodos
+            modal.style.display = 'flex';
+            modal.style.visibility = 'visible';
+            modal.style.opacity = '1';
+            modal.style.zIndex = '10000';
+            
+            console.log('✅ Modal mostrado, display:', modal.style.display);
+            console.log('✅ Modal computed style:', window.getComputedStyle(modal).display);
         }
         
         // Cerrar modal de cotización - NUEVO
