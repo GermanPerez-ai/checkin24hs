@@ -18313,13 +18313,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     
                     savedTbody = tableEl.querySelector('tbody');
                     if (savedTbody) {
-                        tbody.style.display = 'table-row-group';
-                        tbody.style.visibility = 'visible';
-                        tbody.style.opacity = '1';
-                        tbody.style.width = '100%';
-                        tbody.style.height = 'auto';
+                        savedTbody.style.display = 'table-row-group';
+                        savedTbody.style.visibility = 'visible';
+                        savedTbody.style.opacity = '1';
+                        savedTbody.style.width = '100%';
+                        savedTbody.style.height = 'auto';
                         
-                        rows = tbody.querySelectorAll('tr');
+                        rows = savedTbody.querySelectorAll('tr');
                         console.log(`🔧 Aplicando estilos a ${rows.length} filas...`);
                         rows.forEach((row, index) => {
                             row.style.display = 'table-row';
