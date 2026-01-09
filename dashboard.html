@@ -11990,6 +11990,13 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 Dashboard DOMContentLoaded ejecutado');
             
+            // Verificar que las funciones de los nuevos modales estén disponibles
+            console.log('🔍 Verificando funciones de modales nuevos...');
+            console.log('  - addNewExpenseNew:', typeof window.addNewExpenseNew);
+            console.log('  - openQuoteModalNew:', typeof window.openQuoteModalNew);
+            console.log('  - expenseModalNew:', document.getElementById('expenseModalNew') ? '✅ encontrado' : '❌ NO encontrado');
+            console.log('  - quoteModalNew:', document.getElementById('quoteModalNew') ? '✅ encontrado' : '❌ NO encontrado');
+            
             // Sobrescribir botones inmediatamente
             sobrescribirBotonesImagenes();
             
@@ -18318,6 +18325,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         
         // Hacer función global
         window.addNewExpenseNew = addNewExpenseNew;
+        window.editExpenseNew = editExpenseNew;
+        window.closeExpenseModalNew = closeExpenseModalNew;
+        window.saveExpenseNew = saveExpenseNew;
         
         // Abrir modal para editar gasto - NUEVO
         async function editExpenseNew(expenseId) {
@@ -18600,6 +18610,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         
         // Hacer función global
         window.openQuoteModalNew = openQuoteModalNew;
+        window.closeQuoteModalNew = closeQuoteModalNew;
+        window.createAndSendQuoteNew = createAndSendQuoteNew;
         
         // Cerrar modal de cotización - NUEVO
         function closeQuoteModalNew() {
@@ -19102,17 +19114,48 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         visibility: sectionComputed.visibility
                     });
                     
-                    // Si la sección no tiene ancho, calcularlo desde el viewport
+                    // Si la sección no tiene ancho, verificar y forzar contenedores padres primero
                     if (sectionRect.width === 0) {
                         console.log('🔧 Forzando dimensiones en expenses-section usando viewport...');
                         
-                        // Calcular ancho disponible: viewport - sidebar (220px) - padding
+                        // 1. Verificar y forzar .main-content primero
+                        const mainContent = document.querySelector('.main-content');
+                        if (mainContent) {
+                            const mainRect = mainContent.getBoundingClientRect();
+                            console.log('📐 Dimensiones de .main-content:', {
+                                width: mainRect.width,
+                                height: mainRect.height,
+                                display: window.getComputedStyle(mainContent).display
+                            });
+                            
+                            if (mainRect.width === 0) {
+                                console.log('🔧 Forzando dimensiones en .main-content...');
+                                const viewportWidth = window.innerWidth;
+                                const sidebarWidth = 220;
+                                const mainWidth = Math.max(800, viewportWidth - sidebarWidth);
+                                
+                                mainContent.style.cssText = `
+                                    display: block !important;
+                                    width: ${mainWidth}px !important;
+                                    min-width: ${mainWidth}px !important;
+                                    margin-left: ${sidebarWidth}px !important;
+                                    flex: 1 !important;
+                                    position: relative !important;
+                                    visibility: visible !important;
+                                `;
+                                void mainContent.offsetHeight;
+                                console.log(`✅ .main-content forzado a ${mainWidth}px`);
+                            }
+                        }
+                        
+                        // 2. Calcular ancho disponible: viewport - sidebar (220px) - padding
                         const viewportWidth = window.innerWidth;
-                        const sidebarWidth = 220; // Ancho del sidebar
-                        const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40); // Mínimo 800px, menos padding
+                        const sidebarWidth = 220;
+                        const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
                         
                         console.log(`📏 Viewport: ${viewportWidth}px, Sidebar: ${sidebarWidth}px, Disponible: ${availableWidth}px`);
                         
+                        // 3. Forzar dimensiones en expenses-section
                         expensesSection.style.cssText = `
                             display: block !important;
                             width: ${availableWidth}px !important;
@@ -19122,13 +19165,26 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             position: relative !important;
                             padding: 20px !important;
                             box-sizing: border-box !important;
+                            overflow: visible !important;
                         `;
-                        // Forzar reflow
-                        void expensesSection.offsetHeight;
                         
-                        // Verificar después del reflow
-                        const newRect = expensesSection.getBoundingClientRect();
-                        console.log(`✅ Dimensiones después de forzar: ${newRect.width}x${newRect.height}`);
+                        // 4. Forzar múltiples reflows
+                        void expensesSection.offsetHeight;
+                        requestAnimationFrame(() => {
+                            void expensesSection.offsetHeight;
+                            setTimeout(() => {
+                                const newRect = expensesSection.getBoundingClientRect();
+                                const offsetWidth = expensesSection.offsetWidth;
+                                const offsetHeight = expensesSection.offsetHeight;
+                                console.log(`✅ Dimensiones después de forzar:`);
+                                console.log(`   - getBoundingClientRect: ${newRect.width}x${newRect.height}`);
+                                console.log(`   - offsetWidth/Height: ${offsetWidth}x${offsetHeight}`);
+                                
+                                if (newRect.width === 0 && offsetWidth > 0) {
+                                    console.log('⚠️ getBoundingClientRect devuelve 0 pero offsetWidth tiene valor - usando offsetWidth');
+                                }
+                            }, 100);
+                        });
                     }
                 }
                 
@@ -19187,28 +19243,22 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                     visibility: computed.visibility
                                 });
                                 
-                            if (rect.width === 0 || rect.height === 0) {
+                            // Usar offsetWidth/Height que son más confiables que getBoundingClientRect
+                            const offsetWidth = tableContainer.offsetWidth;
+                            const offsetHeight = tableContainer.offsetHeight;
+                            
+                            if (rect.width === 0 && offsetWidth === 0) {
                                 console.error('⚠️ Tabla aún tiene dimensiones 0x0 después de aplicar estilos');
                                 console.log('🔧 Forzando dimensiones explícitas con valores absolutos desde viewport...');
                                 
-                                // Calcular ancho desde viewport si el padre no tiene dimensiones
-                                let containerWidth = 0;
-                                if (expensesSection) {
-                                    const sectionRect = expensesSection.getBoundingClientRect();
-                                    containerWidth = sectionRect.width;
-                                }
+                                // Calcular ancho desde viewport
+                                const viewportWidth = window.innerWidth;
+                                const sidebarWidth = 220;
+                                const containerWidth = Math.max(800, viewportWidth - sidebarWidth - 80);
                                 
-                                // Si aún no tiene ancho, calcular desde viewport
-                                if (containerWidth === 0) {
-                                    const viewportWidth = window.innerWidth;
-                                    const sidebarWidth = 220;
-                                    containerWidth = Math.max(800, viewportWidth - sidebarWidth - 80); // Menos padding
-                                    console.log(`📏 Calculando desde viewport: ${containerWidth}px`);
-                                } else {
-                                    console.log(`📏 Usando ancho del padre: ${containerWidth}px`);
-                                }
+                                console.log(`📏 Calculando desde viewport: ${containerWidth}px`);
                                 
-                                // Aplicar dimensiones absolutas
+                                // Aplicar dimensiones absolutas usando múltiples métodos
                                 tableContainer.style.cssText = `
                                     display: block !important;
                                     visibility: visible !important;
@@ -19234,15 +19284,32 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                     table-layout: auto !important;
                                 `;
                                 
-                                // Forzar otro reflow
+                                // Forzar múltiples reflows
                                 void tableContainer.offsetHeight;
                                 void table.offsetHeight;
                                 
-                                // Verificar final
-                                const finalRect = tableContainer.getBoundingClientRect();
-                                console.log(`✅ Dimensiones finales: ${finalRect.width}x${finalRect.height}`);
+                                requestAnimationFrame(() => {
+                                    void tableContainer.offsetHeight;
+                                    setTimeout(() => {
+                                        const finalRect = tableContainer.getBoundingClientRect();
+                                        const finalOffsetWidth = tableContainer.offsetWidth;
+                                        const finalOffsetHeight = tableContainer.offsetHeight;
+                                        
+                                        console.log(`✅ Dimensiones finales:`);
+                                        console.log(`   - getBoundingClientRect: ${finalRect.width}x${finalRect.height}`);
+                                        console.log(`   - offsetWidth/Height: ${finalOffsetWidth}x${finalOffsetHeight}`);
+                                        
+                                        if (finalOffsetWidth > 0 || finalOffsetHeight > 0) {
+                                            console.log('✅ Tabla tiene dimensiones (usando offsetWidth/Height)');
+                                        } else {
+                                            console.error('❌ Tabla aún no tiene dimensiones después de todos los intentos');
+                                        }
+                                    }, 200);
+                                });
+                            } else if (offsetWidth > 0 || offsetHeight > 0) {
+                                console.log(`✅ Tabla tiene dimensiones: ${offsetWidth}x${offsetHeight} (offsetWidth/Height)`);
                             } else {
-                                console.log('✅ Tabla tiene dimensiones correctas');
+                                console.log('✅ Tabla tiene dimensiones correctas (getBoundingClientRect)');
                             }
                             }, 200);
                         });
