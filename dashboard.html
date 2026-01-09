@@ -18229,7 +18229,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             // Esperar un momento para que el DOM se actualice
             setTimeout(() => {
-                const tableContainer = document.querySelector('#expenses-section .table-container');
+                try {
+                    console.log('⏰ Timeout ejecutado, buscando table-container...');
+                    const tableContainer = document.querySelector('#expenses-section .table-container');
             if (tableContainer) {
                 console.log('✅ table-container encontrado');
                 console.log('📐 Estilos del table-container:', {
