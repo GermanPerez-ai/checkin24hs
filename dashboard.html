@@ -364,6 +364,13 @@
             z-index: 1;
             opacity: 1 !important;
             background-color: white;
+            min-height: 400px !important;
+            height: auto !important;
+        }
+        
+        #expenses-section {
+            min-height: 500px !important;
+            height: auto !important;
         }
         
         #expenses-section .table-container table {
@@ -18268,6 +18275,73 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         overflow: window.getComputedStyle(mainContent).overflow
                     });
                 }
+                
+                // FORZAR VISIBILIDAD DIRECTAMENTE
+                console.log('🔧 FORZANDO VISIBILIDAD DE LA TABLA...');
+                tableContainer.style.display = 'block';
+                tableContainer.style.visibility = 'visible';
+                tableContainer.style.opacity = '1';
+                tableContainer.style.height = 'auto';
+                tableContainer.style.minHeight = '400px';
+                tableContainer.style.backgroundColor = 'white';
+                tableContainer.style.zIndex = '999';
+                
+                const table = tableContainer.querySelector('table');
+                if (table) {
+                    table.style.display = 'table';
+                    table.style.visibility = 'visible';
+                    table.style.opacity = '1';
+                    table.style.backgroundColor = 'white';
+                    table.style.width = '100%';
+                    
+                    const tbody = table.querySelector('tbody');
+                    if (tbody) {
+                        tbody.style.display = 'table-row-group';
+                        tbody.style.visibility = 'visible';
+                        tbody.style.opacity = '1';
+                        
+                        const rows = tbody.querySelectorAll('tr');
+                        rows.forEach(row => {
+                            row.style.display = 'table-row';
+                            row.style.visibility = 'visible';
+                            row.style.opacity = '1';
+                            row.style.backgroundColor = 'white';
+                            
+                            const cells = row.querySelectorAll('td');
+                            cells.forEach(cell => {
+                                cell.style.display = 'table-cell';
+                                cell.style.visibility = 'visible';
+                                cell.style.opacity = '1';
+                                cell.style.color = '#333';
+                                cell.style.backgroundColor = 'white';
+                            });
+                        });
+                    }
+                }
+                
+                // Verificar si la tabla está en el viewport
+                try {
+                    const tableRect = tableContainer.getBoundingClientRect();
+                    console.log('📍 Posición de la tabla en el viewport:', {
+                        top: tableRect.top,
+                        left: tableRect.left,
+                        width: tableRect.width,
+                        height: tableRect.height,
+                        visible: tableRect.top >= 0 && tableRect.left >= 0 && 
+                                 tableRect.bottom <= window.innerHeight && 
+                                 tableRect.right <= window.innerWidth
+                    });
+                    
+                    // Forzar scroll a la tabla si es necesario
+                    if (tableRect.top < 0 || tableRect.top > window.innerHeight || tableRect.height === 0) {
+                        console.log('📍 Tabla fuera del viewport o altura 0, haciendo scroll...');
+                        tableContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                } catch (e) {
+                    console.error('Error verificando viewport:', e);
+                }
+                
+                console.log('✅ Visibilidad forzada - La tabla debería ser visible ahora');
             }
         }
 
