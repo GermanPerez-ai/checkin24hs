@@ -66,12 +66,57 @@ echo "6️⃣ Últimos logs del servicio (últimas 20 líneas)..."
 docker service logs $DASHBOARD_SERVICE --tail 20 2>&1 | tail -20
 echo ""
 
+# 7. Reaplicar labels de Traefik
+echo "7️⃣ Reaplicando labels de Traefik al dashboard..."
+docker service update \
+    --label-add "traefik.enable=true" \
+    --label-add "traefik.http.routers.dashboard.rule=Host(\`dashboard.checkin24hs.com\`)" \
+    --label-add "traefik.http.routers.dashboard.entrypoints=websecure" \
+    --label-add "traefik.http.routers.dashboard.tls.certresolver=letsencrypt" \
+    --label-add "traefik.http.routers.dashboard.tls=true" \
+    --label-add "traefik.http.services.dashboard.loadbalancer.server.port=3000" \
+    --label-add "traefik.docker.network=easypanel" \
+    $DASHBOARD_SERVICE
+
+if [ $? -eq 0 ]; then
+    echo "✅ Labels de Traefik reaplicadas"
+else
+    echo "⚠️ Error al reaplicar labels (puede que ya existan)"
+fi
+echo ""
+
+# 8. Reiniciar Traefik
+echo "8️⃣ Reiniciando Traefik para que detecte los cambios..."
+TRAEFIK_SERVICE=$(docker service ls | grep -i traefik | awk '{print $1}' | head -1)
+
+if [ ! -z "$TRAEFIK_SERVICE" ]; then
+    docker service update --force $TRAEFIK_SERVICE
+    if [ $? -eq 0 ]; then
+        echo "✅ Traefik reiniciado"
+    else
+        echo "⚠️ Error al reiniciar Traefik"
+    fi
+else
+    echo "⚠️ No se encontró servicio Traefik"
+fi
+echo ""
+
+# 9. Esperar a que Traefik se reinicie
+echo "9️⃣ Esperando 30 segundos para que Traefik se reinicie..."
+sleep 30
+echo ""
+
 echo "=========================================="
 echo "✅ PROCESO COMPLETADO"
 echo "=========================================="
 echo ""
-echo "📋 PRÓXIMOS PASOS:"
-echo "   1. Espera 1-2 minutos más para que el servicio se estabilice"
+echo "📋 Resumen:"
+echo "   - Dashboard actualizado desde GitHub"
+echo "   - Labels de Traefik reaplicadas"
+echo "   - Traefik reiniciado"
+echo ""
+echo "⏳ PRÓXIMOS PASOS:"
+echo "   1. Espera 1-2 minutos más para que todo se estabilice"
 echo "   2. Recarga la página del dashboard (Ctrl+F5 para limpiar caché)"
 echo "   3. Abre la consola del navegador (F12)"
 echo "   4. Deberías ver estos logs al cargar:"
@@ -80,6 +125,8 @@ echo "        - addNewExpenseNew: function"
 echo "        - openQuoteModalNew: function"
 echo "        - expenseModalNew: ✅ encontrado"
 echo "        - quoteModalNew: ✅ encontrado"
+echo ""
+echo "   5. Prueba acceder a: https://dashboard.checkin24hs.com/"
 echo ""
 echo "💡 Si no aparecen los logs nuevos:"
 echo "   - Limpia la caché del navegador (Ctrl+Shift+Delete)"
