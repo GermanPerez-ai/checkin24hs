@@ -18226,7 +18226,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             console.log(`✅ ${expenses.length} filas agregadas a la tabla de gastos`);
             console.log('🔍 Verificando visibilidad de la tabla...');
-            const tableContainer = document.querySelector('#expenses-section .table-container');
+            
+            // Esperar un momento para que el DOM se actualice
+            setTimeout(() => {
+                const tableContainer = document.querySelector('#expenses-section .table-container');
             if (tableContainer) {
                 console.log('✅ table-container encontrado');
                 console.log('📐 Estilos del table-container:', {
