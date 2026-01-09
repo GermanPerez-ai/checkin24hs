@@ -338,6 +338,22 @@
             width: 100%;
             display: table;
             visibility: visible;
+            background-color: white;
+        }
+        
+        .table-container table tbody {
+            display: table-row-group;
+            visibility: visible;
+        }
+        
+        .table-container table tbody tr {
+            display: table-row;
+            visibility: visible;
+        }
+        
+        .table-container table tbody td {
+            display: table-cell;
+            visibility: visible;
         }
 
         .activity-card, .chart-card {
@@ -442,12 +458,35 @@
         table {
             width: 100%;
             border-collapse: collapse;
+            background-color: white;
+        }
+        
+        table.data-table {
+            background-color: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
         }
 
         th, td {
             padding: 12px;
             text-align: left;
             border-bottom: 1px solid #e0e0e0;
+        }
+        
+        tbody {
+            display: table-row-group;
+            visibility: visible;
+        }
+        
+        tbody tr {
+            display: table-row;
+            visibility: visible;
+        }
+        
+        tbody td {
+            display: table-cell;
+            visibility: visible;
         }
 
         th {
@@ -18078,9 +18117,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             expenses.sort((a, b) => new Date(b.date) - new Date(a.date));
             
             tbody.innerHTML = '';
-            expenses.forEach(expense => {
+            expenses.forEach((expense, index) => {
+                // Validar datos del gasto
+                if (!expense) {
+                    console.warn(`⚠️ Gasto en índice ${index} es null o undefined`);
+                    return;
+                }
+                
                 const row = document.createElement('tr');
-                const categoryName = expenseCategories[expense.category] || expense.category;
+                const categoryName = expenseCategories[expense.category] || expense.category || 'Sin categoría';
                 const typeLabel = expense.type === 'fixed' ? 'Fijo' : 'Variable';
                 const typeColor = expense.type === 'fixed' ? '#1976d2' : '#f57c00';
                 
@@ -18088,22 +18133,45 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 const exchangeRate = expense.exchange_rate || expense.exchangeRate || null;
                 const usdAmount = expense.usd_amount || expense.usd || null;
                 
+                // Validar y formatear monto
+                const amount = parseFloat(expense.amount) || 0;
+                
                 // Formatear fecha en zona horaria Argentina
-                const expenseDate = new Date(expense.date + 'T12:00:00');
-                const formattedDate = expenseDate.toLocaleDateString('es-AR', { 
-                    timeZone: 'America/Argentina/Buenos_Aires',
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric'
-                });
+                let formattedDate = '-';
+                if (expense.date) {
+                    try {
+                        const expenseDate = new Date(expense.date + 'T12:00:00');
+                        formattedDate = expenseDate.toLocaleDateString('es-AR', { 
+                            timeZone: 'America/Argentina/Buenos_Aires',
+                            day: '2-digit',
+                            month: '2-digit',
+                            year: 'numeric'
+                        });
+                    } catch (e) {
+                        console.warn('Error formateando fecha:', e);
+                        formattedDate = expense.date;
+                    }
+                }
+                
+                // Log del primer gasto para debugging
+                if (index === 0) {
+                    console.log('📋 Primer gasto:', {
+                        id: expense.id,
+                        date: expense.date,
+                        formattedDate: formattedDate,
+                        category: expense.category,
+                        amount: amount,
+                        description: expense.description
+                    });
+                }
                 
                 row.innerHTML = `
                     <td>${formattedDate}</td>
                     <td>${categoryName}</td>
                     <td>${expense.subcategory || '-'}</td>
                     <td><span style="background: ${typeColor}; color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;">${typeLabel}</span></td>
-                    <td>${expense.description}</td>
-                    <td style="font-weight: 600; color: #d32f2f;">$${expense.amount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                    <td>${expense.description || '-'}</td>
+                    <td style="font-weight: 600; color: #d32f2f;">$${amount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
                     <td>${exchangeRate ? exchangeRate.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</td>
                     <td style="font-weight: 600; color: #1976d2;">${usdAmount ? '$' + usdAmount.toLocaleString('es-AR', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</td>
                     <td>
@@ -18129,6 +18197,17 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     height: window.getComputedStyle(tableContainer).height,
                     visibility: window.getComputedStyle(tableContainer).visibility
                 });
+                
+                // Verificar el contenido de la tabla
+                const table = tableContainer.querySelector('table');
+                if (table) {
+                    const rows = table.querySelectorAll('tbody tr');
+                    console.log(`📊 Filas en la tabla: ${rows.length}`);
+                    if (rows.length > 0) {
+                        console.log('✅ Primera fila encontrada:', rows[0]);
+                        console.log('📝 Contenido de la primera fila:', rows[0].innerHTML.substring(0, 200));
+                    }
+                }
             } else {
                 console.error('❌ table-container NO encontrado');
             }
