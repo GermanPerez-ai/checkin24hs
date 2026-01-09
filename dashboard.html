@@ -18341,13 +18341,20 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                         cell.style.minHeight = '40px';
                                     });
                                 });
-                                console.log(`✅ Estilos aplicados a ${rows.length} filas`);
-                            }
-                        }
-                        
-                        // Verificar si la tabla está en el viewport
-                        try {
-                            const tableRect = tableContainer.getBoundingClientRect();
+                        console.log(`✅ Estilos aplicados a ${rows.length} filas`);
+                    }
+                }
+                
+                // FORZAR REFLOW para asegurar que los estilos se apliquen
+                console.log('🔄 Forzando reflow del navegador...');
+                void tableContainer.offsetHeight; // Forzar reflow
+                void tableEl.offsetHeight; // Forzar reflow
+                
+                // Esperar un frame más para que el navegador procese los cambios
+                requestAnimationFrame(() => {
+                    // Verificar si la tabla está en el viewport DESPUÉS del reflow
+                    try {
+                        const tableRect = tableContainer.getBoundingClientRect();
                             console.log('📍 Posición de la tabla en el viewport:', {
                                 top: tableRect.top,
                                 left: tableRect.left,
@@ -18358,16 +18365,37 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                          tableRect.right <= window.innerWidth
                             });
                             
-                            // Forzar scroll a la tabla si es necesario
-                            if (tableRect.top < 0 || tableRect.top > window.innerHeight || tableRect.height === 0) {
-                                console.log('📍 Tabla fuera del viewport o altura 0, haciendo scroll...');
-                                tableContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        // Forzar scroll a la tabla si es necesario
+                        if (tableRect.top < 0 || tableRect.top > window.innerHeight || tableRect.height === 0) {
+                            console.log('📍 Tabla fuera del viewport o altura 0, haciendo scroll...');
+                            tableContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            
+                            // Si aún tiene altura 0, forzar dimensiones explícitas
+                            if (tableRect.width === 0 || tableRect.height === 0) {
+                                console.log('⚠️ Tabla aún tiene dimensiones 0, forzando dimensiones explícitas...');
+                                const computedWidth = window.getComputedStyle(tableContainer).width;
+                                const computedHeight = window.getComputedStyle(tableContainer).height;
+                                console.log('📐 Dimensiones calculadas:', { width: computedWidth, height: computedHeight });
+                                
+                                // Forzar dimensiones basadas en el contenido
+                                if (tableEl && tbody) {
+                                    const firstRow = tbody.querySelector('tr');
+                                    if (firstRow) {
+                                        const rowHeight = firstRow.offsetHeight || 40;
+                                        const estimatedHeight = rowHeight * rows.length;
+                                        tableContainer.style.height = `${estimatedHeight}px`;
+                                        tableContainer.style.minHeight = `${estimatedHeight}px`;
+                                        console.log(`📏 Altura estimada basada en filas: ${estimatedHeight}px`);
+                                    }
+                                }
                             }
-                        } catch (e) {
-                            console.error('Error verificando viewport:', e);
                         }
-                        
-                        console.log('✅ Visibilidad forzada - La tabla debería ser visible ahora');
+                    } catch (e) {
+                        console.error('Error verificando viewport:', e);
+                    }
+                    
+                    console.log('✅ Visibilidad forzada - La tabla debería ser visible ahora');
+                });
                     } else {
                         console.error('❌ table-container NO encontrado después del timeout');
                     }
