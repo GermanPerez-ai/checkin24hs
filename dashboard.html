@@ -5467,23 +5467,99 @@ Ej:
             }
             
             if (section === 'expenses') {
-                // Asegurar que la sección tenga dimensiones antes de cargar datos
+                // SOLUCIÓN ULTRA AGRESIVA: Forzar dimensiones en TODOS los contenedores padres ANTES de cargar datos
+                console.log('🔧 SOLUCIÓN ULTRA AGRESIVA: Forzando dimensiones antes de cargar expenses...');
+                
+                // 1. Forzar .main-content PRIMERO
+                const mainContent = document.querySelector('.main-content');
+                if (mainContent) {
+                    const viewportWidth = window.innerWidth;
+                    const sidebarWidth = 220;
+                    const mainWidth = Math.max(800, viewportWidth - sidebarWidth);
+                    
+                    console.log(`🔧 Forzando .main-content a ${mainWidth}px`);
+                    mainContent.style.cssText = `
+                        display: block !important;
+                        width: ${mainWidth}px !important;
+                        min-width: ${mainWidth}px !important;
+                        margin-left: ${sidebarWidth}px !important;
+                        flex: 1 !important;
+                        position: relative !important;
+                        visibility: visible !important;
+                        overflow: visible !important;
+                    `;
+                    // También usar setAttribute para que sea más difícil de sobrescribir
+                    mainContent.setAttribute('data-forced-width', mainWidth);
+                    void mainContent.offsetHeight;
+                }
+                
+                // 2. Forzar expenses-section
                 if (targetSection) {
+                    const viewportWidth = window.innerWidth;
+                    const sidebarWidth = 220;
+                    const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
+                    
+                    console.log(`🔧 Forzando expenses-section a ${availableWidth}px`);
                     targetSection.style.cssText = `
                         display: block !important;
-                        width: 100% !important;
-                        min-width: 100% !important;
+                        width: ${availableWidth}px !important;
+                        min-width: ${availableWidth}px !important;
+                        max-width: ${availableWidth}px !important;
                         visibility: visible !important;
                         position: relative !important;
+                        padding: 20px !important;
+                        box-sizing: border-box !important;
+                        overflow: visible !important;
                     `;
-                    // Forzar reflow
+                    targetSection.setAttribute('data-forced-width', availableWidth);
                     void targetSection.offsetHeight;
+                    
+                    // 3. Crear MutationObserver para mantener las dimensiones
+                    if (!targetSection._dimensionObserver) {
+                        targetSection._dimensionObserver = new MutationObserver((mutations) => {
+                            let shouldReforce = false;
+                            mutations.forEach((mutation) => {
+                                if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                                    const currentWidth = targetSection.offsetWidth;
+                                    if (currentWidth === 0) {
+                                        console.log('⚠️ Dimensiones reseteadas a 0, reaplicando...');
+                                        shouldReforce = true;
+                                    }
+                                }
+                            });
+                            
+                            if (shouldReforce) {
+                                const forcedWidth = targetSection.getAttribute('data-forced-width');
+                                if (forcedWidth) {
+                                    targetSection.style.cssText = `
+                                        display: block !important;
+                                        width: ${forcedWidth}px !important;
+                                        min-width: ${forcedWidth}px !important;
+                                        max-width: ${forcedWidth}px !important;
+                                        visibility: visible !important;
+                                        position: relative !important;
+                                        padding: 20px !important;
+                                        box-sizing: border-box !important;
+                                        overflow: visible !important;
+                                    `;
+                                    void targetSection.offsetHeight;
+                                }
+                            }
+                        });
+                        
+                        targetSection._dimensionObserver.observe(targetSection, {
+                            attributes: true,
+                            attributeFilter: ['style', 'class']
+                        });
+                    }
                 }
+                
+                // Esperar un poco más para que los estilos se apliquen
                 setTimeout(() => {
                     if (typeof loadExpensesData === 'function') {
                         loadExpensesData();
                     }
-                }, 150);
+                }, 200);
             }
             
             if (section === 'quotes') {
