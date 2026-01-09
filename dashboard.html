@@ -18232,154 +18232,148 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 try {
                     console.log('⏰ Timeout ejecutado, buscando table-container...');
                     const tableContainer = document.querySelector('#expenses-section .table-container');
-            if (tableContainer) {
-                console.log('✅ table-container encontrado');
-                console.log('📐 Estilos del table-container:', {
-                    display: window.getComputedStyle(tableContainer).display,
-                    width: window.getComputedStyle(tableContainer).width,
-                    height: window.getComputedStyle(tableContainer).height,
-                    visibility: window.getComputedStyle(tableContainer).visibility
-                });
-                
-                // Verificar el contenido de la tabla
-                const table = tableContainer.querySelector('table');
-                if (table) {
-                    const rows = table.querySelectorAll('tbody tr');
-                    console.log(`📊 Filas en la tabla: ${rows.length}`);
-                    if (rows.length > 0) {
-                        console.log('✅ Primera fila encontrada:', rows[0]);
-                        console.log('📝 Contenido de la primera fila:', rows[0].innerHTML.substring(0, 200));
-                    }
-                }
-            } else {
-                console.error('❌ table-container NO encontrado');
-            }
-            
-            const expensesSection = document.getElementById('expenses-section');
-            if (expensesSection) {
-                console.log('📐 Estilos de expenses-section:', {
-                    display: window.getComputedStyle(expensesSection).display,
-                    visibility: window.getComputedStyle(expensesSection).visibility,
-                    height: window.getComputedStyle(expensesSection).height,
-                    overflow: window.getComputedStyle(expensesSection).overflow,
-                    position: window.getComputedStyle(expensesSection).position,
-                    zIndex: window.getComputedStyle(expensesSection).zIndex
-                });
-                
-                // Verificar si hay elementos que puedan estar bloqueando
-                const allChildren = expensesSection.querySelectorAll('*');
-                console.log(`🔍 Total de elementos hijos en expenses-section: ${allChildren.length}`);
-                
-                // Verificar el contenedor principal
-                const mainContent = document.querySelector('.main-content');
-                if (mainContent) {
-                    console.log('📐 Estilos de main-content:', {
-                        display: window.getComputedStyle(mainContent).display,
-                        visibility: window.getComputedStyle(mainContent).visibility,
-                        height: window.getComputedStyle(mainContent).height,
-                        overflow: window.getComputedStyle(mainContent).overflow
-                    });
-                }
-                
-                // FORZAR VISIBILIDAD DIRECTAMENTE
-                console.log('🔧 FORZANDO VISIBILIDAD DE LA TABLA...');
-                tableContainer.style.display = 'block';
-                tableContainer.style.visibility = 'visible';
-                tableContainer.style.opacity = '1';
-                tableContainer.style.width = '100%';
-                tableContainer.style.minWidth = '100%';
-                tableContainer.style.height = 'auto';
-                tableContainer.style.minHeight = '400px';
-                tableContainer.style.backgroundColor = 'white';
-                tableContainer.style.zIndex = '999';
-                tableContainer.style.position = 'relative';
-                tableContainer.style.overflow = 'visible';
-                
-                const table = tableContainer.querySelector('table');
-                if (table) {
-                    table.style.display = 'table';
-                    table.style.visibility = 'visible';
-                    table.style.opacity = '1';
-                    table.style.backgroundColor = 'white';
-                    table.style.width = '100%';
-                    table.style.minWidth = '100%';
-                    table.style.height = 'auto';
-                    table.style.minHeight = '200px';
-                    table.style.tableLayout = 'auto';
-                    table.style.borderCollapse = 'collapse';
-                    
-                    const tbody = table.querySelector('tbody');
-                    if (tbody) {
-                        tbody.style.display = 'table-row-group';
-                        tbody.style.visibility = 'visible';
-                        tbody.style.opacity = '1';
-                        tbody.style.width = '100%';
-                        tbody.style.height = 'auto';
-                        
-                        const rows = tbody.querySelectorAll('tr');
-                        console.log(`🔧 Aplicando estilos a ${rows.length} filas...`);
-                        rows.forEach((row, index) => {
-                            row.style.display = 'table-row';
-                            row.style.visibility = 'visible';
-                            row.style.opacity = '1';
-                            row.style.backgroundColor = index % 2 === 0 ? 'white' : '#f9f9f9';
-                            row.style.width = '100%';
-                            row.style.height = 'auto';
-                            row.style.minHeight = '40px';
-                            
-                            const cells = row.querySelectorAll('td');
-                            cells.forEach(cell => {
-                                cell.style.display = 'table-cell';
-                                cell.style.visibility = 'visible';
-                                cell.style.opacity = '1';
-                                cell.style.color = '#333';
-                                cell.style.backgroundColor = 'transparent';
-                                cell.style.padding = '12px';
-                                cell.style.borderBottom = '1px solid #e0e0e0';
-                                cell.style.width = 'auto';
-                                cell.style.height = 'auto';
-                                cell.style.minHeight = '40px';
-                            });
+                    if (tableContainer) {
+                        console.log('✅ table-container encontrado');
+                        console.log('📐 Estilos del table-container:', {
+                            display: window.getComputedStyle(tableContainer).display,
+                            width: window.getComputedStyle(tableContainer).width,
+                            height: window.getComputedStyle(tableContainer).height,
+                            visibility: window.getComputedStyle(tableContainer).visibility
                         });
-                        console.log(`✅ Estilos aplicados a ${rows.length} filas`);
+                        
+                        // Verificar el contenido de la tabla
+                        const table = tableContainer.querySelector('table');
+                        if (table) {
+                            const rows = table.querySelectorAll('tbody tr');
+                            console.log(`📊 Filas en la tabla: ${rows.length}`);
+                            if (rows.length > 0) {
+                                console.log('✅ Primera fila encontrada:', rows[0]);
+                                console.log('📝 Contenido de la primera fila:', rows[0].innerHTML.substring(0, 200));
+                            }
+                        }
+                        
+                        const expensesSection = document.getElementById('expenses-section');
+                        if (expensesSection) {
+                            console.log('📐 Estilos de expenses-section:', {
+                                display: window.getComputedStyle(expensesSection).display,
+                                visibility: window.getComputedStyle(expensesSection).visibility,
+                                height: window.getComputedStyle(expensesSection).height,
+                                overflow: window.getComputedStyle(expensesSection).overflow,
+                                position: window.getComputedStyle(expensesSection).position,
+                                zIndex: window.getComputedStyle(expensesSection).zIndex
+                            });
+                            
+                            // Verificar si hay elementos que puedan estar bloqueando
+                            const allChildren = expensesSection.querySelectorAll('*');
+                            console.log(`🔍 Total de elementos hijos en expenses-section: ${allChildren.length}`);
+                            
+                            // Verificar el contenedor principal
+                            const mainContent = document.querySelector('.main-content');
+                            if (mainContent) {
+                                console.log('📐 Estilos de main-content:', {
+                                    display: window.getComputedStyle(mainContent).display,
+                                    visibility: window.getComputedStyle(mainContent).visibility,
+                                    height: window.getComputedStyle(mainContent).height,
+                                    overflow: window.getComputedStyle(mainContent).overflow
+                                });
+                            }
+                        }
+                        
+                        // FORZAR VISIBILIDAD DIRECTAMENTE
+                        console.log('🔧 FORZANDO VISIBILIDAD DE LA TABLA...');
+                        tableContainer.style.display = 'block';
+                        tableContainer.style.visibility = 'visible';
+                        tableContainer.style.opacity = '1';
+                        tableContainer.style.width = '100%';
+                        tableContainer.style.minWidth = '100%';
+                        tableContainer.style.height = 'auto';
+                        tableContainer.style.minHeight = '400px';
+                        tableContainer.style.backgroundColor = 'white';
+                        tableContainer.style.zIndex = '999';
+                        tableContainer.style.position = 'relative';
+                        tableContainer.style.overflow = 'visible';
+                        
+                        const tableEl = tableContainer.querySelector('table');
+                        if (tableEl) {
+                            tableEl.style.display = 'table';
+                            tableEl.style.visibility = 'visible';
+                            tableEl.style.opacity = '1';
+                            tableEl.style.backgroundColor = 'white';
+                            tableEl.style.width = '100%';
+                            tableEl.style.minWidth = '100%';
+                            tableEl.style.height = 'auto';
+                            tableEl.style.minHeight = '200px';
+                            tableEl.style.tableLayout = 'auto';
+                            tableEl.style.borderCollapse = 'collapse';
+                            
+                            const tbody = tableEl.querySelector('tbody');
+                            if (tbody) {
+                                tbody.style.display = 'table-row-group';
+                                tbody.style.visibility = 'visible';
+                                tbody.style.opacity = '1';
+                                tbody.style.width = '100%';
+                                tbody.style.height = 'auto';
+                                
+                                const rows = tbody.querySelectorAll('tr');
+                                console.log(`🔧 Aplicando estilos a ${rows.length} filas...`);
+                                rows.forEach((row, index) => {
+                                    row.style.display = 'table-row';
+                                    row.style.visibility = 'visible';
+                                    row.style.opacity = '1';
+                                    row.style.backgroundColor = index % 2 === 0 ? 'white' : '#f9f9f9';
+                                    row.style.width = '100%';
+                                    row.style.height = 'auto';
+                                    row.style.minHeight = '40px';
+                                    
+                                    const cells = row.querySelectorAll('td');
+                                    cells.forEach(cell => {
+                                        cell.style.display = 'table-cell';
+                                        cell.style.visibility = 'visible';
+                                        cell.style.opacity = '1';
+                                        cell.style.color = '#333';
+                                        cell.style.backgroundColor = 'transparent';
+                                        cell.style.padding = '12px';
+                                        cell.style.borderBottom = '1px solid #e0e0e0';
+                                        cell.style.width = 'auto';
+                                        cell.style.height = 'auto';
+                                        cell.style.minHeight = '40px';
+                                    });
+                                });
+                                console.log(`✅ Estilos aplicados a ${rows.length} filas`);
+                            }
+                        }
+                        
+                        // Verificar si la tabla está en el viewport
+                        try {
+                            const tableRect = tableContainer.getBoundingClientRect();
+                            console.log('📍 Posición de la tabla en el viewport:', {
+                                top: tableRect.top,
+                                left: tableRect.left,
+                                width: tableRect.width,
+                                height: tableRect.height,
+                                visible: tableRect.top >= 0 && tableRect.left >= 0 && 
+                                         tableRect.bottom <= window.innerHeight && 
+                                         tableRect.right <= window.innerWidth
+                            });
+                            
+                            // Forzar scroll a la tabla si es necesario
+                            if (tableRect.top < 0 || tableRect.top > window.innerHeight || tableRect.height === 0) {
+                                console.log('📍 Tabla fuera del viewport o altura 0, haciendo scroll...');
+                                tableContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                            }
+                        } catch (e) {
+                            console.error('Error verificando viewport:', e);
+                        }
+                        
+                        console.log('✅ Visibilidad forzada - La tabla debería ser visible ahora');
+                    } else {
+                        console.error('❌ table-container NO encontrado después del timeout');
                     }
-                }
-                
-                // Verificar si la tabla está en el viewport
-                try {
-                    const tableRect = tableContainer.getBoundingClientRect();
-                    console.log('📍 Posición de la tabla en el viewport:', {
-                        top: tableRect.top,
-                        left: tableRect.left,
-                        width: tableRect.width,
-                        height: tableRect.height,
-                        visible: tableRect.top >= 0 && tableRect.left >= 0 && 
-                                 tableRect.bottom <= window.innerHeight && 
-                                 tableRect.right <= window.innerWidth
-                    });
-                    
-                    // Forzar scroll a la tabla si es necesario
-                    if (tableRect.top < 0 || tableRect.top > window.innerHeight || tableRect.height === 0) {
-                        console.log('📍 Tabla fuera del viewport o altura 0, haciendo scroll...');
-                        tableContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }
-                } catch (e) {
-                    console.error('Error verificando viewport:', e);
-                }
-                
-                    console.log('✅ Visibilidad forzada - La tabla debería ser visible ahora');
-                } else {
-                    console.error('❌ table-container NO encontrado después del timeout');
-                }
                 } catch (error) {
                     console.error('❌ ERROR al forzar visibilidad de la tabla:', error);
                     console.error('Stack trace:', error.stack);
                 }
             }, 100);
-            } catch (error) {
-                console.error('❌ ERROR en loadExpensesTable:', error);
-                console.error('Stack trace:', error.stack);
-            }
         }
 
         // Editar gasto
