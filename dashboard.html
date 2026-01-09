@@ -5397,12 +5397,106 @@ Ej:
             budget: null
         };
         
+        // Función auxiliar para forzar dimensiones en expenses-section
+        function forceExpensesSectionDimensions() {
+            console.log('🔧 SOLUCIÓN ULTRA AGRESIVA: Forzando dimensiones antes de cargar expenses...');
+            
+            // 1. Forzar .main-content PRIMERO
+            const mainContent = document.querySelector('.main-content');
+            if (mainContent) {
+                const viewportWidth = window.innerWidth;
+                const sidebarWidth = 220;
+                const mainWidth = Math.max(800, viewportWidth - sidebarWidth);
+                
+                console.log(`🔧 Forzando .main-content a ${mainWidth}px`);
+                mainContent.style.cssText = `
+                    display: block !important;
+                    width: ${mainWidth}px !important;
+                    min-width: ${mainWidth}px !important;
+                    margin-left: ${sidebarWidth}px !important;
+                    flex: 1 !important;
+                    position: relative !important;
+                    visibility: visible !important;
+                    overflow: visible !important;
+                `;
+                mainContent.setAttribute('data-forced-width', mainWidth);
+                void mainContent.offsetHeight;
+            }
+            
+            // 2. Forzar expenses-section
+            const expensesSection = document.getElementById('expenses-section');
+            if (expensesSection) {
+                const viewportWidth = window.innerWidth;
+                const sidebarWidth = 220;
+                const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
+                
+                console.log(`🔧 Forzando expenses-section a ${availableWidth}px`);
+                expensesSection.style.cssText = `
+                    display: block !important;
+                    width: ${availableWidth}px !important;
+                    min-width: ${availableWidth}px !important;
+                    max-width: ${availableWidth}px !important;
+                    visibility: visible !important;
+                    position: relative !important;
+                    padding: 20px !important;
+                    box-sizing: border-box !important;
+                    overflow: visible !important;
+                `;
+                expensesSection.setAttribute('data-forced-width', availableWidth);
+                void expensesSection.offsetHeight;
+                
+                // 3. Crear MutationObserver para mantener las dimensiones
+                if (!expensesSection._dimensionObserver) {
+                    expensesSection._dimensionObserver = new MutationObserver((mutations) => {
+                        let shouldReforce = false;
+                        mutations.forEach((mutation) => {
+                            if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                                const currentWidth = expensesSection.offsetWidth;
+                                if (currentWidth === 0) {
+                                    console.log('⚠️ Dimensiones reseteadas a 0, reaplicando...');
+                                    shouldReforce = true;
+                                }
+                            }
+                        });
+                        
+                        if (shouldReforce) {
+                            const forcedWidth = expensesSection.getAttribute('data-forced-width');
+                            if (forcedWidth) {
+                                expensesSection.style.cssText = `
+                                    display: block !important;
+                                    width: ${forcedWidth}px !important;
+                                    min-width: ${forcedWidth}px !important;
+                                    max-width: ${forcedWidth}px !important;
+                                    visibility: visible !important;
+                                    position: relative !important;
+                                    padding: 20px !important;
+                                    box-sizing: border-box !important;
+                                    overflow: visible !important;
+                                `;
+                                void expensesSection.offsetHeight;
+                            }
+                        }
+                    });
+                    
+                    expensesSection._dimensionObserver.observe(expensesSection, {
+                        attributes: true,
+                        attributeFilter: ['style', 'class']
+                    });
+                }
+            }
+        }
+        
         // Redefinir función showSection para agregar funcionalidad adicional
         const originalShowSection = window.showSection;
         window.showSection = function(section, event) {
             // Llamar a la función original si existe
             if (originalShowSection) {
                 originalShowSection(section, event);
+            }
+            
+            // SIEMPRE forzar dimensiones si es expenses-section (ANTES de cargar datos)
+            if (section === 'expenses') {
+                forceExpensesSectionDimensions();
             }
             
             // Ocultar todas las secciones
