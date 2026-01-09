@@ -5,14 +5,31 @@ const fs = require('fs');
 const { getRealPuyehueQuote } = require('./puppeteer-real-cotizacion.js');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 80;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
+// Middleware para prevenir caché en todos los archivos HTML y la ruta principal
+app.use((req, res, next) => {
+    if (req.path === '/' || req.path === '/dashboard.html' || req.path.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.setHeader('Surrogate-Control', 'no-store');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+    }
+    next();
+});
+
 // Ruta principal - Dashboard de administración (DEBE estar ANTES de express.static)
 app.get('/', (req, res) => {
+    // Asegurar headers anti-caché explícitamente
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('Surrogate-Control', 'no-store');
     res.sendFile(path.join(__dirname, 'dashboard.html'));
 });
 
