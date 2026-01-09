@@ -18390,9 +18390,36 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                     if (firstRow) {
                                         const rowHeight = firstRow.offsetHeight || 40;
                                         const estimatedHeight = rowHeight * savedRows.length;
+                                        
+                                        // Forzar altura y ancho explícitamente
                                         tableContainer.style.height = `${estimatedHeight}px`;
                                         tableContainer.style.minHeight = `${estimatedHeight}px`;
+                                        tableContainer.style.width = '100%';
+                                        tableContainer.style.minWidth = '100%';
+                                        
+                                        // También forzar en la tabla
+                                        if (savedTableEl) {
+                                            savedTableEl.style.height = `${estimatedHeight}px`;
+                                            savedTableEl.style.minHeight = `${estimatedHeight}px`;
+                                            savedTableEl.style.width = '100%';
+                                            savedTableEl.style.minWidth = '100%';
+                                        }
+                                        
                                         console.log(`📏 Altura estimada basada en filas: ${estimatedHeight}px (${savedRows.length} filas × ${rowHeight}px)`);
+                                        
+                                        // Forzar otro reflow después de aplicar dimensiones
+                                        void tableContainer.offsetHeight;
+                                        
+                                        // Verificar dimensiones después de aplicar
+                                        setTimeout(() => {
+                                            const newRect = tableContainer.getBoundingClientRect();
+                                            console.log('📐 Dimensiones después de forzar:', {
+                                                width: newRect.width,
+                                                height: newRect.height,
+                                                computedWidth: window.getComputedStyle(tableContainer).width,
+                                                computedHeight: window.getComputedStyle(tableContainer).height
+                                            });
+                                        }, 50);
                                     }
                                 }
                             }
