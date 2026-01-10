@@ -19510,9 +19510,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             }
                             
                             // Verificar que expenses-section tenga dimensiones, si no, forzarlas de nuevo
-                            const sectionWidth = expensesSection.offsetWidth || expensesSection.getBoundingClientRect().width;
-                            if (sectionWidth === 0) {
+                            const currentSectionWidth = expensesSection.offsetWidth || expensesSection.getBoundingClientRect().width;
+                            if (currentSectionWidth === 0) {
                                 console.log('⚠️ expenses-section tiene 0px, forzando dimensiones de nuevo...');
+                                // Usar sectionWidth calculado desde viewport, no el offsetWidth que es 0
                                 expensesSection.style.setProperty('display', 'block', 'important');
                                 expensesSection.style.setProperty('width', `${sectionWidth}px`, 'important');
                                 expensesSection.style.setProperty('min-width', `${sectionWidth}px`, 'important');
