@@ -19463,40 +19463,40 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     void mainContent.offsetWidth; // Forzar reflow
                 }
                 
-                // 2. Aplicar dimensiones en ORDEN CORRECTO con verificación de que cada paso funcione
-                // Paso 1: Asegurar main-content
+                // 2. Aplicar dimensiones en ORDEN CORRECTO - SOLUCIÓN SIMPLIFICADA Y DIRECTA
+                // Usar un único setTimeout con pasos secuenciales para evitar problemas de timing
                 setTimeout(() => {
+                    // Paso 1: Asegurar main-content con display: flex (está en contenedor flex)
                     const mainContent = document.querySelector('.main-content');
-                    if (!mainContent) return;
-                    
-                    const viewportWidth = window.innerWidth;
-                    const sidebarWidth = 220;
-                    const mainWidth = Math.max(800, viewportWidth - sidebarWidth);
-                    
-                    mainContent.style.cssText = `
-                        display: flex !important;
-                        flex-direction: column !important;
-                        flex: 1 1 ${mainWidth}px !important;
-                        flex-basis: ${mainWidth}px !important;
-                        width: ${mainWidth}px !important;
-                        min-width: ${mainWidth}px !important;
-                        max-width: ${mainWidth}px !important;
-                        margin-left: ${sidebarWidth}px !important;
-                        position: relative !important;
-                        visibility: visible !important;
-                    `;
-                    void mainContent.offsetWidth;
-                    
-                    // Paso 2: Asegurar expenses-section DESPUÉS de main-content
-                    setTimeout(() => {
-                        const expensesSection = document.getElementById('expenses-section');
-                        if (!expensesSection) return;
+                    if (mainContent) {
+                        const viewportWidth = window.innerWidth;
+                        const sidebarWidth = 220;
+                        const mainWidth = Math.max(800, viewportWidth - sidebarWidth);
                         
-                        // Verificar que expenses-section esté visible
-                        if (window.getComputedStyle(expensesSection).display === 'none') {
-                            expensesSection.style.setProperty('display', 'block', 'important');
-                        }
+                        // Usar display: flex porque body tiene display: flex
+                        mainContent.style.cssText = `
+                            display: flex !important;
+                            flex-direction: column !important;
+                            width: ${mainWidth}px !important;
+                            min-width: ${mainWidth}px !important;
+                            max-width: ${mainWidth}px !important;
+                            margin-left: ${sidebarWidth}px !important;
+                            flex: 1 1 auto !important;
+                            position: relative !important;
+                            visibility: visible !important;
+                            overflow: visible !important;
+                        `;
+                        void mainContent.offsetWidth;
+                    }
+                    
+                    // Paso 2: Asegurar expenses-section (debe ser block, no flex)
+                    const expensesSection = document.getElementById('expenses-section');
+                    if (expensesSection) {
+                        // Asegurar que esté visible
+                        expensesSection.style.setProperty('display', 'block', 'important');
                         
+                        const viewportWidth = window.innerWidth;
+                        const sidebarWidth = 220;
                         const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
                         
                         expensesSection.style.cssText = `
@@ -19510,74 +19510,86 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             box-sizing: border-box !important;
                             overflow: visible !important;
                         `;
-                        expensesSection.setAttribute('data-forced-width', availableWidth);
                         
-                        // Forzar reflow múltiples veces
+                        // Forzar reflow
                         void expensesSection.offsetWidth;
                         void expensesSection.offsetHeight;
+                    }
+                    
+                    // Paso 3: Aplicar dimensiones al table-container DESPUÉS de que ambos estén listos
+                    requestAnimationFrame(() => {
                         requestAnimationFrame(() => {
-                            void expensesSection.offsetWidth;
-                            
-                            // Paso 3: Aplicar dimensiones al table-container DESPUÉS de verificar expenses-section
-                            setTimeout(() => {
-                                // Verificar que expenses-section tenga dimensiones ANTES de aplicar al table-container
+                            if (tableContainer && expensesSection) {
+                                // Verificar dimensiones de expenses-section
                                 const sectionWidth = expensesSection.offsetWidth || expensesSection.getBoundingClientRect().width;
-                                const finalWidth = sectionWidth > 0 ? sectionWidth - 40 : availableWidth;
+                                const viewportWidth = window.innerWidth;
+                                const sidebarWidth = 220;
+                                // Usar dimensiones reales del padre o calcular desde viewport
+                                const containerWidth = sectionWidth > 0 ? sectionWidth - 40 : Math.max(800, viewportWidth - sidebarWidth - 80);
                                 
-                                if (tableContainer) {
-                                    const rowCount = expenses.length;
-                                    const minHeight = Math.max(400, rowCount * 50);
-                                    
-                                    console.log(`📏 Aplicando dimensiones finales: ${finalWidth}px x ${minHeight}px (sectionWidth: ${sectionWidth})`);
-                                    
-                                    // Aplicar con valores absolutos
-                                    tableContainer.style.cssText = `
-                                        display: block !important;
+                                const rowCount = expenses.length;
+                                const minHeight = Math.max(400, rowCount * 50);
+                                
+                                console.log(`📏 Aplicando dimensiones finales: ${containerWidth}px x ${minHeight}px (sectionWidth: ${sectionWidth}, viewport: ${viewportWidth})`);
+                                
+                                // Aplicar con valores absolutos
+                                tableContainer.style.cssText = `
+                                    display: block !important;
+                                    visibility: visible !important;
+                                    width: ${containerWidth}px !important;
+                                    min-width: ${containerWidth}px !important;
+                                    max-width: ${containerWidth}px !important;
+                                    min-height: ${minHeight}px !important;
+                                    height: auto !important;
+                                    overflow-x: auto !important;
+                                    overflow-y: visible !important;
+                                    background-color: white !important;
+                                    position: relative !important;
+                                    z-index: 1 !important;
+                                    box-sizing: border-box !important;
+                                `;
+                                
+                                void tableContainer.offsetWidth;
+                                void tableContainer.offsetHeight;
+                                
+                                const table = tableContainer.querySelector('table');
+                                if (table) {
+                                    table.style.cssText = `
+                                        width: ${containerWidth}px !important;
+                                        min-width: ${containerWidth}px !important;
+                                        display: table !important;
                                         visibility: visible !important;
-                                        width: ${finalWidth}px !important;
-                                        min-width: ${finalWidth}px !important;
-                                        max-width: ${finalWidth}px !important;
-                                        min-height: ${minHeight}px !important;
-                                        height: auto !important;
-                                        overflow-x: auto !important;
-                                        overflow-y: visible !important;
-                                        background-color: white !important;
-                                        position: relative !important;
-                                        z-index: 1 !important;
-                                        box-sizing: border-box !important;
+                                        border-collapse: collapse !important;
+                                        table-layout: auto !important;
                                     `;
-                                    
-                                    void tableContainer.offsetWidth;
-                                    void tableContainer.offsetHeight;
-                                    
-                                    const table = tableContainer.querySelector('table');
-                                    if (table) {
-                                        table.style.cssText = `
-                                            width: ${finalWidth}px !important;
-                                            min-width: ${finalWidth}px !important;
-                                            display: table !important;
-                                            visibility: visible !important;
-                                            border-collapse: collapse !important;
-                                            table-layout: auto !important;
-                                        `;
-                                        void table.offsetWidth;
-                                    }
-                                    
-                                    // Verificación final después de aplicar todo
-                                    setTimeout(() => {
-                                        const finalOffsetWidth = tableContainer.offsetWidth;
-                                        const finalOffsetHeight = tableContainer.offsetHeight;
-                                        if (finalOffsetWidth > 0 || finalOffsetHeight > 0) {
-                                            console.log(`✅ Tabla tiene dimensiones: ${finalOffsetWidth}x${finalOffsetHeight}`);
-                                        } else {
-                                            console.log(`📐 Tabla aún sin dimensiones: ${finalOffsetWidth}x${finalOffsetHeight} - expenses-section: ${expensesSection.offsetWidth}x${expensesSection.offsetHeight}`);
-                                        }
-                                    }, 100);
+                                    void table.offsetWidth;
+                                    void table.offsetHeight;
                                 }
-                            }, 100); // Esperar a que expenses-section tenga dimensiones
+                                
+                                // Verificación final después de todo
+                                setTimeout(() => {
+                                    const finalWidth = tableContainer.offsetWidth;
+                                    const finalHeight = tableContainer.offsetHeight;
+                                    const sectionWidth = expensesSection.offsetWidth;
+                                    
+                                    if (finalWidth > 0 || finalHeight > 0) {
+                                        console.log(`✅ Tabla tiene dimensiones: ${finalWidth}x${finalHeight} (expenses-section: ${sectionWidth}px)`);
+                                    } else {
+                                        console.log(`📐 Tabla: ${finalWidth}x${finalHeight}, expenses-section: ${sectionWidth}px`);
+                                        // Si aún no funciona, intentar una última vez con valores del viewport directamente
+                                        if (finalWidth === 0) {
+                                            const emergencyWidth = Math.max(800, viewportWidth - sidebarWidth - 80);
+                                            tableContainer.style.setProperty('width', `${emergencyWidth}px`, 'important');
+                                            tableContainer.style.setProperty('min-width', `${emergencyWidth}px`, 'important');
+                                            void tableContainer.offsetWidth;
+                                            console.log(`🔧 Último intento: ${emergencyWidth}px (viewport: ${viewportWidth})`);
+                                        }
+                                    }
+                                }, 200);
+                            }
                         });
-                    }, 100); // Esperar a que main-content se aplique
-                }, 50); // Iniciar después de que los datos se carguen
+                    });
+                }, 100); // Esperar 100ms para que showSection aplique display: block primero
                 
                 console.log(`✅ ${expenses.length} gastos cargados en la tabla`);
             } catch (error) {
