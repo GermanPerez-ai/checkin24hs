@@ -19319,28 +19319,28 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 console.error('❌ forceExpensesSectionDimensions NO está definida - el código nuevo no se cargó');
                 // Intentar forzar dimensiones manualmente como fallback
                 console.log('🔧 Fallback: Forzando dimensiones manualmente...');
-                const mainContent = document.querySelector('.main-content');
-                const expensesSection = document.getElementById('expenses-section');
-                if (mainContent && expensesSection) {
+                const mainContentFallback = document.querySelector('.main-content');
+                const expensesSectionFallback = document.getElementById('expenses-section');
+                if (mainContentFallback && expensesSectionFallback) {
                     const viewportWidth = window.innerWidth;
                     const sidebarWidth = 220;
                     const mainWidth = Math.max(800, viewportWidth - sidebarWidth);
                     const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
                     
-                    mainContent.style.cssText = `
+                    mainContentFallback.style.cssText = `
                         display: block !important;
                         width: ${mainWidth}px !important;
                         min-width: ${mainWidth}px !important;
                         margin-left: ${sidebarWidth}px !important;
                     `;
-                    expensesSection.style.cssText = `
+                    expensesSectionFallback.style.cssText = `
                         display: block !important;
                         width: ${availableWidth}px !important;
                         min-width: ${availableWidth}px !important;
                         padding: 20px !important;
                     `;
-                    void mainContent.offsetWidth;
-                    void expensesSection.offsetWidth;
+                    void mainContentFallback.offsetWidth;
+                    void expensesSectionFallback.offsetWidth;
                 }
             }
             
@@ -19438,32 +19438,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 // SOLUCIÓN AGRESIVA: Forzar dimensiones en TODOS los contenedores padres
                 console.log('🔧 SOLUCIÓN AGRESIVA: Forzando dimensiones en todos los contenedores...');
                 
-                // 1. Forzar .main-content SIEMPRE - Usar display: flex (está en contenedor flex)
-                const mainContent = document.querySelector('.main-content');
-                if (mainContent) {
-                    const viewportWidth = window.innerWidth;
-                    const sidebarWidth = 220;
-                    const mainWidth = Math.max(800, viewportWidth - sidebarWidth);
-                    
-                    console.log(`🔧 Forzando .main-content a ${mainWidth}px`);
-                    // Usar display: flex porque está en un contenedor flex
-                    mainContent.style.cssText = `
-                        display: flex !important;
-                        flex-direction: column !important;
-                        flex: 1 1 ${mainWidth}px !important;
-                        flex-basis: ${mainWidth}px !important;
-                        width: ${mainWidth}px !important;
-                        min-width: ${mainWidth}px !important;
-                        max-width: ${mainWidth}px !important;
-                        margin-left: ${sidebarWidth}px !important;
-                        position: relative !important;
-                        visibility: visible !important;
-                        overflow: visible !important;
-                    `;
-                    void mainContent.offsetWidth; // Forzar reflow
-                }
-                
-                // 2. Aplicar dimensiones en ORDEN CORRECTO - SOLUCIÓN ULTRA DIRECTA
+                // Aplicar dimensiones en ORDEN CORRECTO - SOLUCIÓN ULTRA DIRECTA
                 // Calcular dimensiones desde viewport directamente (no depender del padre)
                 const viewportWidth = window.innerWidth;
                 const sidebarWidth = 220;
