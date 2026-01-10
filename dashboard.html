@@ -19463,15 +19463,42 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     void mainContent.offsetWidth; // Forzar reflow
                 }
                 
-                // 2. Esperar a que main-content se aplique, luego forzar expenses-section
+                // 2. Aplicar dimensiones en ORDEN CORRECTO con verificación de que cada paso funcione
+                // Paso 1: Asegurar main-content
                 setTimeout(() => {
-                    const expensesSection = document.getElementById('expenses-section');
-                    if (expensesSection) {
-                        const viewportWidth = window.innerWidth;
-                        const sidebarWidth = 220;
+                    const mainContent = document.querySelector('.main-content');
+                    if (!mainContent) return;
+                    
+                    const viewportWidth = window.innerWidth;
+                    const sidebarWidth = 220;
+                    const mainWidth = Math.max(800, viewportWidth - sidebarWidth);
+                    
+                    mainContent.style.cssText = `
+                        display: flex !important;
+                        flex-direction: column !important;
+                        flex: 1 1 ${mainWidth}px !important;
+                        flex-basis: ${mainWidth}px !important;
+                        width: ${mainWidth}px !important;
+                        min-width: ${mainWidth}px !important;
+                        max-width: ${mainWidth}px !important;
+                        margin-left: ${sidebarWidth}px !important;
+                        position: relative !important;
+                        visibility: visible !important;
+                    `;
+                    void mainContent.offsetWidth;
+                    
+                    // Paso 2: Asegurar expenses-section DESPUÉS de main-content
+                    setTimeout(() => {
+                        const expensesSection = document.getElementById('expenses-section');
+                        if (!expensesSection) return;
+                        
+                        // Verificar que expenses-section esté visible
+                        if (window.getComputedStyle(expensesSection).display === 'none') {
+                            expensesSection.style.setProperty('display', 'block', 'important');
+                        }
+                        
                         const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
                         
-                        console.log(`🔧 Forzando expenses-section a ${availableWidth}px`);
                         expensesSection.style.cssText = `
                             display: block !important;
                             width: ${availableWidth}px !important;
@@ -19484,84 +19511,73 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             overflow: visible !important;
                         `;
                         expensesSection.setAttribute('data-forced-width', availableWidth);
-                        void expensesSection.offsetWidth; // Forzar reflow
-                    }
-                }, 150); // Esperar 150ms para que main-content se aplique primero
-                
-                // Asegurar que el contenedor tenga dimensiones visibles - USAR VALORES ABSOLUTOS
-                if (tableContainer) {
-                    console.log('🔍 table-container encontrado, aplicando estilos con valores absolutos...');
-                    
-                    // Esperar a que expenses-section tenga dimensiones primero
-                    setTimeout(() => {
-                        const expensesSection = document.getElementById('expenses-section');
-                        if (!expensesSection) return;
                         
-                        // Obtener dimensiones del padre (expenses-section)
-                        const parentWidth = expensesSection.offsetWidth || expensesSection.getBoundingClientRect().width;
-                        const viewportWidth = window.innerWidth;
-                        const sidebarWidth = 220;
-                        const availableWidth = parentWidth > 0 ? parentWidth - 40 : Math.max(800, viewportWidth - sidebarWidth - 40);
-                        
-                        // Forzar dimensiones mínimas basadas en el número de filas
-                        const rowCount = expenses.length;
-                        const minHeight = Math.max(400, rowCount * 50); // Mínimo 50px por fila
-                        console.log(`📏 Aplicando dimensiones absolutas: ${availableWidth}px x ${minHeight}px`);
-                        
-                        // Aplicar estilos al contenedor con VALORES ABSOLUTOS (no porcentajes)
-                        tableContainer.style.cssText = `
-                            display: block !important;
-                            visibility: visible !important;
-                            width: ${availableWidth}px !important;
-                            min-width: ${availableWidth}px !important;
-                            max-width: ${availableWidth}px !important;
-                            min-height: ${minHeight}px !important;
-                            height: auto !important;
-                            overflow-x: auto !important;
-                            overflow-y: visible !important;
-                            background-color: white !important;
-                            position: relative !important;
-                            z-index: 1 !important;
-                            box-sizing: border-box !important;
-                        `;
-                        
-                        // Forzar reflow
-                        void tableContainer.offsetWidth;
-                        void tableContainer.offsetHeight;
-                        
-                        const table = tableContainer.querySelector('table');
-                        if (table) {
-                            console.log('✅ Tabla encontrada, aplicando estilos...');
-                            table.style.cssText = `
-                                width: ${availableWidth}px !important;
-                                min-width: ${availableWidth}px !important;
-                                display: table !important;
-                                visibility: visible !important;
-                                border-collapse: collapse !important;
-                                table-layout: auto !important;
-                            `;
+                        // Forzar reflow múltiples veces
+                        void expensesSection.offsetWidth;
+                        void expensesSection.offsetHeight;
+                        requestAnimationFrame(() => {
+                            void expensesSection.offsetWidth;
                             
-                            // Forzar reflow de la tabla
-                            void table.offsetWidth;
-                            void table.offsetHeight;
-                            
-                            // Verificar después de un momento
+                            // Paso 3: Aplicar dimensiones al table-container DESPUÉS de verificar expenses-section
                             setTimeout(() => {
-                                const offsetWidth = tableContainer.offsetWidth;
-                                const offsetHeight = tableContainer.offsetHeight;
-                                if (offsetWidth > 0 || offsetHeight > 0) {
-                                    console.log(`✅ Tabla tiene dimensiones: ${offsetWidth}x${offsetHeight}`);
-                                } else {
-                                    console.log(`📐 Tabla aún sin dimensiones: ${offsetWidth}x${offsetHeight}`);
+                                // Verificar que expenses-section tenga dimensiones ANTES de aplicar al table-container
+                                const sectionWidth = expensesSection.offsetWidth || expensesSection.getBoundingClientRect().width;
+                                const finalWidth = sectionWidth > 0 ? sectionWidth - 40 : availableWidth;
+                                
+                                if (tableContainer) {
+                                    const rowCount = expenses.length;
+                                    const minHeight = Math.max(400, rowCount * 50);
+                                    
+                                    console.log(`📏 Aplicando dimensiones finales: ${finalWidth}px x ${minHeight}px (sectionWidth: ${sectionWidth})`);
+                                    
+                                    // Aplicar con valores absolutos
+                                    tableContainer.style.cssText = `
+                                        display: block !important;
+                                        visibility: visible !important;
+                                        width: ${finalWidth}px !important;
+                                        min-width: ${finalWidth}px !important;
+                                        max-width: ${finalWidth}px !important;
+                                        min-height: ${minHeight}px !important;
+                                        height: auto !important;
+                                        overflow-x: auto !important;
+                                        overflow-y: visible !important;
+                                        background-color: white !important;
+                                        position: relative !important;
+                                        z-index: 1 !important;
+                                        box-sizing: border-box !important;
+                                    `;
+                                    
+                                    void tableContainer.offsetWidth;
+                                    void tableContainer.offsetHeight;
+                                    
+                                    const table = tableContainer.querySelector('table');
+                                    if (table) {
+                                        table.style.cssText = `
+                                            width: ${finalWidth}px !important;
+                                            min-width: ${finalWidth}px !important;
+                                            display: table !important;
+                                            visibility: visible !important;
+                                            border-collapse: collapse !important;
+                                            table-layout: auto !important;
+                                        `;
+                                        void table.offsetWidth;
+                                    }
+                                    
+                                    // Verificación final después de aplicar todo
+                                    setTimeout(() => {
+                                        const finalOffsetWidth = tableContainer.offsetWidth;
+                                        const finalOffsetHeight = tableContainer.offsetHeight;
+                                        if (finalOffsetWidth > 0 || finalOffsetHeight > 0) {
+                                            console.log(`✅ Tabla tiene dimensiones: ${finalOffsetWidth}x${finalOffsetHeight}`);
+                                        } else {
+                                            console.log(`📐 Tabla aún sin dimensiones: ${finalOffsetWidth}x${finalOffsetHeight} - expenses-section: ${expensesSection.offsetWidth}x${expensesSection.offsetHeight}`);
+                                        }
+                                    }, 100);
                                 }
-                            }, 100);
-                        } else {
-                            console.error('❌ No se encontró la tabla dentro del table-container');
-                        }
-                    }, 200); // Esperar 200ms para que expenses-section tenga dimensiones
-                } else {
-                    console.error('❌ table-container NO encontrado');
-                }
+                            }, 100); // Esperar a que expenses-section tenga dimensiones
+                        });
+                    }, 100); // Esperar a que main-content se aplique
+                }, 50); // Iniciar después de que los datos se carguen
                 
                 console.log(`✅ ${expenses.length} gastos cargados en la tabla`);
             } catch (error) {
