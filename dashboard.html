@@ -23758,13 +23758,32 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     };
 
     // Guardar config WhatsApp
-    window.saveWhatsAppConfig = function() {
+    window.saveWhatsAppConfig = async function() {
         const config = {
             serverUrl: document.getElementById('whatsapp-server-url')?.value || '',
             autoReply: document.getElementById('whatsapp-auto-reply')?.checked || false
         };
+        
+        // Guardar en localStorage
         localStorage.setItem('flor_whatsapp_config', JSON.stringify(config));
-        alert('✅ Configuración de WhatsApp guardada');
+        
+        // Guardar en Supabase para persistencia en la nube (usando clave específica)
+        if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+            try {
+                await window.supabaseClient.client
+                    .from('system_config')
+                    .upsert({
+                        key: 'whatsapp_server_config',
+                        value: JSON.stringify(config),
+                        updated_at: new Date().toISOString()
+                    }, { onConflict: 'key' });
+                console.log('☁️ Configuración de WhatsApp guardada en Supabase');
+            } catch (e) {
+                console.warn('⚠️ No se pudo guardar configuración de WhatsApp en Supabase:', e);
+            }
+        }
+        
+        alert('✅ Configuración de WhatsApp guardada y sincronizada');
     };
 
     // Desconectar WhatsApp
