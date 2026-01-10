@@ -5397,6 +5397,41 @@ Ej:
             budget: null
         };
         
+        // ============================================
+        // VERIFICACIÓN DE VERSIÓN DEL CÓDIGO
+        // ============================================
+        // Esta función verifica qué versión del código está cargada
+        window.verificarVersionCodigo = function() {
+            console.log('🔍 ============================================');
+            console.log('🔍 VERIFICACIÓN DE VERSIÓN DEL CÓDIGO');
+            console.log('🔍 ============================================');
+            console.log('📅 Timestamp:', new Date().toISOString());
+            console.log('🔍 loadExpensesData es función:', typeof window.loadExpensesData);
+            console.log('🔍 forceExpensesSectionDimensions es función:', typeof window.forceExpensesSectionDimensions);
+            console.log('🔍 forceMainContentDimensions es función:', typeof window.forceMainContentDimensions);
+            console.log('🔍 forceQuotesSectionDimensions es función:', typeof window.forceQuotesSectionDimensions);
+            
+            // Verificar si loadExpensesData tiene el log de versión actualizada
+            const loadExpensesDataStr = window.loadExpensesData?.toString() || '';
+            const tieneVersionActualizada = loadExpensesDataStr.includes('VERSIÓN ACTUALIZADA');
+            console.log('🔍 loadExpensesData tiene "VERSIÓN ACTUALIZADA":', tieneVersionActualizada);
+            
+            if (tieneVersionActualizada) {
+                console.log('✅ CÓDIGO ACTUALIZADO: La versión con forzado de dimensiones está cargada');
+            } else {
+                console.error('❌ CÓDIGO ANTIGUO: La versión en el servidor no tiene los cambios recientes');
+                console.error('❌ Necesitas ejecutar: ./FORZAR_ACTUALIZACION_DASHBOARD.sh');
+            }
+            console.log('🔍 ============================================');
+        };
+        
+        // Ejecutar verificación inmediatamente
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', window.verificarVersionCodigo);
+        } else {
+            window.verificarVersionCodigo();
+        }
+        
         // Función auxiliar para forzar dimensiones en .main-content (compartida)
         window.forceMainContentDimensions = function forceMainContentDimensions() {
             const mainContent = document.querySelector('.main-content');
@@ -18276,8 +18311,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
         // Cargar todos los datos de gastos - VERSIÓN ACTUALIZADA CON FORZADO DE DIMENSIONES
         window.loadExpensesData = function loadExpensesData() {
-            console.log('💰 Cargando datos de gastos...');
+            console.log('🔍 ============================================');
             console.log('🔍 VERSIÓN ACTUALIZADA de loadExpensesData ejecutándose...');
+            console.log('🔍 Timestamp:', new Date().toISOString());
+            console.log('🔍 ============================================');
+            console.log('💰 Cargando datos de gastos...');
             
             // FORZAR DIMENSIONES PRIMERO (antes de cargar datos)
             console.log('🔧 FORZANDO DIMENSIONES desde loadExpensesData...');
