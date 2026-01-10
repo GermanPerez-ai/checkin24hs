@@ -19494,19 +19494,41 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 }
                 
                 // Paso 3: Aplicar dimensiones al table-container con valores ABSOLUTOS del viewport
-                // Usar setProperty individual para asegurar que se apliquen correctamente
+                // CRÍTICO: Asegurar que expenses-section tenga dimensiones ANTES de aplicar al table-container
                 if (tableContainer) {
                     // Función para aplicar estilos de forma agresiva
                     const applyStylesAggressively = () => {
                         console.log(`📏 Aplicando dimensiones finales: ${containerWidth}px x ${minHeight}px (calculado desde viewport: ${viewportWidth}px)`);
                         
-                        // Verificar que expenses-section esté visible
+                        // CRÍTICO: Asegurar que expenses-section esté visible Y tenga dimensiones
                         if (expensesSection) {
                             const computedDisplay = window.getComputedStyle(expensesSection).display;
                             if (computedDisplay === 'none') {
                                 console.log('⚠️ expenses-section está oculto, forzando display: block...');
                                 expensesSection.style.setProperty('display', 'block', 'important');
                                 void expensesSection.offsetWidth;
+                            }
+                            
+                            // Verificar que expenses-section tenga dimensiones, si no, forzarlas de nuevo
+                            const sectionWidth = expensesSection.offsetWidth || expensesSection.getBoundingClientRect().width;
+                            if (sectionWidth === 0) {
+                                console.log('⚠️ expenses-section tiene 0px, forzando dimensiones de nuevo...');
+                                expensesSection.style.setProperty('display', 'block', 'important');
+                                expensesSection.style.setProperty('width', `${sectionWidth}px`, 'important');
+                                expensesSection.style.setProperty('min-width', `${sectionWidth}px`, 'important');
+                                expensesSection.style.setProperty('max-width', `${sectionWidth}px`, 'important');
+                                expensesSection.style.setProperty('visibility', 'visible', 'important');
+                                expensesSection.style.setProperty('position', 'relative', 'important');
+                                expensesSection.style.setProperty('padding', '20px', 'important');
+                                expensesSection.style.setProperty('box-sizing', 'border-box', 'important');
+                                expensesSection.style.setProperty('overflow', 'visible', 'important');
+                                
+                                // Forzar múltiples reflows
+                                void expensesSection.offsetWidth;
+                                void expensesSection.offsetHeight;
+                                requestAnimationFrame(() => {
+                                    void expensesSection.offsetWidth;
+                                });
                             }
                         }
                         
