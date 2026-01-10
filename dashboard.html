@@ -1,6 +1,22 @@
 ﻿<!DOCTYPE html>
 <html lang="es">
 <head>
+    <!-- CRÍTICO: Verificación de versión LO PRIMERO - antes de cualquier otro código -->
+    <script>
+        // Log inmediato para verificar que el código nuevo se está cargando
+        console.log('🔍 ============================================');
+        console.log('🔍 VERIFICACIÓN TEMPRANA DE VERSIÓN DEL CÓDIGO');
+        console.log('🔍 ============================================');
+        console.log('📅 Timestamp de carga:', new Date().toISOString());
+        console.log('🔍 Este log aparece SIEMPRE si el código nuevo está cargado');
+        console.log('🔍 Si NO ves este log, el navegador está usando caché');
+        console.log('🔍 ============================================');
+        
+        // Marcar que el código nuevo está presente
+        window.CODIGO_ACTUALIZADO_2026_01_10 = true;
+        console.log('✅ Variable de verificación establecida: window.CODIGO_ACTUALIZADO_2026_01_10 =', window.CODIGO_ACTUALIZADO_2026_01_10);
+    </script>
+    
     <!-- CRÍTICO: Definir showSection LO PRIMERO - antes de cualquier otro código -->
     <script>
         window.showSection = function(section, event) {
@@ -5427,9 +5443,21 @@ Ej:
         
         // Ejecutar verificación inmediatamente
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', window.verificarVersionCodigo);
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('🔍 DOMContentLoaded ejecutado, verificando versión...');
+                window.verificarVersionCodigo();
+            });
         } else {
+            console.log('🔍 DOM ya está listo, verificando versión inmediatamente...');
             window.verificarVersionCodigo();
+        }
+        
+        // Verificar también la variable de verificación temprana
+        if (window.CODIGO_ACTUALIZADO_2026_01_10) {
+            console.log('✅ Variable de verificación temprana encontrada - código nuevo está cargado');
+        } else {
+            console.error('❌ Variable de verificación temprana NO encontrada - el código nuevo NO se cargó');
+            console.error('❌ El navegador está usando caché. Presiona Ctrl+Shift+R para forzar recarga');
         }
         
         // Función auxiliar para forzar dimensiones en .main-content (compartida)
