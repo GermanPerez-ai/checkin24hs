@@ -19584,15 +19584,31 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                 const allStyles = window.getComputedStyle(tableContainer);
                                 console.log(`🔍 Estilos computados: display=${allStyles.display}, width=${allStyles.width}, visibility=${allStyles.visibility}`);
                                 
-                                // Si aún no funciona, intentar con valores aún más agresivos
+                                // Si aún no funciona, usar position absolute como último recurso
                                 if (finalWidth === 0) {
-                                    console.log('🔧 Último intento de emergencia con valores más agresivos...');
+                                    console.log('🔧 Último intento de emergencia: usando position absolute para salir del flujo del padre...');
+                                    
+                                    // Obtener posición del expenses-section para posicionar el table-container
+                                    const sectionRect = expensesSection ? expensesSection.getBoundingClientRect() : { left: 220, top: 100 };
+                                    
+                                    tableContainer.style.setProperty('position', 'absolute', 'important');
+                                    tableContainer.style.setProperty('left', `${sectionRect.left + 20}px`, 'important');
+                                    tableContainer.style.setProperty('top', `${sectionRect.top + 200}px`, 'important');
                                     tableContainer.style.setProperty('width', `${containerWidth}px`, 'important');
                                     tableContainer.style.setProperty('min-width', `${containerWidth}px`, 'important');
                                     tableContainer.style.setProperty('max-width', `${containerWidth}px`, 'important');
+                                    tableContainer.style.setProperty('z-index', '1000', 'important');
                                     tableContainer.style.removeProperty('flex');
                                     tableContainer.style.removeProperty('flex-basis');
+                                    
                                     void tableContainer.offsetWidth;
+                                    
+                                    // Verificar después del cambio
+                                    setTimeout(() => {
+                                        const emergencyWidth = tableContainer.offsetWidth;
+                                        const emergencyHeight = tableContainer.offsetHeight;
+                                        console.log(`🔧 Después de position absolute: ${emergencyWidth}x${emergencyHeight}`);
+                                    }, 100);
                                 }
                             }
                         }, 500);
