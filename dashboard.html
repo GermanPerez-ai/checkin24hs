@@ -19463,133 +19463,156 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     void mainContent.offsetWidth; // Forzar reflow
                 }
                 
-                // 2. Aplicar dimensiones en ORDEN CORRECTO - SOLUCIÓN SIMPLIFICADA Y DIRECTA
-                // Usar un único setTimeout con pasos secuenciales para evitar problemas de timing
-                setTimeout(() => {
-                    // Paso 1: Asegurar main-content con display: flex (está en contenedor flex)
-                    const mainContent = document.querySelector('.main-content');
-                    if (mainContent) {
-                        const viewportWidth = window.innerWidth;
-                        const sidebarWidth = 220;
-                        const mainWidth = Math.max(800, viewportWidth - sidebarWidth);
-                        
-                        // Usar display: flex porque body tiene display: flex
-                        mainContent.style.cssText = `
-                            display: flex !important;
-                            flex-direction: column !important;
-                            width: ${mainWidth}px !important;
-                            min-width: ${mainWidth}px !important;
-                            max-width: ${mainWidth}px !important;
-                            margin-left: ${sidebarWidth}px !important;
-                            flex: 1 1 auto !important;
-                            position: relative !important;
-                            visibility: visible !important;
-                            overflow: visible !important;
-                        `;
-                        void mainContent.offsetWidth;
-                    }
+                // 2. Aplicar dimensiones en ORDEN CORRECTO - SOLUCIÓN ULTRA DIRECTA
+                // Calcular dimensiones desde viewport directamente (no depender del padre)
+                const viewportWidth = window.innerWidth;
+                const sidebarWidth = 220;
+                const mainWidth = Math.max(800, viewportWidth - sidebarWidth);
+                const sectionWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
+                const containerWidth = Math.max(800, viewportWidth - sidebarWidth - 80);
+                const rowCount = expenses.length;
+                const minHeight = Math.max(400, rowCount * 50);
+                
+                console.log(`📐 Calculando dimensiones desde viewport: main=${mainWidth}px, section=${sectionWidth}px, container=${containerWidth}px`);
+                
+                // Paso 1: Asegurar main-content PRIMERO
+                const mainContent = document.querySelector('.main-content');
+                if (mainContent) {
+                    mainContent.style.cssText = `
+                        display: flex !important;
+                        flex-direction: column !important;
+                        width: ${mainWidth}px !important;
+                        min-width: ${mainWidth}px !important;
+                        max-width: ${mainWidth}px !important;
+                        margin-left: ${sidebarWidth}px !important;
+                        flex: 1 1 auto !important;
+                        position: relative !important;
+                        visibility: visible !important;
+                        overflow: visible !important;
+                    `;
+                    void mainContent.offsetWidth;
+                }
+                
+                // Paso 2: Asegurar expenses-section con dimensiones ABSOLUTAS (no depender del padre)
+                const expensesSection = document.getElementById('expenses-section');
+                if (expensesSection) {
+                    // CRÍTICO: Asegurar que esté visible ANTES de aplicar dimensiones
+                    expensesSection.style.setProperty('display', 'block', 'important');
+                    void expensesSection.offsetWidth; // Forzar reflow después de display: block
                     
-                    // Paso 2: Asegurar expenses-section (debe ser block, no flex)
-                    const expensesSection = document.getElementById('expenses-section');
-                    if (expensesSection) {
-                        // Asegurar que esté visible
-                        expensesSection.style.setProperty('display', 'block', 'important');
+                    // Aplicar dimensiones absolutas directamente
+                    expensesSection.style.cssText = `
+                        display: block !important;
+                        width: ${sectionWidth}px !important;
+                        min-width: ${sectionWidth}px !important;
+                        max-width: ${sectionWidth}px !important;
+                        visibility: visible !important;
+                        position: relative !important;
+                        padding: 20px !important;
+                        box-sizing: border-box !important;
+                        overflow: visible !important;
+                    `;
+                    
+                    // Forzar múltiples reflows
+                    void expensesSection.offsetWidth;
+                    void expensesSection.offsetHeight;
+                }
+                
+                // Paso 3: Aplicar dimensiones al table-container con valores ABSOLUTOS del viewport
+                // Usar setProperty individual para asegurar que se apliquen correctamente
+                if (tableContainer) {
+                    // Función para aplicar estilos de forma agresiva
+                    const applyStylesAggressively = () => {
+                        console.log(`📏 Aplicando dimensiones finales: ${containerWidth}px x ${minHeight}px (calculado desde viewport: ${viewportWidth}px)`);
                         
-                        const viewportWidth = window.innerWidth;
-                        const sidebarWidth = 220;
-                        const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
+                        // Verificar que expenses-section esté visible
+                        if (expensesSection) {
+                            const computedDisplay = window.getComputedStyle(expensesSection).display;
+                            if (computedDisplay === 'none') {
+                                console.log('⚠️ expenses-section está oculto, forzando display: block...');
+                                expensesSection.style.setProperty('display', 'block', 'important');
+                                void expensesSection.offsetWidth;
+                            }
+                        }
                         
-                        expensesSection.style.cssText = `
-                            display: block !important;
-                            width: ${availableWidth}px !important;
-                            min-width: ${availableWidth}px !important;
-                            max-width: ${availableWidth}px !important;
-                            visibility: visible !important;
-                            position: relative !important;
-                            padding: 20px !important;
-                            box-sizing: border-box !important;
-                            overflow: visible !important;
-                        `;
+                        // Aplicar estilos usando setProperty individual (más confiable que cssText)
+                        tableContainer.style.setProperty('display', 'block', 'important');
+                        tableContainer.style.setProperty('visibility', 'visible', 'important');
+                        tableContainer.style.setProperty('width', `${containerWidth}px`, 'important');
+                        tableContainer.style.setProperty('min-width', `${containerWidth}px`, 'important');
+                        tableContainer.style.setProperty('max-width', `${containerWidth}px`, 'important');
+                        tableContainer.style.setProperty('min-height', `${minHeight}px`, 'important');
+                        tableContainer.style.setProperty('height', 'auto', 'important');
+                        tableContainer.style.setProperty('overflow-x', 'auto', 'important');
+                        tableContainer.style.setProperty('overflow-y', 'visible', 'important');
+                        tableContainer.style.setProperty('background-color', 'white', 'important');
+                        tableContainer.style.setProperty('position', 'relative', 'important');
+                        tableContainer.style.setProperty('z-index', '1', 'important');
+                        tableContainer.style.setProperty('box-sizing', 'border-box', 'important');
                         
                         // Forzar reflow
-                        void expensesSection.offsetWidth;
-                        void expensesSection.offsetHeight;
-                    }
-                    
-                    // Paso 3: Aplicar dimensiones al table-container DESPUÉS de que ambos estén listos
-                    requestAnimationFrame(() => {
-                        requestAnimationFrame(() => {
-                            if (tableContainer && expensesSection) {
-                                // Verificar dimensiones de expenses-section
-                                const sectionWidth = expensesSection.offsetWidth || expensesSection.getBoundingClientRect().width;
-                                const viewportWidth = window.innerWidth;
-                                const sidebarWidth = 220;
-                                // Usar dimensiones reales del padre o calcular desde viewport
-                                const containerWidth = sectionWidth > 0 ? sectionWidth - 40 : Math.max(800, viewportWidth - sidebarWidth - 80);
+                        void tableContainer.offsetWidth;
+                        void tableContainer.offsetHeight;
+                        
+                        // Aplicar también a la tabla interna
+                        const table = tableContainer.querySelector('table');
+                        if (table) {
+                            table.style.setProperty('width', `${containerWidth}px`, 'important');
+                            table.style.setProperty('min-width', `${containerWidth}px`, 'important');
+                            table.style.setProperty('display', 'table', 'important');
+                            table.style.setProperty('visibility', 'visible', 'important');
+                            table.style.setProperty('border-collapse', 'collapse', 'important');
+                            table.style.setProperty('table-layout', 'auto', 'important');
+                            void table.offsetWidth;
+                            void table.offsetHeight;
+                        }
+                        
+                        // Verificar después de aplicar
+                        setTimeout(() => {
+                            const finalWidth = tableContainer.offsetWidth;
+                            const finalHeight = tableContainer.offsetHeight;
+                            const sectionWidth = expensesSection ? expensesSection.offsetWidth : 0;
+                            const computedWidth = window.getComputedStyle(tableContainer).width;
+                            
+                            console.log(`🔍 Verificación: offsetWidth=${finalWidth}, offsetHeight=${finalHeight}, computedWidth=${computedWidth}, sectionWidth=${sectionWidth}`);
+                            
+                            if (finalWidth > 0 && finalHeight > 0) {
+                                console.log(`✅ Tabla tiene dimensiones: ${finalWidth}x${finalHeight} (expenses-section: ${sectionWidth}px)`);
+                            } else {
+                                console.log(`❌ Tabla aún sin dimensiones: ${finalWidth}x${finalHeight}, expenses-section: ${sectionWidth}px`);
+                                console.log(`🔍 Debug: viewport=${viewportWidth}, containerWidth=${containerWidth}, minHeight=${minHeight}`);
                                 
-                                const rowCount = expenses.length;
-                                const minHeight = Math.max(400, rowCount * 50);
+                                // Último intento: verificar si hay algún CSS que esté sobrescribiendo
+                                const allStyles = window.getComputedStyle(tableContainer);
+                                console.log(`🔍 Estilos computados: display=${allStyles.display}, width=${allStyles.width}, visibility=${allStyles.visibility}`);
                                 
-                                console.log(`📏 Aplicando dimensiones finales: ${containerWidth}px x ${minHeight}px (sectionWidth: ${sectionWidth}, viewport: ${viewportWidth})`);
-                                
-                                // Aplicar con valores absolutos
-                                tableContainer.style.cssText = `
-                                    display: block !important;
-                                    visibility: visible !important;
-                                    width: ${containerWidth}px !important;
-                                    min-width: ${containerWidth}px !important;
-                                    max-width: ${containerWidth}px !important;
-                                    min-height: ${minHeight}px !important;
-                                    height: auto !important;
-                                    overflow-x: auto !important;
-                                    overflow-y: visible !important;
-                                    background-color: white !important;
-                                    position: relative !important;
-                                    z-index: 1 !important;
-                                    box-sizing: border-box !important;
-                                `;
-                                
-                                void tableContainer.offsetWidth;
-                                void tableContainer.offsetHeight;
-                                
-                                const table = tableContainer.querySelector('table');
-                                if (table) {
-                                    table.style.cssText = `
-                                        width: ${containerWidth}px !important;
-                                        min-width: ${containerWidth}px !important;
-                                        display: table !important;
-                                        visibility: visible !important;
-                                        border-collapse: collapse !important;
-                                        table-layout: auto !important;
-                                    `;
-                                    void table.offsetWidth;
-                                    void table.offsetHeight;
+                                // Si aún no funciona, intentar con valores aún más agresivos
+                                if (finalWidth === 0) {
+                                    console.log('🔧 Último intento de emergencia con valores más agresivos...');
+                                    tableContainer.style.setProperty('width', `${containerWidth}px`, 'important');
+                                    tableContainer.style.setProperty('min-width', `${containerWidth}px`, 'important');
+                                    tableContainer.style.setProperty('max-width', `${containerWidth}px`, 'important');
+                                    tableContainer.style.removeProperty('flex');
+                                    tableContainer.style.removeProperty('flex-basis');
+                                    void tableContainer.offsetWidth;
                                 }
-                                
-                                // Verificación final después de todo
-                                setTimeout(() => {
-                                    const finalWidth = tableContainer.offsetWidth;
-                                    const finalHeight = tableContainer.offsetHeight;
-                                    const sectionWidth = expensesSection.offsetWidth;
-                                    
-                                    if (finalWidth > 0 || finalHeight > 0) {
-                                        console.log(`✅ Tabla tiene dimensiones: ${finalWidth}x${finalHeight} (expenses-section: ${sectionWidth}px)`);
-                                    } else {
-                                        console.log(`📐 Tabla: ${finalWidth}x${finalHeight}, expenses-section: ${sectionWidth}px`);
-                                        // Si aún no funciona, intentar una última vez con valores del viewport directamente
-                                        if (finalWidth === 0) {
-                                            const emergencyWidth = Math.max(800, viewportWidth - sidebarWidth - 80);
-                                            tableContainer.style.setProperty('width', `${emergencyWidth}px`, 'important');
-                                            tableContainer.style.setProperty('min-width', `${emergencyWidth}px`, 'important');
-                                            void tableContainer.offsetWidth;
-                                            console.log(`🔧 Último intento: ${emergencyWidth}px (viewport: ${viewportWidth})`);
-                                        }
-                                    }
-                                }, 200);
                             }
+                        }, 500);
+                    };
+                    
+                    // Aplicar inmediatamente y también después de múltiples frames
+                    applyStylesAggressively();
+                    
+                    requestAnimationFrame(() => {
+                        applyStylesAggressively();
+                        requestAnimationFrame(() => {
+                            applyStylesAggressively();
+                            requestAnimationFrame(() => {
+                                applyStylesAggressively();
+                            });
                         });
                     });
-                }, 100); // Esperar 100ms para que showSection aplique display: block primero
+                }
                 
                 console.log(`✅ ${expenses.length} gastos cargados en la tabla`);
             } catch (error) {
