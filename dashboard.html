@@ -190,6 +190,10 @@
             min-height: 100vh;
             position: relative;
             z-index: 1;
+            display: flex !important;
+            flex-direction: column !important;
+            width: auto !important;
+            min-width: 800px !important;
         }
 
         /* Header */
@@ -5491,40 +5495,75 @@ Ej:
             }
         }
         
-        // Función auxiliar para forzar dimensiones en expenses-section
+        // Función auxiliar para forzar dimensiones en expenses-section (CORREGIDA - Sin bucle infinito)
         window.forceExpensesSectionDimensions = function forceExpensesSectionDimensions() {
-            console.log('🔧 SOLUCIÓN ULTRA AGRESIVA: Forzando dimensiones antes de cargar expenses...');
-            
-            // 1. Forzar .main-content PRIMERO (SIEMPRE)
-            forceMainContentDimensions();
-            
-            // 2. Forzar expenses-section
-            const expensesSection = document.getElementById('expenses-section');
-            if (expensesSection) {
+            // 1. Forzar .main-content PRIMERO (SIEMPRE) - Usando flex-basis para elementos flex
+            const mainContent = document.querySelector('.main-content');
+            if (mainContent) {
                 const viewportWidth = window.innerWidth;
                 const sidebarWidth = 220;
-                const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
+                const mainWidth = Math.max(800, viewportWidth - sidebarWidth);
                 
-                console.log(`🔧 Forzando expenses-section a ${availableWidth}px`);
-                expensesSection.style.cssText = `
-                    display: block !important;
-                    width: ${availableWidth}px !important;
-                    min-width: ${availableWidth}px !important;
-                    max-width: ${availableWidth}px !important;
-                    visibility: visible !important;
+                // Usar flex-basis en lugar de width para elementos flex
+                mainContent.style.cssText = `
+                    display: flex !important;
+                    flex-direction: column !important;
+                    flex: 1 1 ${mainWidth}px !important;
+                    flex-basis: ${mainWidth}px !important;
+                    min-width: ${mainWidth}px !important;
+                    max-width: ${mainWidth}px !important;
+                    width: ${mainWidth}px !important;
+                    margin-left: ${sidebarWidth}px !important;
                     position: relative !important;
-                    padding: 20px !important;
-                    box-sizing: border-box !important;
+                    visibility: visible !important;
                     overflow: visible !important;
                 `;
-                expensesSection.setAttribute('data-forced-width', availableWidth);
-                void expensesSection.offsetHeight;
-                void expensesSection.offsetWidth; // Forzar reflow
                 
-                // 3. NO usar MutationObserver ni setInterval - causa bucles infinitos
-                // Las dimensiones se aplican una vez y se mantienen con !important
-                // Si hay problemas, se reaplican solo cuando se llama explícitamente a la función
+                // Forzar reflow del main-content
+                void mainContent.offsetWidth;
             }
+            
+            // 2. Esperar un momento para que main-content se aplique
+            setTimeout(() => {
+                // Forzar expenses-section DESPUÉS de que main-content esté listo
+                const expensesSection = document.getElementById('expenses-section');
+                if (expensesSection) {
+                    // Verificar que esté visible
+                    const computedDisplay = window.getComputedStyle(expensesSection).display;
+                    if (computedDisplay === 'none') {
+                        expensesSection.style.setProperty('display', 'block', 'important');
+                    }
+                    
+                    const viewportWidth = window.innerWidth;
+                    const sidebarWidth = 220;
+                    const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
+                    
+                    // Aplicar dimensiones usando cssText (más confiable para múltiples propiedades)
+                    expensesSection.style.cssText = `
+                        display: block !important;
+                        width: ${availableWidth}px !important;
+                        min-width: ${availableWidth}px !important;
+                        max-width: ${availableWidth}px !important;
+                        visibility: visible !important;
+                        position: relative !important;
+                        padding: 20px !important;
+                        box-sizing: border-box !important;
+                        overflow: visible !important;
+                    `;
+                    
+                    expensesSection.setAttribute('data-forced-width', availableWidth);
+                    
+                    // Forzar múltiples reflows después de aplicar estilos
+                    void expensesSection.offsetWidth;
+                    requestAnimationFrame(() => {
+                        void expensesSection.offsetWidth;
+                        void expensesSection.offsetHeight;
+                        requestAnimationFrame(() => {
+                            void expensesSection.offsetWidth;
+                        });
+                    });
+                }
+            }, 100); // Esperar 100ms para que main-content se aplique primero
         }
         
         // Función auxiliar para forzar dimensiones en quotes-section
@@ -5581,11 +5620,31 @@ Ej:
                 
                 // SIEMPRE forzar dimensiones si es expenses-section (DESPUÉS de mostrar)
                 if (section === 'expenses') {
-                    // Esperar un frame para que el display: block se aplique
+                    // Asegurar que .main-content esté visible y tenga dimensiones PRIMERO
+                    const mainContent = document.querySelector('.main-content');
+                    if (mainContent) {
+                        const viewportWidth = window.innerWidth;
+                        const sidebarWidth = 220;
+                        const mainWidth = Math.max(800, viewportWidth - sidebarWidth);
+                        mainContent.style.cssText = `
+                            display: block !important;
+                            width: ${mainWidth}px !important;
+                            min-width: ${mainWidth}px !important;
+                            margin-left: ${sidebarWidth}px !important;
+                            flex: 1 !important;
+                            position: relative !important;
+                            visibility: visible !important;
+                        `;
+                        void mainContent.offsetWidth; // Forzar reflow
+                    }
+                    
+                    // Esperar múltiples frames para asegurar que el display: block se aplique completamente
                     requestAnimationFrame(() => {
-                        if (typeof forceExpensesSectionDimensions === 'function') {
-                            forceExpensesSectionDimensions();
-                        }
+                        requestAnimationFrame(() => {
+                            if (typeof forceExpensesSectionDimensions === 'function') {
+                                forceExpensesSectionDimensions();
+                            }
+                        });
                     });
                 }
             } else {
@@ -19379,58 +19438,55 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 // SOLUCIÓN AGRESIVA: Forzar dimensiones en TODOS los contenedores padres
                 console.log('🔧 SOLUCIÓN AGRESIVA: Forzando dimensiones en todos los contenedores...');
                 
-                // 1. Forzar .main-content SIEMPRE (sin verificar)
+                // 1. Forzar .main-content SIEMPRE - Usar display: flex (está en contenedor flex)
                 const mainContent = document.querySelector('.main-content');
                 if (mainContent) {
                     const viewportWidth = window.innerWidth;
                     const sidebarWidth = 220;
                     const mainWidth = Math.max(800, viewportWidth - sidebarWidth);
                     
-                    console.log(`🔧 Forzando .main-content a ${mainWidth}px (sin verificar)`);
+                    console.log(`🔧 Forzando .main-content a ${mainWidth}px`);
+                    // Usar display: flex porque está en un contenedor flex
                     mainContent.style.cssText = `
-                        display: block !important;
+                        display: flex !important;
+                        flex-direction: column !important;
+                        flex: 1 1 ${mainWidth}px !important;
+                        flex-basis: ${mainWidth}px !important;
                         width: ${mainWidth}px !important;
                         min-width: ${mainWidth}px !important;
+                        max-width: ${mainWidth}px !important;
                         margin-left: ${sidebarWidth}px !important;
-                        flex: 1 !important;
                         position: relative !important;
                         visibility: visible !important;
                         overflow: visible !important;
                     `;
-                    void mainContent.offsetHeight;
+                    void mainContent.offsetWidth; // Forzar reflow
                 }
                 
-                // 2. Forzar expenses-section SIEMPRE
-                const expensesSection = document.getElementById('expenses-section');
-                if (expensesSection) {
-                    const viewportWidth = window.innerWidth;
-                    const sidebarWidth = 220;
-                    const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
-                    
-                    console.log(`🔧 Forzando expenses-section a ${availableWidth}px (sin verificar)`);
-                    expensesSection.style.cssText = `
-                        display: block !important;
-                        width: ${availableWidth}px !important;
-                        min-width: ${availableWidth}px !important;
-                        max-width: ${availableWidth}px !important;
-                        visibility: visible !important;
-                        position: relative !important;
-                        padding: 20px !important;
-                        box-sizing: border-box !important;
-                        overflow: visible !important;
-                    `;
-                    void expensesSection.offsetHeight;
-                    
-                    // Verificar después
-                    setTimeout(() => {
-                        const sectionRect = expensesSection.getBoundingClientRect();
-                        const offsetWidth = expensesSection.offsetWidth;
-                        const offsetHeight = expensesSection.offsetHeight;
-                        console.log('📐 Dimensiones de expenses-section después de forzar:');
-                        console.log(`   - getBoundingClientRect: ${sectionRect.width}x${sectionRect.height}`);
-                        console.log(`   - offsetWidth/Height: ${offsetWidth}x${offsetHeight}`);
-                    }, 50);
-                }
+                // 2. Esperar a que main-content se aplique, luego forzar expenses-section
+                setTimeout(() => {
+                    const expensesSection = document.getElementById('expenses-section');
+                    if (expensesSection) {
+                        const viewportWidth = window.innerWidth;
+                        const sidebarWidth = 220;
+                        const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
+                        
+                        console.log(`🔧 Forzando expenses-section a ${availableWidth}px`);
+                        expensesSection.style.cssText = `
+                            display: block !important;
+                            width: ${availableWidth}px !important;
+                            min-width: ${availableWidth}px !important;
+                            max-width: ${availableWidth}px !important;
+                            visibility: visible !important;
+                            position: relative !important;
+                            padding: 20px !important;
+                            box-sizing: border-box !important;
+                            overflow: visible !important;
+                        `;
+                        expensesSection.setAttribute('data-forced-width', availableWidth);
+                        void expensesSection.offsetWidth; // Forzar reflow
+                    }
+                }, 150); // Esperar 150ms para que main-content se aplique primero
                 
                 // Asegurar que el contenedor tenga dimensiones visibles
                 if (tableContainer) {
@@ -19491,69 +19547,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             const offsetWidth = tableContainer.offsetWidth;
                             const offsetHeight = tableContainer.offsetHeight;
                             
-                            if (rect.width === 0 && offsetWidth === 0) {
-                                console.error('⚠️ Tabla aún tiene dimensiones 0x0 después de aplicar estilos');
-                                console.log('🔧 Forzando dimensiones explícitas con valores absolutos desde viewport...');
-                                
-                                // Calcular ancho desde viewport
-                                const viewportWidth = window.innerWidth;
-                                const sidebarWidth = 220;
-                                const containerWidth = Math.max(800, viewportWidth - sidebarWidth - 80);
-                                
-                                console.log(`📏 Calculando desde viewport: ${containerWidth}px`);
-                                
-                                // Aplicar dimensiones absolutas usando múltiples métodos
-                                tableContainer.style.cssText = `
-                                    display: block !important;
-                                    visibility: visible !important;
-                                    width: ${containerWidth}px !important;
-                                    min-width: ${containerWidth}px !important;
-                                    max-width: ${containerWidth}px !important;
-                                    height: ${minHeight}px !important;
-                                    min-height: ${minHeight}px !important;
-                                    overflow-x: auto !important;
-                                    overflow-y: visible !important;
-                                    background-color: white !important;
-                                    position: relative !important;
-                                    z-index: 1 !important;
-                                    box-sizing: border-box !important;
-                                `;
-                                
-                                table.style.cssText = `
-                                    width: ${containerWidth}px !important;
-                                    min-width: ${containerWidth}px !important;
-                                    display: table !important;
-                                    visibility: visible !important;
-                                    border-collapse: collapse !important;
-                                    table-layout: auto !important;
-                                `;
-                                
-                                // Forzar múltiples reflows
-                                void tableContainer.offsetHeight;
-                                void table.offsetHeight;
-                                
-                                requestAnimationFrame(() => {
-                                    void tableContainer.offsetHeight;
-                                    setTimeout(() => {
-                                        const finalRect = tableContainer.getBoundingClientRect();
-                                        const finalOffsetWidth = tableContainer.offsetWidth;
-                                        const finalOffsetHeight = tableContainer.offsetHeight;
-                                        
-                                        console.log(`✅ Dimensiones finales:`);
-                                        console.log(`   - getBoundingClientRect: ${finalRect.width}x${finalRect.height}`);
-                                        console.log(`   - offsetWidth/Height: ${finalOffsetWidth}x${finalOffsetHeight}`);
-                                        
-                                        if (finalOffsetWidth > 0 || finalOffsetHeight > 0) {
-                                            console.log('✅ Tabla tiene dimensiones (usando offsetWidth/Height)');
-                                        } else {
-                                            console.error('❌ Tabla aún no tiene dimensiones después de todos los intentos');
-                                        }
-                                    }, 200);
-                                });
-                            } else if (offsetWidth > 0 || offsetHeight > 0) {
-                                console.log(`✅ Tabla tiene dimensiones: ${offsetWidth}x${offsetHeight} (offsetWidth/Height)`);
+                            // Verificar dimensiones (sin aplicar más cambios para evitar bucles)
+                            if (offsetWidth > 0 || offsetHeight > 0) {
+                                console.log(`✅ Tabla tiene dimensiones: ${offsetWidth}x${offsetHeight}`);
                             } else {
-                                console.log('✅ Tabla tiene dimensiones correctas (getBoundingClientRect)');
+                                console.log(`📐 Tabla: ${offsetWidth}x${offsetHeight} (puede necesitar más tiempo para renderizar)`);
                             }
                             }, 200);
                         });
