@@ -5521,46 +5521,9 @@ Ej:
                 void expensesSection.offsetHeight;
                 void expensesSection.offsetWidth; // Forzar reflow
                 
-                // 3. Crear MutationObserver para mantener las dimensiones
-                if (!expensesSection._dimensionObserver) {
-                    expensesSection._dimensionObserver = new MutationObserver((mutations) => {
-                        let shouldReforce = false;
-                        mutations.forEach((mutation) => {
-                            if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
-                                const currentWidth = expensesSection.offsetWidth;
-                                if (currentWidth === 0) {
-                                    console.log('⚠️ Dimensiones reseteadas a 0, reaplicando...');
-                                    shouldReforce = true;
-                                }
-                            }
-                        });
-                        
-                        if (shouldReforce) {
-                            forceMainContentDimensions(); // Reforzar main-content también
-                            const forcedWidth = expensesSection.getAttribute('data-forced-width');
-                            if (forcedWidth) {
-                                expensesSection.style.cssText = `
-                                    display: block !important;
-                                    width: ${forcedWidth}px !important;
-                                    min-width: ${forcedWidth}px !important;
-                                    max-width: ${forcedWidth}px !important;
-                                    visibility: visible !important;
-                                    position: relative !important;
-                                    padding: 20px !important;
-                                    box-sizing: border-box !important;
-                                    overflow: visible !important;
-                                `;
-                                void expensesSection.offsetHeight;
-                                void expensesSection.offsetWidth;
-                            }
-                        }
-                    });
-                    
-                    expensesSection._dimensionObserver.observe(expensesSection, {
-                        attributes: true,
-                        attributeFilter: ['style', 'class']
-                    });
-                }
+                // 3. NO usar MutationObserver ni setInterval - causa bucles infinitos
+                // Las dimensiones se aplican una vez y se mantienen con !important
+                // Si hay problemas, se reaplican solo cuando se llama explícitamente a la función
             }
         }
         
