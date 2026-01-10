@@ -18274,9 +18274,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }
         }
 
-        // Cargar todos los datos de gastos
-        function loadExpensesData() {
+        // Cargar todos los datos de gastos - VERSIÓN ACTUALIZADA CON FORZADO DE DIMENSIONES
+        window.loadExpensesData = function loadExpensesData() {
             console.log('💰 Cargando datos de gastos...');
+            console.log('🔍 VERSIÓN ACTUALIZADA de loadExpensesData ejecutándose...');
             
             // FORZAR DIMENSIONES PRIMERO (antes de cargar datos)
             console.log('🔧 FORZANDO DIMENSIONES desde loadExpensesData...');
