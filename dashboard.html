@@ -19655,44 +19655,93 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             const finalWidth = tableContainer.offsetWidth;
                             const finalHeight = tableContainer.offsetHeight;
                             const sectionWidth = expensesSection ? expensesSection.offsetWidth : 0;
+                            const sectionHeight = expensesSection ? expensesSection.offsetHeight : 0;
                             const computedWidth = window.getComputedStyle(tableContainer).width;
                             
-                            console.log(`🔍 Verificación: offsetWidth=${finalWidth}, offsetHeight=${finalHeight}, computedWidth=${computedWidth}, sectionWidth=${sectionWidth}`);
+                            // DIAGNÓSTICO COMPLETO: Verificar toda la cadena de contenedores
+                            const mainContent = document.querySelector('.main-content');
+                            const mainContentWidth = mainContent ? mainContent.offsetWidth : 0;
+                            const mainContentHeight = mainContent ? mainContent.offsetHeight : 0;
+                            const bodyWidth = document.body.offsetWidth;
+                            const bodyHeight = document.body.offsetHeight;
+                            const bodyHasAuthenticated = document.body.classList.contains('authenticated');
+                            
+                            console.log(`🔍 DIAGNÓSTICO COMPLETO:`);
+                            console.log(`   - body: ${bodyWidth}x${bodyHeight}, authenticated=${bodyHasAuthenticated}`);
+                            console.log(`   - main-content: ${mainContentWidth}x${mainContentHeight}`);
+                            console.log(`   - expenses-section: ${sectionWidth}x${sectionHeight}`);
+                            console.log(`   - table-container: ${finalWidth}x${finalHeight}, computed=${computedWidth}`);
                             
                             if (finalWidth > 0 && finalHeight > 0) {
                                 console.log(`✅ Tabla tiene dimensiones: ${finalWidth}x${finalHeight} (expenses-section: ${sectionWidth}px)`);
                             } else {
                                 console.log(`❌ Tabla aún sin dimensiones: ${finalWidth}x${finalHeight}, expenses-section: ${sectionWidth}px`);
-                                console.log(`🔍 Debug: viewport=${viewportWidth}, containerWidth=${containerWidth}, minHeight=${minHeight}`);
                                 
-                                // Último intento: verificar si hay algún CSS que esté sobrescribiendo
-                                const allStyles = window.getComputedStyle(tableContainer);
-                                console.log(`🔍 Estilos computados: display=${allStyles.display}, width=${allStyles.width}, visibility=${allStyles.visibility}`);
+                                // Si main-content tiene dimensiones pero expenses-section no, el problema está en expenses-section
+                                if (mainContentWidth > 0 && sectionWidth === 0) {
+                                    console.log(`⚠️ PROBLEMA IDENTIFICADO: main-content tiene ${mainContentWidth}px pero expenses-section tiene 0px`);
+                                    console.log(`🔧 Intentando solución: mover table-container directamente a main-content...`);
+                                    
+                                    // ÚLTIMA SOLUCIÓN: Mover table-container directamente a main-content
+                                    if (mainContent && tableContainer) {
+                                        // Clonar el table-container
+                                        const clonedContainer = tableContainer.cloneNode(true);
+                                        clonedContainer.id = 'expenses-table-container-emergency';
+                                        clonedContainer.style.cssText = `
+                                            display: block !important;
+                                            visibility: visible !important;
+                                            width: ${containerWidth}px !important;
+                                            min-width: ${containerWidth}px !important;
+                                            max-width: ${containerWidth}px !important;
+                                            min-height: ${minHeight}px !important;
+                                            height: auto !important;
+                                            margin: 20px !important;
+                                            padding: 20px !important;
+                                            background-color: white !important;
+                                            position: relative !important;
+                                            z-index: 1000 !important;
+                                            box-sizing: border-box !important;
+                                        `;
+                                        
+                                        // Agregar al main-content
+                                        mainContent.appendChild(clonedContainer);
+                                        
+                                        void clonedContainer.offsetWidth;
+                                        
+                                        setTimeout(() => {
+                                            const emergencyWidth = clonedContainer.offsetWidth;
+                                            const emergencyHeight = clonedContainer.offsetHeight;
+                                            console.log(`🔧 Tabla de emergencia: ${emergencyWidth}x${emergencyHeight}`);
+                                            if (emergencyWidth > 0) {
+                                                console.log(`✅ SOLUCIÓN DE EMERGENCIA FUNCIONÓ: Tabla visible en ${emergencyWidth}x${emergencyHeight}`);
+                                            }
+                                        }, 100);
+                                    }
+                                } else if (mainContentWidth === 0) {
+                                    console.log(`⚠️ PROBLEMA IDENTIFICADO: main-content también tiene 0px - el problema está en el contenedor padre`);
+                                }
                                 
-                                // Si aún no funciona, usar position absolute como último recurso
+                                // Último intento: usar position absolute
                                 if (finalWidth === 0) {
-                                    console.log('🔧 Último intento de emergencia: usando position absolute para salir del flujo del padre...');
+                                    console.log('🔧 Último intento de emergencia: usando position fixed (no absolute)...');
                                     
-                                    // Obtener posición del expenses-section para posicionar el table-container
-                                    const sectionRect = expensesSection ? expensesSection.getBoundingClientRect() : { left: 220, top: 100 };
-                                    
-                                    tableContainer.style.setProperty('position', 'absolute', 'important');
-                                    tableContainer.style.setProperty('left', `${sectionRect.left + 20}px`, 'important');
-                                    tableContainer.style.setProperty('top', `${sectionRect.top + 200}px`, 'important');
+                                    tableContainer.style.setProperty('position', 'fixed', 'important');
+                                    tableContainer.style.setProperty('left', '240px', 'important');
+                                    tableContainer.style.setProperty('top', '100px', 'important');
                                     tableContainer.style.setProperty('width', `${containerWidth}px`, 'important');
                                     tableContainer.style.setProperty('min-width', `${containerWidth}px`, 'important');
                                     tableContainer.style.setProperty('max-width', `${containerWidth}px`, 'important');
-                                    tableContainer.style.setProperty('z-index', '1000', 'important');
-                                    tableContainer.style.removeProperty('flex');
-                                    tableContainer.style.removeProperty('flex-basis');
+                                    tableContainer.style.setProperty('z-index', '10000', 'important');
+                                    tableContainer.style.setProperty('background-color', 'white', 'important');
+                                    tableContainer.style.setProperty('padding', '20px', 'important');
+                                    tableContainer.style.setProperty('box-shadow', '0 4px 6px rgba(0,0,0,0.1)', 'important');
                                     
                                     void tableContainer.offsetWidth;
                                     
-                                    // Verificar después del cambio
                                     setTimeout(() => {
                                         const emergencyWidth = tableContainer.offsetWidth;
                                         const emergencyHeight = tableContainer.offsetHeight;
-                                        console.log(`🔧 Después de position absolute: ${emergencyWidth}x${emergencyHeight}`);
+                                        console.log(`🔧 Después de position fixed: ${emergencyWidth}x${emergencyHeight}`);
                                     }, 100);
                                 }
                             }
