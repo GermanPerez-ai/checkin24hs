@@ -1,8 +1,18 @@
 ﻿<!DOCTYPE html>
 <html lang="es">
 <head>
+    <!-- VERSIÓN: dashboard.html v2.1.0 - 2025-01-27 -->
     <!-- CRÍTICO: Verificación de versión LO PRIMERO - antes de cualquier otro código -->
     <script>
+        // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
+        window.DASHBOARD_VERSION = '2.1.0';
+        window.DASHBOARD_VERSION_DATE = '2025-01-27';
+        
+        // Mostrar versión en consola al cargar
+        console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
+        console.log('%cVersión: ' + window.DASHBOARD_VERSION + ' (' + window.DASHBOARD_VERSION_DATE + ')', 'font-size: 12px; color: #666;');
+        console.log('%cPara verificar la versión, escribe: window.DASHBOARD_VERSION', 'font-size: 11px; color: #999; font-style: italic;');
+        
         // Log inmediato para verificar que el código nuevo se está cargando
         console.log('🔍 ============================================');
         console.log('🔍 VERIFICACIÓN TEMPRANA DE VERSIÓN DEL CÓDIGO');
@@ -1743,7 +1753,7 @@
     <!-- Supabase Configuration -->
     <script src="supabase-config.js"></script>
     <!-- Supabase Client -->
-    <script src="supabase-client.js?v=3.1.0" onerror="console.warn('supabase-client.js no encontrado');"></script>
+    <script src="supabase-client.js?v=3.1.1" onerror="console.warn('supabase-client.js no encontrado');"></script>
     
     <!-- showSection ya está definido en la línea 6 del head -->
     
