@@ -5418,47 +5418,45 @@ Ej:
                 void mainContent.offsetWidth;
             }
             
-            // 2. Esperar un momento para que main-content se aplique
-            setTimeout(() => {
-                // Forzar expenses-section DESPUÉS de que main-content esté listo
-                const expensesSection = document.getElementById('expenses-section');
-                if (expensesSection) {
-                    // Verificar que esté visible
-                    const computedDisplay = window.getComputedStyle(expensesSection).display;
-                    if (computedDisplay === 'none') {
-                        expensesSection.style.setProperty('display', 'block', 'important');
-                    }
-                    
-                    const viewportWidth = window.innerWidth;
-                    const sidebarWidth = 220;
-                    const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
-                    
-                    // Aplicar dimensiones usando cssText (más confiable para múltiples propiedades)
-                    expensesSection.style.cssText = `
-                        display: block !important;
-                        width: ${availableWidth}px !important;
-                        min-width: ${availableWidth}px !important;
-                        max-width: ${availableWidth}px !important;
-                        visibility: visible !important;
-                        position: relative !important;
-                        padding: 20px !important;
-                        box-sizing: border-box !important;
-                        overflow: visible !important;
-                    `;
-                    
-                    expensesSection.setAttribute('data-forced-width', availableWidth);
-                    
-                    // Forzar múltiples reflows después de aplicar estilos
+            // 2. Forzar expenses-section INMEDIATAMENTE (sin setTimeout)
+            const expensesSection = document.getElementById('expenses-section');
+            if (expensesSection) {
+                // Verificar que esté visible
+                const computedDisplay = window.getComputedStyle(expensesSection).display;
+                if (computedDisplay === 'none') {
+                    expensesSection.style.setProperty('display', 'block', 'important');
+                }
+                
+                const viewportWidth = window.innerWidth;
+                const sidebarWidth = 220;
+                const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
+                
+                // Aplicar dimensiones usando cssText (más confiable para múltiples propiedades)
+                expensesSection.style.cssText = `
+                    display: block !important;
+                    width: ${availableWidth}px !important;
+                    min-width: ${availableWidth}px !important;
+                    max-width: ${availableWidth}px !important;
+                    visibility: visible !important;
+                    position: relative !important;
+                    padding: 20px !important;
+                    box-sizing: border-box !important;
+                    overflow: visible !important;
+                `;
+                
+                expensesSection.setAttribute('data-forced-width', availableWidth);
+                
+                // Forzar múltiples reflows después de aplicar estilos
+                void expensesSection.offsetWidth;
+                requestAnimationFrame(() => {
                     void expensesSection.offsetWidth;
+                    void expensesSection.offsetHeight;
                     requestAnimationFrame(() => {
                         void expensesSection.offsetWidth;
-                        void expensesSection.offsetHeight;
-                        requestAnimationFrame(() => {
-                            void expensesSection.offsetWidth;
-                        });
+                        console.log(`✅ expenses-section dimensiones forzadas: ${expensesSection.offsetWidth}px x ${expensesSection.offsetHeight}px`);
                     });
-                }
-            }, 100); // Esperar 100ms para que main-content se aplique primero
+                });
+            }
         }
         
         // Función auxiliar para forzar dimensiones en quotes-section
