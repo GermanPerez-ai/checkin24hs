@@ -5661,6 +5661,26 @@ Ej:
                         void mainContent.offsetWidth; // Forzar reflow
                     }
                     
+                    // Asegurar que .content tenga dimensiones
+                    const contentDiv = document.querySelector('.content');
+                    if (contentDiv) {
+                        const viewportWidth = window.innerWidth;
+                        const sidebarWidth = 220;
+                        const contentWidth = Math.max(800, viewportWidth - sidebarWidth - 48);
+                        contentDiv.style.cssText = `
+                            display: block !important;
+                            width: 100% !important;
+                            min-width: ${contentWidth}px !important;
+                            max-width: 100% !important;
+                            padding: 24px !important;
+                            box-sizing: border-box !important;
+                            visibility: visible !important;
+                            position: relative !important;
+                            overflow: visible !important;
+                        `;
+                        void contentDiv.offsetWidth; // Forzar reflow
+                    }
+                    
                     // CRÍTICO: Esperar a que expenses-section esté realmente visible y tenga dimensiones
                     // Usar un intervalo que verifica hasta que el elemento tenga dimensiones
                     let attempts = 0;
@@ -5693,15 +5713,15 @@ Ej:
                             // El elemento tiene dimensiones o hemos intentado suficientes veces
                             console.log(`✅ expenses-section ${sectionWidth > 0 ? 'tiene dimensiones' : 'forzando dimensiones después de ' + attempts + ' intentos'}: ${sectionWidth}px`);
                             
-                            // Forzar dimensiones de expenses-section SIEMPRE
+                            // Forzar dimensiones de expenses-section SIEMPRE (usar 100% en lugar de píxeles)
                             expensesSection.style.cssText = `
                                 display: block !important;
-                                width: ${targetWidth}px !important;
+                                width: 100% !important;
                                 min-width: ${targetWidth}px !important;
-                                max-width: ${targetWidth}px !important;
+                                max-width: 100% !important;
                                 visibility: visible !important;
                                 position: relative !important;
-                                padding: 20px !important;
+                                padding: 0 !important;
                                 box-sizing: border-box !important;
                                 overflow: visible !important;
                             `;
