@@ -284,6 +284,23 @@
             visibility: visible !important;
             position: relative !important;
         }
+        
+        /* Forzar dimensiones de secciones específicas */
+        #expenses-section,
+        #quotes-section {
+            display: block !important;
+            width: 100% !important;
+            min-width: 800px !important;
+            box-sizing: border-box !important;
+            visibility: visible !important;
+            position: relative !important;
+        }
+        
+        #expenses-section[style*="display: block"],
+        #quotes-section[style*="display: block"] {
+            width: 100% !important;
+            min-width: 800px !important;
+        }
 
         .page-title {
             font-size: 2rem;
