@@ -18631,6 +18631,20 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         function addNewExpenseNew() {
             console.log('🚀 addNewExpenseNew() llamado');
             try {
+                // Verificar que estamos en la sección de expenses
+                const expensesSection = document.getElementById('expenses-section');
+                if (!expensesSection || expensesSection.style.display === 'none') {
+                    console.warn('⚠️ No estás en la sección de Gastos. Cambiando a Gastos...');
+                    if (typeof window.showSection === 'function') {
+                        window.showSection('expenses');
+                        // Esperar a que la sección se muestre antes de abrir el modal
+                        setTimeout(() => {
+                            addNewExpenseNew();
+                        }, 300);
+                        return;
+                    }
+                }
+                
                 const modal = document.getElementById('expenseModalNew');
                 if (!modal) {
                     console.error('❌ Modal expenseModalNew no encontrado');
