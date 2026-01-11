@@ -5339,41 +5339,36 @@ Ej:
         };
         
         // ============================================
-        // VERIFICACIÓN DE VERSIÓN DEL CÓDIGO
+        // VERIFICACIÓN DE VERSIÓN DEL CÓDIGO (SIMPLIFICADA)
         // ============================================
-        // Esta función verifica qué versión del código está cargada
+        // Verificación simplificada - solo verificar que las funciones existen
         window.verificarVersionCodigo = function() {
-            console.log('🔍 ============================================');
-            console.log('🔍 VERIFICACIÓN DE VERSIÓN DEL CÓDIGO');
-            console.log('🔍 ============================================');
-            console.log('📅 Timestamp:', new Date().toISOString());
+            console.log('🔍 Verificando funciones principales...');
             console.log('🔍 loadExpensesData es función:', typeof window.loadExpensesData);
             console.log('🔍 forceExpensesSectionDimensions es función:', typeof window.forceExpensesSectionDimensions);
             console.log('🔍 forceMainContentDimensions es función:', typeof window.forceMainContentDimensions);
             console.log('🔍 forceQuotesSectionDimensions es función:', typeof window.forceQuotesSectionDimensions);
             
-            // Verificar si loadExpensesData tiene el log de versión actualizada
-            const loadExpensesDataStr = window.loadExpensesData?.toString() || '';
-            const tieneVersionActualizada = loadExpensesDataStr.includes('VERSIÓN ACTUALIZADA');
-            console.log('🔍 loadExpensesData tiene "VERSIÓN ACTUALIZADA":', tieneVersionActualizada);
+            const todasExisten = typeof window.loadExpensesData === 'function' &&
+                                 typeof window.forceExpensesSectionDimensions === 'function' &&
+                                 typeof window.forceMainContentDimensions === 'function' &&
+                                 typeof window.forceQuotesSectionDimensions === 'function';
             
-            if (tieneVersionActualizada) {
-                console.log('✅ CÓDIGO ACTUALIZADO: La versión con forzado de dimensiones está cargada');
+            if (todasExisten) {
+                console.log('✅ Todas las funciones principales están disponibles');
             } else {
-                console.error('❌ CÓDIGO ANTIGUO: La versión en el servidor no tiene los cambios recientes');
-                console.error('❌ Necesitas ejecutar: ./FORZAR_ACTUALIZACION_DASHBOARD.sh');
+                console.warn('⚠️ Algunas funciones no están disponibles');
             }
-            console.log('🔍 ============================================');
         };
         
         // Ejecutar verificación inmediatamente
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', function() {
-                console.log('🔍 DOMContentLoaded ejecutado, verificando versión...');
+                console.log('🔍 DOMContentLoaded ejecutado, verificando funciones...');
                 window.verificarVersionCodigo();
             });
         } else {
-            console.log('🔍 DOM ya está listo, verificando versión inmediatamente...');
+            console.log('🔍 DOM ya está listo, verificando funciones inmediatamente...');
             window.verificarVersionCodigo();
         }
         
