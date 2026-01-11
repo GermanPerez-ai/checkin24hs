@@ -5526,38 +5526,40 @@ Ej:
             // 3. Forzar expenses-section INMEDIATAMENTE (sin setTimeout)
             const expensesSection = document.getElementById('expenses-section');
             if (expensesSection) {
-                // Verificar que esté visible
-                const computedDisplay = window.getComputedStyle(expensesSection).display;
-                if (computedDisplay === 'none') {
-                    expensesSection.style.setProperty('display', 'block', 'important');
-                }
+                // PASO 1: Hacer visible primero
+                expensesSection.style.setProperty('display', 'block', 'important');
                 
-                // Obtener el ancho REAL del .content (no calcular, usar el que ya tiene)
+                // PASO 2: Forzar reflow para que el navegador procese el display
+                void expensesSection.offsetWidth;
+                
+                // PASO 3: Obtener el ancho REAL del .content (no calcular, usar el que ya tiene)
                 const contentDiv = document.querySelector('.content');
                 const contentWidth = contentDiv ? contentDiv.offsetWidth : Math.max(800, window.innerWidth - 220 - 48);
                 
-                console.log(`🔧 Forzando expenses-section a ${contentWidth}px (ancho del .content)`);
+                console.log(`🔧 Forzando expenses-section a ${contentWidth}px (ancho del .content: ${contentDiv?.offsetWidth}px)`);
                 
-                // Aplicar dimensiones usando cssText con ancho ABSOLUTO (no porcentaje)
-                expensesSection.style.cssText = `
-                    display: block !important;
-                    width: ${contentWidth}px !important;
-                    min-width: ${contentWidth}px !important;
-                    max-width: ${contentWidth}px !important;
-                    visibility: visible !important;
-                    position: relative !important;
-                    padding: 0 !important;
-                    box-sizing: border-box !important;
-                    overflow: visible !important;
-                `;
+                // PASO 4: Aplicar ancho usando setProperty (más confiable que cssText)
+                expensesSection.style.setProperty('width', `${contentWidth}px`, 'important');
+                expensesSection.style.setProperty('min-width', `${contentWidth}px`, 'important');
+                expensesSection.style.setProperty('max-width', `${contentWidth}px`, 'important');
+                expensesSection.style.setProperty('visibility', 'visible', 'important');
+                expensesSection.style.setProperty('position', 'relative', 'important');
+                expensesSection.style.setProperty('padding', '0', 'important');
+                expensesSection.style.setProperty('box-sizing', 'border-box', 'important');
+                expensesSection.style.setProperty('overflow', 'visible', 'important');
                 
                 expensesSection.setAttribute('data-forced-width', contentWidth);
                 
-                // Forzar múltiples reflows después de aplicar estilos
+                // PASO 5: Forzar múltiples reflows después de aplicar estilos
                 void expensesSection.offsetWidth;
+                const widthAfter = expensesSection.offsetWidth;
+                console.log(`🔍 Ancho DESPUÉS de aplicar estilos: ${widthAfter}px`);
+                
                 requestAnimationFrame(() => {
                     void expensesSection.offsetWidth;
                     void expensesSection.offsetHeight;
+                    const computedStyle = window.getComputedStyle(expensesSection);
+                    console.log(`🔍 Computed width: ${computedStyle.width}, offsetWidth: ${expensesSection.offsetWidth}px`);
                     requestAnimationFrame(() => {
                         void expensesSection.offsetWidth;
                         console.log(`✅ expenses-section dimensiones forzadas: ${expensesSection.offsetWidth}px x ${expensesSection.offsetHeight}px`);
