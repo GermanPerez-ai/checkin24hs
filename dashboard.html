@@ -19699,12 +19699,17 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                         const bodyRect = document.body.getBoundingClientRect();
                                         const mainContentRect = mainContent.getBoundingClientRect();
                                         
+                                        // Usar sectionWidth calculado desde viewport, no el offsetWidth que es 0
+                                        const viewportWidth = window.innerWidth;
+                                        const sidebarWidth = 220;
+                                        const targetSectionWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
+                                        
                                         expensesSection.style.cssText = `
                                             display: block !important;
                                             visibility: visible !important;
-                                            width: ${sectionWidth}px !important;
-                                            min-width: ${sectionWidth}px !important;
-                                            max-width: ${sectionWidth}px !important;
+                                            width: ${targetSectionWidth}px !important;
+                                            min-width: ${targetSectionWidth}px !important;
+                                            max-width: ${targetSectionWidth}px !important;
                                             position: absolute !important;
                                             left: ${mainContentRect.left}px !important;
                                             top: ${mainContentRect.top + 80}px !important;
