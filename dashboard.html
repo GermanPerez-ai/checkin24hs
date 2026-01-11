@@ -5716,6 +5716,45 @@ Ej:
                 targetSection.style.setProperty('display', 'block', 'important');
                 console.log('Seccion mostrada:', section);
                 
+                // DIAGNÓSTICO AUTOMÁTICO: Mostrar dimensiones de todos los elementos relevantes
+                setTimeout(() => {
+                    const mainContent = document.querySelector('.main-content');
+                    const contentDiv = document.querySelector('.content');
+                    const sectionEl = document.getElementById(section + '-section');
+                    
+                    console.log('🔍 ============================================');
+                    console.log('🔍 DIAGNÓSTICO AUTOMÁTICO DE DIMENSIONES');
+                    console.log('🔍 ============================================');
+                    console.log('main-content:', {
+                        display: window.getComputedStyle(mainContent).display,
+                        width: mainContent?.offsetWidth,
+                        height: mainContent?.offsetHeight,
+                        visibility: window.getComputedStyle(mainContent).visibility
+                    });
+                    console.log('.content:', {
+                        display: window.getComputedStyle(contentDiv).display,
+                        width: contentDiv?.offsetWidth,
+                        height: contentDiv?.offsetHeight,
+                        visibility: window.getComputedStyle(contentDiv).visibility
+                    });
+                    console.log(section + '-section:', {
+                        display: window.getComputedStyle(sectionEl).display,
+                        width: sectionEl?.offsetWidth,
+                        height: sectionEl?.offsetHeight,
+                        visibility: window.getComputedStyle(sectionEl).visibility
+                    });
+                    
+                    const tableContainer = sectionEl?.querySelector('.table-container');
+                    if (tableContainer) {
+                        console.log('.table-container:', {
+                            display: window.getComputedStyle(tableContainer).display,
+                            width: tableContainer?.offsetWidth,
+                            height: tableContainer?.offsetHeight
+                        });
+                    }
+                    console.log('🔍 ============================================');
+                }, 500);
+                
                 // SIEMPRE forzar dimensiones si es expenses-section (DESPUÉS de mostrar)
                 if (section === 'expenses') {
                     // Mostrar tabla de emergencia solo si existe
