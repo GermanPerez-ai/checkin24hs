@@ -5486,8 +5486,43 @@ Ej:
                     overflow: visible !important;
                 `;
                 quotesSection.setAttribute('data-forced-width', availableWidth);
+                
+                // También forzar que la tabla sea visible
+                const tableContainer = quotesSection.querySelector('.table-container');
+                if (tableContainer) {
+                    tableContainer.style.cssText = `
+                        display: block !important;
+                        visibility: visible !important;
+                        width: 100% !important;
+                        min-width: 100% !important;
+                        opacity: 1 !important;
+                    `;
+                    
+                    // Forzar que la tabla dentro también sea visible
+                    const table = tableContainer.querySelector('table');
+                    if (table) {
+                        table.style.cssText = `
+                            display: table !important;
+                            visibility: visible !important;
+                            width: 100% !important;
+                            opacity: 1 !important;
+                        `;
+                    }
+                    
+                    // Forzar que el tbody sea visible
+                    const tbody = tableContainer.querySelector('tbody');
+                    if (tbody) {
+                        tbody.style.cssText = `
+                            display: table-row-group !important;
+                            visibility: visible !important;
+                            opacity: 1 !important;
+                        `;
+                    }
+                }
+                
                 void quotesSection.offsetHeight;
                 void quotesSection.offsetWidth; // Forzar reflow
+                console.log(`✅ quotes-section dimensiones forzadas: ${quotesSection.offsetWidth}px x ${quotesSection.offsetHeight}px`);
             }
         }
         
