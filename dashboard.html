@@ -4653,18 +4653,19 @@ Ej:
     <!-- ============================================
          NUEVO MODAL DE GASTOS - VERSIÓN SIMPLIFICADA
          ============================================ -->
-    <div id="expenseModalNew" class="modal" style="display: none; z-index: 10000;">
-        <div class="modal-content" style="max-width: 650px; position: relative; background: white; border-radius: 12px; padding: 24px;">
-            <span class="close" onclick="closeExpenseModalNew()" style="position: absolute; top: 16px; right: 16px; font-size: 28px; font-weight: bold; cursor: pointer; color: #666;">&times;</span>
-            <h2 class="modal-title" id="expenseModalNewTitle" style="margin-top: 0; margin-bottom: 24px; color: #1976d2;">Agregar Gasto</h2>
-            <form id="expenseFormNew" onsubmit="saveExpenseNew(event)">
+    <!-- Modal de Agregar/Editar Gasto -->
+    <div id="expenseModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px;">
+            <span class="close" onclick="closeExpenseModal()">&times;</span>
+            <h2 class="modal-title" id="expenseModalTitle">Agregar Gasto</h2>
+            <form id="expenseForm" onsubmit="saveExpense(event)">
                 <div class="form-group">
                     <label class="form-label">Fecha *</label>
-                    <input type="date" id="expenseDateNew" class="form-input" required>
+                    <input type="date" id="expenseDate" class="form-input" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Tipo de Gasto *</label>
-                    <select id="expenseTypeNew" class="form-input" required onchange="updateExpenseCategoriesNew()">
+                    <select id="expenseType" class="form-input" required onchange="updateExpenseCategories()">
                         <option value="">Seleccionar tipo</option>
                         <option value="fixed">Fijo</option>
                         <option value="variable">Variable</option>
@@ -4672,59 +4673,57 @@ Ej:
                 </div>
                 <div class="form-group">
                     <label class="form-label">Categoría *</label>
-                    <select id="expenseCategoryNew" class="form-input" required>
+                    <select id="expenseCategory" class="form-input" required>
                         <option value="">Seleccionar categoría</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Subcategoría</label>
-                    <input type="text" id="expenseSubcategoryNew" class="form-input" placeholder="Ej: Meta Ads, Google Ads, etc.">
+                    <input type="text" id="expenseSubcategory" class="form-input" placeholder="Ej: Meta Ads, Google Ads, etc.">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Descripción *</label>
-                    <textarea id="expenseDescriptionNew" class="form-input" rows="3" required placeholder="Descripción detallada del gasto"></textarea>
+                    <textarea id="expenseDescription" class="form-input" rows="3" required placeholder="Descripción detallada del gasto"></textarea>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Monto (ARS) *</label>
-                    <input type="number" id="expenseAmountNew" class="form-input" step="0.01" min="0" required placeholder="0.00" oninput="calculateUSDNew()">
+                    <label class="form-label">Monto *</label>
+                    <input type="number" id="expenseAmount" class="form-input" step="0.01" min="0" required placeholder="0.00" oninput="calculateUSD()">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Tipo de Cambio *</label>
-                    <input type="number" id="expenseExchangeRateNew" class="form-input" step="0.01" min="0" required placeholder="0.00" oninput="calculateUSDNew()">
+                    <input type="number" id="expenseExchangeRate" class="form-input" step="0.01" min="0" required placeholder="0.00" oninput="calculateUSD()">
                 </div>
                 <div class="form-group">
-                    <label class="form-label">USD (calculado automáticamente)</label>
-                    <input type="number" id="expenseUSDNew" class="form-input" step="0.01" min="0" placeholder="0.00" readonly style="background-color: #f5f5f5;">
+                    <label class="form-label">USD</label>
+                    <input type="number" id="expenseUSD" class="form-input" step="0.01" min="0" placeholder="0.00" readonly style="background-color: #f5f5f5;">
                 </div>
                 
                 <!-- Campo de Imagen/Comprobante -->
                 <div class="form-group">
                     <label class="form-label">📷 Comprobante (opcional)</label>
                     <div style="display: flex; gap: 12px; margin-bottom: 12px;">
-                        <button type="button" class="form-button secondary" onclick="document.getElementById('expenseImageFileNew').click()" style="flex: 1;">
+                        <button type="button" class="form-button secondary" onclick="document.getElementById('expenseImageFile').click()" style="flex: 1;">
                             <span class="material-icons" style="vertical-align: middle; margin-right: 4px;">upload_file</span>
                             Subir Archivo
                         </button>
-                        <button type="button" class="form-button secondary" onclick="openCameraCaptureNew()" style="flex: 1;">
+                        <button type="button" class="form-button secondary" onclick="openCameraCapture()" style="flex: 1;">
                             <span class="material-icons" style="vertical-align: middle; margin-right: 4px;">photo_camera</span>
                             Tomar Foto
                         </button>
                     </div>
-                    <input type="file" id="expenseImageFileNew" accept="image/*" style="display: none;" onchange="previewExpenseImageNew(this)">
-                    <div id="expenseImagePreviewNew" style="display: none; margin-top: 12px; position: relative;">
-                        <img id="expenseImagePreviewImgNew" src="" alt="Preview" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 2px solid #ddd;">
-                        <button type="button" onclick="removeExpenseImageNew()" style="position: absolute; top: -8px; right: -8px; background: #f44336; color: white; border: none; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                    <input type="file" id="expenseImageFile" accept="image/*" style="display: none;" onchange="previewExpenseImage(this)">
+                    <div id="expenseImagePreview" style="display: none; margin-top: 12px; position: relative;">
+                        <img id="expenseImagePreviewImg" src="" alt="Preview" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 2px solid #ddd;">
+                        <button type="button" onclick="removeExpenseImage()" style="position: absolute; top: -8px; right: -8px; background: #f44336; color: white; border: none; border-radius: 50%; width: 28px; height: 28px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
                             <span class="material-icons" style="font-size: 18px;">close</span>
                         </button>
                     </div>
-                    <input type="hidden" id="expenseImageUrlNew">
-                    <input type="hidden" id="expenseImageNameNew">
+                    <input type="hidden" id="expenseImageUrl">
+                    <input type="hidden" id="expenseImageName">
                 </div>
                 
-                <input type="hidden" id="expenseIdNew">
-                
                 <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
-                    <button type="button" class="form-button secondary" onclick="closeExpenseModalNew()">Cancelar</button>
+                    <button type="button" class="form-button secondary" onclick="closeExpenseModal()">Cancelar</button>
                     <button type="submit" class="form-button">Guardar</button>
                 </div>
             </form>
