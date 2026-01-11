@@ -5489,22 +5489,45 @@ Ej:
             // 1. Forzar .main-content PRIMERO (SIEMPRE)
             forceMainContentDimensions();
             
-            // 2. Forzar quotes-section
+            // 2. Forzar .content (el contenedor padre de las secciones)
+            const contentDiv = document.querySelector('.content');
+            if (contentDiv) {
+                const viewportWidth = window.innerWidth;
+                const sidebarWidth = 220;
+                const contentWidth = Math.max(800, viewportWidth - sidebarWidth - 48); // -48 para padding
+                
+                contentDiv.style.cssText = `
+                    display: block !important;
+                    width: 100% !important;
+                    min-width: ${contentWidth}px !important;
+                    max-width: 100% !important;
+                    padding: 24px !important;
+                    box-sizing: border-box !important;
+                    visibility: visible !important;
+                    position: relative !important;
+                    overflow: visible !important;
+                `;
+                
+                // Forzar reflow del content
+                void contentDiv.offsetWidth;
+            }
+            
+            // 3. Forzar quotes-section
             const quotesSection = document.getElementById('quotes-section');
             if (quotesSection) {
                 const viewportWidth = window.innerWidth;
                 const sidebarWidth = 220;
-                const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
+                const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 48); // -48 para padding del content
                 
                 console.log(`🔧 Forzando quotes-section a ${availableWidth}px`);
                 quotesSection.style.cssText = `
                     display: block !important;
-                    width: ${availableWidth}px !important;
+                    width: 100% !important;
                     min-width: ${availableWidth}px !important;
-                    max-width: ${availableWidth}px !important;
+                    max-width: 100% !important;
                     visibility: visible !important;
                     position: relative !important;
-                    padding: 20px !important;
+                    padding: 0 !important;
                     box-sizing: border-box !important;
                     overflow: visible !important;
                 `;
