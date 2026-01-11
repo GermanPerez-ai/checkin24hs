@@ -5556,7 +5556,26 @@ Ej:
                 
                 expensesSection.setAttribute('data-forced-width', contentWidth);
                 
-                // PASO 5: Forzar múltiples reflows después de aplicar estilos
+                // PASO 5: Verificar estilos calculados COMPLETOS para diagnóstico
+                const computedStyle = window.getComputedStyle(expensesSection);
+                console.log('🔍 ESTILOS CALCULADOS COMPLETOS:', {
+                    display: computedStyle.display,
+                    width: computedStyle.width,
+                    minWidth: computedStyle.minWidth,
+                    maxWidth: computedStyle.maxWidth,
+                    height: computedStyle.height,
+                    minHeight: computedStyle.minHeight,
+                    position: computedStyle.position,
+                    visibility: computedStyle.visibility,
+                    flexShrink: computedStyle.flexShrink,
+                    flexGrow: computedStyle.flexGrow,
+                    flexBasis: computedStyle.flexBasis,
+                    parentDisplay: window.getComputedStyle(expensesSection.parentElement).display,
+                    parentWidth: expensesSection.parentElement?.offsetWidth,
+                    parentHeight: expensesSection.parentElement?.offsetHeight
+                });
+                
+                // PASO 6: Forzar múltiples reflows después de aplicar estilos
                 void expensesSection.offsetWidth;
                 const widthAfter = expensesSection.offsetWidth;
                 console.log(`🔍 Ancho DESPUÉS de aplicar estilos: ${widthAfter}px`);
@@ -5564,8 +5583,8 @@ Ej:
                 requestAnimationFrame(() => {
                     void expensesSection.offsetWidth;
                     void expensesSection.offsetHeight;
-                    const computedStyle = window.getComputedStyle(expensesSection);
-                    console.log(`🔍 Computed width: ${computedStyle.width}, offsetWidth: ${expensesSection.offsetWidth}px`);
+                    const computedStyle2 = window.getComputedStyle(expensesSection);
+                    console.log(`🔍 Computed width: ${computedStyle2.width}, offsetWidth: ${expensesSection.offsetWidth}px`);
                     requestAnimationFrame(() => {
                         void expensesSection.offsetWidth;
                         console.log(`✅ expenses-section dimensiones forzadas: ${expensesSection.offsetWidth}px x ${expensesSection.offsetHeight}px`);
