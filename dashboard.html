@@ -5610,6 +5610,23 @@ Ej:
             document.querySelectorAll('[id$="-section"]').forEach(el => {
                 el.style.display = 'none';
             });
+            
+            // CERRAR TODOS LOS MODALES cuando se cambia de sección
+            const modalsToClose = [
+                'expenseModalNew',
+                'quoteModalNew',
+                'cameraModalNew',
+                'expenseModal',
+                'quoteModal',
+                'newQuoteModal',
+                'cameraModal'
+            ];
+            modalsToClose.forEach(modalId => {
+                const modal = document.getElementById(modalId);
+                if (modal) {
+                    modal.style.display = 'none';
+                }
+            });
 
             // Mostrar la sección seleccionada
             const targetSection = document.getElementById(section + '-section');
