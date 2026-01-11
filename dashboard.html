@@ -5700,17 +5700,38 @@ Ej:
                             console.log(`✅ expenses-section ${sectionWidth > 0 ? 'tiene dimensiones' : 'forzando dimensiones después de ' + attempts + ' intentos'}: ${sectionWidth}px`);
                             
                             // Forzar dimensiones de expenses-section
-                            expensesSection.style.cssText = `
-                                display: block !important;
-                                width: ${targetWidth}px !important;
-                                min-width: ${targetWidth}px !important;
-                                max-width: ${targetWidth}px !important;
-                                visibility: visible !important;
-                                position: relative !important;
-                                padding: 20px !important;
-                                box-sizing: border-box !important;
-                                overflow: visible !important;
-                            `;
+                            // Si después de 20 intentos aún tiene 0px, usar position absolute
+                            if (sectionWidth === 0 && attempts >= maxAttempts) {
+                                console.log('⚠️ expenses-section tiene 0px después de 20 intentos, usando position absolute...');
+                                const mainContentRect = document.querySelector('.main-content')?.getBoundingClientRect() || { left: 220, top: 80 };
+                                
+                                expensesSection.style.cssText = `
+                                    display: block !important;
+                                    width: ${targetWidth}px !important;
+                                    min-width: ${targetWidth}px !important;
+                                    max-width: ${targetWidth}px !important;
+                                    visibility: visible !important;
+                                    position: absolute !important;
+                                    left: ${mainContentRect.left}px !important;
+                                    top: ${mainContentRect.top + 80}px !important;
+                                    padding: 20px !important;
+                                    box-sizing: border-box !important;
+                                    overflow: visible !important;
+                                    z-index: 10 !important;
+                                `;
+                            } else {
+                                expensesSection.style.cssText = `
+                                    display: block !important;
+                                    width: ${targetWidth}px !important;
+                                    min-width: ${targetWidth}px !important;
+                                    max-width: ${targetWidth}px !important;
+                                    visibility: visible !important;
+                                    position: relative !important;
+                                    padding: 20px !important;
+                                    box-sizing: border-box !important;
+                                    overflow: visible !important;
+                                `;
+                            }
                             
                             void expensesSection.offsetWidth;
                             void expensesSection.offsetHeight;
