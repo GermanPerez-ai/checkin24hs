@@ -19300,6 +19300,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 `;
                 tbody.appendChild(row);
             });
+            
+            console.log(`✅ Tabla de gastos renderizada: ${expenses.length} filas agregadas al DOM`);
         }
 
         // Editar gasto
