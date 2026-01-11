@@ -19612,6 +19612,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 // Paso 3: Aplicar dimensiones al table-container con valores ABSOLUTOS del viewport
                 // CRÍTICO: Asegurar que expenses-section tenga dimensiones ANTES de aplicar al table-container
                 if (tableContainer) {
+                    // Prevenir ejecución múltiple usando una bandera
+                    if (window.expensesTableStylesApplied) {
+                        console.log('⚠️ Estilos ya aplicados, saltando aplicación duplicada...');
+                        return;
+                    }
+                    window.expensesTableStylesApplied = true;
+                    
                     // Función para aplicar estilos de forma agresiva
                     const applyStylesAggressively = () => {
                         console.log(`📏 Aplicando dimensiones finales: ${containerWidth}px x ${minHeight}px (calculado desde viewport: ${viewportWidth}px)`);
