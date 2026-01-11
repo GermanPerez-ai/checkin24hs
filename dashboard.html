@@ -8401,122 +8401,73 @@ Ej:
         // Función para cargar tabla de cotizaciones
         // Cargar tabla de cotizaciones - VERSIÓN SIMPLIFICADA
         async function loadQuotesTable() {
-            // FORZAR DIMENSIONES PRIMERO (antes de cargar datos) - MÚLTIPLES INTENTOS
-            if (typeof forceQuotesSectionDimensions === 'function') {
-                console.log('🔧 Llamando a forceQuotesSectionDimensions desde loadQuotesTable...');
-                // Ejecutar inmediatamente
-                forceQuotesSectionDimensions();
-                // Ejecutar después de un frame
-                requestAnimationFrame(() => {
-                    forceQuotesSectionDimensions();
-                });
-                // Ejecutar después de un pequeño delay
-                setTimeout(() => {
-                    forceQuotesSectionDimensions();
-                }, 100);
-            } else {
-                console.warn('⚠️ forceQuotesSectionDimensions no está definida');
-            }
+            console.log('📋 Cargando tabla de cotizaciones...');
             
-            try {
-                // Cargar datos desde Supabase o localStorage
-                let quotes = [];
-                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
-                    try {
-                        quotes = await window.supabaseClient.getQuotes();
-                    } catch (error) {
-                        quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
-                    }
-                } else {
+            // Intentar cargar desde Supabase primero
+            let quotes = [];
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    console.log('☁️ Cargando cotizaciones desde Supabase...');
+                    quotes = await window.supabaseClient.getQuotes();
+                    console.log(`✅ ${quotes.length} cotizaciones cargadas desde Supabase`);
+                } catch (error) {
+                    console.warn('⚠️ Error cargando desde Supabase, usando localStorage:', error);
                     quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
                 }
-                
-                const tbody = document.getElementById('quotesTableBody');
-                const noQuotesMessage = document.getElementById('noQuotesMessage');
-                const tableContainer = document.querySelector('#quotes-section .table-container');
-                
-                if (!tbody) {
-                    console.error('❌ No se encontró quotesTableBody');
-                    return;
-                }
-                
-                // Ocultar mensaje de "no hay cotizaciones" si hay datos
-                if (noQuotesMessage) {
-                    noQuotesMessage.style.display = quotes.length === 0 ? 'block' : 'none';
-                }
-                
-                if (quotes.length === 0) {
-                    tbody.innerHTML = '';
-                    return;
-                }
-                
-                // Limpiar y renderizar tabla
-                tbody.innerHTML = '';
-                quotes.forEach((quote, index) => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${quote.id || `COT-${String(index + 1).padStart(3, '0')}`}</td>
-                        <td>${quote.hotel}</td>
-                        <td>${quote.clientName || 'Anónimo'}</td>
-                        <td>${quote.dateRange}</td>
-                        <td>${quote.travelers}</td>
-                        <td><span class="quote-status ${quote.status || 'pending'}">${getStatusLabel(quote.status || 'pending')}</span></td>
-                        <td>${formatDate(quote.timestamp || new Date())}</td>
-                        <td>
-                            <button onclick="viewQuote('${quote.id || index}')" class="action-btn view" title="Ver detalles">
-                                <span class="material-icons">visibility</span>
-                            </button>
-                            ${(quote.status === 'pending' || !quote.status) ? `
-                            <button onclick="editQuote('${quote.id || index}')" class="action-btn edit" title="Editar y Cotizar" style="background: #ff9800;">
-                                <span class="material-icons">edit</span>
-                            </button>
-                            ` : ''}
-                            <button onclick="processQuote('${quote.id || index}')" class="action-btn edit" title="Procesar">
-                                <span class="material-icons">check_circle</span>
-                            </button>
-                            <button onclick="deleteQuote('${quote.id || index}')" class="action-btn delete" title="Eliminar">
-                                <span class="material-icons">delete</span>
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(row);
-                });
-                
-                // Asegurar que el contenedor tenga dimensiones visibles
-                if (tableContainer) {
-                    const rowCount = quotes.length;
-                    const minHeight = Math.max(400, rowCount * 50);
-                    tableContainer.style.cssText = `
-                        display: block !important;
-                        visibility: visible !important;
-                        width: 100% !important;
-                        min-width: 100% !important;
-                        min-height: ${minHeight}px !important;
-                        height: auto !important;
-                        overflow-x: auto !important;
-                        overflow-y: visible !important;
-                        background-color: white !important;
-                        position: relative !important;
-                        z-index: 1 !important;
-                    `;
-                    
-                    const table = tableContainer.querySelector('table');
-                    if (table) {
-                        table.style.cssText = `
-                            width: 100% !important;
-                            min-width: 100% !important;
-                            display: table !important;
-                            visibility: visible !important;
-                            border-collapse: collapse !important;
-                            table-layout: auto !important;
-                        `;
-                    }
-                }
-                
-                console.log(`✅ ${quotes.length} cotizaciones cargadas en la tabla`);
-            } catch (error) {
-                console.error('❌ Error en loadQuotesTable:', error);
+            } else {
+                console.log('💾 Cargando cotizaciones desde localStorage...');
+                quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
             }
+            const tbody = document.getElementById('quotesTableBody');
+            const noQuotesMessage = document.getElementById('noQuotesMessage');
+            
+            if (!tbody) {
+                console.error('❌ No se encontró el tbody de cotizaciones');
+                return;
+            }
+            
+            if (quotes.length === 0) {
+                tbody.innerHTML = '';
+                if (noQuotesMessage) noQuotesMessage.style.display = 'block';
+                console.log('📋 No hay cotizaciones para mostrar');
+                return;
+            }
+            
+            if (noQuotesMessage) noQuotesMessage.style.display = 'none';
+            
+            tbody.innerHTML = '';
+            
+            quotes.forEach((quote, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${quote.id || `COT-${String(index + 1).padStart(3, '0')}`}</td>
+                    <td>${quote.hotel}</td>
+                    <td>${quote.clientName || 'Anónimo'}</td>
+                    <td>${quote.dateRange}</td>
+                    <td>${quote.travelers}</td>
+                    <td><span class="quote-status ${quote.status || 'pending'}">${getStatusLabel(quote.status || 'pending')}</span></td>
+                    <td>${formatDate(quote.timestamp || new Date())}</td>
+                    <td>
+                        <button onclick="viewQuote('${quote.id || index}')" class="action-btn view" title="Ver detalles">
+                            <span class="material-icons">visibility</span>
+                        </button>
+                        ${(quote.status === 'pending' || !quote.status) ? `
+                        <button onclick="editQuote('${quote.id || index}')" class="action-btn edit" title="Editar y Cotizar" style="background: #ff9800;">
+                            <span class="material-icons">edit</span>
+                        </button>
+                        ` : ''}
+                        <button onclick="processQuote('${quote.id || index}')" class="action-btn edit" title="Procesar">
+                            <span class="material-icons">check_circle</span>
+                        </button>
+                        <button onclick="deleteQuote('${quote.id || index}')" class="action-btn delete" title="Eliminar">
+                            <span class="material-icons">delete</span>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+            
+            console.log(`✅ Tabla de cotizaciones cargada: ${quotes.length} cotizaciones`);
         }
         
         // Función para actualizar estadísticas de cotizaciones
