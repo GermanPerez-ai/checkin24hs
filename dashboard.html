@@ -5599,23 +5599,23 @@ Ej:
             // 3. Forzar quotes-section
             const quotesSection = document.getElementById('quotes-section');
             if (quotesSection) {
-                const viewportWidth = window.innerWidth;
-                const sidebarWidth = 220;
-                const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 48); // -48 para padding del content
+                // Obtener el ancho REAL del .content (no calcular, usar el que ya tiene)
+                const contentDiv = document.querySelector('.content');
+                const contentWidth = contentDiv ? contentDiv.offsetWidth : Math.max(800, window.innerWidth - 220 - 48);
                 
-                console.log(`🔧 Forzando quotes-section a ${availableWidth}px`);
+                console.log(`🔧 Forzando quotes-section a ${contentWidth}px (ancho del .content)`);
                 quotesSection.style.cssText = `
                     display: block !important;
-                    width: 100% !important;
-                    min-width: ${availableWidth}px !important;
-                    max-width: 100% !important;
+                    width: ${contentWidth}px !important;
+                    min-width: ${contentWidth}px !important;
+                    max-width: ${contentWidth}px !important;
                     visibility: visible !important;
                     position: relative !important;
                     padding: 0 !important;
                     box-sizing: border-box !important;
                     overflow: visible !important;
                 `;
-                quotesSection.setAttribute('data-forced-width', availableWidth);
+                quotesSection.setAttribute('data-forced-width', contentWidth);
                 
                 // También forzar que la tabla sea visible
                 const tableContainer = quotesSection.querySelector('.table-container');
