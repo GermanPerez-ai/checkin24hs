@@ -5391,6 +5391,70 @@ Ej:
         }
         
         // Función auxiliar para forzar dimensiones en expenses-section (CORREGIDA - Sin bucle infinito)
+        // Función de diagnóstico global
+        window.diagnosticoTablas = function() {
+            console.log('=== DIAGNÓSTICO DE DIMENSIONES ===');
+            const expensesSection = document.getElementById('expenses-section');
+            const contentDiv = document.querySelector('.content');
+            const mainContent = document.querySelector('.main-content');
+            
+            console.log('main-content:', {
+                display: window.getComputedStyle(mainContent).display,
+                width: mainContent?.offsetWidth,
+                height: mainContent?.offsetHeight,
+                visibility: window.getComputedStyle(mainContent).visibility,
+                position: window.getComputedStyle(mainContent).position
+            });
+            
+            console.log('.content:', {
+                display: window.getComputedStyle(contentDiv).display,
+                width: contentDiv?.offsetWidth,
+                height: contentDiv?.offsetHeight,
+                visibility: window.getComputedStyle(contentDiv).visibility,
+                position: window.getComputedStyle(contentDiv).position
+            });
+            
+            console.log('expenses-section:', {
+                display: window.getComputedStyle(expensesSection).display,
+                width: expensesSection?.offsetWidth,
+                height: expensesSection?.offsetHeight,
+                visibility: window.getComputedStyle(expensesSection).visibility,
+                position: window.getComputedStyle(expensesSection).position
+            });
+            
+            const tableContainer = expensesSection?.querySelector('.table-container');
+            const table = tableContainer?.querySelector('table');
+            const tbody = table?.querySelector('tbody');
+            
+            console.log('table-container:', {
+                display: tableContainer ? window.getComputedStyle(tableContainer).display : 'no encontrado',
+                width: tableContainer?.offsetWidth,
+                height: tableContainer?.offsetHeight
+            });
+            
+            console.log('tbody rows:', tbody?.rows?.length || 0);
+            
+            return {
+                mainContent: {
+                    width: mainContent?.offsetWidth,
+                    height: mainContent?.offsetHeight
+                },
+                content: {
+                    width: contentDiv?.offsetWidth,
+                    height: contentDiv?.offsetHeight
+                },
+                expensesSection: {
+                    width: expensesSection?.offsetWidth,
+                    height: expensesSection?.offsetHeight
+                },
+                tableContainer: {
+                    width: tableContainer?.offsetWidth,
+                    height: tableContainer?.offsetHeight
+                },
+                tbodyRows: tbody?.rows?.length || 0
+            };
+        };
+        
         window.forceExpensesSectionDimensions = function forceExpensesSectionDimensions() {
             // 1. Forzar .main-content PRIMERO (SIEMPRE) - Usando flex-basis para elementos flex
             const mainContent = document.querySelector('.main-content');
