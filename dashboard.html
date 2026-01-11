@@ -5619,12 +5619,22 @@ Ej:
                 'expenseModal',
                 'quoteModal',
                 'newQuoteModal',
-                'cameraModal'
+                'cameraModal',
+                'imageManagerModal'
             ];
             modalsToClose.forEach(modalId => {
                 const modal = document.getElementById(modalId);
                 if (modal) {
-                    modal.style.display = 'none';
+                    modal.style.setProperty('display', 'none', 'important');
+                    modal.style.setProperty('visibility', 'hidden', 'important');
+                }
+            });
+            
+            // También cerrar cualquier modal que tenga la clase 'modal' y esté visible
+            document.querySelectorAll('.modal').forEach(modal => {
+                if (modal.style.display !== 'none' && window.getComputedStyle(modal).display !== 'none') {
+                    modal.style.setProperty('display', 'none', 'important');
+                    modal.style.setProperty('visibility', 'hidden', 'important');
                 }
             });
 
@@ -19680,42 +19690,80 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                 // Si main-content tiene dimensiones pero expenses-section no, el problema está en expenses-section
                                 if (mainContentWidth > 0 && sectionWidth === 0) {
                                     console.log(`⚠️ PROBLEMA IDENTIFICADO: main-content tiene ${mainContentWidth}px pero expenses-section tiene 0px`);
-                                    console.log(`🔧 Intentando solución: mover table-container directamente a main-content...`);
                                     
-                                    // ÚLTIMA SOLUCIÓN: Mover table-container directamente a main-content
-                                    if (mainContent && tableContainer) {
-                                        // Clonar el table-container
-                                        const clonedContainer = tableContainer.cloneNode(true);
-                                        clonedContainer.id = 'expenses-table-container-emergency';
-                                        clonedContainer.style.cssText = `
+                                    // PRIMERO: Intentar forzar expenses-section de forma más agresiva
+                                    if (expensesSection) {
+                                        console.log(`🔧 Forzando expenses-section de forma más agresiva...`);
+                                        
+                                        // Usar getBoundingClientRect para obtener posición real
+                                        const bodyRect = document.body.getBoundingClientRect();
+                                        const mainContentRect = mainContent.getBoundingClientRect();
+                                        
+                                        expensesSection.style.cssText = `
                                             display: block !important;
                                             visibility: visible !important;
-                                            width: ${containerWidth}px !important;
-                                            min-width: ${containerWidth}px !important;
-                                            max-width: ${containerWidth}px !important;
-                                            min-height: ${minHeight}px !important;
-                                            height: auto !important;
-                                            margin: 20px !important;
+                                            width: ${sectionWidth}px !important;
+                                            min-width: ${sectionWidth}px !important;
+                                            max-width: ${sectionWidth}px !important;
+                                            position: absolute !important;
+                                            left: ${mainContentRect.left}px !important;
+                                            top: ${mainContentRect.top + 80}px !important;
                                             padding: 20px !important;
-                                            background-color: white !important;
-                                            position: relative !important;
-                                            z-index: 1000 !important;
                                             box-sizing: border-box !important;
+                                            overflow: visible !important;
+                                            z-index: 100 !important;
                                         `;
                                         
-                                        // Agregar al main-content
-                                        mainContent.appendChild(clonedContainer);
+                                        void expensesSection.offsetWidth;
                                         
-                                        void clonedContainer.offsetWidth;
-                                        
+                                        // Verificar después
                                         setTimeout(() => {
-                                            const emergencyWidth = clonedContainer.offsetWidth;
-                                            const emergencyHeight = clonedContainer.offsetHeight;
-                                            console.log(`🔧 Tabla de emergencia: ${emergencyWidth}x${emergencyHeight}`);
-                                            if (emergencyWidth > 0) {
-                                                console.log(`✅ SOLUCIÓN DE EMERGENCIA FUNCIONÓ: Tabla visible en ${emergencyWidth}x${emergencyHeight}`);
+                                            const newSectionWidth = expensesSection.offsetWidth;
+                                            if (newSectionWidth > 0) {
+                                                console.log(`✅ expenses-section ahora tiene dimensiones: ${newSectionWidth}px`);
+                                            } else {
+                                                console.log(`⚠️ expenses-section aún sin dimensiones después de position absolute`);
+                                                
+                                                // ÚLTIMA SOLUCIÓN: Mover table-container directamente a main-content (solo una vez)
+                                                if (mainContent && tableContainer && !document.getElementById('expenses-table-container-emergency') && !window.emergencyTableCreated) {
+                                                    window.emergencyTableCreated = true;
+                                                    console.log(`🔧 Intentando solución: mover table-container directamente a main-content...`);
+                                                    
+                                                    // Clonar el table-container
+                                                    const clonedContainer = tableContainer.cloneNode(true);
+                                                    clonedContainer.id = 'expenses-table-container-emergency';
+                                                    clonedContainer.style.cssText = `
+                                                        display: block !important;
+                                                        visibility: visible !important;
+                                                        width: ${containerWidth}px !important;
+                                                        min-width: ${containerWidth}px !important;
+                                                        max-width: ${containerWidth}px !important;
+                                                        min-height: ${minHeight}px !important;
+                                                        height: auto !important;
+                                                        margin: 20px !important;
+                                                        padding: 20px !important;
+                                                        background-color: white !important;
+                                                        position: relative !important;
+                                                        z-index: 1000 !important;
+                                                        box-sizing: border-box !important;
+                                                    `;
+                                                    
+                                                    // Agregar al main-content
+                                                    mainContent.appendChild(clonedContainer);
+                                                    
+                                                    void clonedContainer.offsetWidth;
+                                                    
+                                                    setTimeout(() => {
+                                                        const emergencyWidth = clonedContainer.offsetWidth;
+                                                        const emergencyHeight = clonedContainer.offsetHeight;
+                                                        console.log(`🔧 Tabla de emergencia: ${emergencyWidth}x${emergencyHeight}`);
+                                                        if (emergencyWidth > 0) {
+                                                            console.log(`✅ SOLUCIÓN DE EMERGENCIA FUNCIONÓ: Tabla visible en ${emergencyWidth}x${emergencyHeight}`);
+                                                        }
+                                                    }, 100);
+                                                }
                                             }
-                                        }, 100);
+                                        }, 200);
                                     }
                                 } else if (mainContentWidth === 0) {
                                     console.log(`⚠️ PROBLEMA IDENTIFICADO: main-content también tiene 0px - el problema está en el contenedor padre`);
