@@ -5608,8 +5608,15 @@ Ej:
             
             // Ocultar todas las secciones
             document.querySelectorAll('[id$="-section"]').forEach(el => {
-                el.style.display = 'none';
+                el.style.setProperty('display', 'none', 'important');
             });
+            
+            // OCULTAR TABLA DE EMERGENCIA si existe (solo debe estar visible en expenses)
+            const emergencyTable = document.getElementById('expenses-table-container-emergency');
+            if (emergencyTable) {
+                emergencyTable.style.setProperty('display', 'none', 'important');
+                emergencyTable.style.setProperty('visibility', 'hidden', 'important');
+            }
             
             // CERRAR TODOS LOS MODALES cuando se cambia de sección
             const modalsToClose = [
@@ -5625,16 +5632,22 @@ Ej:
             modalsToClose.forEach(modalId => {
                 const modal = document.getElementById(modalId);
                 if (modal) {
+                    // Usar removeAttribute para eliminar estilos inline que puedan estar forzando el display
+                    modal.removeAttribute('style');
                     modal.style.setProperty('display', 'none', 'important');
                     modal.style.setProperty('visibility', 'hidden', 'important');
+                    modal.style.setProperty('opacity', '0', 'important');
                 }
             });
             
             // También cerrar cualquier modal que tenga la clase 'modal' y esté visible
             document.querySelectorAll('.modal').forEach(modal => {
-                if (modal.style.display !== 'none' && window.getComputedStyle(modal).display !== 'none') {
+                const computedDisplay = window.getComputedStyle(modal).display;
+                if (computedDisplay !== 'none' && computedDisplay !== '') {
+                    modal.removeAttribute('style');
                     modal.style.setProperty('display', 'none', 'important');
                     modal.style.setProperty('visibility', 'hidden', 'important');
+                    modal.style.setProperty('opacity', '0', 'important');
                 }
             });
 
@@ -5642,11 +5655,16 @@ Ej:
             const targetSection = document.getElementById(section + '-section');
             
             if (targetSection) {
-                targetSection.style.display = 'block';
+                targetSection.style.setProperty('display', 'block', 'important');
                 console.log('Seccion mostrada:', section);
                 
                 // SIEMPRE forzar dimensiones si es expenses-section (DESPUÉS de mostrar)
                 if (section === 'expenses') {
+                    // Mostrar tabla de emergencia solo si existe
+                    if (emergencyTable) {
+                        emergencyTable.style.setProperty('display', 'block', 'important');
+                        emergencyTable.style.setProperty('visibility', 'visible', 'important');
+                    }
                     // Asegurar que .main-content esté visible y tenga dimensiones PRIMERO
                     const mainContent = document.querySelector('.main-content');
                     if (mainContent) {
