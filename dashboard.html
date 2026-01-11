@@ -5538,15 +5538,21 @@ Ej:
                 
                 console.log(`🔧 Forzando expenses-section a ${contentWidth}px (ancho del .content: ${contentDiv?.offsetWidth}px)`);
                 
-                // PASO 4: Aplicar ancho usando setProperty (más confiable que cssText)
+                // PASO 4: Aplicar ancho Y altura usando setProperty (más confiable que cssText)
+                // CRÍTICO: También forzar altura mínima para evitar que el elemento colapse
                 expensesSection.style.setProperty('width', `${contentWidth}px`, 'important');
                 expensesSection.style.setProperty('min-width', `${contentWidth}px`, 'important');
                 expensesSection.style.setProperty('max-width', `${contentWidth}px`, 'important');
+                expensesSection.style.setProperty('min-height', '400px', 'important'); // CRÍTICO: Evitar colapso
+                expensesSection.style.setProperty('height', 'auto', 'important');
                 expensesSection.style.setProperty('visibility', 'visible', 'important');
                 expensesSection.style.setProperty('position', 'relative', 'important');
                 expensesSection.style.setProperty('padding', '0', 'important');
                 expensesSection.style.setProperty('box-sizing', 'border-box', 'important');
                 expensesSection.style.setProperty('overflow', 'visible', 'important');
+                expensesSection.style.setProperty('flex-shrink', '0', 'important'); // CRÍTICO: No permitir que flexbox lo encoja
+                expensesSection.style.setProperty('flex-grow', '0', 'important');
+                expensesSection.style.setProperty('flex-basis', 'auto', 'important');
                 
                 expensesSection.setAttribute('data-forced-width', contentWidth);
                 
