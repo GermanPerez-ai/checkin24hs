@@ -5532,16 +5532,18 @@ Ej:
                     expensesSection.style.setProperty('display', 'block', 'important');
                 }
                 
-                const viewportWidth = window.innerWidth;
-                const sidebarWidth = 220;
-                const availableWidth = Math.max(800, viewportWidth - sidebarWidth - 48); // -48 para padding del content
+                // Obtener el ancho REAL del .content (no calcular, usar el que ya tiene)
+                const contentDiv = document.querySelector('.content');
+                const contentWidth = contentDiv ? contentDiv.offsetWidth : Math.max(800, window.innerWidth - 220 - 48);
                 
-                // Aplicar dimensiones usando cssText (más confiable para múltiples propiedades)
+                console.log(`🔧 Forzando expenses-section a ${contentWidth}px (ancho del .content)`);
+                
+                // Aplicar dimensiones usando cssText con ancho ABSOLUTO (no porcentaje)
                 expensesSection.style.cssText = `
                     display: block !important;
-                    width: 100% !important;
-                    min-width: ${availableWidth}px !important;
-                    max-width: 100% !important;
+                    width: ${contentWidth}px !important;
+                    min-width: ${contentWidth}px !important;
+                    max-width: ${contentWidth}px !important;
                     visibility: visible !important;
                     position: relative !important;
                     padding: 0 !important;
@@ -5549,7 +5551,7 @@ Ej:
                     overflow: visible !important;
                 `;
                 
-                expensesSection.setAttribute('data-forced-width', availableWidth);
+                expensesSection.setAttribute('data-forced-width', contentWidth);
                 
                 // Forzar múltiples reflows después de aplicar estilos
                 void expensesSection.offsetWidth;
