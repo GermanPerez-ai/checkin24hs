@@ -5558,22 +5558,30 @@ Ej:
                 
                 // PASO 5: Verificar estilos calculados COMPLETOS para diagnóstico
                 const computedStyle = window.getComputedStyle(expensesSection);
-                console.log('🔍 ESTILOS CALCULADOS COMPLETOS:', {
-                    display: computedStyle.display,
-                    width: computedStyle.width,
-                    minWidth: computedStyle.minWidth,
-                    maxWidth: computedStyle.maxWidth,
-                    height: computedStyle.height,
-                    minHeight: computedStyle.minHeight,
-                    position: computedStyle.position,
-                    visibility: computedStyle.visibility,
-                    flexShrink: computedStyle.flexShrink,
-                    flexGrow: computedStyle.flexGrow,
-                    flexBasis: computedStyle.flexBasis,
-                    parentDisplay: window.getComputedStyle(expensesSection.parentElement).display,
-                    parentWidth: expensesSection.parentElement?.offsetWidth,
-                    parentHeight: expensesSection.parentElement?.offsetHeight
-                });
+                const parent = expensesSection.parentElement;
+                const parentComputed = parent ? window.getComputedStyle(parent) : null;
+                
+                console.log('🔍 ESTILOS CALCULADOS COMPLETOS expenses-section:');
+                console.log('  display:', computedStyle.display);
+                console.log('  width:', computedStyle.width);
+                console.log('  minWidth:', computedStyle.minWidth);
+                console.log('  maxWidth:', computedStyle.maxWidth);
+                console.log('  height:', computedStyle.height);
+                console.log('  minHeight:', computedStyle.minHeight);
+                console.log('  position:', computedStyle.position);
+                console.log('  visibility:', computedStyle.visibility);
+                console.log('  flexShrink:', computedStyle.flexShrink);
+                console.log('  flexGrow:', computedStyle.flexGrow);
+                console.log('  flexBasis:', computedStyle.flexBasis);
+                console.log('  offsetWidth:', expensesSection.offsetWidth);
+                console.log('  offsetHeight:', expensesSection.offsetHeight);
+                console.log('🔍 PADRE (.content) estilos:');
+                console.log('  display:', parentComputed?.display);
+                console.log('  width:', parentComputed?.width);
+                console.log('  height:', parentComputed?.height);
+                console.log('  offsetWidth:', parent?.offsetWidth);
+                console.log('  offsetHeight:', parent?.offsetHeight);
+                console.log('  overflow:', parentComputed?.overflow);
                 
                 // PASO 6: Forzar múltiples reflows después de aplicar estilos
                 void expensesSection.offsetWidth;
