@@ -5956,8 +5956,12 @@ Ej:
                                 }
                             }
                         });
+                    } else if (section === 'quotes') {
+                        // Cuando se muestra quotes: OCULTAR flor-config-section completamente
+                        florConfigSection.style.setProperty('display', 'none', 'important');
                     } else if (section === 'flor-config') {
                         // Cuando se muestra flor-config: mostrar contenido de Flor IA pero ocultar expenses-section
+                        florConfigSection.style.setProperty('display', 'block', 'important');
                         Array.from(florConfigSection.children).forEach(child => {
                             if (child.id === 'expenses-section') {
                                 child.style.setProperty('display', 'none', 'important');
