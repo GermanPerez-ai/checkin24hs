@@ -6247,9 +6247,10 @@ Ej:
             }
             
             if (section === 'dashboard') {
-                setTimeout(() => {
+                setTimeout(async () => {
+                    // Cargar hoteles primero (async) para que estén disponibles en el filtro
                     if (typeof loadHotelsForMonthlySalesFilter === 'function') {
-                        loadHotelsForMonthlySalesFilter();
+                        await loadHotelsForMonthlySalesFilter();
                     }
                     if (typeof loadMonthlySales === 'function') {
                         loadMonthlySales();
