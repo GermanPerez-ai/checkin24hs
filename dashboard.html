@@ -5876,18 +5876,56 @@ Ej:
                     console.log('🔍 ============================================');
                 }, 500);
                 
-                // SIEMPRE forzar dimensiones si es expenses-section (DESPUÉS de mostrar)
-                if (section === 'expenses') {
-                    // OCULTAR contenido de flor-config-section (tabs y contenido de tabs) pero mantener expenses-section visible
-                    const florConfigSection = document.getElementById('flor-config-section');
-                    if (florConfigSection) {
-                        // Ocultar todos los hijos de flor-config-section EXCEPTO expenses-section
+                // GESTIONAR flor-config-section según la sección mostrada
+                const florConfigSection = document.getElementById('flor-config-section');
+                if (florConfigSection) {
+                    if (section === 'expenses') {
+                        // Cuando se muestra expenses: ocultar contenido de Flor IA pero mantener expenses-section visible
                         Array.from(florConfigSection.children).forEach(child => {
                             if (child.id !== 'expenses-section') {
-                                child.style.setProperty('display', 'none', 'important');
+                                // Ocultar h2, tabs, y tab-content
+                                if (child.tagName === 'H2' || 
+                                    (child.querySelector && child.querySelector('.flor-tab')) ||
+                                    (child.classList && child.classList.contains('flor-tab-content')) ||
+                                    (child.id && child.id.startsWith('flor-tab-'))) {
+                                    child.style.setProperty('display', 'none', 'important');
+                                }
                             }
                         });
+                    } else if (section === 'flor-config') {
+                        // Cuando se muestra flor-config: mostrar contenido de Flor IA pero ocultar expenses-section
+                        Array.from(florConfigSection.children).forEach(child => {
+                            if (child.id === 'expenses-section') {
+                                child.style.setProperty('display', 'none', 'important');
+                            } else {
+                                // Mostrar h2, tabs, y tab-content
+                                if (child.tagName === 'H2') {
+                                    child.style.setProperty('display', 'block', 'important');
+                                } else if (child.querySelector && child.querySelector('.flor-tab')) {
+                                    // Div con tabs
+                                    child.style.setProperty('display', 'flex', 'important');
+                                } else if (child.classList && child.classList.contains('flor-tab-content')) {
+                                    // Mostrar solo el tab activo
+                                    const isActive = child.classList.contains('active');
+                                    child.style.setProperty('display', isActive ? 'block' : 'none', 'important');
+                                } else if (child.id && child.id.startsWith('flor-tab-')) {
+                                    // Tab content individual
+                                    const isActive = child.classList.contains('active');
+                                    child.style.setProperty('display', isActive ? 'block' : 'none', 'important');
+                                }
+                            }
+                        });
+                    } else {
+                        // Para otras secciones: ocultar expenses-section si está dentro de flor-config-section
+                        const expensesSection = document.getElementById('expenses-section');
+                        if (expensesSection && expensesSection.parentElement === florConfigSection) {
+                            expensesSection.style.setProperty('display', 'none', 'important');
+                        }
                     }
+                }
+                
+                // SIEMPRE forzar dimensiones si es expenses-section (DESPUÉS de mostrar)
+                if (section === 'expenses') {
                     
                     // Mostrar tabla de emergencia solo si existe
                     if (emergencyTable) {
