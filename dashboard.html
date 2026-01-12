@@ -5530,11 +5530,23 @@ Ej:
                 const contentDiv = document.querySelector('.content');
                 if (contentDiv) {
                     const contentDisplay = window.getComputedStyle(contentDiv).display;
-                    if (contentDisplay === 'none') {
-                        console.log('🔧 .content está oculto, forzando display: block...');
+                    console.log(`🔍 DEBUG: .content display ANTES de verificar: "${contentDisplay}" (tipo: ${typeof contentDisplay})`);
+                    console.log(`🔍 DEBUG: .content inline style display: "${contentDiv.style.display}"`);
+                    
+                    // Forzar siempre que .content esté visible (no solo si está oculto)
+                    if (contentDisplay === 'none' || !contentDisplay || contentDisplay === '') {
+                        console.log('🔧 .content está oculto o vacío, forzando display: block...');
                         contentDiv.style.setProperty('display', 'block', 'important');
                         void contentDiv.offsetWidth; // Forzar reflow
+                        
+                        // Verificar después de forzar
+                        const contentDisplayAfter = window.getComputedStyle(contentDiv).display;
+                        console.log(`🔍 DEBUG: .content display DESPUÉS de forzar: "${contentDisplayAfter}"`);
+                    } else {
+                        console.log(`🔍 DEBUG: .content ya está visible (display: "${contentDisplay}"), no forzando`);
                     }
+                } else {
+                    console.error('❌ .content no encontrado!');
                 }
                 
                 // PASO 2: Hacer visible expenses-section
