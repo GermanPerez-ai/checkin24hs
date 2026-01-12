@@ -5526,14 +5526,24 @@ Ej:
             // 3. Forzar expenses-section INMEDIATAMENTE (sin setTimeout)
             const expensesSection = document.getElementById('expenses-section');
             if (expensesSection) {
-                // PASO 1: Hacer visible primero
+                // PASO 1: Asegurar que .content esté visible PRIMERO (CRÍTICO)
+                const contentDiv = document.querySelector('.content');
+                if (contentDiv) {
+                    const contentDisplay = window.getComputedStyle(contentDiv).display;
+                    if (contentDisplay === 'none') {
+                        console.log('🔧 .content está oculto, forzando display: block...');
+                        contentDiv.style.setProperty('display', 'block', 'important');
+                        void contentDiv.offsetWidth; // Forzar reflow
+                    }
+                }
+                
+                // PASO 2: Hacer visible expenses-section
                 expensesSection.style.setProperty('display', 'block', 'important');
                 
-                // PASO 2: Forzar reflow para que el navegador procese el display
+                // PASO 3: Forzar reflow para que el navegador procese el display
                 void expensesSection.offsetWidth;
                 
-                // PASO 3: Obtener el ancho REAL del .content (no calcular, usar el que ya tiene)
-                const contentDiv = document.querySelector('.content');
+                // PASO 4: Obtener el ancho REAL del .content (no calcular, usar el que ya tiene)
                 const contentWidth = contentDiv ? contentDiv.offsetWidth : Math.max(800, window.innerWidth - 220 - 48);
                 
                 console.log(`🔧 Forzando expenses-section a ${contentWidth}px (ancho del .content: ${contentDiv?.offsetWidth}px)`);
@@ -5556,7 +5566,7 @@ Ej:
                 
                 expensesSection.setAttribute('data-forced-width', contentWidth);
                 
-                // PASO 5: Verificar estilos calculados COMPLETOS para diagnóstico
+                // PASO 6: Verificar estilos calculados COMPLETOS para diagnóstico
                 const computedStyle = window.getComputedStyle(expensesSection);
                 const parent = expensesSection.parentElement;
                 const parentComputed = parent ? window.getComputedStyle(parent) : null;
@@ -5583,7 +5593,7 @@ Ej:
                 console.log('  offsetHeight:', parent?.offsetHeight);
                 console.log('  overflow:', parentComputed?.overflow);
                 
-                // PASO 6: Forzar múltiples reflows después de aplicar estilos
+                // PASO 7: Forzar múltiples reflows después de aplicar estilos
                 void expensesSection.offsetWidth;
                 const widthAfter = expensesSection.offsetWidth;
                 console.log(`🔍 Ancho DESPUÉS de aplicar estilos: ${widthAfter}px`);
