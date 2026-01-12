@@ -5578,10 +5578,44 @@ Ej:
                 
                 expensesSection.setAttribute('data-forced-width', contentWidth);
                 
-                // PASO 6: Verificar estilos calculados COMPLETOS para diagnóstico
+                // PASO 6: Verificar estructura DOM y encontrar el .content real
                 const computedStyle = window.getComputedStyle(expensesSection);
                 const parent = expensesSection.parentElement;
                 const parentComputed = parent ? window.getComputedStyle(parent) : null;
+                
+                // CRÍTICO: Verificar si el padre directo es realmente .content
+                console.log('🔍 ESTRUCTURA DEL DOM:');
+                console.log('  expenses-section.parentElement:', parent?.tagName, parent?.id, parent?.className);
+                console.log('  .content encontrado con querySelector:', contentDiv?.tagName, contentDiv?.id, contentDiv?.className);
+                console.log('  ¿Son el mismo elemento?', parent === contentDiv);
+                
+                // Si el padre NO es .content, buscar .content en los ancestros
+                let actualContent = contentDiv;
+                if (parent !== contentDiv) {
+                    let ancestor = parent;
+                    let depth = 0;
+                    while (ancestor && depth < 5) {
+                        if (ancestor.classList && ancestor.classList.contains('content')) {
+                            actualContent = ancestor;
+                            console.log(`  ✅ .content encontrado en ancestro nivel ${depth}:`, ancestor);
+                            break;
+                        }
+                        console.log(`  Nivel ${depth}:`, ancestor?.tagName, ancestor?.id, ancestor?.className);
+                        ancestor = ancestor.parentElement;
+                        depth++;
+                    }
+                }
+                
+                // Asegurar que el .content real esté visible
+                if (actualContent) {
+                    const actualContentDisplay = window.getComputedStyle(actualContent).display;
+                    console.log(`🔧 .content real encontrado, display: "${actualContentDisplay}"`);
+                    if (actualContentDisplay === 'none') {
+                        console.log('🔧 Forzando .content real a display: block...');
+                        actualContent.style.setProperty('display', 'block', 'important');
+                        void actualContent.offsetWidth;
+                    }
+                }
                 
                 console.log('🔍 ESTILOS CALCULADOS COMPLETOS expenses-section:');
                 console.log('  display:', computedStyle.display);
@@ -5597,7 +5631,10 @@ Ej:
                 console.log('  flexBasis:', computedStyle.flexBasis);
                 console.log('  offsetWidth:', expensesSection.offsetWidth);
                 console.log('  offsetHeight:', expensesSection.offsetHeight);
-                console.log('🔍 PADRE (.content) estilos:');
+                console.log('🔍 PADRE DIRECTO estilos:');
+                console.log('  tagName:', parent?.tagName);
+                console.log('  id:', parent?.id);
+                console.log('  className:', parent?.className);
                 console.log('  display:', parentComputed?.display);
                 console.log('  width:', parentComputed?.width);
                 console.log('  height:', parentComputed?.height);
