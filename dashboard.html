@@ -5988,8 +5988,8 @@ Ej:
                     }
                 }
                 
-                // SIEMPRE forzar dimensiones si es expenses-section (DESPUÉS de mostrar)
-                if (section === 'expenses') {
+                // SIEMPRE forzar dimensiones si es expenses-section o quotes-section (DESPUÉS de mostrar)
+                if (section === 'expenses' || section === 'quotes') {
                     
                     // Mostrar tabla de emergencia solo si existe
                     if (emergencyTable) {
@@ -6036,45 +6036,47 @@ Ej:
                         void contentDiv.offsetWidth; // Forzar reflow
                     }
                     
-                    // CRÍTICO: Esperar a que expenses-section esté realmente visible y tenga dimensiones
-                    // Usar un intervalo que verifica hasta que el elemento tenga dimensiones
-                    let attempts = 0;
-                    const maxAttempts = 20; // 2 segundos máximo (20 * 100ms)
-                    
-                    const checkAndForceDimensions = () => {
-                        attempts++;
-                        const expensesSection = document.getElementById('expenses-section');
+                    // CRÍTICO: Forzar dimensiones según la sección
+                    if (section === 'expenses') {
+                        // CRÍTICO: Esperar a que expenses-section esté realmente visible y tenga dimensiones
+                        // Usar un intervalo que verifica hasta que el elemento tenga dimensiones
+                        let attempts = 0;
+                        const maxAttempts = 20; // 2 segundos máximo (20 * 100ms)
                         
-                        if (!expensesSection) {
-                            if (attempts < maxAttempts) {
-                                setTimeout(checkAndForceDimensions, 100);
-                            }
-                            return;
-                        }
-                        
-                        // Verificar que esté visible
-                        const computedDisplay = window.getComputedStyle(expensesSection).display;
-                        if (computedDisplay === 'none') {
-                            expensesSection.style.setProperty('display', 'block', 'important');
-                        }
-                        
-                        // Verificar dimensiones
-                        const sectionWidth = expensesSection.offsetWidth || expensesSection.getBoundingClientRect().width;
-                        const viewportWidth = window.innerWidth;
-                        const sidebarWidth = 220;
-                        const targetWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
-                        
-                        if (sectionWidth > 0 || attempts >= maxAttempts) {
-                            // El elemento tiene dimensiones o hemos intentado suficientes veces
-                            console.log(`✅ expenses-section ${sectionWidth > 0 ? 'tiene dimensiones' : 'forzando dimensiones después de ' + attempts + ' intentos'}: ${sectionWidth}px`);
+                        const checkAndForceDimensions = () => {
+                            attempts++;
+                            const expensesSection = document.getElementById('expenses-section');
                             
-                            // Forzar dimensiones de expenses-section SIEMPRE (usar 100% en lugar de píxeles)
-                            expensesSection.style.cssText = `
-                                display: block !important;
-                                width: 100% !important;
-                                min-width: ${targetWidth}px !important;
-                                max-width: 100% !important;
-                                visibility: visible !important;
+                            if (!expensesSection) {
+                                if (attempts < maxAttempts) {
+                                    setTimeout(checkAndForceDimensions, 100);
+                                }
+                                return;
+                            }
+                            
+                            // Verificar que esté visible
+                            const computedDisplay = window.getComputedStyle(expensesSection).display;
+                            if (computedDisplay === 'none') {
+                                expensesSection.style.setProperty('display', 'block', 'important');
+                            }
+                            
+                            // Verificar dimensiones
+                            const sectionWidth = expensesSection.offsetWidth || expensesSection.getBoundingClientRect().width;
+                            const viewportWidth = window.innerWidth;
+                            const sidebarWidth = 220;
+                            const targetWidth = Math.max(800, viewportWidth - sidebarWidth - 40);
+                            
+                            if (sectionWidth > 0 || attempts >= maxAttempts) {
+                                // El elemento tiene dimensiones o hemos intentado suficientes veces
+                                console.log(`✅ expenses-section ${sectionWidth > 0 ? 'tiene dimensiones' : 'forzando dimensiones después de ' + attempts + ' intentos'}: ${sectionWidth}px`);
+                                
+                                // Forzar dimensiones de expenses-section SIEMPRE (usar 100% en lugar de píxeles)
+                                expensesSection.style.cssText = `
+                                    display: block !important;
+                                    width: 100% !important;
+                                    min-width: ${targetWidth}px !important;
+                                    max-width: 100% !important;
+                                    visibility: visible !important;
                                 position: relative !important;
                                 padding: 0 !important;
                                 box-sizing: border-box !important;
@@ -6131,6 +6133,18 @@ Ej:
                     
                     // Iniciar verificación después de un pequeño delay
                     setTimeout(checkAndForceDimensions, 50);
+                    } else if (section === 'quotes') {
+                        // CRÍTICO: Forzar dimensiones de quotes-section inmediatamente
+                        if (typeof forceQuotesSectionDimensions === 'function') {
+                            // Llamar inmediatamente (sin requestAnimationFrame) para que se ejecute antes de cargar datos
+                            forceQuotesSectionDimensions();
+                            
+                            // También llamar después de un pequeño delay para asegurar que se apliquen los cambios
+                            setTimeout(() => {
+                                forceQuotesSectionDimensions();
+                            }, 100);
+                        }
+                    }
                 }
             } else {
                 console.error('Seccion no encontrada:', section + '-section');
