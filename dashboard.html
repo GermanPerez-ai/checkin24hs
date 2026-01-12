@@ -16119,27 +16119,52 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
         
         // Función para cargar hoteles en el selector de filtro
-        function loadHotelsForMonthlySalesFilter() {
+        async function loadHotelsForMonthlySalesFilter() {
             const hotelFilter = document.getElementById('hotelFilter');
             if (!hotelFilter) {
+                console.warn('⚠️ Selector hotelFilter no encontrado');
                 return;
             }
             
-            // Obtener hoteles
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            console.log('🏨 Cargando hoteles para el filtro de ventas mensuales...');
+            
+            // Intentar obtener hoteles desde Supabase primero
+            let hotels = [];
+            try {
+                if (window.supabaseClient && typeof window.supabaseClient.getHotels === 'function') {
+                    console.log('📡 Cargando hoteles desde Supabase...');
+                    hotels = await window.supabaseClient.getHotels();
+                    if (hotels && hotels.length > 0) {
+                        // Guardar en localStorage para uso futuro
+                        localStorage.setItem('hotelsDB', JSON.stringify(hotels));
+                        console.log(`✅ ${hotels.length} hoteles cargados desde Supabase`);
+                    }
+                }
+            } catch (error) {
+                console.warn('⚠️ Error al cargar hoteles desde Supabase:', error);
+            }
+            
+            // Si no hay hoteles desde Supabase, intentar desde localStorage
+            if (!hotels || hotels.length === 0) {
+                hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                console.log(`📦 ${hotels.length} hoteles cargados desde localStorage`);
+            }
             
             // Limpiar opciones excepto "Todos los hoteles"
             hotelFilter.innerHTML = '<option value="all">Todos los hoteles</option>';
             
             // Agregar hoteles
-            hotels.forEach(hotel => {
-                const option = document.createElement('option');
-                option.value = hotel.id;
-                option.textContent = hotel.name || `Hotel ${hotel.id}`;
-                hotelFilter.appendChild(option);
-            });
-            
-            console.log(`✅ ${hotels.length} hoteles cargados en el filtro`);
+            if (hotels && hotels.length > 0) {
+                hotels.forEach(hotel => {
+                    const option = document.createElement('option');
+                    option.value = hotel.id;
+                    option.textContent = hotel.name || `Hotel ${hotel.id}`;
+                    hotelFilter.appendChild(option);
+                });
+                console.log(`✅ ${hotels.length} hoteles cargados en el filtro`);
+            } else {
+                console.warn('⚠️ No se encontraron hoteles para cargar en el filtro');
+            }
         }
         
         // Función para aplicar filtros de ventas mensuales
