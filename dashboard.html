@@ -5526,24 +5526,49 @@ Ej:
             // 3. Forzar expenses-section INMEDIATAMENTE (sin setTimeout)
             const expensesSection = document.getElementById('expenses-section');
             if (expensesSection) {
-                // PASO 1: Asegurar que .content esté visible PRIMERO (CRÍTICO)
+                // PASO 1: Asegurar que TODOS los ancestros hasta .content estén visibles (CRÍTICO)
                 const contentDiv = document.querySelector('.content');
                 if (contentDiv) {
-                    const contentDisplay = window.getComputedStyle(contentDiv).display;
-                    console.log(`🔍 DEBUG: .content display ANTES de verificar: "${contentDisplay}" (tipo: ${typeof contentDisplay})`);
-                    console.log(`🔍 DEBUG: .content inline style display: "${contentDiv.style.display}"`);
+                    // Verificar y forzar TODOS los ancestros desde expenses-section hasta .content
+                    let currentElement = expensesSection;
+                    let depth = 0;
+                    const ancestorsToMakeVisible = [];
                     
-                    // Forzar siempre que .content esté visible (no solo si está oculto)
+                    while (currentElement && currentElement !== contentDiv && depth < 10) {
+                        const parent = currentElement.parentElement;
+                        if (!parent) break;
+                        
+                        const parentDisplay = window.getComputedStyle(parent).display;
+                        if (parentDisplay === 'none') {
+                            ancestorsToMakeVisible.push({
+                                element: parent,
+                                tagName: parent.tagName,
+                                id: parent.id,
+                                className: parent.className,
+                                depth: depth
+                            });
+                        }
+                        
+                        currentElement = parent;
+                        depth++;
+                    }
+                    
+                    // Forzar todos los ancestros ocultos a ser visibles
+                    if (ancestorsToMakeVisible.length > 0) {
+                        console.log(`🔧 Encontrados ${ancestorsToMakeVisible.length} ancestros ocultos, forzando display: block...`);
+                        ancestorsToMakeVisible.forEach(ancestor => {
+                            console.log(`  🔧 Forzando nivel ${ancestor.depth}: ${ancestor.tagName} id="${ancestor.id}" class="${ancestor.className}"`);
+                            ancestor.element.style.setProperty('display', 'block', 'important');
+                            void ancestor.element.offsetWidth; // Forzar reflow
+                        });
+                    }
+                    
+                    // También asegurar que .content esté visible
+                    const contentDisplay = window.getComputedStyle(contentDiv).display;
                     if (contentDisplay === 'none' || !contentDisplay || contentDisplay === '') {
-                        console.log('🔧 .content está oculto o vacío, forzando display: block...');
+                        console.log('🔧 .content está oculto, forzando display: block...');
                         contentDiv.style.setProperty('display', 'block', 'important');
                         void contentDiv.offsetWidth; // Forzar reflow
-                        
-                        // Verificar después de forzar
-                        const contentDisplayAfter = window.getComputedStyle(contentDiv).display;
-                        console.log(`🔍 DEBUG: .content display DESPUÉS de forzar: "${contentDisplayAfter}"`);
-                    } else {
-                        console.log(`🔍 DEBUG: .content ya está visible (display: "${contentDisplay}"), no forzando`);
                     }
                 } else {
                     console.error('❌ .content no encontrado!');
