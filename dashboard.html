@@ -5878,6 +5878,17 @@ Ej:
                 
                 // SIEMPRE forzar dimensiones si es expenses-section (DESPUÉS de mostrar)
                 if (section === 'expenses') {
+                    // OCULTAR contenido de flor-config-section (tabs y contenido de tabs) pero mantener expenses-section visible
+                    const florConfigSection = document.getElementById('flor-config-section');
+                    if (florConfigSection) {
+                        // Ocultar todos los hijos de flor-config-section EXCEPTO expenses-section
+                        Array.from(florConfigSection.children).forEach(child => {
+                            if (child.id !== 'expenses-section') {
+                                child.style.setProperty('display', 'none', 'important');
+                            }
+                        });
+                    }
+                    
                     // Mostrar tabla de emergencia solo si existe
                     if (emergencyTable) {
                         emergencyTable.style.setProperty('display', 'block', 'important');
