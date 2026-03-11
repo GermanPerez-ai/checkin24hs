@@ -1,7 +1,11 @@
 // ============================================
 // CLIENTE DE SUPABASE PARA CHECKIN24HS
 // ============================================
-// Este archivo contiene todas las funciones para interactuar con Supabase
+// Este archivo contiene todas las funciones para interactuar con Supabase.
+// Cuando Supabase está inicializado, es la única fuente de verdad: no se escribe
+// en localStorage al cargar (hoteles, reservas, usuarios, cotizaciones, gastos),
+// para evitar QuotaExceededError. localStorage solo se usa como fallback cuando
+// Supabase no está disponible.
 
 class SupabaseClient {
     constructor() {
@@ -9,7 +13,7 @@ class SupabaseClient {
         const config = window.SUPABASE_CONFIG || {};
         
         if (!config.url || !config.anonKey || config.url.includes('TU_SUPABASE')) {
-            console.error('❌ Error: Configura Supabase en supabase-config.js primero');
+            console.error('❌ Error: Configura DASHBOARD_CONFIG.supabase en dashboard.html primero');
             this.initialized = false;
             return;
         }
@@ -34,38 +38,69 @@ class SupabaseClient {
     // HOTELES
     // ============================================
     
-    async getHotels() {
+    /**
+     * Lista de hoteles. Por defecto usa consulta ligera (sin images ni flor_info) para evitar timeout en Supabase.
+     * @param {Object} [opts] - { light: true } (default) = solo columnas ligeras; { light: false } = fila completa (images, flor_info).
+     */
+    /** Solo hoteles visibles: status = 'active', 'activo', 'Activo' o null (excluye 'inactive'/'Inactivo') */
+    _filterActiveHotels(list) {
+        if (!Array.isArray(list)) return [];
+        const active = (s) => s === 'active' || s === 'activo' || s === 'Activo' || s == null || s === '';
+        return list.filter(h => h && active(h.status));
+    }
+
+    async getHotels(opts = {}) {
         if (!this.isInitialized()) {
             console.warn('⚠️ Supabase no está inicializado, usando localStorage como fallback');
-            return JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            const raw = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            return this._filterActiveHotels(raw);
         }
+
+        const light = opts.light !== false; // por defecto true para evitar statement timeout
+        const selectColumns = light
+            ? 'id,name,location,status,google_maps,website,rating,price,description,amenities,coordinates,created_at,updated_at'
+            : '*';
 
         try {
             const { data, error } = await this.client
                 .from('hotels')
-                .select('*')
+                .select(selectColumns)
+                .or('status.eq.active,status.eq.activo,status.eq.Activo,status.is.null')
                 .order('created_at', { ascending: false });
-            
+
             if (error) throw error;
-            
-            // Sincronizar con localStorage como backup (si hay espacio)
-            if (data && data.length > 0) {
-                try {
-                    localStorage.setItem('hotelsDB', JSON.stringify(data));
-                } catch (e) {
-                    console.warn('⚠️ No se pudo guardar en localStorage (espacio lleno)');
-                }
-            }
-            
+
+            // Supabase es la fuente de verdad: no escribir en localStorage para evitar llenar cuota
             return data || [];
         } catch (error) {
             console.error('❌ Error obteniendo hoteles:', error);
-            // Fallback a localStorage
             try {
-                return JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                const raw = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                return this._filterActiveHotels(raw);
             } catch (e) {
                 return [];
             }
+        }
+    }
+
+    /** Obtiene un hotel completo por ID (incluye images y flor_info). Usar para abrir el formulario de edición. */
+    async getHotelById(id) {
+        if (!this.isInitialized() || !id) {
+            const local = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            return local.find(h => h.id == id || String(h && h.id) === String(id)) || null;
+        }
+        try {
+            const { data, error } = await this.client
+                .from('hotels')
+                .select('*')
+                .eq('id', id)
+                .single();
+            if (error) throw error;
+            return data;
+        } catch (error) {
+            console.warn('⚠️ Error obteniendo hotel por ID:', error);
+            const local = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            return local.find(h => h.id == id || String(h && h.id) === String(id)) || null;
         }
     }
 
@@ -104,7 +139,8 @@ class SupabaseClient {
         if (!this.isInitialized()) {
             console.warn('⚠️ Supabase no está inicializado, actualizando localStorage');
             const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-            const index = hotels.findIndex(h => h.id === id);
+            const match = (h, i) => h.id == i || String(h && h.id) === String(i);
+            const index = hotels.findIndex(h => match(h, id));
             if (index !== -1) {
                 hotels[index] = { ...hotels[index], ...updates };
                 localStorage.setItem('hotelsDB', JSON.stringify(hotels));
@@ -123,12 +159,11 @@ class SupabaseClient {
             });
             cleanUpdates.updated_at = new Date().toISOString();
             
+            const florKeys = cleanUpdates.flor_info && typeof cleanUpdates.flor_info === 'object' ? Object.keys(cleanUpdates.flor_info) : [];
             console.log('📤 Actualizando hotel en Supabase:', {
                 id,
-                updates: {
-                    ...cleanUpdates,
-                    images: cleanUpdates.images ? `${Array.isArray(cleanUpdates.images) ? cleanUpdates.images.length : 'N/A'} imagen(es)` : 'null'
-                }
+                flor_info_keys: florKeys.length ? florKeys : 'no enviado',
+                images: cleanUpdates.images ? `${Array.isArray(cleanUpdates.images) ? cleanUpdates.images.length : 'N/A'} imagen(es)` : 'null'
             });
             
             const { data, error } = await this.client
@@ -148,12 +183,21 @@ class SupabaseClient {
                 throw error;
             }
             
-            // Sincronizar con localStorage
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-            const index = hotels.findIndex(h => h.id === id);
-            if (index !== -1) {
-                hotels[index] = data;
-                localStorage.setItem('hotelsDB', JSON.stringify(hotels));
+            // Sincronizar con localStorage (si hay espacio; si no, no fallar - Supabase es la fuente de verdad)
+            try {
+                const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                const match = (h, i) => h.id == i || String(h && h.id) === String(i);
+                const index = hotels.findIndex(h => match(h, id));
+                if (index !== -1) {
+                    hotels[index] = data;
+                    localStorage.setItem('hotelsDB', JSON.stringify(hotels));
+                }
+            } catch (e) {
+                if (e.name === 'QuotaExceededError') {
+                    console.warn('⚠️ localStorage lleno: no se pudo guardar copia local del hotel. Los datos sí están en Supabase.');
+                } else {
+                    console.warn('⚠️ Error sincronizando a localStorage:', e);
+                }
             }
             
             return data;
@@ -237,6 +281,407 @@ class SupabaseClient {
     }
 
     // ============================================
+    // PROMOCIONES
+    // ============================================
+    
+    async getPromotions(hotelId = null) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado, usando localStorage como fallback');
+            // Buscar en localStorage
+            if (hotelId) {
+                return JSON.parse(localStorage.getItem(`promotions_${hotelId}`) || '[]');
+            } else {
+                // Si no hay hotelId, buscar todas las promociones de todos los hoteles
+                const allKeys = Object.keys(localStorage);
+                const promotionKeys = allKeys.filter(key => key.startsWith('promotions_'));
+                const allPromotions = [];
+                promotionKeys.forEach(key => {
+                    const promos = JSON.parse(localStorage.getItem(key) || '[]');
+                    allPromotions.push(...promos);
+                });
+                return allPromotions;
+            }
+        }
+
+        try {
+            let query = this.client.from('promotions').select('*');
+            
+            if (hotelId) {
+                query = query.eq('hotel_id', hotelId);
+            }
+            
+            const { data, error } = await query
+                .order('created_at', { ascending: false });
+            
+            if (error) throw error;
+            
+            // Mapear datos de Supabase al formato del frontend
+            const mappedData = (data || []).map(promo => ({
+                id: promo.id,
+                hotelId: promo.hotel_id,
+                name: promo.name,
+                type: promo.type,
+                description: promo.description,
+                discount: parseFloat(promo.discount || 0),
+                price: promo.promotional_price ? parseFloat(promo.promotional_price) : null,
+                promotionalPrice: promo.promotional_price ? parseFloat(promo.promotional_price) : null,
+                startDate: promo.start_date,
+                endDate: promo.end_date,
+                travelStartDate: promo.travel_start_date || null,
+                travelEndDate: promo.travel_end_date || null,
+                status: promo.status || 'active',
+                createdAt: promo.created_at,
+                created_at: promo.created_at
+            }));
+            
+            return mappedData;
+        } catch (error) {
+            console.error('❌ Error obteniendo promociones:', error);
+            // Fallback a localStorage
+            if (hotelId) {
+                return JSON.parse(localStorage.getItem(`promotions_${hotelId}`) || '[]');
+            }
+            return [];
+        }
+    }
+
+    async createPromotion(promotion) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado, guardando en localStorage');
+            const hotelId = promotion.hotelId || promotion.hotel_id;
+            if (!hotelId) {
+                throw new Error('hotelId es requerido');
+            }
+            const existingPromotions = JSON.parse(localStorage.getItem(`promotions_${hotelId}`) || '[]');
+            const newPromotion = {
+                ...promotion,
+                id: promotion.id || Date.now() + Math.random().toString(36).substr(2, 9),
+                createdAt: promotion.createdAt || new Date().toISOString()
+            };
+            existingPromotions.push(newPromotion);
+            localStorage.setItem(`promotions_${hotelId}`, JSON.stringify(existingPromotions));
+            return newPromotion;
+        }
+
+        try {
+            // Mapear campos del frontend a Supabase
+            const promotionData = {
+                hotel_id: promotion.hotelId || promotion.hotel_id,
+                name: promotion.name,
+                type: promotion.type || null,
+                description: promotion.description || null,
+                discount: parseFloat(promotion.discount || 0),
+                promotional_price: promotion.promotionalPrice || promotion.price || promotion.promotional_price || null,
+                start_date: promotion.startDate || promotion.start_date,
+                end_date: promotion.endDate || promotion.end_date,
+                travel_start_date: promotion.travelStartDate || promotion.travel_start_date || null,
+                travel_end_date: promotion.travelEndDate || promotion.travel_end_date || null,
+                status: promotion.status || 'active'
+            };
+            
+            const { data, error } = await this.client
+                .from('promotions')
+                .insert([promotionData])
+                .select()
+                .single();
+            
+            if (error) throw error;
+            
+            // Mapear de vuelta a formato del frontend
+            const mappedData = {
+                id: data.id,
+                hotelId: data.hotel_id,
+                name: data.name,
+                type: data.type,
+                description: data.description,
+                discount: parseFloat(data.discount || 0),
+                price: data.promotional_price ? parseFloat(data.promotional_price) : null,
+                promotionalPrice: data.promotional_price ? parseFloat(data.promotional_price) : null,
+                startDate: data.start_date,
+                endDate: data.end_date,
+                travelStartDate: data.travel_start_date || null,
+                travelEndDate: data.travel_end_date || null,
+                status: data.status,
+                createdAt: data.created_at,
+                created_at: data.created_at
+            };
+            
+            return mappedData;
+        } catch (error) {
+            console.error('❌ Error creando promoción:', error);
+            throw error;
+        }
+    }
+
+    async updatePromotion(id, updates) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado, actualizando localStorage');
+            // Buscar en localStorage
+            const allKeys = Object.keys(localStorage);
+            const promotionKeys = allKeys.filter(key => key.startsWith('promotions_'));
+            for (const key of promotionKeys) {
+                const promos = JSON.parse(localStorage.getItem(key) || '[]');
+                const index = promos.findIndex(p => p.id === id);
+                if (index !== -1) {
+                    promos[index] = { ...promos[index], ...updates };
+                    localStorage.setItem(key, JSON.stringify(promos));
+                    return promos[index];
+                }
+            }
+            return null;
+        }
+
+        try {
+            // Mapear campos del frontend a Supabase
+            const updateData = {};
+            if (updates.hotelId !== undefined) updateData.hotel_id = updates.hotelId;
+            if (updates.name !== undefined) updateData.name = updates.name;
+            if (updates.type !== undefined) updateData.type = updates.type;
+            if (updates.description !== undefined) updateData.description = updates.description;
+            if (updates.discount !== undefined) updateData.discount = parseFloat(updates.discount);
+            if (updates.price !== undefined || updates.promotionalPrice !== undefined) {
+                updateData.promotional_price = updates.promotionalPrice || updates.price || null;
+            }
+            if (updates.startDate !== undefined) updateData.start_date = updates.startDate;
+            if (updates.endDate !== undefined) updateData.end_date = updates.endDate;
+            if (updates.travelStartDate !== undefined) updateData.travel_start_date = updates.travelStartDate || null;
+            if (updates.travelEndDate !== undefined) updateData.travel_end_date = updates.travelEndDate || null;
+            if (updates.status !== undefined) updateData.status = updates.status;
+            
+            const { data, error } = await this.client
+                .from('promotions')
+                .update(updateData)
+                .eq('id', id)
+                .select()
+                .single();
+            
+            if (error) throw error;
+            
+            // Mapear de vuelta a formato del frontend
+            const mappedData = {
+                id: data.id,
+                hotelId: data.hotel_id,
+                name: data.name,
+                type: data.type,
+                description: data.description,
+                discount: parseFloat(data.discount || 0),
+                price: data.promotional_price ? parseFloat(data.promotional_price) : null,
+                promotionalPrice: data.promotional_price ? parseFloat(data.promotional_price) : null,
+                startDate: data.start_date,
+                endDate: data.end_date,
+                travelStartDate: data.travel_start_date || null,
+                travelEndDate: data.travel_end_date || null,
+                status: data.status,
+                createdAt: data.created_at
+            };
+            
+            return mappedData;
+        } catch (error) {
+            console.error('❌ Error actualizando promoción:', error);
+            throw error;
+        }
+    }
+
+    async deletePromotion(id) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado, eliminando de localStorage');
+            // Buscar en localStorage
+            const allKeys = Object.keys(localStorage);
+            const promotionKeys = allKeys.filter(key => key.startsWith('promotions_'));
+            for (const key of promotionKeys) {
+                const promos = JSON.parse(localStorage.getItem(key) || '[]');
+                const filtered = promos.filter(p => p.id !== id);
+                if (filtered.length !== promos.length) {
+                    localStorage.setItem(key, JSON.stringify(filtered));
+                    return;
+                }
+            }
+            return;
+        }
+
+        try {
+            const { error } = await this.client
+                .from('promotions')
+                .delete()
+                .eq('id', id);
+            
+            if (error) throw error;
+        } catch (error) {
+            console.error('❌ Error eliminando promoción:', error);
+            throw error;
+        }
+    }
+
+    // Migrar promociones desde localStorage a Supabase
+    async migratePromotionsFromLocalStorage() {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado, no se puede migrar');
+            return { migrated: 0, errors: 0 };
+        }
+
+        console.log('🔄 Iniciando migración de promociones desde localStorage a Supabase...');
+        
+        const allKeys = Object.keys(localStorage);
+        const promotionKeys = allKeys.filter(key => key.startsWith('promotions_'));
+        
+        let migrated = 0;
+        let errors = 0;
+        
+        for (const key of promotionKeys) {
+            const hotelId = key.replace('promotions_', '');
+            const promos = JSON.parse(localStorage.getItem(key) || '[]');
+            
+            console.log(`📋 Migrando ${promos.length} promociones para hotel ${hotelId}...`);
+            
+            for (const promo of promos) {
+                try {
+                    await this.createPromotion({
+                        hotelId: hotelId,
+                        name: promo.name,
+                        type: promo.type,
+                        description: promo.description,
+                        discount: promo.discount || 0,
+                        promotionalPrice: promo.price || promo.promotionalPrice || null,
+                        startDate: promo.startDate || promo.start_date,
+                        endDate: promo.endDate || promo.end_date,
+                        travelStartDate: promo.travelStartDate || promo.travel_start_date || null,
+                        travelEndDate: promo.travelEndDate || promo.travel_end_date || null,
+                        status: promo.status || 'active'
+                    });
+                    migrated++;
+                } catch (error) {
+                    console.error(`❌ Error migrando promoción ${promo.id}:`, error);
+                    errors++;
+                }
+            }
+        }
+        
+        console.log(`✅ Migración completada: ${migrated} promociones migradas, ${errors} errores`);
+        return { migrated, errors };
+    }
+
+    // ============================================
+    // SLIDER OFERTAS (Banners del Home - checkin24hs.com)
+    // ============================================
+
+    async getSliderOfertas() {
+        if (!this.isInitialized()) return [];
+        try {
+            const { data, error } = await this.client
+                .from('slider_ofertas')
+                .select('*')
+                .order('orden', { ascending: true });
+            if (error) throw error;
+            return data || [];
+        } catch (error) {
+            console.error('❌ Error obteniendo slider_ofertas:', error);
+            return [];
+        }
+    }
+
+    async createSliderOferta(row) {
+        if (!this.isInitialized()) throw new Error('Supabase no inicializado');
+        const { data, error } = await this.client
+            .from('slider_ofertas')
+            .insert([{
+                titulo: row.titulo || null,
+                texto_boton: row.texto_boton || null,
+                imagen_url: row.imagen_url || '',
+                imagen_url_mobile: row.imagen_url_mobile || null,
+                link_destino: row.link_destino || null,
+                tipo_link: row.tipo_link || 'url',
+                orden: row.orden != null ? row.orden : 0,
+                activo: row.activo !== false
+            }])
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    }
+
+    async updateSliderOferta(id, updates) {
+        if (!this.isInitialized()) throw new Error('Supabase no inicializado');
+        const { data, error } = await this.client
+            .from('slider_ofertas')
+            .update({
+                ...updates,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', id)
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    }
+
+    async deleteSliderOferta(id) {
+        if (!this.isInitialized()) throw new Error('Supabase no inicializado');
+        const { error } = await this.client.from('slider_ofertas').delete().eq('id', id);
+        if (error) throw error;
+    }
+
+    // ============================================
+    // NOVEDADES (Feed web checkin24hs.com)
+    // ============================================
+
+    async getNovedades() {
+        if (!this.isInitialized()) return [];
+        try {
+            const { data, error } = await this.client
+                .from('novedades')
+                .select('*')
+                .order('fecha_publicacion', { ascending: false });
+            if (error) throw error;
+            return data || [];
+        } catch (error) {
+            console.error('❌ Error obteniendo novedades:', error);
+            return [];
+        }
+    }
+
+    async createNovedad(row) {
+        if (!this.isInitialized()) throw new Error('Supabase no inicializado');
+        const { data, error } = await this.client
+            .from('novedades')
+            .insert([{
+                titulo: row.titulo || '',
+                resumen: row.resumen || null,
+                imagen_miniatura: row.imagen_miniatura || null,
+                imagen_miniatura_mobile: row.imagen_miniatura_mobile || null,
+                video_miniatura: row.video_miniatura || null,
+                fecha_publicacion: row.fecha_publicacion || new Date().toISOString(),
+                cuerpo_nota: row.cuerpo_nota || null,
+                slug: row.slug || null,
+                etiqueta_boton: row.etiqueta_boton != null ? row.etiqueta_boton : null
+            }])
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    }
+
+    async updateNovedad(id, updates) {
+        if (!this.isInitialized()) throw new Error('Supabase no inicializado');
+        const { data, error } = await this.client
+            .from('novedades')
+            .update({
+                ...updates,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', id)
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    }
+
+    async deleteNovedad(id) {
+        if (!this.isInitialized()) throw new Error('Supabase no inicializado');
+        const { error } = await this.client.from('novedades').delete().eq('id', id);
+        if (error) throw error;
+    }
+
+    // ============================================
     // RESERVAS
     // ============================================
     
@@ -264,16 +709,7 @@ class SupabaseClient {
             if (error) throw error;
             
             console.log(`☁️ Reservas cargadas de Supabase: ${data ? data.length : 0} registros`);
-            
-            // Sincronizar con localStorage solo si hay datos
-            if (data && data.length > 0) {
-                try {
-                    localStorage.setItem('reservationsDB', JSON.stringify(data));
-                } catch (e) {
-                    console.warn('⚠️ No se pudo guardar en localStorage');
-                }
-            }
-            
+            // Supabase es la fuente de verdad: no escribir en localStorage
             return data || [];
         } catch (error) {
             console.error('❌ Error obteniendo reservas:', error);
@@ -414,6 +850,53 @@ class SupabaseClient {
         }
     }
 
+    /**
+     * Elimina todas las reservas (Supabase y localStorage).
+     * Útil para vaciar y subir de nuevo mejor ordenadas.
+     * @returns {{ deleted: number, error?: string }}
+     */
+    async deleteAllReservations() {
+        if (!this.isInitialized()) {
+            localStorage.removeItem('reservationsDB');
+            console.log('💾 localStorage de reservas vaciado');
+            return { deleted: 0 };
+        }
+
+        try {
+            const { data: rows, error: selectError } = await this.client
+                .from('reservations')
+                .select('id');
+
+            if (selectError) throw selectError;
+            if (!rows || rows.length === 0) {
+                localStorage.removeItem('reservationsDB');
+                return { deleted: 0 };
+            }
+
+            const ids = rows.map(r => r.id);
+            const BATCH = 100;
+            let deleted = 0;
+
+            for (let i = 0; i < ids.length; i += BATCH) {
+                const chunk = ids.slice(i, i + BATCH);
+                const { error: deleteError } = await this.client
+                    .from('reservations')
+                    .delete()
+                    .in('id', chunk);
+
+                if (deleteError) throw deleteError;
+                deleted += chunk.length;
+            }
+
+            localStorage.removeItem('reservationsDB');
+            console.log(`✅ ${deleted} reservas eliminadas`);
+            return { deleted };
+        } catch (error) {
+            console.error('❌ Error vaciando reservas:', error);
+            return { deleted: 0, error: error.message };
+        }
+    }
+
     async updateReservation(id, updates) {
         if (!this.isInitialized()) {
             const reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
@@ -455,31 +938,132 @@ class SupabaseClient {
     // COTIZACIONES
     // ============================================
     
+    // Función auxiliar para mapear datos de Supabase al formato del frontend
+    mapQuoteFromSupabase(supabaseQuote) {
+        if (!supabaseQuote) return null;
+        
+        return {
+            id: supabaseQuote.id,
+            code: supabaseQuote.code || null, // Código único
+            clientName: supabaseQuote.customer_name || supabaseQuote.clientName || '',
+            clientPhone: supabaseQuote.customer_phone || supabaseQuote.clientPhone || '',
+            clientEmail: supabaseQuote.customer_email || supabaseQuote.clientEmail || '',
+            hotelId: supabaseQuote.hotel_id || supabaseQuote.hotelId || null,
+            hotel: supabaseQuote.hotels?.name || supabaseQuote.hotel || supabaseQuote.hotel_name || supabaseQuote.hotelName || '',
+            checkIn: supabaseQuote.check_in || supabaseQuote.checkIn || null,
+            checkOut: supabaseQuote.check_out || supabaseQuote.checkOut || null,
+            adults: supabaseQuote.adults || 1,
+            children: supabaseQuote.children || 0,
+            infants: supabaseQuote.infants || 0,
+            tariff: parseFloat(supabaseQuote.tariff || 0),
+            discount: parseFloat(supabaseQuote.discount || 0),
+            finalTariff: parseFloat(supabaseQuote.total || supabaseQuote.finalTariff || 0),
+            status: supabaseQuote.status || 'pending',
+            notes: supabaseQuote.notes || '',
+            timestamp: supabaseQuote.created_at || supabaseQuote.timestamp || new Date().toISOString(),
+            source: supabaseQuote.source || 'dashboard',
+            origen: supabaseQuote.contact_origin || supabaseQuote.origen || null,
+            contact_channel: supabaseQuote.contact_origin || supabaseQuote.contact_channel || null,
+            selectedPromotionId: supabaseQuote.selected_promotion_id || supabaseQuote.selectedPromotionId || null,
+            selectedPromotionName: supabaseQuote.selected_promotion_name || supabaseQuote.selectedPromotionName || null,
+            // Mantener otros campos que puedan existir
+            ...supabaseQuote
+        };
+    }
+    
     async getQuotes(filters = {}) {
         if (!this.isInitialized()) {
             return JSON.parse(localStorage.getItem('quotesDB') || '[]');
         }
 
         try {
-            let query = this.client.from('quotes').select('*, hotels(*)');
-            
+            // Consulta simple sin JOIN a hotels para evitar statement timeout (hotel_name se resuelve después por quote)
+            let query = this.client.from('quotes').select('*');
             if (filters.status) {
                 query = query.eq('status', filters.status);
             }
-            
             const { data, error } = await query.order('created_at', { ascending: false });
             
             if (error) throw error;
             
-            // Sincronizar con localStorage
-            if (data && data.length > 0) {
-                localStorage.setItem('quotesDB', JSON.stringify(data));
-            }
+            // Mapear datos de Supabase al formato del frontend (hotel_name se resuelve por quote si falta)
+            const mappedDataPromises = (data || []).map(async (quote) => {
+                const mapped = this.mapQuoteFromSupabase(quote);
+                
+                // Si no hay nombre de hotel en el mapeo, intentar obtenerlo desde Supabase o localStorage
+                if (!mapped.hotel || mapped.hotel.trim() === '') {
+                    const hotelId = mapped.hotelId || mapped.hotel_id;
+                    if (hotelId) {
+                        // Primero intentar desde Supabase
+                        try {
+                            if (this.isInitialized()) {
+                                const { data: hotelData, error: hotelError } = await this.client
+                                    .from('hotels')
+                                    .select('name, id')
+                                    .eq('id', hotelId)
+                                    .single();
+                                
+                                if (!hotelError && hotelData && hotelData.name) {
+                                    mapped.hotel = hotelData.name;
+                                    console.log(`✅ Hotel encontrado en Supabase para cotización ${mapped.code}:`, hotelData.name);
+                                }
+                            }
+                        } catch (supabaseError) {
+                            console.warn('⚠️ Error buscando hotel en Supabase:', supabaseError);
+                        }
+                        
+                        // Si aún no hay hotel, intentar desde localStorage (solo lectura, no escritura)
+                        if (!mapped.hotel || mapped.hotel.trim() === '') {
+                            try {
+                                const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                                const hotel = hotels.find(h => h.id === hotelId || h.hotelId === hotelId);
+                                if (hotel && hotel.name) {
+                                    mapped.hotel = hotel.name;
+                                    console.log(`✅ Hotel encontrado en localStorage para cotización ${mapped.code}:`, hotel.name);
+                                } else {
+                                    console.warn(`⚠️ Hotel no encontrado para cotización ${mapped.code}, hotelId:`, hotelId);
+                                }
+                            } catch (e) {
+                                // Si localStorage está lleno, solo mostrar warning
+                                if (e.name !== 'QuotaExceededError') {
+                                    console.warn('⚠️ Error buscando hotel en localStorage:', e);
+                                }
+                            }
+                        }
+                    } else {
+                        console.warn(`⚠️ Cotización ${mapped.code} no tiene hotelId`);
+                    }
+                }
+                
+                // Debug para cotizaciones específicas
+                if (mapped.code === 'A93CP' || mapped.code === 'SJT66') {
+                    console.log('🔍 DEBUG Supabase - Cotización', mapped.code, ':', {
+                        rawFromSupabase: quote,
+                        mapped: mapped,
+                        selected_promotion_id: quote.selected_promotion_id,
+                        selected_promotion_name: quote.selected_promotion_name,
+                        mappedSelectedPromotionId: mapped.selectedPromotionId,
+                        mappedSelectedPromotionName: mapped.selectedPromotionName
+                    });
+                }
+                return mapped;
+            });
             
-            return data || [];
+            // Esperar a que todas las promesas se resuelvan
+            const mappedData = await Promise.all(mappedDataPromises);
+            // Supabase es la fuente de verdad: no escribir en localStorage
+            return mappedData || [];
         } catch (error) {
-            console.error('❌ Error obteniendo cotizaciones:', error);
-            return JSON.parse(localStorage.getItem('quotesDB') || '[]');
+            if (error.name === 'QuotaExceededError') {
+                console.warn('⚠️ localStorage lleno al guardar cotizaciones. Mostrando datos desde caché si hay.');
+            } else {
+                console.error('❌ Error obteniendo cotizaciones:', error);
+            }
+            try {
+                return JSON.parse(localStorage.getItem('quotesDB') || '[]');
+            } catch (e) {
+                return [];
+            }
         }
     }
 
@@ -488,25 +1072,178 @@ class SupabaseClient {
             const quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
             quote.id = quote.id || 'quote-' + Date.now();
             quotes.push(quote);
-            localStorage.setItem('quotesDB', JSON.stringify(quotes));
+            try {
+                localStorage.setItem('quotesDB', JSON.stringify(quotes));
+            } catch (storageError) {
+                console.warn('⚠️ No se pudo guardar en localStorage (espacio lleno)');
+            }
             return quote;
         }
 
         try {
-            const { data, error } = await this.client
+            // Validar y ajustar código si es necesario (debe ser exactamente 5 caracteres)
+            let quoteCode = quote.code || null;
+            if (quoteCode && quoteCode.length !== 5) {
+                console.warn(`⚠️ Código "${quoteCode}" tiene ${quoteCode.length} caracteres, debe tener exactamente 5. Truncando/ajustando...`);
+                if (quoteCode.length > 5) {
+                    quoteCode = quoteCode.substring(0, 5);
+                } else {
+                    // Si es menor a 5, rellenar con caracteres aleatorios
+                    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+                    while (quoteCode.length < 5) {
+                        quoteCode += chars.charAt(Math.floor(Math.random() * chars.length));
+                    }
+                }
+                console.log(`✅ Código ajustado a: "${quoteCode}"`);
+            }
+            
+            // Mapear campos del frontend a Supabase
+            // NOTA: Solo incluir columnas que existen en la tabla quotes de Supabase
+            const quoteData = {
+                code: quoteCode, // Código único de exactamente 5 caracteres
+                customer_name: quote.clientName || quote.customer_name || null,
+                customer_email: quote.clientEmail || quote.customer_email || null,
+                customer_phone: quote.clientPhone || quote.customer_phone || null,
+                hotel_id: quote.hotelId || quote.hotel_id || null,
+                check_in: quote.checkIn || quote.check_in || null,
+                check_out: quote.checkOut || quote.check_out || null,
+                adults: quote.adults || 1,
+                children: quote.children || 0,
+                infants: quote.infants || 0,
+                total: parseFloat(quote.finalTariff || quote.total || quote.tariff || 0),
+                status: quote.status || 'Pendiente',
+                notes: quote.notes || null,
+                selected_promotion_id: quote.selectedPromotionId || quote.selected_promotion_id || null,
+                selected_promotion_name: quote.selectedPromotionName || quote.selected_promotion_name || null,
+                contact_origin: quote.origen || quote.contact_channel || quote.contact_origin || null
+            };
+            
+            // Eliminar campos null/undefined/vacíos innecesarios
+            Object.keys(quoteData).forEach(key => {
+                if (quoteData[key] === undefined || quoteData[key] === null || quoteData[key] === '') {
+                    // Mantener null solo para campos opcionales que pueden ser null
+                    if (['code', 'customer_email', 'customer_phone', 'hotel_id', 'check_in', 'check_out', 'notes', 'selected_promotion_id', 'selected_promotion_name'].includes(key)) {
+                        // Mantener null para estos campos opcionales
+                    } else {
+                        delete quoteData[key];
+                    }
+                }
+            });
+            
+            // Asegurar que los campos requeridos tengan valores
+            if (!quoteData.customer_name) quoteData.customer_name = 'Sin nombre';
+            if (!quoteData.adults) quoteData.adults = 1;
+            if (!quoteData.children) quoteData.children = 0;
+            // Nota: infants puede no existir en la tabla, se manejará en el catch si falla
+            if (quote.infants !== undefined && quote.infants !== null) {
+                quoteData.infants = quote.infants;
+            }
+            if (!quoteData.total) quoteData.total = 0;
+            if (!quoteData.status) quoteData.status = 'Pendiente';
+            
+            console.log('📤 Datos a insertar en Supabase:', quoteData);
+
+            // Intentar insertar con infants primero
+            let data, error;
+            const result = await this.client
                 .from('quotes')
-                .insert([quote])
+                .insert([quoteData])
                 .select()
                 .single();
             
-            if (error) throw error;
+            data = result.data;
+            error = result.error;
             
-            // Sincronizar con localStorage
+            // Si hay error relacionado con infants (schema cache desactualizado o columna no existe)
+            if (error && (
+                error.message && (
+                    error.message.includes("infants") || 
+                    error.message.includes("Could not find") ||
+                    error.code === 'PGRST204'
+                )
+            )) {
+                console.warn('⚠️ Error relacionado con columna "infants" (posible schema cache desactualizado). Intentando sin ese campo...', {
+                    code: error.code,
+                    message: error.message
+                });
+                
+                const quoteDataWithoutInfants = { ...quoteData };
+                delete quoteDataWithoutInfants.infants;
+                
+                const retryResult = await this.client
+                    .from('quotes')
+                    .insert([quoteDataWithoutInfants])
+                    .select()
+                    .single();
+                
+                data = retryResult.data;
+                error = retryResult.error;
+                
+                if (!error) {
+                    console.log('✅ Cotización insertada sin campo "infants" (el schema cache se actualizará automáticamente)');
+                }
+            }
+            
+            if (error) {
+                console.error('❌ Error de Supabase al insertar cotización:', {
+                    message: error.message,
+                    code: error.code,
+                    details: error.details,
+                    hint: error.hint
+                });
+                throw error;
+            }
+            
+            console.log('✅ Cotización insertada en Supabase:', data);
+            
+            // Mapear de vuelta a formato del frontend
+            const mappedData = this.mapQuoteFromSupabase(data);
+            
+            // IMPORTANTE: Preservar campos de promoción del frontend si existen
+            if (quote.selectedPromotionId || quote.selectedPromotionName) {
+                mappedData.selectedPromotionId = quote.selectedPromotionId || mappedData.selectedPromotionId;
+                mappedData.selectedPromotionName = quote.selectedPromotionName || mappedData.selectedPromotionName;
+                console.log('✅ Preservando promoción del frontend:', {
+                    id: mappedData.selectedPromotionId,
+                    name: mappedData.selectedPromotionName
+                });
+            }
+            
+            // IMPORTANTE: Preservar campo de infantes del frontend si existe
+            if (quote.infants !== undefined && quote.infants !== null) {
+                mappedData.infants = quote.infants;
+                console.log('✅ Preservando infantes del frontend:', mappedData.infants);
+            }
+            
+            // Sincronizar con localStorage (mantener formato del frontend)
             const quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
-            quotes.push(data);
-            localStorage.setItem('quotesDB', JSON.stringify(quotes));
+            // Combinar datos originales del frontend con los de Supabase, preservando campos del frontend
+            const finalQuote = { 
+                ...mappedData, 
+                ...quote, // Los datos del frontend tienen prioridad
+                id: data.id,
+                // Asegurar que los campos de promoción se preserven
+                selectedPromotionId: quote.selectedPromotionId || mappedData.selectedPromotionId || null,
+                selectedPromotionName: quote.selectedPromotionName || mappedData.selectedPromotionName || null,
+                // Asegurar que los infantes se preserven
+                infants: quote.infants !== undefined && quote.infants !== null ? quote.infants : (mappedData.infants || 0)
+            };
             
-            return data;
+            console.log('📋 Cotización final combinada:', {
+                code: finalQuote.code,
+                selectedPromotionId: finalQuote.selectedPromotionId,
+                selectedPromotionName: finalQuote.selectedPromotionName,
+                infants: finalQuote.infants
+            });
+            
+            quotes.push(finalQuote);
+            try {
+                localStorage.setItem('quotesDB', JSON.stringify(quotes));
+            } catch (storageError) {
+                console.warn('⚠️ No se pudo guardar en localStorage (espacio lleno), pero la cotización se guardó en Supabase');
+            }
+            
+            return finalQuote;
         } catch (error) {
             console.error('❌ Error creando cotización:', error);
             throw error;
@@ -519,33 +1256,169 @@ class SupabaseClient {
             const index = quotes.findIndex(q => q.id === id);
             if (index !== -1) {
                 quotes[index] = { ...quotes[index], ...updates };
-                localStorage.setItem('quotesDB', JSON.stringify(quotes));
+                try {
+                    localStorage.setItem('quotesDB', JSON.stringify(quotes));
+                } catch (storageError) {
+                    console.warn('⚠️ No se pudo guardar en localStorage (espacio lleno)');
+                }
                 return quotes[index];
             }
             return null;
         }
 
         try {
+            // No enviar final_tariff a Supabase (la tabla tiene "total"); filtrar por si el dashboard lo manda
+            const safeUpdates = { ...updates };
+            delete safeUpdates.final_tariff;
+            // Mapear campos del frontend a Supabase para updates
+            const updateData = {};
+            if (safeUpdates.code !== undefined) updateData.code = safeUpdates.code;
+            if (safeUpdates.clientName !== undefined) updateData.customer_name = safeUpdates.clientName;
+            if (safeUpdates.clientPhone !== undefined) updateData.customer_phone = safeUpdates.clientPhone;
+            if (safeUpdates.clientEmail !== undefined) updateData.customer_email = safeUpdates.clientEmail;
+            if (safeUpdates.hotelId !== undefined) updateData.hotel_id = safeUpdates.hotelId;
+            if (safeUpdates.checkIn !== undefined) updateData.check_in = safeUpdates.checkIn;
+            if (safeUpdates.checkOut !== undefined) updateData.check_out = safeUpdates.checkOut;
+            if (safeUpdates.adults !== undefined) updateData.adults = safeUpdates.adults;
+            if (safeUpdates.children !== undefined) updateData.children = safeUpdates.children;
+            if (safeUpdates.infants !== undefined) updateData.infants = safeUpdates.infants;
+            // No enviar tariff: la tabla quotes puede no tener esa columna (solo total)
+            if (safeUpdates.finalTariff !== undefined) updateData.total = safeUpdates.finalTariff;
+            if (safeUpdates.status !== undefined) updateData.status = safeUpdates.status;
+            if (safeUpdates.notes !== undefined) updateData.notes = safeUpdates.notes;
+            if (safeUpdates.selectedPromotionId !== undefined) updateData.selected_promotion_id = safeUpdates.selectedPromotionId;
+            if (safeUpdates.selectedPromotionName !== undefined) updateData.selected_promotion_name = safeUpdates.selectedPromotionName;
+            if (safeUpdates.sentAt !== undefined) updateData.sent_at = safeUpdates.sentAt;
+            const origin = safeUpdates.origen ?? safeUpdates.contact_channel ?? safeUpdates.contact_origin;
+            if (origin !== undefined) updateData.contact_origin = origin;
+            
+            // Agregar solo columnas snake_case que existan en la tabla (evitar 400 por columnas inexistentes)
+            const allowedExtra = ['room_type', 'program', 'client_note', 'sent_at'];
+            Object.keys(safeUpdates).forEach(key => {
+                if (key.includes('_') && !updateData[key] && allowedExtra.includes(key)) {
+                    updateData[key] = safeUpdates[key];
+                }
+            });
+            
+            updateData.updated_at = new Date().toISOString();
+
             const { data, error } = await this.client
                 .from('quotes')
-                .update({ ...updates, updated_at: new Date().toISOString() })
+                .update(updateData)
                 .eq('id', id)
                 .select()
                 .single();
             
             if (error) throw error;
             
+            // Mapear de vuelta a formato del frontend
+            const mappedData = this.mapQuoteFromSupabase(data);
+            
             // Sincronizar con localStorage
             const quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
             const index = quotes.findIndex(q => q.id === id);
             if (index !== -1) {
-                quotes[index] = data;
-                localStorage.setItem('quotesDB', JSON.stringify(quotes));
+                quotes[index] = { ...quotes[index], ...mappedData };
+                try {
+                    localStorage.setItem('quotesDB', JSON.stringify(quotes));
+                } catch (storageError) {
+                    console.warn('⚠️ No se pudo guardar en localStorage (espacio lleno), pero la cotización se actualizó en Supabase');
+                }
             }
             
-            return data;
+            return mappedData;
         } catch (error) {
             console.error('❌ Error actualizando cotización:', error);
+            throw error;
+        }
+    }
+
+    async deleteQuote(id) {
+        if (!this.isInitialized()) {
+            const quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
+            const filtered = quotes.filter(q => q.id !== id);
+            try {
+                localStorage.setItem('quotesDB', JSON.stringify(filtered));
+            } catch (storageError) {
+                console.warn('⚠️ No se pudo guardar en localStorage (espacio lleno)');
+            }
+            return true;
+        }
+
+        try {
+            const { error } = await this.client
+                .from('quotes')
+                .delete()
+                .eq('id', id);
+            
+            if (error) throw error;
+            
+            // Sincronizar con localStorage
+            const quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
+            const filtered = quotes.filter(q => q.id !== id);
+            try {
+                localStorage.setItem('quotesDB', JSON.stringify(filtered));
+            } catch (storageError) {
+                console.warn('⚠️ No se pudo guardar en localStorage (espacio lleno)');
+            }
+            
+            return true;
+        } catch (error) {
+            console.error('❌ Error eliminando cotización:', error);
+            throw error;
+        }
+    }
+
+    async deleteAllQuotes() {
+        console.log('🗑️ Eliminando todas las cotizaciones de Supabase...');
+        
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no inicializado');
+            return false;
+        }
+        
+        try {
+            // Obtener todas las cotizaciones primero
+            const { data: allQuotes, error: fetchError } = await this.client
+                .from('quotes')
+                .select('id');
+            
+            if (fetchError) {
+                console.warn('⚠️ Error obteniendo cotizaciones:', fetchError);
+                // Intentar eliminar directamente
+            }
+            
+            // Eliminar todas las cotizaciones
+            const { error } = await this.client
+                .from('quotes')
+                .delete()
+                .neq('id', '00000000-0000-0000-0000-000000000000'); // Condición que siempre es verdadera para eliminar todas
+            
+            if (error) {
+                // Si falla, intentar eliminar una por una
+                if (allQuotes && allQuotes.length > 0) {
+                    console.log(`🔄 Eliminando ${allQuotes.length} cotizaciones una por una...`);
+                    for (const quote of allQuotes) {
+                        try {
+                            await this.client
+                                .from('quotes')
+                                .delete()
+                                .eq('id', quote.id);
+                        } catch (e) {
+                            console.warn(`⚠️ Error eliminando cotización ${quote.id}:`, e);
+                        }
+                    }
+                    console.log('✅ Todas las cotizaciones eliminadas de Supabase (una por una)');
+                } else {
+                    throw error;
+                }
+            } else {
+                console.log('✅ Todas las cotizaciones eliminadas de Supabase');
+            }
+            
+            return true;
+        } catch (error) {
+            console.error('❌ Error eliminando cotizaciones de Supabase:', error);
             throw error;
         }
     }
@@ -578,12 +1451,7 @@ class SupabaseClient {
             if (error) throw error;
             
             console.log(`☁️ Gastos cargados de Supabase: ${data ? data.length : 0} registros`);
-            
-            // Solo sincronizar si hay datos
-            if (data && data.length > 0) {
-                localStorage.setItem('expensesDB', JSON.stringify(data));
-            }
-            
+            // Supabase es la fuente de verdad: no escribir en localStorage
             return data || [];
         } catch (error) {
             console.error('❌ Error obteniendo gastos:', error);
@@ -1244,6 +2112,7 @@ class SupabaseClient {
                 { event: '*', schema: 'public', table: 'quotes' },
                 (payload) => {
                     console.log('🔄 Cambio en cotizaciones:', payload.eventType);
+                    console.log('📋 Datos de la cotización:', payload.new || payload.old);
                     callback(payload);
                 }
             )
@@ -1398,16 +2267,19 @@ class SupabaseClient {
             if (error) throw error;
             
             console.log(`☁️ Usuarios cargados de Supabase: ${data ? data.length : 0} registros`);
-            
-            // Sincronizar con localStorage
-            if (data && data.length > 0) {
-                localStorage.setItem('checkin24hs_users', JSON.stringify(data));
-            }
-            
+            // Supabase es la fuente de verdad: no escribir en localStorage
             return data || [];
         } catch (error) {
-            console.error('❌ Error obteniendo usuarios:', error);
-            return JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+            if (error.name === 'QuotaExceededError') {
+                console.warn('⚠️ localStorage lleno al obtener usuarios. Usando caché si hay.');
+            } else {
+                console.error('❌ Error obteniendo usuarios:', error);
+            }
+            try {
+                return JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+            } catch (e) {
+                return [];
+            }
         }
     }
 
@@ -1716,6 +2588,438 @@ class SupabaseClient {
         } catch (error) {
             return { success: false, error: error.message };
         }
+    }
+
+    // ============================================
+    // CHATS DE WHATSAPP (solo lectura desde Supabase; no se usa localStorage)
+    // ============================================
+    
+    async getWhatsAppChats(limit = 50) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado');
+            return [];
+        }
+
+        try {
+            // Intentar obtener chats con ordenamiento
+            let query = this.client
+                .from('whatsapp_chats')
+                .select('*')
+                .limit(limit);
+            
+            // Intentar ordenar por last_message_time si existe
+            try {
+                query = query.order('last_message_time', { ascending: false });
+            } catch (e) {
+                // Si falla el ordenamiento, continuar sin ordenar
+                console.log('ℹ️ No se pudo ordenar por last_message_time, continuando sin ordenar');
+            }
+
+            let { data, error } = await query;
+
+            // Si hay error 400 o la tabla no existe, intentar sin ordenamiento
+            if (error && (error.code === 'PGRST116' || error.status === 400 || error.message?.includes('does not exist') || error.message?.includes('column'))) {
+                console.log('ℹ️ Error con ordenamiento, intentando sin ordenar...');
+                const simpleQuery = this.client
+                    .from('whatsapp_chats')
+                    .select('*')
+                    .limit(limit);
+                
+                const result = await simpleQuery;
+                if (result.error) {
+                    // Si aún falla, la tabla probablemente no existe
+                    if (result.error.code === 'PGRST116' || result.error.message?.includes('does not exist')) {
+                        console.log('ℹ️ Tabla whatsapp_chats no existe aún en Supabase');
+                        return [];
+                    }
+                    throw result.error;
+                }
+                data = result.data;
+                error = result.error;
+            } else if (error) {
+                console.error('❌ Error obteniendo chats:', error);
+                // Si es un error 400, probablemente la tabla no existe o tiene estructura diferente
+                if (error.status === 400) {
+                    console.log('ℹ️ Error 400: La tabla whatsapp_chats puede no existir o tener estructura diferente');
+                    return [];
+                }
+                throw error;
+            }
+
+            console.log(`📱 ${data?.length || 0} chats de WhatsApp cargados desde Supabase`);
+            return data || [];
+        } catch (error) {
+            console.error('❌ Error obteniendo chats:', error);
+            // En caso de cualquier error, retornar array vacío para no romper la aplicación
+            return [];
+        }
+    }
+
+    async getWhatsAppMessages(chatId, limit = 100) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado');
+            return [];
+        }
+
+        try {
+            // Pedir los N más RECIENTES (desc), luego invertir para mostrar cronológico. Así no se cortan los mensajes nuevos.
+            let { data, error } = await this.client
+                .from('whatsapp_messages')
+                .select('*')
+                .eq('chat_id', chatId)
+                .order('created_at', { ascending: false })
+                .limit(limit);
+
+            if (error && (error.message?.includes('chat_id') || error.message?.includes('column') || error.code === '42703')) {
+                const fallback = await this.client
+                    .from('whatsapp_messages')
+                    .select('*')
+                    .eq('conversation_id', chatId)
+                    .order('created_at', { ascending: false })
+                    .limit(limit);
+                if (!fallback.error) {
+                    data = fallback.data || [];
+                    error = null;
+                }
+            }
+            // Si no hubo error pero 0 mensajes, intentar por conversation_id (por si los mensajes se guardaron solo con esa columna)
+            if (!error && (!data || data.length === 0) && chatId) {
+                const resConv = await this.client
+                    .from('whatsapp_messages')
+                    .select('*')
+                    .eq('conversation_id', chatId)
+                    .order('created_at', { ascending: false })
+                    .limit(limit);
+                if (!resConv.error && resConv.data && resConv.data.length > 0) {
+                    data = resConv.data;
+                    console.log('📥 Mensajes obtenidos por conversation_id:', data.length);
+                }
+            }
+
+            if (error) throw error;
+            // Devolver en orden cronológico (más antiguo primero) para que el panel los muestre bien
+            if (data && data.length > 0) data = data.reverse();
+
+            // Marcar como leídos y resetear unread (no bloquear la respuesta si fallan)
+            try {
+                await this.client
+                    .from('whatsapp_messages')
+                    .update({ is_read: true })
+                    .eq('chat_id', chatId)
+                    .eq('is_from_me', false);
+            } catch (e) {
+                try {
+                    await this.client
+                        .from('whatsapp_messages')
+                        .update({ is_read: true })
+                        .eq('conversation_id', chatId)
+                        .eq('is_from_me', false);
+                } catch (e2) {
+                    console.warn('⚠️ No se pudo marcar mensajes como leídos:', e?.message || e2?.message);
+                }
+            }
+            try {
+                await this.client
+                    .from('whatsapp_chats')
+                    .update({ unread_count: 0 })
+                    .eq('id', chatId);
+            } catch (e) {
+                console.warn('⚠️ No se pudo actualizar unread_count del chat:', e?.message || e);
+            }
+
+            return data || [];
+        } catch (error) {
+            console.error('❌ Error obteniendo mensajes:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Obtener mensajes por phone (ej. web_abc123). Útil para chats canal cuando chat_id no devuelve resultados.
+     */
+    async getWhatsAppMessagesByPhone(phone, limit = 100) {
+        if (!this.isInitialized() || !phone) return [];
+        try {
+            let { data, error } = await this.client
+                .from('whatsapp_messages')
+                .select('*')
+                .eq('phone', String(phone))
+                .order('created_at', { ascending: false })
+                .limit(limit);
+            if (error) throw error;
+            if (data && data.length > 0) data = data.reverse();
+            return data || [];
+        } catch (e) {
+            console.warn('⚠️ getWhatsAppMessagesByPhone:', e?.message || e);
+            return [];
+        }
+    }
+
+    // Suscribirse a nuevos mensajes de WhatsApp
+    subscribeToWhatsAppMessages(callback) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado');
+            return null;
+        }
+
+        if (!this.activeSubscriptions) {
+            this.activeSubscriptions = {};
+        }
+
+        const channel = this.client
+            .channel('whatsapp-messages')
+            .on('postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'whatsapp_messages' },
+                (payload) => {
+                    console.log('📱 Nuevo mensaje de WhatsApp:', payload.new);
+                    callback(payload.new);
+                }
+            )
+            .subscribe();
+
+        this.activeSubscriptions.whatsappMessages = channel;
+        return channel;
+    }
+
+    // Suscribirse a cambios en chats
+    subscribeToWhatsAppChats(callback) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado');
+            return null;
+        }
+
+        if (!this.activeSubscriptions) {
+            this.activeSubscriptions = {};
+        }
+
+        const channel = this.client
+            .channel('whatsapp-chats')
+            .on('postgres_changes',
+                { event: '*', schema: 'public', table: 'whatsapp_chats' },
+                (payload) => {
+                    console.log('📱 Cambio en chat de WhatsApp:', payload);
+                    callback(payload);
+                }
+            )
+            .subscribe();
+
+        this.activeSubscriptions.whatsappChats = channel;
+        return channel;
+    }
+
+    /**
+     * Actualizar el número de teléfono real de un chat (para mostrar en el dashboard cuando el chat usa LID).
+     * @param {string} chatId - UUID del chat en whatsapp_chats
+     * @param {string} realPhone - Número real (ej. +54 9 2944 57-9759 o 5492944579759)
+     */
+    async updateWhatsAppChatRealPhone(chatId, realPhone) {
+        if (!this.isInitialized() || !chatId) return null;
+        const normalized = String(realPhone || '').replace(/\D/g, '').trim();
+        if (!normalized || normalized.length < 10) return null;
+        try {
+            const { data, error } = await this.client
+                .from('whatsapp_chats')
+                .update({ real_phone: normalized, updated_at: new Date().toISOString() })
+                .eq('id', chatId)
+                .select()
+                .single();
+            if (error) throw error;
+            console.log('✅ Número real actualizado para chat:', chatId, '→', normalized);
+            return data;
+        } catch (e) {
+            console.error('❌ Error actualizando real_phone:', e?.message || e);
+            return null;
+        }
+    }
+
+    // ============================================
+    // INTERACCIONES DE FLOR
+    // ============================================
+    
+    async getFlorInteractions(limit = 100, filters = {}) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado');
+            return [];
+        }
+
+        try {
+            let query = this.client
+                .from('flor_interactions')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(limit);
+
+            if (filters.intent) {
+                query = query.eq('intent', filters.intent);
+            }
+            if (filters.dateFrom) {
+                query = query.gte('created_at', filters.dateFrom);
+            }
+            if (filters.dateTo) {
+                query = query.lte('created_at', filters.dateTo);
+            }
+
+            const { data, error } = await query;
+
+            if (error) throw error;
+
+            console.log(`🌸 ${data?.length || 0} interacciones de Flor cargadas desde Supabase`);
+            return data || [];
+        } catch (error) {
+            console.error('❌ Error obteniendo interacciones:', error);
+            return [];
+        }
+    }
+
+    // Guardar una nueva interacción de Flor
+    async saveFlorInteraction(interactionData) {
+        if (!this.isInitialized()) {
+            console.warn('⚠️ Supabase no está inicializado, guardando en localStorage');
+            const interactions = JSON.parse(localStorage.getItem('flor_interactions') || '[]');
+            const newInteraction = {
+                id: 'inter-' + Date.now(),
+                ...interactionData,
+                created_at: new Date().toISOString()
+            };
+            interactions.push(newInteraction);
+            localStorage.setItem('flor_interactions', JSON.stringify(interactions));
+            return newInteraction;
+        }
+
+        try {
+            const interaction = {
+                user_message: interactionData.userMessage || interactionData.user_message || '',
+                bot_response: interactionData.botResponse || interactionData.bot_response || '',
+                intent: interactionData.intent || 'consulta_general',
+                phone: interactionData.phone || null,
+                email: interactionData.email || null,
+                success: interactionData.success !== false,
+                used_ai: interactionData.usedAI || interactionData.used_ai || true,
+                hotel_id: interactionData.hotelId || interactionData.hotel_id || null,
+                metadata: interactionData.metadata || {}
+            };
+
+            const { data, error } = await this.client
+                .from('flor_interactions')
+                .insert([interaction])
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            console.log('✅ Interacción guardada en Supabase:', data.id);
+            
+            // Sincronizar con localStorage como backup
+            const interactions = JSON.parse(localStorage.getItem('flor_interactions') || '[]');
+            interactions.push(data);
+            localStorage.setItem('flor_interactions', JSON.stringify(interactions));
+            
+            return data;
+        } catch (error) {
+            console.error('❌ Error guardando interacción:', error);
+            // Fallback a localStorage
+            const interactions = JSON.parse(localStorage.getItem('flor_interactions') || '[]');
+            const newInteraction = {
+                id: 'inter-' + Date.now(),
+                ...interactionData,
+                created_at: new Date().toISOString()
+            };
+            interactions.push(newInteraction);
+            localStorage.setItem('flor_interactions', JSON.stringify(interactions));
+            return newInteraction;
+        }
+    }
+
+    // Analizar interacciones para aprendizaje
+    async analyzeFlorInteractions(limit = 100) {
+        if (!this.isInitialized()) {
+            const interactions = JSON.parse(localStorage.getItem('flor_interactions') || '[]');
+            return this.analyzeInteractionsLocal(interactions);
+        }
+
+        try {
+            const { data, error } = await this.client
+                .from('flor_interactions')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(limit);
+
+            if (error) throw error;
+
+            return this.analyzeInteractionsLocal(data || []);
+        } catch (error) {
+            console.error('❌ Error analizando interacciones:', error);
+            const interactions = JSON.parse(localStorage.getItem('flor_interactions') || '[]');
+            return this.analyzeInteractionsLocal(interactions);
+        }
+    }
+
+    // Análisis local de interacciones
+    analyzeInteractionsLocal(interactions) {
+        const analysis = {
+            total: interactions.length,
+            successful: 0,
+            failed: 0,
+            intents: {},
+            commonWords: {},
+            averageResponseTime: 0,
+            mostCommonQuestions: [],
+            improvementSuggestions: []
+        };
+
+        interactions.forEach(inter => {
+            // Contar éxitos
+            if (inter.success !== false) {
+                analysis.successful++;
+            } else {
+                analysis.failed++;
+            }
+
+            // Contar intents
+            const intent = inter.intent || 'consulta_general';
+            analysis.intents[intent] = (analysis.intents[intent] || 0) + 1;
+
+            // Extraer palabras comunes del mensaje del usuario
+            const userMessage = (inter.user_message || inter.userMessage || '').toLowerCase();
+            const words = userMessage.split(/\s+/).filter(w => w.length > 3);
+            words.forEach(word => {
+                analysis.commonWords[word] = (analysis.commonWords[word] || 0) + 1;
+            });
+
+            // Preguntas más comunes
+            if (userMessage.includes('?')) {
+                analysis.mostCommonQuestions.push(userMessage);
+            }
+        });
+
+        // Ordenar palabras comunes
+        analysis.commonWords = Object.entries(analysis.commonWords)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 20)
+            .reduce((obj, [word, count]) => {
+                obj[word] = count;
+                return obj;
+            }, {});
+
+        // Preguntas más comunes
+        const questionCounts = {};
+        analysis.mostCommonQuestions.forEach(q => {
+            questionCounts[q] = (questionCounts[q] || 0) + 1;
+        });
+        analysis.mostCommonQuestions = Object.entries(questionCounts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10)
+            .map(([question, count]) => ({ question, count }));
+
+        // Sugerencias de mejora
+        if (analysis.failed > analysis.successful * 0.3) {
+            analysis.improvementSuggestions.push('Tasa de éxito baja. Revisar respuestas para intents más comunes.');
+        }
+        if (Object.keys(analysis.intents).length > 10) {
+            analysis.improvementSuggestions.push('Muchos intents diferentes. Considerar agrupar intents similares.');
+        }
+
+        return analysis;
     }
 }
 
