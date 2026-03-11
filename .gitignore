@@ -132,3 +132,21 @@ node_modules
 *.zip
 node_modules/
 .wrangler/
+
+# WhatsApp session files (no deben estar en el repositorio)
+.wwebjs_auth/
+.wwebjs_auth_*/
+.wwebjs_auth_instance_*/
+whatsapp-server/.wwebjs_auth/
+whatsapp-server/.wwebjs_auth_*/
+whatsapp-server/.wwebjs_auth_instance_*/
+
+# WhatsApp backups y logs
+whatsapp-server/*.backup*
+whatsapp-server/logs/
+whatsapp-server/stats.json
+whatsapp-server/package-lock.json
+
+# Dashboard backups
+dashboard.html.backup*
+*.backup*
