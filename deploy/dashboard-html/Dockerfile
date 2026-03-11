@@ -26,8 +26,8 @@ COPY deploy/supabase-config.js ./supabase-config.js
 COPY hotel-images ./hotel-images
 COPY deploy/logo.png ./logo.png
 COPY deploy/dashboard-html/server.js ./server.js
-# Imagen promocional para /og-cotizar.jpg (WhatsApp / Open Graph). Prioridad en server.js: /app/og-cotizar.jpg
-COPY hotel-images/hotel-images/og-preview.jpg ./og-cotizar.jpg
+# Imagen promocional para /og-cotizar.jpg (WhatsApp / Open Graph). Fallback: main.jpg si no existe hotel-images/hotel-images/og-preview.jpg
+COPY hotel-images/hotel-1-puyehue/main.jpg ./og-cotizar.jpg
 # build_id.txt: para comprobar qué BUILD_ID sirve la URL (diagnóstico caché vs imagen)
 RUN echo "$BUILD_ID" > /app/build_id.txt
 
