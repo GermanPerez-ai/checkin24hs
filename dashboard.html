@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-03-11T16:20:37Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 132; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-03-13T15:40:43Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 133; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">132</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">133</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -4313,6 +4313,19 @@
                                         <input type="number" id="ai-max-tokens" value="500" min="100" max="4000" step="50" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
                                         <p style="font-size: 0.8rem; color: #666; margin-top: 4px;">Longitud máxima de respuesta</p>
                                     </div>
+                                </div>
+                                <div style="margin-bottom: 20px; padding: 16px; background: #f5f5f5; border-radius: 8px; border: 1px solid #e0e0e0;">
+                                    <h4 style="margin: 0 0 8px 0;">🖼️ Imagen del link del cotizador (Checkin24hs)</h4>
+                                    <p style="font-size: 0.85rem; color: #666; margin-bottom: 12px;">Subí una imagen (o video) que se enviará con el link <code>cotizar.checkin24hs.com</code> en WhatsApp. Formatos: JPG, PNG, GIF, WebP, MP4.</p>
+                                    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                                        <input type="file" id="ai-imagen-cotizador-file" accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,.jpg,.jpeg,.png,.gif,.webp,.mp4" style="font-size: 0.9rem; padding: 8px;" onchange="uploadImagenCotizadorFlor(event)">
+                                        <span id="ai-imagen-cotizador-status" style="font-size: 0.8rem; color: #666;"></span>
+                                    </div>
+                                    <div style="margin-top: 10px;">
+                                        <label style="font-size: 0.8rem; color: #666;">URL actual (se llena al subir):</label>
+                                        <input type="text" id="ai-imagen-cotizador-url" readonly placeholder="Subí un archivo para guardar en Supabase" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; background: #fafafa; font-size: 0.85rem; margin-top: 4px;">
+                                    </div>
+                                    <p style="font-size: 0.8rem; color: #999; margin-top: 8px;">Se guarda en Supabase (flor-ficha/cotizador). Después de subir, hacé clic en Guardar para que el servidor WhatsApp use esta imagen.</p>
                                 </div>
                                 <div style="display: flex; gap: 12px;">
                                     <button class="form-button" style="background: #4caf50; color: white;" onclick="saveAIConfig()">
@@ -17581,6 +17594,9 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         if (document.getElementById('ai-max-tokens')) {
                             document.getElementById('ai-max-tokens').value = cloudConfig.maxTokens || 500;
                         }
+                        if (document.getElementById('ai-imagen-cotizador-url')) {
+                            document.getElementById('ai-imagen-cotizador-url').value = cloudConfig.imagen_cotizacion_url || '';
+                        }
                     }
                 }
             } catch (e) {
@@ -28929,6 +28945,35 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
     };
 
+    window.uploadImagenCotizadorFlor = async function(event) {
+        const file = event && event.target && event.target.files && event.target.files[0];
+        if (!file) return;
+        const statusEl = document.getElementById('ai-imagen-cotizador-status');
+        const inputEl = document.getElementById('ai-imagen-cotizador-url');
+        if (!window.supabaseClient || !window.supabaseClient.isInitialized()) {
+            if (statusEl) statusEl.textContent = 'Supabase no configurado.';
+            return;
+        }
+        try {
+            if (statusEl) statusEl.textContent = 'Subiendo a Supabase...';
+            const ext = (file.name && file.name.split('.').pop().toLowerCase()) || 'jpg';
+            const safeExt = ext.replace(/[^a-z0-9]/gi, '') || 'jpg';
+            const path = 'cotizador/og-cotizar.' + safeExt;
+            const { error } = await window.supabaseClient.client.storage.from('flor-ficha').upload(path, file, { upsert: true });
+            if (error) throw error;
+            const { data: urlData } = window.supabaseClient.client.storage.from('flor-ficha').getPublicUrl(path);
+            const url = urlData.publicUrl;
+            if (inputEl) { inputEl.value = url; inputEl.dispatchEvent(new Event('input', { bubbles: true })); }
+            if (statusEl) statusEl.textContent = '✅ Subido (' + file.name + '). Clic en Guardar para aplicar.';
+        } catch (err) {
+            console.error('Error subiendo archivo cotizador:', err);
+            if (statusEl) statusEl.textContent = '❌ ' + (err.message || 'Error al subir');
+            if (err.message && err.message.includes('Bucket not found')) {
+                alert('Creá el bucket "flor-ficha" en Supabase → Storage (público).');
+            }
+        }
+    };
+
     window.saveAIConfig = async function(silent) {
         const isSilent = !!silent;
         const config = {
@@ -28937,7 +28982,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             // apiKey ya no se guarda - está configurada de forma segura en el servidor (.env)
             model: document.getElementById('ai-model')?.value || 'gemini-2.0-flash',
             temperature: parseFloat(document.getElementById('ai-temperature')?.value) || 0.7,
-            maxTokens: parseInt(document.getElementById('ai-max-tokens')?.value) || 500
+            maxTokens: parseInt(document.getElementById('ai-max-tokens')?.value) || 500,
+            imagen_cotizacion_url: (document.getElementById('ai-imagen-cotizador-url')?.value || '').trim() || null
         };
         
         // Guardar en localStorage
