@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-03-13T15:40:43Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 133; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-03-17T14:40:34Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 134; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">133</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">134</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -7079,7 +7079,7 @@ Ej:
             console.log(`Tabla de hoteles cargada con ${hotels.length} hoteles`);
         }
 
-        // Obtener reservas para estadísticas: desde Supabase si está activo, sino localStorage.
+        // Obtener reservas para estadísticas: desde Supabase si está activo, sino localStorage. No depende de escribir en localStorage.
         async function getReservationsForStats() {
             if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                 try {
@@ -7134,7 +7134,7 @@ Ej:
                 console.log(`Total Hoteles actualizado: ${activeHotels.length} hoteles activos`);
             }
             
-            // Actualizar tarjeta de Ingresos del Mes Vigente (usar reservas ya cargadas)
+            // Actualizar tarjeta de Ingresos del Mes Vigente (usar reservas ya cargadas para no depender de localStorage)
             const dashboardMonthlySalesElement = document.getElementById('dashboardMonthlySales');
             const dashboardMonthlyReservationsElement = document.getElementById('dashboardMonthlyReservations');
             if (dashboardMonthlySalesElement && dashboardMonthlyReservationsElement) {
@@ -7163,9 +7163,13 @@ Ej:
                 
                 const reservationsCount = monthlyReservations.length;
                 const reservationsTotal = monthlyReservations.reduce((sum, res) => {
-                    const amount = parseFloat(res.totalAmount) || parseFloat(res.total_amount) || parseFloat(res.amount) || parseFloat(res.price) || 0;
+                    const amount = parseFloat(res.totalAmount) || 
+                                 parseFloat(res.total_amount) || 
+                                 parseFloat(res.amount) || 
+                                 parseFloat(res.price) || 0;
                     return sum + amount;
                 }, 0);
+                
                 const formattedReservationsTotal = reservationsTotal.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 
                 if (reservationsCount > 0) {
@@ -7173,35 +7177,44 @@ Ej:
                 } else {
                     dashboardMonthlyReservationsElement.innerHTML = `<span class="material-icons">info</span> Sin reservas este mes`;
                 }
+                
                 console.log(`Tarjeta de Ingresos del Mes Vigente actualizada: Acumulado: $${formattedAmount}, Reservas: ${reservationsCount}, Sumatoria: $${formattedReservationsTotal}`);
             }
             
             // Actualizar Sumatoria de Reservas Futuras
             const futureReservationsTotalElement = document.getElementById('futureReservationsTotal');
             if (futureReservationsTotalElement) {
-                
-                // Obtener fecha de hoy en formato YYYY-MM-DD
                 const today = new Date();
                 const todayStr = today.toISOString().split('T')[0];
-                
-                // Función auxiliar para normalizar fechas
                 const normalizeDate = (dateStr) => {
                     if (!dateStr) return null;
-                    if (dateStr.includes('T')) {
-                        return dateStr.split('T')[0];
-                    }
+                    if (dateStr.includes('T')) return dateStr.split('T')[0];
                     return dateStr;
                 };
-                
                 const futureReservations = statsReservations.filter(reservation => {
+                    // Excluir canceladas
                     const status = reservation.status || '';
-                    if (status === 'Cancelada' || status === 'cancelada') return false;
+                    if (status === 'Cancelada' || status === 'cancelada') {
+                        return false;
+                    }
+                    
+                    // Soportar tanto checkIn (camelCase) como check_in (snake_case de Supabase)
                     const rawCheckIn = reservation.checkIn || reservation.check_in;
-                    if (!rawCheckIn) return false;
+                    if (!rawCheckIn) {
+                        return false;
+                    }
+                    
+                    // Normalizar fecha de checkIn
                     const checkInDate = normalizeDate(rawCheckIn);
-                    if (!checkInDate) return false;
+                    if (!checkInDate) {
+                        return false;
+                    }
+                    
+                    // Comparar con fecha de hoy (checkIn >= hoy)
                     return checkInDate >= todayStr;
                 });
+                
+                // Calcular sumatoria de reservas futuras
                 const futureTotal = futureReservations.reduce((sum, res) => {
                     const amount = parseFloat(res.totalAmount) || 
                                  parseFloat(res.total_amount) || 
@@ -9985,16 +9998,20 @@ Ej:
             console.log('👁️ Viendo detalles de cotización:', quoteId);
             
             try {
+                // Buscar por id o por código; usar índice solo si quoteId es numérico (ej. "0", "1")
+                const byIdOrCode = (q) => q.id === quoteId || q.id == quoteId || String(q.code || '') === String(quoteId);
+                const byIndex = (quotes, id) => /^\d+$/.test(String(id)) ? quotes[parseInt(id, 10)] : undefined;
+                
                 // Buscar primero en localStorage
                 let quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
-                let quote = quotes.find(q => q.id === quoteId || quotes.indexOf(q) === parseInt(quoteId));
+                let quote = quotes.find(byIdOrCode) || byIndex(quotes, quoteId);
                 
                 // Si no se encuentra en localStorage, buscar en Supabase
                 if (!quote && window.supabaseClient && window.supabaseClient.isInitialized && window.supabaseClient.isInitialized()) {
                     console.log('🔍 Cotización no encontrada en localStorage, buscando en Supabase...');
                     try {
                         quotes = await window.supabaseClient.getQuotes();
-                        quote = quotes.find(q => q.id === quoteId || q.id == quoteId);
+                        quote = quotes.find(byIdOrCode) || byIndex(quotes, quoteId);
                         if (quote) {
                             console.log('✅ Cotización encontrada en Supabase');
                         }
@@ -10247,6 +10264,9 @@ Ej:
                                 <div style="font-weight: 600; color: #333;">Teléfono</div>
                                 <div style="color: #666;">${formatPhoneForDisplay(quote.clientPhone)}</div>
                             </div>
+                        </div>
+                        <div style="padding: 10px 15px; background: #e8f5e9; border-radius: 8px; border: 1px solid #4caf50; margin-top: 8px;">
+                            <strong style="color: #2e7d32;">📤 Se enviará a:</strong> <span style="color: #1b5e20;">${formatPhoneForDisplay(typeof normalizeQuotePhoneToE164 === 'function' ? normalizeQuotePhoneToE164(quote.clientPhone) : quote.clientPhone)}</span>
                         </div>
                         ` : ''}
                         
@@ -11680,7 +11700,7 @@ Ej:
                         console.warn('⚠️ Error actualizando en Supabase:', supabaseError);
                     }
                 }
-
+                
                 // Guardar en localStorage
                 try {
                     localStorage.setItem('quotesDB', JSON.stringify(quotes));
@@ -17031,11 +17051,11 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                     
                     // Mostrar notificación destacada
                     showNewQuoteNotification(clientName, code, hotel);
-
+                    
                     if (typeof saveUserFromQuote === 'function') {
                         saveUserFromQuote(newQuote);
                     }
-
+                    
                     // Recargar tabla de cotizaciones
                     scheduleReload('quotes', `📋 Nueva cotización recibida de ${clientName}`);
                     
@@ -20689,7 +20709,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             // Cargar hoteles en el filtro (async)
             await loadHotelsForReservationFilter();
             
-            // Si se cargaron datos frescos de Supabase, actualizar las estadísticas
+            // Si se cargaron datos frescos de Supabase, actualizar las estadísticas del dashboard y de la sección reservas
             if (loadedFromSupabase) {
                 console.log('🔄 Actualizando estadísticas con datos frescos de Supabase...');
                 if (typeof updateStats === 'function') {
@@ -20873,6 +20893,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             const reservations = await getReservationsForStats();
             
+            // Actualizar contadores
             const totalReservationsElement = document.getElementById('totalReservations');
             const confirmedReservationsElement = document.getElementById('confirmedReservations');
             const modifiedReservationsElement = document.getElementById('modifiedReservations');
@@ -20909,7 +20930,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     return dateStr;
                 };
                 const futureReservations = reservations.filter(reservation => {
-                    if (norm(reservation.status) === 'cancelada') return false;
+                    const status = reservation.status || '';
+                    if (norm(status) === 'cancelada') return false;
                     const rawCheckIn = reservation.checkIn || reservation.check_in;
                     if (!rawCheckIn) return false;
                     const checkInDate = normalizeDate(rawCheckIn);
@@ -21076,15 +21098,25 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 return;
             }
             
-            // Mapeo de aliases de hoteles (alias -> nombre canónico para comparación)
+            // Mapeo de aliases de hoteles (alias -> nombre completo). Cualquier reserva con estos nombres/códigos matchea el hotel indicado.
             const hotelAliases = {
                 'HTP': 'Termas de Puyehue',
                 'htp': 'Termas de Puyehue',
+                'PUYEHUE': 'Termas de Puyehue',
+                'puyehue': 'Termas de Puyehue',
+                'Hotel Puyehue': 'Termas de Puyehue',
+                'hotel puyehue': 'Termas de Puyehue',
+                'Terma de Puyehue': 'Termas de Puyehue',
+                'Hotel Termas Puyehue': 'Termas de Puyehue',
                 'ACC': 'Termas Aguas calientes',
                 'acc': 'Termas Aguas calientes',
+                'Aguas Calientes': 'Termas Aguas calientes',
+                'aguas calientes': 'Termas Aguas calientes',
+                'Hotel Aguas Calientes': 'Termas Aguas calientes',
+                'Termas Aguas Calientes': 'Termas Aguas calientes',
+                'Termas Aguas calientes': 'Termas Aguas calientes',
                 'Termas de Puyehue': 'Termas de Puyehue',
                 'Termas de Aguas Calientes': 'Termas Aguas calientes',
-                'Termas Aguas calientes': 'Termas Aguas calientes',
                 'termas de puyehue': 'Termas de Puyehue',
                 'termas de aguas calientes': 'Termas Aguas calientes',
                 'termas aguas calientes': 'Termas Aguas calientes'
@@ -21132,42 +21164,55 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             // Aplicar filtro de hotel (buscar en camelCase y snake_case, y también por nombre/alias)
             if (filterHotelId && filterHotelId !== 'all') {
                 const initialCount = reservations.length;
+                // Normalizar el filterHotelId a string para comparar correctamente UUIDs
                 const normalizedFilterId = String(filterHotelId);
                 
+                // Obtener nombres posibles del hotel (nombre completo, alias, variaciones, etc.)
                 const hotelNamesToMatch = new Set();
-                const stopwords = new Set(['de', 'la', 'el', 'los', 'las', 'y', 'en', 'del', 'al', 'a']);
-                
-                function addHotelNameVariations(nameStr) {
-                    if (!nameStr || !nameStr.trim()) return;
-                    const hotelName = nameStr.toLowerCase().trim();
+                if (selectedHotelInfo) {
+                    const hotelName = (selectedHotelInfo.name || selectedHotelInfo.hotel_name || '').toLowerCase().trim();
+                    
+                    // Agregar el nombre completo
                     hotelNamesToMatch.add(hotelName);
+                    
+                    // Agregar variaciones del nombre (sin "Hotel" al inicio, con/sin guiones, etc.)
+                    // Ejemplo: "Hotel Huilo-Huilo" -> "huilo-huilo", "huilo huilo", "hotel huilo-huilo"
                     const nameWithoutHotel = hotelName.replace(/^hotel\s+/i, '').trim();
                     hotelNamesToMatch.add(nameWithoutHotel);
-                    hotelNamesToMatch.add(nameWithoutHotel.replace(/-/g, ' ').trim());
-                    hotelNamesToMatch.add(nameWithoutHotel.replace(/\s+/g, '-').trim());
-                    // Palabras significativas (para "Termas de Puyehue" -> puyehue, termas; "Aguas Calientes" -> aguas, calientes, aguas calientes)
-                    const words = nameWithoutHotel.split(/\s+/).filter(w => w.length > 2 && !stopwords.has(w.toLowerCase()));
-                    words.forEach(w => hotelNamesToMatch.add(w.toLowerCase()));
-                    if (words.length >= 2) {
-                        hotelNamesToMatch.add(words.slice(-2).join(' ').toLowerCase());
-                        hotelNamesToMatch.add(words.slice(0, 2).join(' ').toLowerCase());
-                    }
-                }
-                
-                if (selectedHotelInfo) {
-                    const hotelName = (selectedHotelInfo.name || selectedHotelInfo.hotel_name || '').trim();
-                    addHotelNameVariations(hotelName);
+                    
+                    // Variación con guión convertido a espacio
+                    const nameWithSpace = nameWithoutHotel.replace(/-/g, ' ').trim();
+                    hotelNamesToMatch.add(nameWithSpace);
+                    
+                    // Variación con espacio convertido a guión
+                    const nameWithDash = nameWithoutHotel.replace(/\s+/g, '-').trim();
+                    hotelNamesToMatch.add(nameWithDash);
+                    
+                    // Agregar alias si el nombre coincide con alguno conocido
                     Object.entries(hotelAliases).forEach(([alias, fullName]) => {
-                        if (fullName.toLowerCase() === hotelName.toLowerCase() || fullName.toLowerCase().replace(/^hotel\s+/i, '') === hotelName.toLowerCase().replace(/^hotel\s+/i, '')) {
+                        if (fullName.toLowerCase() === hotelName || fullName.toLowerCase() === nameWithoutHotel) {
                             hotelNamesToMatch.add(alias.toLowerCase());
                         }
                     });
+                    
                     console.log(`🔍 Nombres a buscar para "${selectedHotelInfo.name}":`, Array.from(hotelNamesToMatch));
+                }
+                
+                // Resolver nombre del hotel de la reserva por alias (case-insensitive)
+                function resolveHotelName(name) {
+                    if (!name || !name.trim()) return '';
+                    const n = name.trim().toLowerCase();
+                    const exact = hotelAliases[n] || hotelAliases[name.trim()];
+                    if (exact) return exact.toLowerCase();
+                    const byAlias = Object.entries(hotelAliases).find(([alias]) => alias.toLowerCase() === n);
+                    if (byAlias) return byAlias[1].toLowerCase();
+                    return n;
                 }
                 
                 reservations = reservations.filter(reservation => {
                     const hotelId = reservation.hotelId || reservation.hotel_id;
-                    const hotelName = (reservation.hotel_name || reservation.hotelName || '').toLowerCase().trim();
+                    const rawName = (reservation.hotel_name || reservation.hotelName || '').trim();
+                    const hotelName = rawName ? resolveHotelName(rawName) : (rawName || '').toLowerCase();
                     
                     let matchesById = false;
                     if (hotelId) {
@@ -21180,41 +21225,25 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                 matchesById = reservationNum === filterNum;
                             }
                         }
-                        // Si el hotel_id de la reserva es un alias (HTP, ACC), comprobar si corresponde al hotel seleccionado
-                        if (!matchesById && hotelAliases && typeof hotelId === 'string') {
-                            const aliasLower = hotelId.trim().toLowerCase();
-                            const mappedFull = hotelAliases[aliasLower] || hotelAliases[hotelId.trim()];
-                            if (mappedFull && selectedHotelInfo) {
-                                const selectedName = (selectedHotelInfo.name || selectedHotelInfo.hotel_name || '').toLowerCase();
-                                const mappedLower = (mappedFull || '').toLowerCase();
-                                if (selectedName === mappedLower || selectedName.includes(mappedLower) || mappedLower.includes(selectedName)) {
-                                    matchesById = true;
-                                }
-                            }
-                        }
                     }
                     
                     let matchesByName = false;
-                    if (hotelNamesToMatch.size > 0) {
-                        if (hotelName) {
-                            matchesByName = hotelNamesToMatch.has(hotelName) ||
-                                hotelNamesToMatch.has(hotelName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim()) ||
-                                hotelNamesToMatch.has(hotelName.replace(/\s+/g, '-').trim()) ||
-                                hotelNamesToMatch.has(hotelName.replace(/^hotel\s+/i, '').trim()) ||
-                                Array.from(hotelNamesToMatch).some(matchName => hotelName.includes(matchName) || matchName.includes(hotelName));
-                            if (!matchesByName && hotelAliases[hotelName]) {
-                                const mappedName = (hotelAliases[hotelName] || '').toLowerCase();
-                                matchesByName = hotelNamesToMatch.has(mappedName);
-                            }
+                    if (hotelName && hotelNamesToMatch.size > 0) {
+                        matchesByName = hotelNamesToMatch.has(hotelName);
+                        if (!matchesByName) {
+                            const reservationNameNormalized = hotelName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
+                            const reservationNameWithDash = hotelName.replace(/\s+/g, '-').trim();
+                            const reservationNameWithoutHotel = hotelName.replace(/^hotel\s+/i, '').trim();
+                            matchesByName = hotelNamesToMatch.has(reservationNameNormalized) ||
+                                          hotelNamesToMatch.has(reservationNameWithDash) ||
+                                          hotelNamesToMatch.has(reservationNameWithoutHotel) ||
+                                          Array.from(hotelNamesToMatch).some(matchName => {
+                                              return hotelName.includes(matchName) || matchName.includes(hotelName);
+                                          });
                         }
-                        // Reserva sin hotel_name pero con hotel_id que parece nombre o código
-                        if (!matchesByName && hotelId && typeof hotelId === 'string' && hotelId.length < 50 && !/^[0-9a-f-]{36}$/i.test(String(hotelId))) {
-                            const idAsName = String(hotelId).toLowerCase().trim();
-                            matchesByName = hotelNamesToMatch.has(idAsName) || Array.from(hotelNamesToMatch).some(m => m.includes(idAsName) || idAsName.includes(m));
-                            if (!matchesByName && hotelAliases[idAsName]) {
-                                const mapped = (hotelAliases[idAsName] || '').toLowerCase();
-                                matchesByName = hotelNamesToMatch.has(mapped);
-                            }
+                        if (!matchesByName) {
+                            const mapped = resolveHotelName(rawName);
+                            if (mapped) matchesByName = hotelNamesToMatch.has(mapped);
                         }
                     }
                     
@@ -22821,19 +22850,21 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
         
         // Campos estándar para importar reservas (nombre interno -> etiqueta)
+        // maxCols: campos que pueden formarse con varias columnas (ej. Puyehue: Cliente=nombre+apellido, Teléfono=país+ciudad+número, Agente=nombre+apellido)
         const IMPORT_RESERVATION_FIELDS = [
             { key: 'Código', label: 'Código de reserva', required: true },
-            { key: 'Cliente', label: 'Cliente / Huésped', required: true },
+            { key: 'Cliente', label: 'Cliente / Huésped', required: true, maxCols: 2 },
             { key: 'Hotel', label: 'Hotel', required: true },
             { key: 'Fecha Entrada', label: 'Fecha entrada (check-in)', required: true },
             { key: 'Fecha Salida', label: 'Fecha salida (check-out)', required: true },
             { key: 'Total', label: 'Total / Monto', required: true },
             { key: 'Email', label: 'Email', required: false },
-            { key: 'Teléfono', label: 'Teléfono', required: false },
+            { key: 'Teléfono', label: 'Teléfono', required: false, maxCols: 3 },
             { key: 'Fecha Registro', label: 'Fecha registro', required: false },
-            { key: 'Agente', label: 'Agente', required: false },
-            { key: 'Estado', label: 'Estado', required: false }
+            { key: 'Agente', label: 'Agente', required: false, maxCols: 2 },
+            { key: 'Estado', label: 'Estado', required: false, fixedOption: 'CONFIRMADA (fijo)' }
         ];
+        const IMPORT_ESTADO_FIJO_VALUE = '__FIJO_CONFIRMADA__';
 
         function downloadReservationsTemplate() {
             const headers = ['Código', 'Cliente', 'Hotel', 'Fecha Entrada', 'Fecha Salida', 'Total', 'Email', 'Teléfono', 'Fecha Registro', 'Agente', 'Estado'];
@@ -22917,14 +22948,28 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             if (!container) return;
             const emptyOpt = '<option value="">— No usar</option>';
             const options = excelHeaders.map(h => '<option value="' + escapeHtml(h) + '">' + escapeHtml(h) + '</option>').join('');
+            const maxCols = (f) => (f.maxCols && f.maxCols > 1) ? f.maxCols : 1;
             let html = '';
             IMPORT_RESERVATION_FIELDS.forEach(f => {
-                const id = 'map_' + f.key.replace(/\s/g, '_');
                 const req = f.required ? ' <span style="color:#c00;">*</span>' : '';
-                html += '<div style="display: grid; grid-template-columns: 160px 1fr; align-items: center; gap: 8px;">';
-                html += '<label for="' + id + '" style="font-size: 13px;">' + escapeHtml(f.label) + req + '</label>';
-                html += '<select id="' + id + '" data-field="' + escapeHtml(f.key) + '" style="padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;">' + emptyOpt + options + '</select>';
-                html += '</div>';
+                const cols = maxCols(f);
+                if (cols === 1) {
+                    const id = 'map_' + f.key.replace(/\s/g, '_');
+                    const estadoOpt = (f.key === 'Estado' && f.fixedOption) ? ('<option value="' + IMPORT_ESTADO_FIJO_VALUE + '">' + escapeHtml(f.fixedOption) + '</option>') : '';
+                    html += '<div style="display: grid; grid-template-columns: 160px 1fr; align-items: center; gap: 8px;">';
+                    html += '<label for="' + id + '" style="font-size: 13px;">' + escapeHtml(f.label) + req + '</label>';
+                    html += '<select id="' + id + '" data-field="' + escapeHtml(f.key) + '" style="padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px;">' + emptyOpt + estadoOpt + options + '</select>';
+                    html += '</div>';
+                } else {
+                    html += '<div style="display: grid; grid-template-columns: 160px 1fr; align-items: center; gap: 8px;">';
+                    html += '<label style="font-size: 13px;">' + escapeHtml(f.label) + req + ' <span style="color:#666;font-size:11px;">(' + cols + ' columnas)</span></label>';
+                    html += '<div style="display: flex; gap: 6px; flex-wrap: wrap;">';
+                    for (let i = 0; i < cols; i++) {
+                        const id = 'map_' + f.key.replace(/\s/g, '_') + (i > 0 ? '_' + (i + 1) : '');
+                        html += '<select id="' + id + '" data-field="' + escapeHtml(f.key) + '" data-col="' + i + '" style="padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; min-width: 100px;">' + emptyOpt + options + '</select>';
+                    }
+                    html += '</div></div>';
+                }
             });
             html += '<p style="grid-column: 1 / -1; font-size: 12px; color: #666; margin-top: 10px;">Asigná <strong>Fecha entrada</strong> a la columna con check-in (ej. <code>fecha_checkir</code>) y <strong>Fecha salida</strong> a check-out (ej. <code>fecha_checko</code>). Las fechas deben estar completas (ej. 14/12/2025 o D/MM/AAAA). Si salen en 1900, revisá que no estés mapeando una columna que solo tiene números.</p>';
             container.innerHTML = html;
@@ -22950,16 +22995,40 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         function getImportMapping() {
             const mapping = {};
             IMPORT_RESERVATION_FIELDS.forEach(f => {
-                const sel = document.querySelector('#map_' + f.key.replace(/\s/g, '_'));
-                if (sel && sel.value) mapping[f.key] = sel.value;
+                const baseId = 'map_' + f.key.replace(/\s/g, '_');
+                const maxCols = (f.maxCols && f.maxCols > 1) ? f.maxCols : 1;
+                if (maxCols === 1) {
+                    const sel = document.querySelector('#' + baseId);
+                    if (sel && sel.value) mapping[f.key] = sel.value;
+                } else {
+                    const values = [];
+                    for (let i = 0; i < maxCols; i++) {
+                        const id = baseId + (i > 0 ? '_' + (i + 1) : '');
+                        const sel = document.querySelector('#' + id);
+                        if (sel && sel.value) values.push(sel.value);
+                    }
+                    if (values.length) mapping[f.key] = values;
+                }
             });
             return mapping;
         }
 
         function getRowValue(row, fieldKey, mapping) {
-            const excelCol = mapping[fieldKey];
-            if (!excelCol) return '';
-            const v = row[excelCol];
+            const raw = mapping[fieldKey];
+            if (raw == null || raw === '') return '';
+            // Estado fijo para plantillas Puyehue / Aguas Calientes
+            if (fieldKey === 'Estado' && raw === IMPORT_ESTADO_FIJO_VALUE) return 'Confirmada';
+            // Varias columnas para un mismo campo (Cliente, Teléfono, Agente)
+            if (Array.isArray(raw)) {
+                const parts = raw.map(col => {
+                    const v = row[col];
+                    if (v == null) return '';
+                    return (typeof v === 'number' ? String(v) : String(v)).trim();
+                }).filter(Boolean);
+                const joinChar = (fieldKey === 'Teléfono') ? '' : ' ';
+                return parts.join(joinChar);
+            }
+            const v = row[raw];
             if (v == null) return '';
             if (typeof v === 'number' && (fieldKey === 'Total' || fieldKey === 'Código')) return String(v);
             return String(v).trim();
@@ -22986,10 +23055,39 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
         async function processImportFileWithMappingImpl(jsonData, mapping) {
             try {
-            const existingReservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+            // Si hay Supabase, usar la nube como fuente; si no, localStorage
+            let existingReservations = [];
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    const fromSupabase = await window.supabaseClient.getReservations();
+                    existingReservations = (fromSupabase || []).map(r => ({
+                        id: r.id,
+                        reservationCode: r.reservation_code || r.reservationCode,
+                        clientName: r.client_name || r.clientName,
+                        clientEmail: r.client_email || r.clientEmail,
+                        clientPhone: r.client_phone || r.clientPhone,
+                        hotelId: r.hotel_id || r.hotelId,
+                        hotelName: r.hotel_name || r.hotelName,
+                        checkIn: r.check_in || r.checkIn,
+                        checkOut: r.check_out || r.checkOut,
+                        reservationDate: r.reservation_date || r.reservationDate,
+                        agentName: r.agent_name || r.agentName,
+                        status: r.status,
+                        totalAmount: r.total_amount != null ? r.total_amount : r.totalAmount,
+                        createdAt: r.created_at || r.createdAt,
+                        updatedAt: r.updated_at || r.updatedAt
+                    }));
+                } catch (e) {
+                    console.warn('⚠️ No se pudieron cargar reservas desde Supabase, usando localStorage:', e);
+                    existingReservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+                }
+            } else {
+                existingReservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+            }
             const reservationsMap = new Map();
             existingReservations.forEach(res => {
-                if (res.reservationCode) reservationsMap.set(res.reservationCode, res);
+                const code = res.reservationCode || res.reservation_code;
+                if (code) reservationsMap.set(code, res);
             });
             let added = 0;
             let updated = 0;
@@ -23024,16 +23122,22 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             // Normalizar fechas (formato YYYY-MM-DD). Soporta CSV con fecha_checkir/fecha_checko (D/MM/YYYY o D/MM/YYYY HH:MM).
                             const normalizeDate = (dateStr) => {
                                 if (dateStr == null || dateStr === '') return '';
+                                
                                 const dateValue = String(dateStr).trim();
                                 if (!dateValue) return '';
+                                
+                                // Solo rechazar como "solo día" cuando el valor es LITERALMENTE un número suelto (ej. "27"), no "27/11/2025"
                                 const numericValue = typeof dateStr === 'number' ? dateStr : parseFloat(dateValue);
-                                // Solo rechazar como "solo día" cuando el valor es LITERALMENTE un número suelto (ej. "27"), no "27/11/2025" (parseFloat da 27 pero es fecha completa)
                                 const looksLikeFullDate = /\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(dateValue) || /^\d{4}[\/\-]/.test(dateValue);
                                 if (!looksLikeFullDate && !isNaN(numericValue) && numericValue >= 1 && numericValue <= 31 && (numericValue | 0) === numericValue) {
                                     console.warn('⚠️ Fecha inválida (solo día ' + numericValue + '). Asigná la columna con fecha completa (ej. fecha_checkir en formato 14/12/2025).');
                                     return '';
                                 }
+
+                                // Quitar hora si viene "D/MM/YYYY HH:MM" o "D/MM/YYYY HH:MM:SS"
                                 const dateOnly = dateValue.split(/\s+/)[0];
+                                
+                                // Número serial de Excel: solo si está en rango de fechas reales (año 2000+)
                                 const EXCEL_SERIAL_2000 = 36526;
                                 if (!isNaN(numericValue) && numericValue >= EXCEL_SERIAL_2000 && numericValue < 1000000) {
                                     const excelEpoch = new Date(1899, 11, 30);
@@ -23043,24 +23147,34 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                         return y + '-' + m + '-' + d;
                                     }
                                 }
+                                
                                 if (dateStr instanceof Date) {
                                     const y = dateStr.getFullYear(), m = String(dateStr.getMonth() + 1).padStart(2, '0'), d = String(dateStr.getDate()).padStart(2, '0');
                                     return y + '-' + m + '-' + d;
                                 }
+                                
                                 if (/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) return dateOnly;
+                                
                                 let date = null;
+                                // DD/MM/YYYY o D/MM/YYYY (con o sin hora ya quitada)
                                 if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateOnly)) {
                                     const parts = dateOnly.split('/');
                                     const p0 = parseInt(parts[0], 10), p1 = parseInt(parts[1], 10), year = parseInt(parts[2], 10);
-                                    if (p0 > 12) date = new Date(year, p1 - 1, p0);
-                                    else if (p1 > 12) date = new Date(year, p0 - 1, p1);
-                                    else { date = new Date(year, p1 - 1, p0); if (isNaN(date.getTime())) date = new Date(year, p0 - 1, p1); }
+                                    if (p0 > 12) {
+                                        date = new Date(year, p1 - 1, p0);
+                                    } else if (p1 > 12) {
+                                        date = new Date(year, p0 - 1, p1);
+                                    } else {
+                                        date = new Date(year, p1 - 1, p0);
+                                        if (isNaN(date.getTime())) date = new Date(year, p0 - 1, p1);
+                                    }
                                 } else if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(dateOnly)) {
                                     const parts = dateOnly.split('-');
                                     date = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
                                 } else {
                                     date = new Date(dateOnly);
                                 }
+                                
                                 if (date && !isNaN(date.getTime())) {
                                     const year = date.getFullYear();
                                     if (year >= 2000 && year <= 2100) {
@@ -23079,7 +23193,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                 errorMessages.push('Fila ' + (index + 2) + ': Fechas inválidas. Asigná columnas con fecha completa (ej. 14/12/2025).');
                                 return;
                             }
-                            
+
                             // Verificar si la reserva ya existe
                             const existingReservation = reservationsMap.get(reservationCode);
                             
@@ -23134,10 +23248,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         }
                     });
                     
-                    // Guardar en localStorage como backup
-                    localStorage.setItem('reservationsDB', JSON.stringify(existingReservations));
-                    
-                    // Subir SOLO las reservas nuevas/actualizadas a Supabase (no todas)
+                    // Subir a Supabase primero (fuente de verdad). Solo usar localStorage si no hay Supabase.
+                    const useSupabase = window.supabaseClient && window.supabaseClient.isInitialized();
                     let syncSuccess = false;
                     const totalToSync = added + updated;
                     
@@ -23170,7 +23282,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             // Procesar el lote en paralelo
                             const promises = batch.map(async (reservation) => {
                                 try {
-                                    // Validar que tenga datos requeridos y fechas válidas (no enviar "" a Supabase)
+                                    // Validar que tenga datos requeridos
                                     if (!reservation.reservationCode || !reservation.clientName) {
                                         console.warn('⚠️ Reserva sin datos requeridos, saltando:', reservation);
                                         return { success: false, skipped: true };
@@ -23179,7 +23291,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                         console.warn('⚠️ Reserva con fecha inválida, saltando:', reservation.reservationCode, { checkIn: reservation.checkIn, checkOut: reservation.checkOut });
                                         return { success: false, skipped: true };
                                     }
-                                    
+
                                     // Convertir a formato snake_case para Supabase
                                     const supabaseReservation = {
                                         reservation_code: reservation.reservationCode,
@@ -23223,12 +23335,26 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         console.log('ℹ️ No hay reservas nuevas para sincronizar');
                     }
                     
+                    // Solo guardar en localStorage cuando no hay Supabase (ahí es la única fuente)
+                    if (!useSupabase) {
+                        try {
+                            localStorage.setItem('reservationsDB', JSON.stringify(existingReservations));
+                        } catch (storageError) {
+                            const isQuota = storageError.name === 'QuotaExceededError' || storageError.code === 22;
+                            if (isQuota) {
+                                alert('⚠️ El navegador no tiene espacio para tantas reservas. Importá menos filas por vez.');
+                            } else {
+                                throw storageError;
+                            }
+                        }
+                    }
+                    
                     // Mostrar resumen
                     let message = `✅ Importación completada:\n`;
                     message += `• ${added} reservas agregadas\n`;
                     message += `• ${updated} reservas actualizadas\n`;
                     if (syncSuccess) {
-                        message += `• ☁️ Sincronizadas con la nube\n`;
+                        message += `• ☁️ Guardadas en la nube (Supabase)\n`;
                     }
                     if (errors > 0) {
                         message += `• ${errors} errores encontrados\n\n`;
@@ -24421,7 +24547,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 return null;
             }
         }
-
+        
         // Función para guardar usuario desde una cotización (misma deduplicación por email/teléfono que reservas)
         async function saveUserFromQuote(quoteData) {
             try {
@@ -24485,7 +24611,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 return null;
             }
         }
-
+        
         // Función para guardar usuario desde un chat (misma deduplicación por email/teléfono)
         async function saveUserFromChat(chatData) {
             try {
@@ -24542,7 +24668,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 return null;
             }
         }
-
+        
         // Función para actualizar la última actividad de un usuario
         function updateUserActivity(userEmail) {
             try {

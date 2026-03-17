@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-03-13T15:40:43Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 133; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-03-17T14:40:34Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 134; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">133</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">134</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -9998,16 +9998,20 @@ Ej:
             console.log('👁️ Viendo detalles de cotización:', quoteId);
             
             try {
+                // Buscar por id o por código; usar índice solo si quoteId es numérico (ej. "0", "1")
+                const byIdOrCode = (q) => q.id === quoteId || q.id == quoteId || String(q.code || '') === String(quoteId);
+                const byIndex = (quotes, id) => /^\d+$/.test(String(id)) ? quotes[parseInt(id, 10)] : undefined;
+                
                 // Buscar primero en localStorage
                 let quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
-                let quote = quotes.find(q => q.id === quoteId || quotes.indexOf(q) === parseInt(quoteId));
+                let quote = quotes.find(byIdOrCode) || byIndex(quotes, quoteId);
                 
                 // Si no se encuentra en localStorage, buscar en Supabase
                 if (!quote && window.supabaseClient && window.supabaseClient.isInitialized && window.supabaseClient.isInitialized()) {
                     console.log('🔍 Cotización no encontrada en localStorage, buscando en Supabase...');
                     try {
                         quotes = await window.supabaseClient.getQuotes();
-                        quote = quotes.find(q => q.id === quoteId || q.id == quoteId);
+                        quote = quotes.find(byIdOrCode) || byIndex(quotes, quoteId);
                         if (quote) {
                             console.log('✅ Cotización encontrada en Supabase');
                         }
@@ -10260,6 +10264,9 @@ Ej:
                                 <div style="font-weight: 600; color: #333;">Teléfono</div>
                                 <div style="color: #666;">${formatPhoneForDisplay(quote.clientPhone)}</div>
                             </div>
+                        </div>
+                        <div style="padding: 10px 15px; background: #e8f5e9; border-radius: 8px; border: 1px solid #4caf50; margin-top: 8px;">
+                            <strong style="color: #2e7d32;">📤 Se enviará a:</strong> <span style="color: #1b5e20;">${formatPhoneForDisplay(typeof normalizeQuotePhoneToE164 === 'function' ? normalizeQuotePhoneToE164(quote.clientPhone) : quote.clientPhone)}</span>
                         </div>
                         ` : ''}
                         
