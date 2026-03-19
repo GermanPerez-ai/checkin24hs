@@ -156,6 +156,7 @@ let isSyncingAppState = false; // Flag para indicar si se está sincronizando el
 // Si en esos 5s llega 1 solo mensaje → Flor responde esa consulta y queda atenta a la siguiente.
 // Si llegan varios en ese lapso → se acumulan y Flor responde a todos juntos. Sin límite de consultas por usuario.
 const FLOR_DELAY_MS = Math.max(0, parseInt(process.env.FLOR_DELAY_MS, 10) || 5000);
+const FLOR_SILENCE_MINUTES = Math.max(1, parseInt(process.env.FLOR_SILENCE_MINUTES || '10', 10) || 10);
 const florPendingByUser = new Map(); // key: remoteJid -> { timeoutId, messages: [{texto, ts}], nombre, numero }
 if (FLOR_DELAY_MS > 0) {
     console.log(`⏱️ Flor: delay ${FLOR_DELAY_MS}ms para agrupar mensajes. Usuario puede consultar las veces que quiera; 1 mensaje → 1 respuesta, varios en ${FLOR_DELAY_MS}ms → respuesta a todos.`);
@@ -182,8 +183,8 @@ Responder dudas sobre hoteles y servicios. PROHIBIDO dar precios por noche o cot
 **6. Link de cotización (CTA):**
 Solo enviá https://cotizar.checkin24hs.com/ cuando: pregunten por precios, cotización o reserva; o al cerrar un tema de venta; o cuando el cliente se muestre convencido ("me gusta", "lo voy a tomar", "perfecto", "quiero reservar"). NUNCA en saludos ni en respuestas informativas generales.
 
-**7. Protocolo de cierre y despedida:**
-Al enviar el link de cotización o cerrar la conversación, usá siempre: "¡Gracias por su consulta! 🙏". No repetir bloques informativos que ya se enviaron.
+**7. Protocolo de cierre y silencio:**
+Al enviar el link de cotización o cerrar la conversación, usá siempre: "¡Gracias por su consulta! 🙏". Después de un mensaje manual del asesor, Flor debe guardar **10 minutos de silencio** en ese chat antes de volver a intervenir. No repetir bloques informativos que ya se enviaron.
 
 **8. Escalación a humano:**
 Si piden "humano", "agente" o "asesor"; si no entendés la consulta tras un intento; si es una integración compleja → transferir de inmediato.
@@ -944,14 +945,28 @@ async function getFlorAIConfig() {
  * Comprobar si Flor está pausada para este chat (asesor envió mensaje/audio desde dashboard).
  * Si flor_paused_until > now() en whatsapp_chats, Flor no debe responder.
  */
+function normalizarCandidatosTelefono(phone) {
+    const raw = String(phone || '').trim();
+    const sinDominio = raw.replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '').trim();
+    const sinMas = sinDominio.replace(/^\+/, '').trim();
+    const soloDigitos = sinMas.replace(/\D/g, '').trim();
+    const conMas = soloDigitos ? `+${soloDigitos}` : '';
+    const jid = soloDigitos ? `${soloDigitos}@s.whatsapp.net` : '';
+    const candidatos = [raw, sinDominio, sinMas, soloDigitos, conMas, jid].filter(Boolean);
+    return [...new Set(candidatos)];
+}
+
 async function isFlorPausedForChat(phone, instanceNumber) {
     if (!supabase || !phone) return false;
     try {
+        const candidatos = normalizarCandidatosTelefono(phone);
         const { data, error } = await supabase
             .from('whatsapp_chats')
             .select('flor_paused_until')
-            .eq('phone', String(phone).trim())
+            .in('phone', candidatos)
             .eq('whatsapp_instance', instanceNumber || 1)
+            .order('updated_at', { ascending: false })
+            .limit(1)
             .maybeSingle();
         if (error || !data || !data.flor_paused_until) return false;
         const until = new Date(data.flor_paused_until).getTime();
@@ -968,7 +983,7 @@ async function isFlorPausedForChat(phone, instanceNumber) {
  * Pausar Flor para un chat por N minutos (ej: cuando Flor deriva a asesor humano, o cuando un humano envía mensaje desde el panel).
  * Actualiza flor_paused_until en whatsapp_chats por phone + whatsapp_instance, o por chatId si se indica.
  * @param {string} phone - Número del chat
- * @param {number} minutes - Minutos de pausa (ej: 20)
+ * @param {number} minutes - Minutos de pausa (ej: 10)
  * @param {string} [chatIdOptional] - Si viene del dashboard con chat_id, actualizar por id para no fallar con LID
  */
 async function setFlorPausedUntil(phone, minutes, chatIdOptional = null) {
@@ -983,7 +998,7 @@ async function setFlorPausedUntil(phone, minutes, chatIdOptional = null) {
         if (chatIdOptional && String(chatIdOptional).trim()) {
             q = q.eq('id', String(chatIdOptional).trim());
         } else {
-            q = q.eq('phone', String(phone).trim());
+            q = q.in('phone', normalizarCandidatosTelefono(phone));
         }
         const { error } = await q;
         if (error) {
@@ -2655,14 +2670,14 @@ async function connectToWhatsApp() {
         }
 
         for (const msg of messages) {
-            // Mensajes SALIENTES (enviados por humano desde WhatsApp app o dashboard): activar Modo Silencio 20 min
+            // Mensajes SALIENTES (enviados por humano desde WhatsApp app o dashboard): activar Modo Silencio 10 min
             if (msg.key.fromMe) {
                 const remoteJidOut = msg.key.remoteJid;
                 if (remoteJidOut) {
                     const phoneOut = String(remoteJidOut).replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '').trim();
                     if (phoneOut) {
-                        await setFlorPausedUntil(phoneOut, 20);
-                        console.log(`🔇 Modo Silencio: mensaje enviado por humano a ${phoneOut} → Flor pausada 20 min para este chat`);
+                        await setFlorPausedUntil(phoneOut, FLOR_SILENCE_MINUTES);
+                        console.log(`🔇 Modo Silencio: mensaje enviado por humano a ${phoneOut} → Flor pausada ${FLOR_SILENCE_MINUTES} min para este chat`);
                     }
                 }
                 continue;
@@ -2994,10 +3009,10 @@ async function connectToWhatsApp() {
                 }
                 const intentFlor = (typeof raw === 'object' && raw != null && raw.intent) ? raw.intent : 'consulta_general';
                 const usedAi = intentFlor !== 'rate_limit_429';
-                const pausarFlor20Min = (typeof raw === 'object' && raw != null && raw.pausarFlor20Min === true) || intentFlor === 'transferir';
-                if (pausarFlor20Min && p.numero) {
+                const pausarFlor = (typeof raw === 'object' && raw != null && raw.pausarFlor20Min === true) || intentFlor === 'transferir';
+                if (pausarFlor && p.numero) {
                     console.log(`📤 Slack: disparando alerta de escalación (transferir) para ${p.numero} — último mensaje: "${(combined || '').slice(0, 80)}..."`);
-                    await setFlorPausedUntil(p.numero, 20);
+                    await setFlorPausedUntil(p.numero, FLOR_SILENCE_MINUTES);
                     const phoneKeyForSlack = (p.numero && String(p.numero).replace(/\D/g, '')) || 'unknown';
                     await sendSlackEscalationAlert(p.nombre || p.numero, p.numero, florLastHotelByPhone.get(phoneKeyForSlack) || 'No definido', combined);
                 }
@@ -3631,7 +3646,7 @@ app.post('/api/send', async (req, res) => {
 
         const textoGuardado = mensajeParaEnvio.caption || mensajeParaEnvio.text || textoConEmoji;
         await guardarMensaje(num.replace(/@.*$/, ''), textoGuardado, true, null, null, chatIdFromDashboard || null);
-        await setFlorPausedUntil(num.replace(/@.*$/, ''), 20, chatIdFromDashboard || null);
+        await setFlorPausedUntil(num.replace(/@.*$/, ''), FLOR_SILENCE_MINUTES, chatIdFromDashboard || null);
 
         res.json({ success: true, message: 'Mensaje enviado' });
     } catch (error) {
@@ -3710,7 +3725,7 @@ app.post('/api/send-audio', async (req, res) => {
         const jid = num.includes('@') ? num : `${num}@s.whatsapp.net`;
         await sock.sendMessage(jid, { audio: buffer, mimetype: mime, ptt: true });
         await guardarMensaje(num.replace(/@.*$/, ''), '[Audio]', true, null, null, chatIdFromDashboard || null);
-        await setFlorPausedUntil(num.replace(/@.*$/, ''), 20, chatIdFromDashboard || null);
+        await setFlorPausedUntil(num.replace(/@.*$/, ''), FLOR_SILENCE_MINUTES, chatIdFromDashboard || null);
         res.json({ success: true, message: 'Audio enviado' });
     } catch (error) {
         console.error('Error enviando audio:', error);
@@ -3749,7 +3764,7 @@ app.post('/api/send-media', async (req, res) => {
         } else {
             return res.status(400).json({ error: 'type debe ser image, video o document' });
         }
-        await setFlorPausedUntil(num.replace(/@.*$/, ''), 20, chatIdFromDashboard || null);
+        await setFlorPausedUntil(num.replace(/@.*$/, ''), FLOR_SILENCE_MINUTES, chatIdFromDashboard || null);
         res.json({ success: true, message: 'Media enviado' });
     } catch (error) {
         console.error('Error enviando media:', error);
