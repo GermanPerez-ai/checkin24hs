@@ -10,7 +10,10 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 COPY whatsapp-server/package*.json ./
-RUN npm install --production
+# Instalar todas las deps explícitamente (el package.json del servidor puede estar incompleto)
+RUN npm install --production && \
+    npm install @whiskeysockets/baileys@^6.7.4 qrcode express cors socket.io @supabase/supabase-js axios link-preview-js @hapi/boom --save --no-package-lock && \
+    node -e "require('@whiskeysockets/baileys'); require('qrcode'); console.log('Deps OK');" || (echo "FATAL: faltan módulos" && exit 1)
 COPY whatsapp-server/whatsapp-server-baileys.js ./
 COPY whatsapp-server/whatsapp-server.js ./
 
