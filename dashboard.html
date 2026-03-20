@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-03-20T15:51:07Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 136; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-03-20T16:40:09Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 137; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">136</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">137</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -27476,9 +27476,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     // PROGRAMAS FLEXI (RF-ADM-001)
     // =====================================================
 
-    function openNewFlexiProgramModal() {
+    async function openNewFlexiProgramModal() {
         document.getElementById('newFlexiProgramForm').reset();
-        loadHotelsForFlexiProgram();
+        await loadHotelsForFlexiProgram();
         document.getElementById('newFlexiProgramModal').style.display = 'flex';
     }
 
@@ -27486,20 +27486,61 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         document.getElementById('newFlexiProgramModal').style.display = 'none';
     }
 
-    function loadHotelsForFlexiProgram() {
+    /** Activo en Supabase: active / activo / Activo / null (mismo criterio que el resto del dashboard) */
+    function flexiHotelEstaActivo(hotel) {
+        if (!hotel) return false;
+        const s = hotel.status ?? hotel.estado;
+        if (s == null || s === '') return true;
+        const sl = String(s).toLowerCase();
+        return sl === 'active' || sl === 'activo' || s === 'Activo';
+    }
+
+    async function loadHotelsForFlexiProgram() {
         const select = document.getElementById('flexiProgramHotel');
-        select.innerHTML = '<option value="">Seleccionar hotel...</option>';
-        
-        // Cargar hoteles desde el almacenamiento
-        const hoteles = JSON.parse(localStorage.getItem('hotels') || '[]');
-        hoteles.forEach(hotel => {
-            if (hotel.status === 'active' || hotel.estado === 'Activo') {
-                const option = document.createElement('option');
-                option.value = hotel.id || hotel.nombre;
-                option.textContent = hotel.nombre || hotel.name;
-                select.appendChild(option);
+        if (!select) return;
+        select.innerHTML = '<option value="">Cargando hoteles...</option>';
+
+        let hoteles = [];
+        try {
+            if (window.supabaseClient && typeof window.supabaseClient.isInitialized === 'function' && window.supabaseClient.isInitialized() && typeof window.supabaseClient.getHotels === 'function') {
+                hoteles = await window.supabaseClient.getHotels({ light: true }) || [];
+                console.log(`🎫 Flexi: ${hoteles.length} hoteles desde Supabase`);
+            } else {
+                const raw = localStorage.getItem('hotelsDB') || localStorage.getItem('hotels') || '[]';
+                hoteles = JSON.parse(raw);
+                console.log(`🎫 Flexi: ${hoteles.length} hoteles desde localStorage (hotelsDB/hotels)`);
             }
+        } catch (e) {
+            console.warn('🎫 Flexi: error cargando hoteles, usando localStorage:', e);
+            try {
+                const raw = localStorage.getItem('hotelsDB') || localStorage.getItem('hotels') || '[]';
+                hoteles = JSON.parse(raw);
+            } catch (e2) {
+                hoteles = [];
+            }
+        }
+
+        select.innerHTML = '<option value="">Seleccionar hotel...</option>';
+        const list = (hoteles || []).filter(flexiHotelEstaActivo);
+        let added = 0;
+        list.forEach(hotel => {
+            const id = hotel.id;
+            const name = hotel.name || hotel.nombre;
+            if (!id || !name) return;
+            const option = document.createElement('option');
+            option.value = String(id);
+            option.textContent = name;
+            select.appendChild(option);
+            added++;
         });
+        if (added === 0) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = 'No hay hoteles activos (revisá Supabase o sección Hoteles)';
+            opt.disabled = true;
+            select.appendChild(opt);
+            showNotification('⚠️ No hay hoteles para el desplegable Flexi. Cargá la sección Hoteles o revisá conexión a Supabase.', 'warning');
+        }
     }
 
     function saveFlexiProgram(event) {
