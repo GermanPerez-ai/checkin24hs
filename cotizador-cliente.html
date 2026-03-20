@@ -3,9 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cotizador - Checkin24hs</title>
+    <title>Cotizar - Checkin24hs</title>
+    
+    <!-- Open Graph / Facebook / WhatsApp Preview -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://cotizar.checkin24hs.com/">
+    <meta property="og:title" content="Cotizar - Checkin24hs">
+    <meta property="og:description" content="Cotiza tu estadía en los mejores hoteles de Chile. Completa tus datos y recibe una cotización personalizada.">
+    <meta property="og:image" content="https://dashboard.checkin24hs.com/og-cotizar.jpg?v=2">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Checkin24hs - Cotización de Hoteles">
+    <meta property="og:image:type" content="image/jpeg">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://cotizar.checkin24hs.com/">
+    <meta name="twitter:title" content="Cotizar - Checkin24hs">
+    <meta name="twitter:description" content="Cotiza tu estadía en los mejores hoteles de Chile. Completa tus datos y recibe una cotización personalizada.">
+    <meta name="twitter:image" content="https://dashboard.checkin24hs.com/og-cotizar.jpg?v=2">
+    
+    <!-- Meta Description -->
+    <meta name="description" content="Cotiza tu estadía en los mejores hoteles de Chile. Completa tus datos y recibe una cotización personalizada.">
+    <!-- Anti-caché: evita lista de hoteles vieja en móviles y otros dispositivos -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js?v=3.1.4"></script>
+    <script src="supabase-client.js?v=3.1.4" onerror="console.warn('supabase-client.js no encontrado');"></script>
+    <!-- Versión: 2026-01-21 - Modal de promociones -->
     <style>
         * {
             margin: 0;
@@ -123,8 +154,335 @@
             display: block;
         }
 
+        .btn-action {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        .btn-new-quote {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-new-quote:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-close {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+        }
+
+        .btn-close:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+        }
+
         .required {
             color: #dc3545;
+        }
+
+        .btn-promotions {
+            width: 100%;
+            padding: 12px 15px;
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .btn-promotions:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(76, 175, 80, 0.4);
+        }
+
+        .btn-promotions:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn-promotions:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        /* Modal de Promociones */
+        .promotions-modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.3s;
+        }
+
+        .promotions-modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .promotions-modal-content {
+            background-color: white;
+            margin: auto;
+            padding: 0;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: slideDown 0.3s;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .promotions-modal-header {
+            padding: 20px 25px;
+            border-bottom: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 16px 16px 0 0;
+        }
+
+        .promotions-modal-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+        }
+
+        .promotions-modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            transition: background-color 0.2s;
+        }
+
+        .promotions-modal-close:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .promotions-modal-body {
+            padding: 25px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .btn-select-promotion:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .promotion-card {
+            background: #f8f9fa;
+            border-left: 4px solid #4CAF50;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .promotion-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .promotion-name {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        /* Estilos para modal de validación de promoción */
+        .validation-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            animation: fadeIn 0.3s;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .validation-modal.show {
+            display: flex;
+        }
+
+        .validation-modal-content {
+            background-color: white;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            animation: slideDown 0.3s;
+            overflow: hidden;
+        }
+
+        .validation-modal-header {
+            padding: 20px 25px;
+            background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+            color: white;
+        }
+
+        .validation-modal-header h3 {
+            margin: 0;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .validation-modal-body {
+            padding: 25px;
+        }
+
+        .validation-modal-message {
+            color: #333;
+            line-height: 1.6;
+            margin-bottom: 25px;
+            font-size: 1rem;
+        }
+
+        .validation-modal-errors {
+            background: #fff3cd;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+
+        .validation-modal-errors ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .validation-modal-errors li {
+            margin-bottom: 8px;
+            color: #856404;
+        }
+
+        .validation-modal-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: flex-end;
+        }
+
+        .btn-validation {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 150px;
+        }
+
+        .btn-validation-review {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn-validation-review:hover {
+            background: #1976D2;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.4);
+        }
+
+        .btn-validation-send {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-validation-send:hover {
+            background: #45a049;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.4);
+        }
+
+        .promotion-description {
+            color: #666;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+
+        .promotion-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .promotion-detail {
+            font-size: 0.9rem;
+            color: #555;
+        }
+
+        .promotion-detail strong {
+            color: #333;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .promotion-empty {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+
+        .promotion-empty-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            opacity: 0.5;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
         }
 
         @media (max-width: 600px) {
@@ -141,8 +499,26 @@
             }
         }
     </style>
+    <!-- Meta Pixel Code -->
+    <script>
+    !function(f,b,e,v,n,t,s)
+    {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+    n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+    if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+    n.queue=[];t=b.createElement(e);t.async=!0;
+    t.src=v;s=b.getElementsByTagName(e)[0];
+    s.parentNode.insertBefore(t,s)}(window, document,'script',
+    'https://connect.facebook.net/en_US/fbevents.js');
+    fbq('init', '2130787774384870');
+    fbq('track', 'PageView');
+    </script>
+    <!-- End Meta Pixel Code -->
 </head>
 <body>
+    <!-- Meta Pixel (noscript): debe ir en body -->
+    <noscript><img height="1" width="1" style="display:none"
+    src="https://www.facebook.com/tr?id=2130787774384870&ev=PageView&noscript=1"
+    alt="" /></noscript>
     <div class="container">
         <div class="header">
             <h1>📋 Solicitar Cotización</h1>
@@ -153,29 +529,21 @@
         </div>
 
         <form id="quoteForm" onsubmit="submitQuote(event)" autocomplete="on">
-            <div class="form-row">
-                <div class="form-group">
-                    <label class="form-label">Nombre <span class="required">*</span></label>
-                    <input type="text" id="clientName" name="given-name" class="form-input" required 
-                           placeholder="Tu nombre" autocomplete="given-name">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Apellido <span class="required">*</span></label>
-                    <input type="text" id="clientLastName" name="family-name" class="form-input" required 
-                           placeholder="Tu apellido" autocomplete="family-name">
-                </div>
-            </div>
-
             <div class="form-group">
-                <label class="form-label">Email <span class="required">*</span></label>
-                <input type="email" id="clientEmail" name="email" class="form-input" required 
-                       placeholder="tu@email.com" autocomplete="email">
+                <label class="form-label">Nombre <span class="required">*</span></label>
+                <input type="text" id="clientName" name="given-name" class="form-input" required 
+                       placeholder="Tu nombre completo" autocomplete="name">
             </div>
 
             <div class="form-group">
                 <label class="form-label">Teléfono <span class="required">*</span></label>
                 <input type="tel" id="clientPhone" name="tel" class="form-input" required 
-                       placeholder="+54912345678" autocomplete="tel">
+                       placeholder="+56 9 1234 5678 o 54911 1234-5678" autocomplete="tel"
+                       inputmode="numeric" maxlength="20">
+                <small id="clientPhoneHint" style="color: #666; margin-top: 5px; display: block;">
+                    Con código de país (ej: Chile +56, Argentina +54). Así podremos enviarte la cotización por WhatsApp.
+                </small>
+                <small id="clientPhoneError" style="color: #dc3545; margin-top: 4px; display: none;"></small>
             </div>
 
             <div class="form-group">
@@ -183,6 +551,17 @@
                 <select id="hotel" name="organization" class="form-input" required autocomplete="organization">
                     <option value="">Seleccionar hotel</option>
                 </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Promociones vigentes</label>
+                <button type="button" id="promotionsBtn" class="btn-promotions" onclick="openPromotionsModal()" disabled>
+                    <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">local_offer</span>
+                    Ver Promociones
+                </button>
+                <small style="color: #666; margin-top: 5px; display: block;">
+                    Selecciona un hotel para ver las promociones vigentes
+                </small>
             </div>
 
             <div class="form-row">
@@ -205,7 +584,7 @@
             <div class="form-row-3">
                 <div class="form-group">
                     <label class="form-label">Adultos (+12 años) <span class="required">*</span></label>
-                    <input type="number" id="adults" name="adults" class="form-input" min="1" value="1" required autocomplete="off">
+                    <input type="number" id="adults" name="adults" class="form-input" min="1" value="2" required autocomplete="off">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Niños (5-11 años)</label>
@@ -215,16 +594,6 @@
                     <label class="form-label">Infantes (0-4 años)</label>
                     <input type="number" id="infants" name="infants" class="form-input" min="0" value="0" autocomplete="off">
                 </div>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label">Promoción (Opcional)</label>
-                <select id="promotion" name="promotion" class="form-input" autocomplete="off">
-                    <option value="">Sin promoción</option>
-                </select>
-                <small style="color: #666; margin-top: 5px; display: block;">
-                    Las promociones se cargan según el hotel seleccionado
-                </small>
             </div>
 
             <div class="form-group">
@@ -241,84 +610,737 @@
 
         <div id="successMessage" class="success-message">
             <h2 style="margin-bottom: 10px;">✅ ¡Cotización Enviada!</h2>
+            <p id="successCloudHint" style="display: none; margin: 12px 0; padding: 10px; background: #fff3cd; border-radius: 8px; color: #856404; font-size: 0.95rem;"></p>
             <p>Tu solicitud ha sido recibida. Te contactaremos pronto con tu cotización personalizada.</p>
+            <div style="display: flex; gap: 15px; margin-top: 20px; justify-content: center; flex-wrap: wrap;">
+                <button onclick="requestNewQuote()" class="btn-action btn-new-quote" style="flex: 1; min-width: 200px;">
+                    📋 Solicitar Nueva Cotización
+                </button>
+                <button onclick="closeQuotePage()" class="btn-action btn-close" style="flex: 1; min-width: 200px;">
+                    ✖️ Cerrar
+                </button>
+            </div>
         </div>
     </div>
 
     <script>
-        // Cargar hoteles desde localStorage del dashboard
-        function loadHotels() {
+        // Cargar hoteles desde Supabase o localStorage
+        async function loadHotels() {
+            const select = document.getElementById('hotel');
+            let hotels = [];
+            
+            // Intentar cargar desde Supabase primero (si está disponible)
             try {
-                const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-                const select = document.getElementById('hotel');
-                
-                hotels.forEach(hotel => {
-                    const option = document.createElement('option');
-                    option.value = hotel.id || hotel.name;
-                    option.textContent = hotel.name || 'Hotel sin nombre';
-                    select.appendChild(option);
-                });
-                
-                // Agregar evento para cargar promociones cuando se seleccione un hotel
-                select.addEventListener('change', loadPromotionsForHotel);
-            } catch (error) {
-                console.error('Error cargando hoteles:', error);
+                if (window.supabaseClient && window.supabaseClient.isInitialized && window.supabaseClient.isInitialized()) {
+                    hotels = await window.supabaseClient.getHotels();
+                    console.log('✅ Hoteles cargados desde Supabase:', hotels.length);
+                }
+            } catch (supabaseError) {
+                console.warn('⚠️ Error al cargar hoteles desde Supabase:', supabaseError);
             }
-        }
-
-        // Cargar promociones vigentes para el hotel seleccionado
-        function loadPromotionsForHotel() {
-            const hotelId = document.getElementById('hotel').value;
-            const promotionSelect = document.getElementById('promotion');
             
-            // Limpiar opciones existentes (excepto la primera)
-            promotionSelect.innerHTML = '<option value="">Sin promoción</option>';
+            // Fallback a localStorage (solo mostrar activos: status = 'active' o null)
+            if (!hotels || hotels.length === 0) {
+                try {
+                    const raw = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                    hotels = Array.isArray(raw) ? raw.filter(h => h && (h.status === 'active' || h.status === 'activo' || h.status === 'Activo' || h.status == null || h.status === '')) : [];
+                    console.log('✅ Hoteles cargados desde localStorage (solo activos):', hotels.length);
+                } catch (error) {
+                    console.error('❌ Error cargando hoteles:', error);
+                    hotels = [];
+                }
+            }
             
-            if (!hotelId) {
+            // Limpiar opciones existentes
+            select.innerHTML = '<option value="">Seleccionar hotel</option>';
+            
+            if (hotels.length === 0) {
+                const option = document.createElement('option');
+                option.value = '';
+                option.textContent = 'No hay hoteles disponibles';
+                option.disabled = true;
+                select.appendChild(option);
+                console.warn('⚠️ No se encontraron hoteles');
                 return;
             }
             
+            // Agregar hoteles al selector
+            hotels.forEach(hotel => {
+                const option = document.createElement('option');
+                option.value = hotel.id || hotel.name;
+                option.textContent = hotel.name || 'Hotel sin nombre';
+                select.appendChild(option);
+            });
+            
+            // Un solo listener (evita duplicados si loadHotels se llama más de una vez)
+            if (!select.dataset.promotionsChangeBound) {
+                select.addEventListener('change', loadPromotionsForHotel);
+                select.dataset.promotionsChangeBound = '1';
+            }
+        }
+
+        /**
+         * Aplica enlaces desde el portal (www.checkin24hs.com): ?hotel_id=&checkin=&checkout=&pax=
+         * Sin esto, el usuario llega con parámetros pero el desplegable sigue en "Seleccionar hotel"
+         * y la cotización puede no enviarse como se espera o no correlacionarse con el hotel elegido en la web.
+         */
+        function applyCotizadorDeepLinkParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const hotelIdParam = (urlParams.get('hotel_id') || urlParams.get('hotelId') || '').trim();
+            const select = document.getElementById('hotel');
+            if (!select) return;
+
+            if (hotelIdParam) {
+                let found = false;
+                for (let i = 0; i < select.options.length; i++) {
+                    if (String(select.options[i].value) === hotelIdParam) {
+                        select.selectedIndex = i;
+                        found = true;
+                        break;
+                    }
+                }
+                if (found) {
+                    console.log('✅ Hotel preseleccionado desde URL (portal Checkin24hs):', hotelIdParam);
+                    if (typeof loadPromotionsForHotel === 'function') {
+                        loadPromotionsForHotel();
+                    }
+                } else {
+                    console.warn('⚠️ hotel_id en URL no coincide con ningún hotel cargado:', hotelIdParam);
+                }
+            }
+
+            const checkinRaw = (urlParams.get('checkin') || urlParams.get('check_in') || '').trim();
+            const checkoutRaw = (urlParams.get('checkout') || urlParams.get('check_out') || '').trim();
+            const checkInEl = document.getElementById('checkIn');
+            if (checkinRaw && checkInEl) {
+                checkInEl.value = checkinRaw.substring(0, 10);
+            }
+            if (checkinRaw && checkoutRaw && checkInEl) {
+                const d0 = new Date(checkinRaw.substring(0, 10) + 'T12:00:00');
+                const d1 = new Date(checkoutRaw.substring(0, 10) + 'T12:00:00');
+                if (!isNaN(d0.getTime()) && !isNaN(d1.getTime()) && d1 > d0) {
+                    const nNights = Math.round((d1.getTime() - d0.getTime()) / 86400000);
+                    const nightsEl = document.getElementById('nights');
+                    if (nightsEl && nNights >= 1) {
+                        nightsEl.value = String(nNights);
+                    }
+                }
+            }
+            const paxRaw = urlParams.get('pax') || urlParams.get('adults');
+            if (paxRaw) {
+                const a = parseInt(paxRaw, 10);
+                const adultsEl = document.getElementById('adults');
+                if (adultsEl && !isNaN(a) && a >= 1) {
+                    adultsEl.value = String(a);
+                }
+            }
+            if (typeof calculateCheckOut === 'function') {
+                calculateCheckOut();
+            }
+        }
+
+        /** Origen para Supabase (contact_origin): portal vs cotizador directo / redes */
+        function getQuoteContactOrigin() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const utm = urlParams.get('utm_source') || urlParams.get('source');
+            if (utm) return String(utm).substring(0, 120);
             try {
-                // Cargar promociones del hotel desde localStorage
-                const hotelPromotions = JSON.parse(localStorage.getItem(`promotions_${hotelId}`) || '[]');
+                if (/checkin24hs\.com/i.test(document.referrer || '')) return 'portal_checkin24hs';
+            } catch (e) { /* ignore */ }
+            const s = typeof detectSource === 'function' ? detectSource() : 'unknown';
+            return s !== 'unknown' ? s : 'cotizador_directo';
+        }
+
+        // Variable global para almacenar promociones
+        let currentPromotions = [];
+        let currentHotelName = '';
+        let selectedPromotion = null; // Promoción seleccionada por el cliente
+
+        // Cargar promociones vigentes para el hotel seleccionado
+        async function loadPromotionsForHotel() {
+            const hotelId = document.getElementById('hotel').value;
+            const promotionsBtn = document.getElementById('promotionsBtn');
+            const hotelSelect = document.getElementById('hotel');
+            const selectedOption = hotelSelect.options[hotelSelect.selectedIndex];
+            const hotelName = selectedOption ? selectedOption.text : '';
+            
+            if (!hotelId) {
+                promotionsBtn.disabled = true;
+                promotionsBtn.innerHTML = '<span class="material-icons" style="vertical-align: middle; margin-right: 8px;">local_offer</span> Ver Promociones';
+                currentPromotions = [];
+                currentHotelName = '';
+                selectedPromotion = null; // Limpiar promoción seleccionada al cambiar hotel
+                return;
+            }
+            
+            promotionsBtn.disabled = true;
+            promotionsBtn.innerHTML = '<span class="material-icons" style="vertical-align: middle; margin-right: 8px;">hourglass_empty</span> Cargando...';
+            
+            console.log('🔍 Buscando promociones para:', {
+                hotelId: hotelId,
+                hotelName: hotelName
+            });
+            
+            try {
+                // Intentar cargar promociones por ID primero
+                let hotelPromotions = JSON.parse(localStorage.getItem(`promotions_${hotelId}`) || '[]');
+                console.log(`📋 Promociones encontradas con ID "${hotelId}":`, hotelPromotions.length);
+                
+                // Si no hay promociones por ID, buscar en todas las claves posibles
+                if (hotelPromotions.length === 0) {
+                    // Buscar en todas las claves de localStorage que empiecen con "promotions_"
+                    const allKeys = Object.keys(localStorage);
+                    const promotionKeys = allKeys.filter(key => key.startsWith('promotions_'));
+                    console.log('🔍 Todas las claves de promociones en localStorage:', promotionKeys);
+                    
+                    // Intentar diferentes variantes del ID/nombre
+                    const possibleKeys = [
+                        `promotions_${hotelId}`,
+                        `promotions_${hotelName}`,
+                        `promotions_${hotelName.toLowerCase()}`,
+                        `promotions_${hotelName.toUpperCase()}`,
+                        `promotions_${hotelName.replace(/\s+/g, '_')}`,
+                        `promotions_${hotelName.replace(/\s+/g, '-')}`
+                    ];
+                    
+                    // También buscar por ID numérico si el hotelId es un string que parece número
+                    if (!isNaN(hotelId)) {
+                        possibleKeys.push(`promotions_${parseInt(hotelId)}`);
+                    }
+                    
+                    console.log('🔍 Probando claves posibles:', possibleKeys);
+                    
+                    for (const key of possibleKeys) {
+                        if (promotionKeys.includes(key)) {
+                            const testPromotions = JSON.parse(localStorage.getItem(key) || '[]');
+                            if (testPromotions.length > 0) {
+                                console.log(`✅ Promociones encontradas en clave "${key}":`, testPromotions.length);
+                                hotelPromotions = testPromotions;
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Si aún no hay promociones, mostrar todas las claves disponibles para debug
+                    if (hotelPromotions.length === 0) {
+                        console.warn('⚠️ No se encontraron promociones. Claves disponibles:', promotionKeys);
+                        console.warn('⚠️ Hotel ID usado:', hotelId);
+                        console.warn('⚠️ Hotel Name usado:', hotelName);
+                    }
+                }
+                
+                console.log(`📊 Total de promociones encontradas en localStorage: ${hotelPromotions.length}`);
+                
+                // Si no hay promociones en localStorage, intentar buscar en Supabase
+                if (hotelPromotions.length === 0 && window.supabaseClient && window.supabaseClient.isInitialized && window.supabaseClient.isInitialized()) {
+                    try {
+                        console.log('🔍 Intentando buscar promociones en Supabase...');
+                        const supabasePromotions = await window.supabaseClient.getPromotions(hotelId);
+                        
+                        if (supabasePromotions && supabasePromotions.length > 0) {
+                            console.log(`✅ Encontradas ${supabasePromotions.length} promociones en Supabase`);
+                            hotelPromotions = supabasePromotions;
+                        } else {
+                            console.log('ℹ️ No se encontraron promociones en Supabase para este hotel');
+                        }
+                    } catch (supabaseError) {
+                        console.warn('⚠️ Error buscando promociones en Supabase:', supabaseError.message);
+                    }
+                }
                 
                 // Filtrar solo promociones activas/vigentes
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 
                 const activePromotions = hotelPromotions.filter(promo => {
-                    if (promo.status !== 'active') return false;
+                    // Verificar status (active o undefined se consideran activas)
+                    if (promo.status && promo.status !== 'active') {
+                        console.log(`⏸️ Promoción ${promo.id} no está activa (status: ${promo.status})`);
+                        return false;
+                    }
                     
-                    // Verificar si la promoción está vigente
+                    // Verificar si la promoción está vigente (aún no ha expirado)
                     const startDate = promo.startDate ? new Date(promo.startDate) : null;
                     const endDate = promo.endDate ? new Date(promo.endDate) : null;
                     
                     if (startDate) startDate.setHours(0, 0, 0, 0);
                     if (endDate) endDate.setHours(23, 59, 59, 999);
                     
-                    if (startDate && today < startDate) return false;
-                    if (endDate && today > endDate) return false;
+                    // La promoción está vigente si aún no ha expirado (today <= endDate)
+                    if (endDate && today > endDate) {
+                        console.log(`⏰ Promoción ${promo.id} expirada (fin: ${promo.endDate})`);
+                        return false;
+                    }
                     
                     return true;
                 });
                 
-                if (activePromotions.length === 0) {
-                    return;
-                }
+                console.log(`✅ Promociones vigentes encontradas: ${activePromotions.length}`);
                 
-                // Agregar promociones al selector
-                activePromotions.forEach(promo => {
-                    const option = document.createElement('option');
-                    option.value = promo.id || promo.title;
-                    option.textContent = `${promo.title || 'Promoción'}${promo.discount ? ` - ${promo.discount}% desc.` : ''}`;
-                    option.setAttribute('data-promo', JSON.stringify(promo));
-                    promotionSelect.appendChild(option);
+                // Guardar promociones globalmente
+                currentPromotions = activePromotions;
+                currentHotelName = hotelName;
+                
+                // Actualizar botón
+                if (activePromotions.length === 0) {
+                    promotionsBtn.disabled = true;
+                    promotionsBtn.innerHTML = '<span class="material-icons" style="vertical-align: middle; margin-right: 8px;">local_offer</span> Sin promociones';
+                } else {
+                    promotionsBtn.disabled = false;
+                    promotionsBtn.innerHTML = `<span class="material-icons" style="vertical-align: middle; margin-right: 8px;">local_offer</span> Ver ${activePromotions.length} Promoción${activePromotions.length > 1 ? 'es' : ''}`;
+                }
+            } catch (error) {
+                console.error('❌ Error cargando promociones:', error);
+                promotionsBtn.disabled = true;
+                promotionsBtn.innerHTML = '<span class="material-icons" style="vertical-align: middle; margin-right: 8px;">error</span> Error al cargar';
+                currentPromotions = [];
+                currentHotelName = '';
+            }
+        }
+
+        // Abrir modal de promociones
+        function openPromotionsModal() {
+            console.log('🔍 Abriendo modal de promociones...');
+            console.log('📊 Promociones actuales:', currentPromotions);
+            console.log('🏨 Hotel actual:', currentHotelName);
+            
+            let modal = document.getElementById('promotionsModal');
+            if (!modal) {
+                console.log('📝 Creando modal...');
+                createPromotionsModal();
+                modal = document.getElementById('promotionsModal');
+            }
+            
+            if (!modal) {
+                console.error('❌ Error: No se pudo crear el modal');
+                alert('Error al abrir el modal de promociones. Por favor, recarga la página.');
+                return;
+            }
+            
+            const modalElement = document.getElementById('promotionsModal');
+            const body = document.getElementById('promotionsModalBody');
+            
+            if (!body) {
+                console.error('❌ Error: No se encontró el body del modal');
+                return;
+            }
+            
+            // Actualizar contenido del modal
+            if (currentPromotions.length === 0) {
+                console.log('ℹ️ No hay promociones para mostrar');
+                body.innerHTML = `
+                    <div class="promotion-empty">
+                        <div class="promotion-empty-icon">🏨</div>
+                        <p style="font-size: 1.1rem; margin-bottom: 8px;">No hay promociones vigentes</p>
+                        <p style="font-size: 0.9rem; color: #999;">Este hotel no tiene promociones disponibles en este momento.</p>
+                    </div>
+                `;
+            } else {
+                body.innerHTML = currentPromotions.map((promo, index) => {
+                    const promoName = promo.name || promo.type || 'Promoción';
+                    
+                    // Calcular estado: vigente o programada
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    
+                    let status = 'Programada';
+                    let statusColor = '#ff9800'; // Naranja para programada
+                    
+                    if (promo.startDate && promo.endDate) {
+                        const startDate = new Date(promo.startDate);
+                        startDate.setHours(0, 0, 0, 0);
+                        const endDate = new Date(promo.endDate);
+                        endDate.setHours(23, 59, 59, 999);
+                        
+                        // Si hoy está entre la fecha de inicio y fin, está vigente
+                        if (today >= startDate && today <= endDate) {
+                            status = 'Vigente';
+                            statusColor = '#4caf50'; // Verde para vigente
+                        }
+                    }
+                    
+                    // Comparar promoción seleccionada (por id, name o type)
+                    const isSelected = selectedPromotion && (
+                        (selectedPromotion.id && promo.id && selectedPromotion.id === promo.id) ||
+                        (selectedPromotion.name && promo.name && selectedPromotion.name === promo.name) ||
+                        (selectedPromotion.type && promo.type && selectedPromotion.type === promo.type && 
+                         selectedPromotion.description === promo.description)
+                    );
+                    return `
+                        <div class="promotion-card" style="${isSelected ? 'border: 3px solid #667eea; background: #f0f4ff;' : ''}">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+                                <div class="promotion-name" style="flex: 1; margin-bottom: 0;">${promoName}</div>
+                                <span style="background: ${statusColor}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.85rem; font-weight: 500; white-space: nowrap; margin-left: 10px;">${status}</span>
+                            </div>
+                            <div class="promotion-description" style="margin-bottom: 15px;">${promo.description || 'Promoción especial disponible'}</div>
+                            ${isSelected ? `
+                                <div style="background: #4caf50; color: white; padding: 8px 12px; border-radius: 6px; text-align: center; font-weight: 500; margin-bottom: 10px;">
+                                    ✓ Promoción seleccionada
+                                </div>
+                            ` : ''}
+                            <button onclick="selectPromotionByIndex(${index})" 
+                                    class="btn-select-promotion" 
+                                    style="width: 100%; padding: 10px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: 500; cursor: pointer; transition: all 0.3s ease;">
+                                ${isSelected ? '✓ Promoción Seleccionada' : '🎯 Elegir esta opción'}
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            // Mostrar modal
+            console.log('✅ Mostrando modal...');
+            modalElement.classList.add('show');
+            console.log('✅ Modal mostrado. Clases:', modalElement.className);
+        }
+
+        // Seleccionar una promoción por índice
+        function selectPromotionByIndex(index) {
+            console.log('🔍 selectPromotionByIndex llamado con índice:', index);
+            console.log('📊 currentPromotions.length:', currentPromotions.length);
+            console.log('📋 currentPromotions:', currentPromotions);
+            
+            if (index < 0 || index >= currentPromotions.length) {
+                console.error('❌ Índice de promoción inválido:', index);
+                alert('❌ Error: No se pudo encontrar la promoción seleccionada.');
+                return;
+            }
+            
+            const promo = currentPromotions[index];
+            console.log('✅ Promoción encontrada:', promo);
+            selectPromotion(promo);
+        }
+
+        // Seleccionar una promoción
+        function selectPromotion(promo) {
+            console.log('🎯 Promoción seleccionada:', promo);
+            selectedPromotion = promo;
+            
+            // Cerrar el modal primero
+            closePromotionsModal();
+            
+            // Mensaje de confirmación eliminado (ya no se muestra alert)
+            const promoName = promo.name || promo.type || 'Promoción';
+            
+            // Actualizar el botón de promociones para mostrar que hay una seleccionada
+            const promotionsBtn = document.getElementById('promotionsBtn');
+            if (promotionsBtn) {
+                promotionsBtn.innerHTML = `<span class="material-icons" style="vertical-align: middle; margin-right: 8px;">check_circle</span> Promoción Seleccionada: ${promoName}`;
+                promotionsBtn.style.background = 'linear-gradient(135deg, #4caf50 0%, #45a049 100%)';
+            }
+        }
+
+        // Validar que los datos de la cotización estén dentro del rango de la promoción seleccionada
+        function validatePromotionRange(checkIn, nights, promotion) {
+            if (!promotion) {
+                return { valid: true, message: '' };
+            }
+            
+            const errors = [];
+            const promoName = promotion.name || promotion.type || 'Promoción';
+            
+            // Validar fechas de compra (si aplica) - usar startDate y endDate
+            if (promotion.startDate && promotion.endDate) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const promoStart = new Date(promotion.startDate);
+                promoStart.setHours(0, 0, 0, 0);
+                const promoEnd = new Date(promotion.endDate);
+                promoEnd.setHours(23, 59, 59, 999);
+                
+                // Verificar si la fecha de compra está dentro del rango
+                if (today < promoStart || today > promoEnd) {
+                    errors.push(`La fecha de compra debe estar entre ${promoStart.toLocaleDateString('es-ES', {day: '2-digit', month: 'long', year: 'numeric'})} y ${promoEnd.toLocaleDateString('es-ES', {day: '2-digit', month: 'long', year: 'numeric'})}`);
+                }
+            }
+            
+            // Validar fechas de viaje (check-in) - SIEMPRE verificar si hay fechas de viaje
+            // Primero intentar con travelStartDate/travelEndDate, luego con startDate/endDate
+            let travelStart = null;
+            let travelEnd = null;
+            
+            console.log('🔍 Validando fechas de viaje para promoción:', promotion.name || promotion.type);
+            console.log('📅 Campos de fecha en promoción:', {
+                travelStartDate: promotion.travelStartDate || promotion.travel_start_date,
+                travelEndDate: promotion.travelEndDate || promotion.travel_end_date,
+                startDate: promotion.startDate || promotion.start_date,
+                endDate: promotion.endDate || promotion.end_date
+            });
+            
+            if (promotion.travelStartDate && promotion.travelEndDate) {
+                // Usar fechas de viaje específicas si existen
+                travelStart = new Date(promotion.travelStartDate);
+                travelStart.setHours(0, 0, 0, 0);
+                travelEnd = new Date(promotion.travelEndDate);
+                travelEnd.setHours(23, 59, 59, 999);
+                console.log('✅ Usando fechas de viaje específicas:', travelStart, travelEnd);
+            } else if (promotion.travel_start_date && promotion.travel_end_date) {
+                // Intentar con snake_case
+                travelStart = new Date(promotion.travel_start_date);
+                travelStart.setHours(0, 0, 0, 0);
+                travelEnd = new Date(promotion.travel_end_date);
+                travelEnd.setHours(23, 59, 59, 999);
+                console.log('✅ Usando fechas de viaje (snake_case):', travelStart, travelEnd);
+            } else if (promotion.startDate && promotion.endDate) {
+                // Si no hay fechas de viaje específicas, usar las fechas generales como fechas de viaje
+                travelStart = new Date(promotion.startDate);
+                travelStart.setHours(0, 0, 0, 0);
+                travelEnd = new Date(promotion.endDate);
+                travelEnd.setHours(23, 59, 59, 999);
+                console.log('✅ Usando fechas generales como fechas de viaje:', travelStart, travelEnd);
+            } else if (promotion.start_date && promotion.end_date) {
+                // Intentar con snake_case
+                travelStart = new Date(promotion.start_date);
+                travelStart.setHours(0, 0, 0, 0);
+                travelEnd = new Date(promotion.end_date);
+                travelEnd.setHours(23, 59, 59, 999);
+                console.log('✅ Usando fechas generales (snake_case) como fechas de viaje:', travelStart, travelEnd);
+            }
+            
+            // SIEMPRE validar la fecha de check-in si hay fechas de viaje disponibles
+            if (travelStart && travelEnd) {
+                const checkInDate = new Date(checkIn);
+                checkInDate.setHours(0, 0, 0, 0);
+                
+                console.log('📅 Comparando fechas:', {
+                    checkIn: checkInDate,
+                    travelStart: travelStart,
+                    travelEnd: travelEnd,
+                    checkInBeforeStart: checkInDate < travelStart,
+                    checkInAfterEnd: checkInDate > travelEnd
                 });
                 
-                console.log(`✅ ${activePromotions.length} promociones cargadas para el hotel`);
-            } catch (error) {
-                console.error('Error cargando promociones:', error);
+                if (checkInDate < travelStart || checkInDate > travelEnd) {
+                    const errorMsg = `La fecha de check-in (${checkInDate.toLocaleDateString('es-ES', {day: '2-digit', month: 'long', year: 'numeric'})}) debe estar entre ${travelStart.toLocaleDateString('es-ES', {day: '2-digit', month: 'long', year: 'numeric'})} y ${travelEnd.toLocaleDateString('es-ES', {day: '2-digit', month: 'long', year: 'numeric'})}`;
+                    console.log('❌ Error de fecha de viaje:', errorMsg);
+                    errors.push(errorMsg);
+                } else {
+                    console.log('✅ Fecha de check-in válida');
+                }
+            } else {
+                // Si no hay fechas de viaje definidas, pero hay una promoción, advertir
+                console.warn('⚠️ Promoción sin fechas de viaje definidas:', promotion.name || promotion.type);
             }
+            
+            // Validar cantidad mínima de noches (buscar en diferentes campos posibles)
+            let minNights = promotion.minNights || promotion.min_nights;
+            
+            // Si no hay minNights explícito, buscar en la descripción
+            if (!minNights && promotion.description) {
+                const descLower = promotion.description.toLowerCase();
+                
+                // Buscar "2 noches o más" o "2 noches o mas"
+                if (descLower.includes('2 noches o más') || descLower.includes('2 noches o mas')) {
+                    minNights = 2;
+                    console.log('✅ Detectado "2 noches o más" en descripción');
+                } else {
+                    // Buscar patrones como "desde X noche" o "X noche"
+                    const desdeMatch = promotion.description.match(/desde\s+(\d+)\s+noche/i);
+                    if (desdeMatch) {
+                        minNights = parseInt(desdeMatch[1]);
+                        console.log('✅ Detectado "desde X noche" en descripción:', minNights);
+                    } else {
+                        const nocheMatch = promotion.description.match(/(\d+)\s+noche/i);
+                        if (nocheMatch) {
+                            minNights = parseInt(nocheMatch[1]);
+                            console.log('✅ Detectado "X noche" en descripción:', minNights);
+                        }
+                    }
+                }
+            }
+            
+            console.log('🌙 Validando noches:', { minNights, nights, promotion: promotion.name || promotion.type });
+            
+            if (minNights && nights < minNights) {
+                const errorMsg = `Esta promoción requiere un mínimo de ${minNights} noche(s). Has seleccionado ${nights} noche(s)`;
+                console.log('❌ Error de noches:', errorMsg);
+                errors.push(errorMsg);
+            } else if (minNights) {
+                console.log('✅ Noches válidas');
+            }
+            
+            // Validar cantidad máxima de noches (si aplica)
+            const maxNights = promotion.maxNights || promotion.max_nights;
+            if (maxNights && nights > maxNights) {
+                const errorMsg = `Esta promoción permite un máximo de ${maxNights} noche(s). Has seleccionado ${nights} noche(s)`;
+                console.log('❌ Error de noches máximas:', errorMsg);
+                errors.push(errorMsg);
+            }
+            
+            if (errors.length > 0) {
+                return {
+                    valid: false,
+                    message: `❌ La cotización no es válida para la promoción "${promoName}":\n\n${errors.join('\n')}\n\nPor favor, ajusta las fechas o la cantidad de noches según los requisitos de la promoción.`
+                };
+            }
+            
+            return { valid: true, message: '' };
+        }
+
+        // Cerrar modal de promociones
+        function closePromotionsModal() {
+            const modal = document.getElementById('promotionsModal');
+            if (modal) {
+                modal.classList.remove('show');
+            }
+        }
+
+        // Variable para almacenar la función de continuación del envío
+        let pendingQuoteSubmission = null;
+
+        // Mostrar modal de validación de promoción
+        function showPromotionValidationModal(validationResult, promotionName, onReview, onSendAnyway) {
+            // Crear o obtener el modal
+            let modal = document.getElementById('promotionValidationModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'promotionValidationModal';
+                modal.className = 'validation-modal';
+                document.body.appendChild(modal);
+                
+                // Agregar listener para cerrar al hacer clic fuera (solo una vez)
+                modal.addEventListener('click', function(e) {
+                    if (e.target === modal) {
+                        closePromotionValidationModal();
+                    }
+                });
+            }
+
+            // Extraer los errores del mensaje de manera más precisa
+            const errorMessage = validationResult.message || '';
+            // Dividir por líneas y filtrar líneas vacías, emojis y mensajes genéricos
+            let errors = errorMessage.split('\n')
+                .map(line => line.trim())
+                .filter(line => {
+                    return line.length > 0 && 
+                           !line.includes('❌') && 
+                           !line.includes('Por favor') &&
+                           !line.includes('La cotización no es válida') &&
+                           !line.includes('ajusta las fechas');
+                });
+
+            // Si no se encontraron errores específicos, usar el mensaje completo (sin el prefijo)
+            if (errors.length === 0 && errorMessage) {
+                const cleanMessage = errorMessage
+                    .replace(/^❌\s*La cotización no es válida para la promoción[^:]*:\s*/i, '')
+                    .replace(/\n\nPor favor[^\n]*/i, '')
+                    .trim();
+                if (cleanMessage) {
+                    errors = [cleanMessage];
+                }
+            }
+
+            modal.innerHTML = `
+                <div class="validation-modal-content">
+                    <div class="validation-modal-header">
+                        <h3>
+                            <span>⚠️</span>
+                            Validación de Promoción
+                        </h3>
+                    </div>
+                    <div class="validation-modal-body">
+                        <div class="validation-modal-message">
+                            <p style="margin-bottom: 15px; font-weight: 500;">
+                                La promoción <strong>"${promotionName}"</strong> no cumple con los datos ingresados:
+                            </p>
+                        </div>
+                        ${errors.length > 0 ? `
+                        <div class="validation-modal-errors">
+                            <ul>
+                                ${errors.map(error => `<li>${error}</li>`).join('')}
+                            </ul>
+                        </div>
+                        ` : `
+                        <div class="validation-modal-errors">
+                            <p>Los datos ingresados no cumplen con los requisitos de la promoción seleccionada.</p>
+                        </div>
+                        `}
+                        <div class="validation-modal-buttons">
+                            <button class="btn-validation btn-validation-review" onclick="handleReviewPromotion()">
+                                📝 Revisar para modificar
+                            </button>
+                            <button class="btn-validation btn-validation-send" onclick="handleSendAnyway()">
+                                ✅ Enviar igual y recibir la cotización
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Guardar callbacks
+            modal.onReview = onReview;
+            modal.onSendAnyway = onSendAnyway;
+
+            // Mostrar modal
+            modal.classList.add('show');
+        }
+
+        // Cerrar modal de validación
+        function closePromotionValidationModal() {
+            const modal = document.getElementById('promotionValidationModal');
+            if (modal) {
+                modal.classList.remove('show');
+            }
+        }
+
+        // Manejar botón "Revisar para modificar"
+        function handleReviewPromotion() {
+            const modal = document.getElementById('promotionValidationModal');
+            closePromotionValidationModal();
+            console.log('👤 Usuario eligió revisar y modificar');
+            
+            // Ejecutar el callback de "revisar" si existe (aunque normalmente no hace nada)
+            if (modal && modal.onReview) {
+                modal.onReview();
+            }
+        }
+
+        // Manejar botón "Enviar igual"
+        function handleSendAnyway() {
+            const modal = document.getElementById('promotionValidationModal');
+            closePromotionValidationModal();
+            console.log('✅ Usuario eligió enviar igual');
+            
+            // Ejecutar el callback de "enviar igual" si existe
+            if (modal && modal.onSendAnyway) {
+                modal.onSendAnyway();
+            } else if (pendingQuoteSubmission) {
+                // Fallback a la función pendiente si el callback no está disponible
+                pendingQuoteSubmission();
+                pendingQuoteSubmission = null;
+            }
+        }
+
+        // Crear modal de promociones
+        function createPromotionsModal() {
+            const modal = document.createElement('div');
+            modal.id = 'promotionsModal';
+            modal.className = 'promotions-modal';
+            modal.innerHTML = `
+                <div class="promotions-modal-content">
+                    <div class="promotions-modal-header">
+                        <h2>🎉 Promociones Vigentes - ${currentHotelName || 'Hotel'}</h2>
+                        <button class="promotions-modal-close" onclick="closePromotionsModal()" aria-label="Cerrar">&times;</button>
+                    </div>
+                    <div class="promotions-modal-body" id="promotionsModalBody">
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            
+            // Cerrar al hacer clic fuera del modal
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    closePromotionsModal();
+                }
+            });
+            
+            // Cerrar con tecla ESC
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && modal.classList.contains('show')) {
+                    closePromotionsModal();
+                }
+            });
         }
 
         // Calcular fecha de check-out basado en check-in y noches
@@ -333,9 +1355,20 @@
                 return;
             }
             
-            const checkInDate = new Date(checkIn);
+            // Crear fecha de check-in (usar solo la fecha, sin hora para evitar problemas de zona horaria)
+            const checkInParts = checkIn.split('-');
+            const checkInDate = new Date(parseInt(checkInParts[0]), parseInt(checkInParts[1]) - 1, parseInt(checkInParts[2]));
+            
+            // Calcular check-out sumando las noches (días)
             const checkOutDate = new Date(checkInDate);
             checkOutDate.setDate(checkOutDate.getDate() + nights);
+            
+            console.log('📅 Cálculo de fechas:', {
+                checkIn: checkIn,
+                nights: nights,
+                checkInDate: checkInDate.toISOString().split('T')[0],
+                checkOutDate: checkOutDate.toISOString().split('T')[0]
+            });
             
             // Formatear fecha
             const formattedDate = checkOutDate.toLocaleDateString('es-ES', {
@@ -349,41 +1382,192 @@
             display.style.display = 'block';
         }
 
+        // Generar código aleatorio de 5 caracteres (2 números + 3 letras mayúsculas)
+        function generateQuoteCode() {
+            // Generar 2 números aleatorios (0-9)
+            const numbers = [];
+            for (let i = 0; i < 2; i++) {
+                numbers.push(Math.floor(Math.random() * 10));
+            }
+            
+            // Generar 3 letras mayúsculas aleatorias (A-Z)
+            const letters = [];
+            const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            for (let i = 0; i < 3; i++) {
+                letters.push(alphabet.charAt(Math.floor(Math.random() * alphabet.length)));
+            }
+            
+            // Combinar números y letras en orden aleatorio
+            const allChars = [...numbers, ...letters];
+            // Mezclar el array
+            for (let i = allChars.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [allChars[i], allChars[j]] = [allChars[j], allChars[i]];
+            }
+            
+            // Convertir a string
+            return allChars.join('');
+        }
+
         // Enviar cotización
-        function submitQuote(event) {
+        async function submitQuote(event) {
             event.preventDefault();
+            console.log('📋 Iniciando envío de cotización...');
             
             // Obtener valores
             const clientName = document.getElementById('clientName').value.trim();
-            const clientLastName = document.getElementById('clientLastName').value.trim();
-            const clientFullName = `${clientName} ${clientLastName}`.trim();
-            const clientEmail = document.getElementById('clientEmail').value.trim();
             const clientPhone = document.getElementById('clientPhone').value.trim();
             const hotelId = document.getElementById('hotel').value;
-            const hotelName = document.getElementById('hotel').selectedOptions[0].text;
+            const hotelSelect = document.getElementById('hotel');
+            const hotelName = hotelSelect.selectedOptions[0] ? hotelSelect.selectedOptions[0].text : '';
             const checkIn = document.getElementById('checkIn').value;
-            const nights = parseInt(document.getElementById('nights').value) || 1;
-            const adults = parseInt(document.getElementById('adults').value) || 1;
-            const children = parseInt(document.getElementById('children').value) || 0;
-            const infants = parseInt(document.getElementById('infants').value) || 0;
-            const promotionId = document.getElementById('promotion').value;
-            const promotionData = document.getElementById('promotion').selectedOptions[0]?.getAttribute('data-promo');
+            const nightsInput = document.getElementById('nights');
+            const nights = parseInt(nightsInput.value) || 0;
+            const adultsInput = document.getElementById('adults');
+            const adults = parseInt(adultsInput.value) || 0;
+            const childrenInput = document.getElementById('children');
+            const children = parseInt(childrenInput.value) || 0;
+            const infantsInput = document.getElementById('infants');
+            const infants = parseInt(infantsInput.value) || 0;
+            
+            // Validar todos los campos obligatorios
+            let validationErrors = [];
+            
+            // Validar nombre del cliente
+            if (!clientName || clientName.trim() === '') {
+                validationErrors.push('El nombre del cliente es obligatorio');
+                document.getElementById('clientName').focus();
+            }
+            
+            // Validar teléfono del cliente (formato válido para WhatsApp)
+            const phoneValidation = validatePhone(clientPhone);
+            if (!clientPhone || clientPhone.trim() === '') {
+                validationErrors.push('El teléfono del cliente es obligatorio');
+                setPhoneFieldError('El teléfono es obligatorio.');
+                if (validationErrors.length === 1) {
+                    document.getElementById('clientPhone').focus();
+                }
+            } else if (!phoneValidation.valid) {
+                validationErrors.push(phoneValidation.error || 'Teléfono inválido');
+                setPhoneFieldError(phoneValidation.error || 'Ingresa un número válido con código de país.');
+                if (validationErrors.length === 1) {
+                    document.getElementById('clientPhone').focus();
+                }
+            } else {
+                setPhoneFieldError('');
+            }
+            
+            // Validar hotel
+            if (!hotelId || hotelId.trim() === '' || !hotelName || hotelName.trim() === '' || 
+                hotelName.toLowerCase().includes('sin hotel') || hotelName.toLowerCase().includes('seleccionar hotel') ||
+                hotelName.toLowerCase().includes('no hay hoteles')) {
+                validationErrors.push('Debes seleccionar un hotel válido');
+                if (validationErrors.length === 1) {
+                    hotelSelect.focus();
+                }
+            }
+            
+            // Validar check-in
+            if (!checkIn || checkIn.trim() === '') {
+                validationErrors.push('La fecha de check-in es obligatoria');
+                if (validationErrors.length === 1) {
+                    document.getElementById('checkIn').focus();
+                }
+            } else {
+                // Validar que la fecha de check-in no sea en el pasado
+                const checkInDate = new Date(checkIn);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                if (checkInDate < today) {
+                    validationErrors.push('La fecha de check-in no puede ser en el pasado');
+                    if (validationErrors.length === 1) {
+                        document.getElementById('checkIn').focus();
+                    }
+                }
+            }
+            
+            // Validar cantidad de noches
+            if (!nights || nights < 1 || isNaN(nights)) {
+                validationErrors.push('La cantidad de noches debe ser al menos 1');
+                if (validationErrors.length === 1) {
+                    nightsInput.focus();
+                }
+            }
+            
+            // Validar cantidad de adultos
+            if (!adults || adults < 1 || isNaN(adults)) {
+                validationErrors.push('Debe haber al menos 1 adulto');
+                if (validationErrors.length === 1) {
+                    adultsInput.focus();
+                }
+            }
+            
+            // Validar que children e infants sean números válidos (pueden ser 0)
+            if (isNaN(children) || children < 0) {
+                validationErrors.push('La cantidad de niños debe ser un número válido (puede ser 0)');
+                if (validationErrors.length === 1) {
+                    childrenInput.focus();
+                }
+            }
+            
+            if (isNaN(infants) || infants < 0) {
+                validationErrors.push('La cantidad de infantes debe ser un número válido (puede ser 0)');
+                if (validationErrors.length === 1) {
+                    infantsInput.focus();
+                }
+            }
+            
+            // Si hay errores de validación, mostrar mensaje y no continuar
+            if (validationErrors.length > 0) {
+                const errorMessage = '❌ Por favor, completa todos los campos obligatorios:\n\n' + 
+                                    validationErrors.map((error, index) => `${index + 1}. ${error}`).join('\n') +
+                                    '\n\nEl único campo opcional es "Mensaje o consulta adicional".';
+                alert(errorMessage);
+                console.error('❌ Errores de validación:', validationErrors);
+                return;
+            }
+            
+            // Usar teléfono normalizado (solo dígitos) y corregir código de país si falta (ej. 92944210725 → 5492944210725)
+            let phoneToSave = phoneValidation.valid ? phoneValidation.normalized : normalizePhoneForWhatsApp(clientPhone);
+            phoneToSave = normalizePhoneToE164(phoneToSave);
+
+            // Función interna para continuar con el envío de la cotización
+            const continueQuoteSubmission = async () => {
+                let quoteSavedToCloud = false;
+                console.log('✅ Validaciones pasadas. Cliente:', clientName, 'Teléfono (normalizado):', phoneToSave);
+            // Generar texto de promociones desde las promociones cargadas
+            const promotionText = currentPromotions.length > 0 
+                ? currentPromotions.map(p => {
+                    const name = p.name || p.type || 'Promoción';
+                    const discount = p.discount ? ` (${p.discount}% desc.)` : '';
+                    return `${name}${discount}`;
+                }).join(', ')
+                : null;
             const notes = document.getElementById('notes').value.trim();
             
-            // Calcular check-out
-            const checkInDate = new Date(checkIn);
-            const checkOutDate = new Date(checkInDate);
-            checkOutDate.setDate(checkOutDate.getDate() + nights);
-            const checkOut = checkOutDate.toISOString().split('T')[0];
+            // Calcular check-out (usar solo la fecha para evitar problemas de zona horaria)
+            const checkInParts = checkIn.split('-');
+            const checkInDateObj = new Date(parseInt(checkInParts[0]), parseInt(checkInParts[1]) - 1, parseInt(checkInParts[2]));
+            const checkOutDateObj = new Date(checkInDateObj);
+            checkOutDateObj.setDate(checkOutDateObj.getDate() + nights);
+            const checkOut = checkOutDateObj.toISOString().split('T')[0];
             
-            // Formatear fechas
-            const checkInFormatted = new Date(checkIn).toLocaleDateString('es-ES', {
+            console.log('📅 Cálculo de check-out en submit:', {
+                checkIn: checkIn,
+                nights: nights,
+                checkOut: checkOut,
+                checkInDate: checkInDateObj.toISOString().split('T')[0],
+                checkOutDate: checkOutDateObj.toISOString().split('T')[0]
+            });
+            
+            // Formatear fechas (usar las fechas calculadas correctamente)
+            const checkInFormatted = checkInDateObj.toLocaleDateString('es-ES', {
                 weekday: 'long',
                 year: 'numeric',
                 month: 'long',
                 day: 'numeric'
             });
-            const checkOutFormatted = checkOutDate.toLocaleDateString('es-ES', {
+            const checkOutFormatted = checkOutDateObj.toLocaleDateString('es-ES', {
                 weekday: 'long',
                 year: 'numeric',
                 month: 'long',
@@ -395,19 +1579,22 @@
             if (children > 0) travelersDesc += `, ${children} niño${children > 1 ? 's' : ''} (5-11 años)`;
             if (infants > 0) travelersDesc += `, ${infants} infante${infants > 1 ? 's' : ''} (0-4 años)`;
             
-            // Obtener datos de la promoción si fue seleccionada
-            let promotionInfo = null;
-            if (promotionData) {
-                try {
-                    promotionInfo = JSON.parse(promotionData);
-                } catch (e) {
-                    console.error('Error parseando promoción:', e);
-                }
+            // Generar código único de cotización
+            const quoteCode = generateQuoteCode();
+            console.log('🔑 Código generado:', quoteCode, `(${quoteCode.length} caracteres)`);
+            
+            // Validar nuevamente antes de crear la cotización (doble verificación)
+            if (!hotelId || !hotelName || hotelName.toLowerCase().includes('sin hotel') || 
+                hotelName.toLowerCase().includes('seleccionar hotel') || hotelName.toLowerCase().includes('no hay hoteles')) {
+                console.error('❌ Validación fallida: Hotel inválido');
+                alert('❌ Error: No se puede crear una cotización sin un hotel válido seleccionado.');
+                return;
             }
             
             // Crear objeto de cotización
             const quote = {
                 id: 'COT-' + Date.now(),
+                code: quoteCode, // Código de 5 caracteres (2 números + 3 letras mayúsculas)
                 hotel: hotelName,
                 hotelId: hotelId,
                 checkIn: checkIn,
@@ -418,50 +1605,462 @@
                 children: children,
                 infants: infants,
                 travelers: travelersDesc,
-                promotion: promotionInfo ? {
-                    id: promotionInfo.id,
-                    title: promotionInfo.title,
-                    discount: promotionInfo.discount
-                } : null,
+                promotion: promotionText || null, // Guardar el texto de promociones vigentes
+                selectedPromotionId: selectedPromotion ? selectedPromotion.id : null, // ID de la promoción seleccionada
+                selectedPromotionName: selectedPromotion ? (selectedPromotion.name || selectedPromotion.type || 'Promoción') : null, // Nombre de la promoción seleccionada
                 tariff: 0, // Pendiente de asignar
                 discount: 0,
                 finalTariff: 0, // Pendiente de asignar
-                clientName: clientFullName,
-                clientFirstName: clientName,
-                clientLastName: clientLastName,
-                clientEmail: clientEmail,
-                clientPhone: clientPhone,
+                clientName: clientName,
+                clientPhone: phoneToSave,
                 notes: notes,
                 status: 'pending',
                 timestamp: new Date().toISOString(),
-                source: 'cliente'
+                source: 'cliente',
+                contact_origin: getQuoteContactOrigin()
             };
             
             // Guardar en localStorage (compartido con dashboard)
-            const quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
-            quotes.push(quote);
-            localStorage.setItem('quotesDB', JSON.stringify(quotes));
+            try {
+                const quotes = JSON.parse(localStorage.getItem('quotesDB') || '[]');
+                quotes.push(quote);
+                localStorage.setItem('quotesDB', JSON.stringify(quotes));
+                console.log('✅ Cotización guardada en localStorage. Total:', quotes.length);
+                console.log('📋 Datos de la cotización:', {
+                    code: quote.code,
+                    cliente: quote.clientName,
+                    telefono: quote.clientPhone,
+                    hotel: quote.hotel
+                });
+            } catch (localError) {
+                console.error('❌ Error guardando en localStorage:', localError);
+                if (localError.name === 'QuotaExceededError') {
+                    console.error('⚠️ localStorage está lleno. Intentando guardar solo en Supabase...');
+                }
+            }
             
-            console.log('✅ Cotización guardada:', quote);
+            // Intentar guardar en Supabase si está disponible
+            console.log('🔍 🔍 🔍 VERIFICANDO SUPABASE...');
+            console.log('   window.supabaseClient existe?', !!window.supabaseClient);
+            console.log('   window.supabaseClient:', window.supabaseClient);
             
-            // Mostrar mensaje de éxito
-            document.getElementById('successMessage').classList.add('show');
-            document.getElementById('quoteForm').style.display = 'none';
+            if (window.supabaseClient) {
+                console.log('   isInitialized es función?', typeof window.supabaseClient.isInitialized === 'function');
+                if (typeof window.supabaseClient.isInitialized === 'function') {
+                    try {
+                        const isInit = window.supabaseClient.isInitialized();
+                        console.log('   ✅ Supabase inicializado?', isInit);
+                    } catch (initError) {
+                        console.error('   ❌ Error al verificar inicialización:', initError);
+                    }
+                } else {
+                    console.warn('   ⚠️ isInitialized NO es una función');
+                }
+            } else {
+                console.warn('   ⚠️ window.supabaseClient NO existe');
+            }
+            
+            const canUseSupabase = window.supabaseClient && 
+                                   typeof window.supabaseClient.isInitialized === 'function' && 
+                                   window.supabaseClient.isInitialized();
+            
+            console.log('🔍 ¿Puedo usar Supabase?', canUseSupabase);
+            
+            if (canUseSupabase) {
+                try {
+                    console.log('☁️ ☁️ ☁️ INTENTANDO GUARDAR EN SUPABASE...');
+                    console.log('📤 Enviando cotización completa:', quote);
+                    console.log('📤 Código de la cotización:', quote.code);
+                    
+                    const savedQuote = await window.supabaseClient.createQuote(quote);
+                    quoteSavedToCloud = true;
+                    
+                    console.log('✅ ✅ ✅ ✅ ✅ ÉXITO TOTAL: Cotización guardada en Supabase');
+                    console.log('📋 Respuesta de Supabase:', savedQuote);
+                    console.log('📋 ID:', savedQuote.id);
+                    console.log('📋 Código:', savedQuote.code);
+                    console.log('📋 Cliente:', savedQuote.clientName || savedQuote.customer_name);
+                    
+                    // Mostrar notificación de éxito
+                    if (typeof showNotification === 'function') {
+                        showNotification(`✅ Cotización guardada en la nube con código: ${savedQuote.code}`, 'success');
+                    }
+                } catch (error) {
+                    console.error('❌ ❌ ❌ ❌ ❌ ERROR CRÍTICO guardando en Supabase:');
+                    console.error('   Tipo de error:', error.constructor.name);
+                    console.error('   Mensaje:', error.message);
+                    console.error('   Código:', error.code);
+                    console.error('   Detalles:', error.details);
+                    console.error('   Hint:', error.hint);
+                    console.error('   Stack:', error.stack);
+                    console.error('   Error completo:', error);
+                    console.warn('⚠️ La cotización se guardó en localStorage como respaldo');
+                    
+                    // Mostrar notificación de error
+                    if (typeof showNotification === 'function') {
+                        showNotification('⚠️ Error al guardar en la nube, pero se guardó localmente', 'warning');
+                    }
+                }
+            } else {
+                console.warn('⚠️ Supabase no disponible, solo se guardó en localStorage');
+                if (!window.supabaseClient) {
+                    console.warn('⚠️ window.supabaseClient no existe. Verifica que supabase-client.js esté cargado.');
+                } else if (typeof window.supabaseClient.isInitialized !== 'function') {
+                    console.warn('⚠️ isInitialized no es una función');
+                } else if (!window.supabaseClient.isInitialized()) {
+                    console.warn('⚠️ Supabase no está inicializado. Verifica la configuración en supabase-config.js');
+                }
+            }
+            
+            // Mostrar mensaje de éxito SIEMPRE (incluso si Supabase falló, porque se guardó en localStorage)
+            console.log('✅ Mostrando mensaje de éxito...');
+            const successMessage = document.getElementById('successMessage');
+            const quoteForm = document.getElementById('quoteForm');
+            
+            if (successMessage) {
+                successMessage.classList.add('show');
+                const cloudHint = document.getElementById('successCloudHint');
+                if (cloudHint) {
+                    if (quoteSavedToCloud) {
+                        cloudHint.style.display = 'none';
+                        cloudHint.textContent = '';
+                    } else if (canUseSupabase) {
+                        cloudHint.style.display = 'block';
+                        cloudHint.innerHTML = '⚠️ <strong>No se pudo confirmar el guardado en el sistema del equipo.</strong> Tu navegador guardó una copia local; si necesitás la cotización urgente, <a href="https://wa.me/5492944411580" target="_blank" rel="noopener">escribinos por WhatsApp</a>. El administrador puede revisar la consola (F12) y la política RLS de <code>quotes</code> en Supabase.';
+                    } else {
+                        cloudHint.style.display = 'block';
+                        cloudHint.textContent = '⚠️ El cotizador no está conectado al servidor (falta configuración de Supabase en este sitio). Tu solicitud quedó solo en este navegador — el equipo no la verá en Cotizaciones hasta corregir supabase-config.js.';
+                    }
+                }
+                console.log('✅ Mensaje de éxito mostrado');
+            } else {
+                console.error('❌ No se encontró el elemento successMessage');
+            }
+            
+            if (quoteForm) {
+                quoteForm.style.display = 'none';
+            } else {
+                console.error('❌ No se encontró el elemento quoteForm');
+            }
             
             // Scroll al mensaje
-            document.getElementById('successMessage').scrollIntoView({ behavior: 'smooth' });
+            if (successMessage) {
+                successMessage.scrollIntoView({ behavior: 'smooth' });
+            }
+            
+            console.log('✅ Proceso de envío completado');
+            };
+
+            // Validar promoción seleccionada (si hay una)
+            if (selectedPromotion) {
+                const promotionValidation = validatePromotionRange(checkIn, nights, selectedPromotion);
+                if (!promotionValidation.valid) {
+                    console.error('❌ Validación de promoción fallida:', promotionValidation.message);
+                    
+                    // Mostrar modal de validación con opciones
+                    const promoName = selectedPromotion.name || selectedPromotion.type || 'Promoción';
+                    showPromotionValidationModal(
+                        promotionValidation,
+                        promoName,
+                        () => {
+                            // Callback para "Revisar para modificar" - no hacer nada, el usuario puede modificar
+                            console.log('👤 Usuario eligió revisar y modificar');
+                        },
+                        () => {
+                            // Callback para "Enviar igual" - continuar con el envío
+                            console.log('✅ Usuario eligió enviar igual, continuando con el envío...');
+                            continueQuoteSubmission();
+                        }
+                    );
+                    
+                    // Guardar la función de continuación para que esté disponible cuando el usuario elija "Enviar igual"
+                    pendingQuoteSubmission = continueQuoteSubmission;
+                    
+                    return; // No continuar hasta que el usuario elija una opción
+                }
+                console.log('✅ Promoción válida:', selectedPromotion.name || selectedPromotion.type);
+            }
+            
+            // Si la promoción es válida o no hay promoción seleccionada, continuar directamente
+            continueQuoteSubmission();
+        }
+
+        // Detectar desde dónde se abrió la página
+        function detectSource() {
+            const referrer = document.referrer.toLowerCase();
+            const userAgent = navigator.userAgent.toLowerCase();
+            
+            // Detectar WhatsApp
+            if (referrer.includes('whatsapp') || userAgent.includes('whatsapp')) {
+                return 'whatsapp';
+            }
+            
+            // Detectar Instagram
+            if (referrer.includes('instagram') || userAgent.includes('instagram')) {
+                return 'instagram';
+            }
+            
+            // Detectar Facebook
+            if (referrer.includes('facebook') || userAgent.includes('facebook')) {
+                return 'facebook';
+            }
+            
+            // Detectar desde parámetros de URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const source = urlParams.get('source') || urlParams.get('utm_source');
+            if (source) {
+                return source.toLowerCase();
+            }
+            
+            return 'unknown';
+        }
+
+        // Función para solicitar nueva cotización
+        function requestNewQuote() {
+            console.log('📋 Solicitando nueva cotización...');
+            
+            // Ocultar mensaje de éxito
+            const successMessage = document.getElementById('successMessage');
+            if (successMessage) {
+                successMessage.classList.remove('show');
+            }
+            const cloudHint = document.getElementById('successCloudHint');
+            if (cloudHint) {
+                cloudHint.style.display = 'none';
+                cloudHint.textContent = '';
+            }
+            
+            // Mostrar formulario
+            const quoteForm = document.getElementById('quoteForm');
+            if (quoteForm) {
+                quoteForm.style.display = 'block';
+                quoteForm.reset();
+                
+                // Restablecer valores por defecto
+                const today = new Date().toISOString().split('T')[0];
+                document.getElementById('checkIn').setAttribute('min', today);
+                document.getElementById('nights').value = 1;
+                document.getElementById('adults').value = 2;
+                document.getElementById('children').value = 0;
+                document.getElementById('infants').value = 0;
+                
+                // Limpiar promociones
+                currentPromotions = [];
+                currentHotelName = '';
+                selectedPromotion = null; // Limpiar promoción seleccionada
+                const promotionsBtn = document.getElementById('promotionsBtn');
+                if (promotionsBtn) {
+                    promotionsBtn.disabled = true;
+                    promotionsBtn.innerHTML = '<span class="material-icons" style="vertical-align: middle; margin-right: 8px;">local_offer</span> Ver Promociones';
+                }
+                
+                // Scroll al formulario
+                quoteForm.scrollIntoView({ behavior: 'smooth' });
+                
+                console.log('✅ Formulario reiniciado');
+            }
+        }
+
+        // Función para cerrar la página
+        function closeQuotePage() {
+            console.log('✖️ Cerrando página...');
+            
+            const source = detectSource();
+            console.log('🔍 Origen detectado:', source);
+            
+            // Intentar regresar según el origen
+            if (source === 'whatsapp' || source === 'instagram' || source === 'facebook') {
+                // Si hay historial, intentar regresar
+                if (window.history.length > 1) {
+                    console.log('⬅️ Regresando a la aplicación anterior...');
+                    window.history.back();
+                    
+                    // Si después de 1 segundo no se cerró, intentar cerrar la ventana
+                    setTimeout(() => {
+                        if (!document.hidden) {
+                            console.log('⚠️ No se pudo regresar, intentando cerrar ventana...');
+                            window.close();
+                        }
+                    }, 1000);
+                } else {
+                    // Si no hay historial, intentar cerrar la ventana
+                    console.log('🚪 Intentando cerrar ventana...');
+                    window.close();
+                }
+            } else {
+                // Si no se detecta origen específico, intentar cerrar
+                if (window.history.length > 1) {
+                    window.history.back();
+                    setTimeout(() => {
+                        if (!document.hidden) {
+                            window.close();
+                        }
+                    }, 1000);
+                } else {
+                    window.close();
+                }
+            }
+            
+            // Si no se puede cerrar (por políticas del navegador), mostrar mensaje
+            setTimeout(() => {
+                if (!document.hidden) {
+                    alert('Por favor, cierra esta pestaña o ventana manualmente.');
+                }
+            }, 2000);
+        }
+
+        // Normalizar teléfono a solo dígitos (formato WhatsApp: código país + número)
+        function normalizePhoneForWhatsApp(value) {
+            if (!value || typeof value !== 'string') return '';
+            return value.replace(/\D/g, '');
+        }
+
+        // Validar que el teléfono sea válido para WhatsApp (10-15 dígitos, con código de país)
+        function validatePhone(value) {
+            const normalized = normalizePhoneForWhatsApp(value);
+            if (normalized.length < 10) {
+                return { valid: false, normalized: normalized, error: 'El teléfono debe tener al menos 10 dígitos (incluye código de país, ej: 56 Chile, 54 Argentina).' };
+            }
+            if (normalized.length > 15) {
+                return { valid: false, normalized: normalized, error: 'El número es demasiado largo. Revisa que no hayas repetido código de país.' };
+            }
+            return { valid: true, normalized: normalized, error: '' };
+        }
+
+        // Corregir número guardado: si falta código de país (ej. 9 dígitos que empiezan en 9), agregar 54 (Argentina) para wa.me
+        function normalizePhoneToE164(digitsOnly) {
+            if (!digitsOnly || typeof digitsOnly !== 'string') return digitsOnly || '';
+            const d = digitsOnly.replace(/\D/g, '');
+            if (d.length === 9 && d.charAt(0) === '9') {
+                return '54' + d;
+            }
+            if (d.length === 8 && d.charAt(0) === '9') {
+                return '56' + d;
+            }
+            return d;
+        }
+
+        // Mostrar u ocultar error en el campo teléfono
+        function setPhoneFieldError(message) {
+            const hint = document.getElementById('clientPhoneHint');
+            const errEl = document.getElementById('clientPhoneError');
+            const input = document.getElementById('clientPhone');
+            if (errEl) {
+                errEl.textContent = message || '';
+                errEl.style.display = message ? 'block' : 'none';
+            }
+            if (input) {
+                input.setCustomValidity(message || '');
+                input.style.borderColor = message ? '#dc3545' : '';
+            }
+            if (hint) hint.style.color = message ? '#dc3545' : '#666';
+        }
+
+        // Leer parámetros de URL (especialmente para WhatsApp)
+        function readURLParameters() {
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            // Debug: mostrar todos los parámetros de URL
+            console.log('🔍 Parámetros de URL detectados:', window.location.search);
+            console.log('🔍 Todos los parámetros:', Object.fromEntries(urlParams));
+            
+            // Leer teléfono desde parámetros de URL (múltiples variantes)
+            let phone = urlParams.get('phone') || 
+                       urlParams.get('tel') || 
+                       urlParams.get('telefono') ||
+                       urlParams.get('numero') ||
+                       urlParams.get('phoneNumber');
+            
+            if (phone) {
+                // Decodificar si está codificado
+                phone = decodeURIComponent(phone);
+                const normalized = normalizePhoneForWhatsApp(phone);
+                const phoneInput = document.getElementById('clientPhone');
+                if (phoneInput) {
+                    phoneInput.value = normalized || phone.trim();
+                    console.log('✅ Teléfono cargado desde URL (pre-llenado desde el link de WhatsApp):', normalized || phone);
+                    setPhoneFieldError('');
+                } else {
+                    console.error('❌ Campo clientPhone no encontrado');
+                }
+            } else {
+                console.log('ℹ️ No se encontró parámetro de teléfono en la URL');
+            }
+            
+            // Leer nombre desde parámetros de URL (opcional)
+            let name = urlParams.get('name') || 
+                      urlParams.get('nombre') ||
+                      urlParams.get('nombreCliente');
+            
+            if (name) {
+                name = decodeURIComponent(name);
+                const nameInput = document.getElementById('clientName');
+                if (nameInput) {
+                    nameInput.value = name;
+                    console.log('✅ Nombre cargado desde URL:', name);
+                } else {
+                    console.error('❌ Campo clientName no encontrado');
+                }
+            } else {
+                console.log('ℹ️ No se encontró parámetro de nombre en la URL');
+            }
+        }
+
+        // Inicializar Supabase si está disponible
+        function initSupabase() {
+            if (typeof SupabaseClient !== 'undefined') {
+                window.supabaseClient = new SupabaseClient();
+                console.log('✅ Cliente de Supabase inicializado en cotizador');
+            } else {
+                console.warn('⚠️ SupabaseClient no está disponible');
+            }
         }
 
         // Inicializar
-        window.addEventListener('DOMContentLoaded', function() {
-            loadHotels();
+        window.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 Inicializando cotizador...');
+            console.log('🔍 URL completa:', window.location.href);
             
-            // Establecer fecha mínima (hoy)
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('checkIn').setAttribute('min', today);
+            // Leer parámetros de URL PRIMERO (antes que nada)
+            readURLParameters();
             
-            // Calcular check-out inicial si hay valores
-            calculateCheckOut();
+            // Asegurar adultos por defecto = 2 (por si el servidor sirve una versión antigua con 1)
+            const adultsEl = document.getElementById('adults');
+            if (adultsEl) {
+                const n = parseInt(adultsEl.value, 10);
+                if (isNaN(n) || n < 2) adultsEl.value = 2;
+            }
+            
+            // Validar teléfono al salir del campo
+            const phoneInput = document.getElementById('clientPhone');
+            if (phoneInput) {
+                phoneInput.addEventListener('blur', function() {
+                    const v = this.value.trim();
+                    if (!v) {
+                        setPhoneFieldError('');
+                        return;
+                    }
+                    const res = validatePhone(v);
+                    setPhoneFieldError(res.valid ? '' : res.error);
+                });
+            }
+            
+            // Inicializar Supabase
+            initSupabase();
+            
+            // Esperar un momento para que Supabase se inicialice
+            setTimeout(async () => {
+                // Cargar hoteles
+                await loadHotels();
+                applyCotizadorDeepLinkParams();
+                
+                // Establecer fecha mínima (hoy)
+                const today = new Date().toISOString().split('T')[0];
+                document.getElementById('checkIn').setAttribute('min', today);
+                
+                // Calcular check-out inicial si hay valores
+                calculateCheckOut();
+            }, 500);
         });
     </script>
 </body>
