@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-03-20T16:40:09Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 137; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-03-20T17:00:26Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 138; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">137</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">138</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -27366,9 +27366,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     // INICIALIZACIÓN Y CARGA DE DATOS
     // =====================================================
 
-    function initFlexiData() {
+    async function initFlexiData() {
         console.log('🎫 Inicializando Programa Flexi...');
-        loadFlexiDataFromStorage();
+        await loadFlexiDataFromStorage();
         updateFlexiStats();
         renderFlexiProgramsTable();
         renderFlexiVouchersTable();
@@ -27376,23 +27376,61 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         checkExpiredVouchers();
     }
 
-    function loadFlexiDataFromStorage() {
+    function flexiLoadFromLocalStorageOnly() {
         try {
             const storedPrograms = localStorage.getItem('flexi_programs');
             const storedVouchers = localStorage.getItem('flexi_vouchers');
             const storedCanjes = localStorage.getItem('flexi_canjes');
-            
             flexiPrograms = storedPrograms ? JSON.parse(storedPrograms) : [];
             flexiVouchers = storedVouchers ? JSON.parse(storedVouchers) : [];
             flexiCanjes = storedCanjes ? JSON.parse(storedCanjes) : [];
-            
-            console.log(`✅ Datos Flexi cargados: ${flexiPrograms.length} programas, ${flexiVouchers.length} vouchers, ${flexiCanjes.length} canjes`);
+            console.log(`✅ Flexi desde localStorage: ${flexiPrograms.length} programas, ${flexiVouchers.length} vouchers, ${flexiCanjes.length} canjes`);
         } catch (error) {
-            console.error('❌ Error cargando datos Flexi:', error);
+            console.error('❌ Error cargando datos Flexi (local):', error);
             flexiPrograms = [];
             flexiVouchers = [];
             flexiCanjes = [];
         }
+    }
+
+    async function loadFlexiDataFromStorage() {
+        const mirrorLocal = () => {
+            try {
+                localStorage.setItem('flexi_programs', JSON.stringify(flexiPrograms));
+                localStorage.setItem('flexi_vouchers', JSON.stringify(flexiVouchers));
+                localStorage.setItem('flexi_canjes', JSON.stringify(flexiCanjes));
+            } catch (e) { /* ignore */ }
+        };
+
+        const sb = window.supabaseClient;
+        if (sb && typeof sb.isInitialized === 'function' && sb.isInitialized() && typeof sb.getFlexiPrograms === 'function') {
+            try {
+                const [p, v, c] = await Promise.all([
+                    sb.getFlexiPrograms(),
+                    sb.getFlexiVouchers(),
+                    sb.getFlexiCanjes()
+                ]);
+                const hasCloud = (p && p.length) || (v && v.length) || (c && c.length);
+                if (hasCloud) {
+                    flexiPrograms = Array.isArray(p) ? p : [];
+                    flexiVouchers = Array.isArray(v) ? v : [];
+                    flexiCanjes = Array.isArray(c) ? c : [];
+                    mirrorLocal();
+                    console.log(`☁️ Flexi desde Supabase: ${flexiPrograms.length} programas, ${flexiVouchers.length} vouchers, ${flexiCanjes.length} canjes`);
+                    return;
+                }
+                flexiLoadFromLocalStorageOnly();
+                if (flexiPrograms.length || flexiVouchers.length || flexiCanjes.length) {
+                    console.log('📤 Flexi: Supabase vacío — migrando datos locales a la nube...');
+                    await sb.syncFlexiData(flexiPrograms, flexiVouchers, flexiCanjes);
+                    mirrorLocal();
+                }
+                return;
+            } catch (err) {
+                console.warn('⚠️ Flexi: no se pudo leer de Supabase (¿migración 042?). Usando localStorage:', err?.message || err);
+            }
+        }
+        flexiLoadFromLocalStorageOnly();
     }
 
     function saveFlexiDataToStorage() {
@@ -27400,14 +27438,26 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             localStorage.setItem('flexi_programs', JSON.stringify(flexiPrograms));
             localStorage.setItem('flexi_vouchers', JSON.stringify(flexiVouchers));
             localStorage.setItem('flexi_canjes', JSON.stringify(flexiCanjes));
-            console.log('💾 Datos Flexi guardados');
+            console.log('💾 Datos Flexi guardados (local)');
+            flexiPersistToSupabase();
         } catch (error) {
             console.error('❌ Error guardando datos Flexi:', error);
         }
     }
 
-    function refreshFlexiData() {
-        loadFlexiDataFromStorage();
+    function flexiPersistToSupabase() {
+        const sb = window.supabaseClient;
+        if (!sb || typeof sb.isInitialized !== 'function' || !sb.isInitialized() || typeof sb.syncFlexiData !== 'function') return;
+        Promise.resolve(sb.syncFlexiData(flexiPrograms, flexiVouchers, flexiCanjes))
+            .then(() => console.log('☁️ Flexi sincronizado en Supabase'))
+            .catch(err => {
+                console.warn('☁️ Error sync Flexi Supabase:', err);
+                showNotification('⚠️ Flexi guardado en el navegador; error al sincronizar con Supabase (revisá migración 042 y RLS).', 'warning');
+            });
+    }
+
+    async function refreshFlexiData() {
+        await loadFlexiDataFromStorage();
         updateFlexiStats();
         renderFlexiProgramsTable();
         renderFlexiVouchersTable();
@@ -27620,13 +27670,32 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         showNotification('⚠️ Función de edición en desarrollo', 'warning');
     }
 
-    function deleteFlexiProgram(programId) {
-        if (confirm('¿Estás seguro de eliminar este programa? Esta acción no se puede deshacer.')) {
-            flexiPrograms = flexiPrograms.filter(p => p.id !== programId);
-            saveFlexiDataToStorage();
-            renderFlexiProgramsTable();
-            showNotification('✅ Programa eliminado', 'success');
+    async function deleteFlexiProgram(programId) {
+        if (!confirm('¿Estás seguro de eliminar este programa? Esta acción no se puede deshacer.')) return;
+        flexiVouchers.forEach(v => {
+            if (v.programaId === programId || v.programa_id === programId) {
+                v.programaId = null;
+                if ('programa_id' in v) v.programa_id = null;
+            }
+        });
+        flexiPrograms = flexiPrograms.filter(p => p.id !== programId);
+        try {
+            const sb = window.supabaseClient;
+            if (sb && typeof sb.isInitialized === 'function' && sb.isInitialized()) {
+                if (typeof sb.syncFlexiData === 'function') {
+                    await sb.syncFlexiData(flexiPrograms, flexiVouchers, flexiCanjes);
+                }
+                if (typeof sb.deleteFlexiProgramFromDb === 'function') {
+                    await sb.deleteFlexiProgramFromDb(programId);
+                }
+            }
+        } catch (e) {
+            console.warn('Flexi: error sincronizando/borrando programa en Supabase:', e);
+            showNotification('⚠️ Cambios en pantalla; error en Supabase (revisá migración 042, FK y RLS).', 'warning');
         }
+        saveFlexiDataToStorage();
+        renderFlexiProgramsTable();
+        showNotification('✅ Programa eliminado', 'success');
     }
 
     // =====================================================
@@ -28285,7 +28354,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }
             if (section === 'flexi') {
                 setTimeout(() => {
-                    initFlexiData();
+                    void initFlexiData();
                 }, 100);
             }
         };
@@ -28296,7 +28365,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         setTimeout(() => {
             if (document.getElementById('flexi-section') && 
                 document.getElementById('flexi-section').style.display !== 'none') {
-                initFlexiData();
+                void initFlexiData();
             }
         }, 500);
     });
