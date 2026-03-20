@@ -941,15 +941,18 @@ class SupabaseClient {
     // Función auxiliar para mapear datos de Supabase al formato del frontend
     mapQuoteFromSupabase(supabaseQuote) {
         if (!supabaseQuote) return null;
-        
+        // Spread primero: si después ponemos `hotel` explícito, no lo pisa un `hotel: null` venido de la fila SQL.
+        const row = { ...supabaseQuote };
         return {
+            ...row,
             id: supabaseQuote.id,
             code: supabaseQuote.code || null, // Código único
             clientName: supabaseQuote.customer_name || supabaseQuote.clientName || '',
             clientPhone: supabaseQuote.customer_phone || supabaseQuote.clientPhone || '',
             clientEmail: supabaseQuote.customer_email || supabaseQuote.clientEmail || '',
             hotelId: supabaseQuote.hotel_id || supabaseQuote.hotelId || null,
-            hotel: supabaseQuote.hotels?.name || supabaseQuote.hotel || supabaseQuote.hotel_name || supabaseQuote.hotelName || '',
+            // Priorizar hotel_name (cotizador web); la columna `hotel` a veces viene null y rompía el listado del dashboard
+            hotel: supabaseQuote.hotels?.name || supabaseQuote.hotel_name || supabaseQuote.hotelName || supabaseQuote.hotel || '',
             checkIn: supabaseQuote.check_in || supabaseQuote.checkIn || null,
             checkOut: supabaseQuote.check_out || supabaseQuote.checkOut || null,
             adults: supabaseQuote.adults || 1,
@@ -965,9 +968,7 @@ class SupabaseClient {
             origen: supabaseQuote.contact_origin || supabaseQuote.origen || null,
             contact_channel: supabaseQuote.contact_origin || supabaseQuote.contact_channel || null,
             selectedPromotionId: supabaseQuote.selected_promotion_id || supabaseQuote.selectedPromotionId || null,
-            selectedPromotionName: supabaseQuote.selected_promotion_name || supabaseQuote.selectedPromotionName || null,
-            // Mantener otros campos que puedan existir
-            ...supabaseQuote
+            selectedPromotionName: supabaseQuote.selected_promotion_name || supabaseQuote.selectedPromotionName || null
         };
     }
     
@@ -1097,6 +1098,25 @@ class SupabaseClient {
                 console.log(`✅ Código ajustado a: "${quoteCode}"`);
             }
             
+            // Validar hotel_id: Supabase espera UUID; si viene el nombre (ej. "Corralco") no enviarlo como id
+            const rawHotelId = quote.hotelId || quote.hotel_id || null;
+            const isLikelyUuid = rawHotelId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(rawHotelId).trim());
+            const hotelIdForDb = (rawHotelId && isLikelyUuid) ? rawHotelId : null;
+            // Nombre del hotel que eligió el cliente (evita mostrar otro hotel por resolución errónea de hotel_id)
+            let hotelNameForDb = (quote.hotel || quote.hotel_name || quote.hotelName || '').trim() || null;
+            // Si el front solo mandó UUID y el nombre vino vacío (bug / versión vieja), resolver desde tabla hotels
+            if (!hotelNameForDb && hotelIdForDb) {
+                try {
+                    const hotelRow = await this.getHotelById(hotelIdForDb);
+                    if (hotelRow && hotelRow.name) {
+                        hotelNameForDb = String(hotelRow.name).trim();
+                        console.log('✅ hotel_name resuelto desde Supabase (hotels):', hotelNameForDb);
+                    }
+                } catch (e) {
+                    console.warn('⚠️ No se pudo resolver hotel_name por hotel_id:', e && e.message ? e.message : e);
+                }
+            }
+
             // Mapear campos del frontend a Supabase
             // NOTA: Solo incluir columnas que existen en la tabla quotes de Supabase
             const quoteData = {
@@ -1104,7 +1124,8 @@ class SupabaseClient {
                 customer_name: quote.clientName || quote.customer_name || null,
                 customer_email: quote.clientEmail || quote.customer_email || null,
                 customer_phone: quote.clientPhone || quote.customer_phone || null,
-                hotel_id: quote.hotelId || quote.hotel_id || null,
+                hotel_id: hotelIdForDb,
+                hotel_name: hotelNameForDb, // Guardar nombre elegido para mostrar correcto en detalle
                 check_in: quote.checkIn || quote.check_in || null,
                 check_out: quote.checkOut || quote.check_out || null,
                 adults: quote.adults || 1,
@@ -1122,7 +1143,7 @@ class SupabaseClient {
             Object.keys(quoteData).forEach(key => {
                 if (quoteData[key] === undefined || quoteData[key] === null || quoteData[key] === '') {
                     // Mantener null solo para campos opcionales que pueden ser null
-                    if (['code', 'customer_email', 'customer_phone', 'hotel_id', 'check_in', 'check_out', 'notes', 'selected_promotion_id', 'selected_promotion_name'].includes(key)) {
+                    if (['code', 'customer_email', 'customer_phone', 'hotel_id', 'hotel_name', 'check_in', 'check_out', 'notes', 'selected_promotion_id', 'selected_promotion_name'].includes(key)) {
                         // Mantener null para estos campos opcionales
                     } else {
                         delete quoteData[key];
@@ -1182,6 +1203,20 @@ class SupabaseClient {
                 if (!error) {
                     console.log('✅ Cotización insertada sin campo "infants" (el schema cache se actualizará automáticamente)');
                 }
+            }
+
+            // Si hay error por columna hotel_name no existente, reintentar sin ella (ejecutar migración 021 después)
+            if (error && error.message && (
+                error.message.includes("hotel_name") ||
+                (error.code === 'PGRST204' && quoteData.hotel_name != null)
+            )) {
+                console.warn('⚠️ Columna hotel_name no existe aún. Intentando insertar sin hotel_name. Ejecutá la migración 038_quotes_hotel_name.sql en Supabase.');
+                const quoteDataWithoutHotelName = { ...quoteData };
+                delete quoteDataWithoutHotelName.hotel_name;
+                const retryResult = await this.client.from('quotes').insert([quoteDataWithoutHotelName]).select().single();
+                data = retryResult.data;
+                error = retryResult.error;
+                if (!error) console.log('✅ Cotización insertada sin hotel_name (agregar columna con migración 021 para futuras).');
             }
             
             if (error) {
