@@ -184,6 +184,75 @@ function rememberFlorChatJidToPhone(remoteJid, phoneE164) {
         florJidToRealPhoneForPause.delete(first);
     }
 }
+
+/** Primer argumento de sock.sendMessage: string JID u objeto con jid/remoteJid. */
+function extractDestJidFromSendArgs(args) {
+    const a0 = args && args[0];
+    if (typeof a0 === 'string') return a0.trim();
+    if (a0 && typeof a0 === 'object') {
+        const j = a0.remoteJid || a0.jid || a0.key?.remoteJid;
+        if (typeof j === 'string') return j.trim();
+    }
+    return '';
+}
+
+/**
+ * Tras enviar, WA puede usar otro @lid que el del destino; enlazar todos los JID encontrados al +E.164 del cliente.
+ */
+function collectJidStringsForFlorPauseMap(obj, depth, visited, outSet) {
+    if (depth > 8 || !obj || typeof obj !== 'object') return;
+    try {
+        if (visited.has(obj)) return;
+        visited.add(obj);
+    } catch (e) {
+        return;
+    }
+    if (Array.isArray(obj)) {
+        for (let i = 0; i < obj.length; i++) collectJidStringsForFlorPauseMap(obj[i], depth + 1, visited, outSet);
+        return;
+    }
+    for (const v of Object.values(obj)) {
+        if (typeof v === 'string') {
+            const s = v.trim();
+            if (s.length >= 12 && s.length <= 120 && /\d{8,}@(lid|s\.whatsapp\.net)$/i.test(s)) outSet.add(s);
+        } else if (v && typeof v === 'object') {
+            collectJidStringsForFlorPauseMap(v, depth + 1, visited, outSet);
+        }
+    }
+}
+
+/**
+ * Teléfono +E.164 del destino de sendMessage (Flor/API): para @lid usa LID store o cola Flor pendiente (mismo remoteJid).
+ */
+function resolvePhoneForFlorSendDestination(sock, destJid) {
+    const dest = String(destJid || '').trim();
+    if (!dest || dest.includes('@g.us') || dest === 'status@broadcast') return null;
+    if (dest.includes('@s.whatsapp.net')) {
+        const e = jidPnToE164(dest.includes('@') ? dest : `${dest}@s.whatsapp.net`);
+        if (e && !isOurBotPhoneDigits(e.replace(/^\+/, ''))) return e;
+        return null;
+    }
+    if (dest.includes('@lid')) {
+        const fromStore = resolveLidToPhone(sock, dest);
+        if (fromStore) {
+            const d = String(fromStore).replace(/\D/g, '');
+            if (d.length >= 10 && !isLikelyPseudoWhatsappPn(d) && !isOurBotPhoneDigits(d)) return '+' + d;
+        }
+        const destLow = dest.toLowerCase();
+        for (const p of florPendingByUser.values()) {
+            const rj = p.remoteJid && String(p.remoteJid).trim();
+            if (!rj) continue;
+            if (rj.toLowerCase() !== destLow) continue;
+            const num = p.numero;
+            if (!num) continue;
+            const nd = String(num).replace(/\D/g, '');
+            if (nd.length >= 10 && !isLikelyPseudoWhatsappPn(nd) && !isOurBotPhoneDigits(nd)) {
+                return num.startsWith('+') ? num : '+' + nd;
+            }
+        }
+    }
+    return null;
+}
 /** Mensajes enviados por sock.sendMessage en este proceso: el eco fromMe trae el mismo id; no es “humano en celular”. */
 const florOutboundBaileysMessageIds = new Map(); // id -> expiry timestamp
 
@@ -2275,6 +2344,69 @@ function extractPeerRecipientPnFromMessage(msg) {
     return null;
 }
 
+/** Recorre el objeto del mensaje (attrs internos, etc.) buscando un JID *@s.whatsapp.net válido. */
+function deepScanMessageForRecipientPn(obj, depth, visited) {
+    if (depth > 10 || !obj || typeof obj !== 'object') return null;
+    try {
+        if (visited.has(obj)) return null;
+        visited.add(obj);
+    } catch (e) {
+        return null;
+    }
+    if (Array.isArray(obj)) {
+        for (let i = 0; i < obj.length; i++) {
+            const r = deepScanMessageForRecipientPn(obj[i], depth + 1, visited);
+            if (r) return r;
+        }
+        return null;
+    }
+    for (const v of Object.values(obj)) {
+        if (typeof v === 'string' && v.length > 8 && v.length < 200 && /\d{8,}@s\.whatsapp\.net/i.test(v)) {
+            const e = jidPnToE164(v);
+            if (e) return e;
+        } else if (v && typeof v === 'object') {
+            const r = deepScanMessageForRecipientPn(v, depth + 1, visited);
+            if (r) return r;
+        }
+    }
+    return null;
+}
+
+/**
+ * Si el chat ya existe en Supabase con phone=LID o real_phone=LID y phone actualizado a +54…, usar ese +E.164 para pausa.
+ */
+async function resolvePausePhoneViaSupabaseLid(jidDigits) {
+    if (!supabase || !CONFIG.SAVE_TO_SUPABASE || !jidDigits) return null;
+    const d = String(jidDigits).replace(/\D/g, '');
+    if (d.length < 10) return null;
+    try {
+        const inst = CONFIG.INSTANCE_NUMBER || 1;
+        const q = (col, val) =>
+            supabase.from('whatsapp_chats').select('phone, real_phone').eq('whatsapp_instance', inst).eq(col, val).limit(5);
+        const attempts = [() => q('phone', d), () => q('phone', '+' + d), () => q('real_phone', d), () => q('real_phone', '+' + d)];
+        const seen = new Set();
+        for (const run of attempts) {
+            const { data, error } = await run();
+            if (error || !data?.length) continue;
+            for (const row of data) {
+                const key = row.phone + '|' + row.real_phone;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                const raw = row.phone || row.real_phone;
+                if (!raw) continue;
+                const n = normalizarPhoneParaSupabase(raw);
+                const nd = n.replace(/\D/g, '');
+                if (n.startsWith('+') && nd.length >= 10 && !isLikelyPseudoWhatsappPn(nd) && !isOurBotPhoneDigits(nd)) {
+                    return n;
+                }
+            }
+        }
+        return null;
+    } catch (e) {
+        return null;
+    }
+}
+
 /**
  * Para mensajes salientes (fromMe) del humano: obtener el mismo identificador que usa el flujo entrante (+E.164),
  * así florPauseMemoryUntil y whatsapp_chats.flor_paused_until coinciden con isFlorPausedForChat.
@@ -2348,7 +2480,7 @@ function resolvePhoneForFlorPauseFromOutgoing(sock, msg) {
         if (!realPhone) realPhone = scanKeyForPn(msg.key)?.replace(/^\+/, '');
         if (realPhone) {
             const d = String(realPhone).replace(/\D/g, '');
-            return d.length >= 10 && !isLikelyPseudoWhatsappPn(d) ? ('+' + d) : null;
+            if (d.length >= 10 && !isLikelyPseudoWhatsappPn(d) && !isOurBotPhoneDigits(d)) return '+' + d;
         }
     } else {
         // @s.whatsapp.net con dígitos que no son el móvil real: intentar LID store con sufijo @lid
@@ -2356,9 +2488,12 @@ function resolvePhoneForFlorPauseFromOutgoing(sock, msg) {
         if (!realPhone) realPhone = scanKeyForPn(msg.key)?.replace(/^\+/, '');
         if (realPhone) {
             const d = String(realPhone).replace(/\D/g, '');
-            if (d.length >= 10 && !isLikelyPseudoWhatsappPn(d)) return '+' + d;
+            if (d.length >= 10 && !isLikelyPseudoWhatsappPn(d) && !isOurBotPhoneDigits(d)) return '+' + d;
         }
     }
+
+    const deepPn = deepScanMessageForRecipientPn(msg, 0, new WeakSet());
+    if (deepPn) return deepPn;
 
     const d = String(numero).replace(/\D/g, '');
     if (d.length >= 10 && !isLikelyPseudoWhatsappPn(d) && !isOurBotPhoneDigits(d)) return '+' + d;
@@ -2619,9 +2754,24 @@ async function connectToWhatsApp() {
     // Distinguir eco fromMe de Flor/API (mismo message id) vs humano escribiendo desde el celular
     const _origSendMessage = sock.sendMessage.bind(sock);
     sock.sendMessage = async function (...args) {
+        const destJid = extractDestJidFromSendArgs(args);
+        let phoneForMap = resolvePhoneForFlorSendDestination(sock, destJid);
         const res = await _origSendMessage(...args);
         try {
             if (res && res.key && res.key.id) registerFlorOutboundBaileysMessageId(res.key.id);
+            // Enlace LID ↔ +E.164: los salientes humanos a veces traen otro @lid que el del mensaje entrante;
+            // Flor envía a p.remoteJid (@lid) con p.numero ya resuelto — guardamos todos los JID que devuelve el envío.
+            const sentRj = res?.key?.remoteJid;
+            if (!phoneForMap && sentRj) phoneForMap = resolvePhoneForFlorSendDestination(sock, sentRj);
+            if (phoneForMap && destJid && !String(destJid).includes('@g.us')) {
+                rememberFlorChatJidToPhone(destJid, phoneForMap);
+                if (sentRj && !String(sentRj).includes('@g.us')) rememberFlorChatJidToPhone(sentRj, phoneForMap);
+                const jids = new Set();
+                collectJidStringsForFlorPauseMap(res, 0, new WeakSet(), jids);
+                for (const j of jids) {
+                    if (j && !String(j).includes('@g.us')) rememberFlorChatJidToPhone(j, phoneForMap);
+                }
+            }
         } catch (e) { /* ignore */ }
         return res;
     };
@@ -2991,7 +3141,13 @@ async function connectToWhatsApp() {
                 }
                 if (remoteJidOut) {
                     const jidLocal = String(remoteJidOut).replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '').trim();
-                    const resolved = resolvePhoneForFlorPauseFromOutgoing(sock, msg);
+                    let resolved = resolvePhoneForFlorPauseFromOutgoing(sock, msg);
+                    if (!resolved) {
+                        resolved = await resolvePausePhoneViaSupabaseLid(jidLocal);
+                        if (resolved) {
+                            console.log(`🔇 Modo Silencio: +E.164 desde Supabase por LID jid=${jidLocal} → ${resolved}`);
+                        }
+                    }
                     const jidDigits = (jidLocal && /^[0-9]+$/.test(String(jidLocal).replace(/^\+/, '')))
                         ? String(jidLocal).replace(/\D/g, '')
                         : '';
