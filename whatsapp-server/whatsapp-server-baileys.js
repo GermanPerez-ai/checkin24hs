@@ -163,6 +163,27 @@ const FLOR_MAX_OUTPUT_TOKENS_MIN = Math.max(256, parseInt(process.env.FLOR_MAX_O
 const florPendingByUser = new Map(); // key: remoteJid -> { timeoutId, messages: [{texto, ts}], nombre, numero }
 /** Silencio Flor: respaldo en RAM si aún no existe fila en whatsapp_chats (clave: solo dígitos, ≥10) */
 const florPauseMemoryUntil = new Map();
+/** JID del chat (remoteJid / variante) → +E.164 real; evita pausar con PN interno (ej. 133397…@s.whatsapp.net) en mensajes salientes del humano */
+const florJidToRealPhoneForPause = new Map();
+const FLOR_JID_PHONE_CACHE_MAX = 8000;
+
+function rememberFlorChatJidToPhone(remoteJid, phoneE164) {
+    if (!remoteJid || !phoneE164) return;
+    const d = String(phoneE164).replace(/\D/g, '');
+    if (d.length < 10 || d.length > 15) return;
+    const normalized = '+' + d;
+    const j = String(remoteJid).trim().toLowerCase();
+    const local = j.replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '').trim();
+    const keys = new Set([j, local, `${local}@s.whatsapp.net`, `${local}@lid`].filter(Boolean));
+    for (const k of keys) {
+        florJidToRealPhoneForPause.set(k, normalized);
+    }
+    while (florJidToRealPhoneForPause.size > FLOR_JID_PHONE_CACHE_MAX) {
+        const first = florJidToRealPhoneForPause.keys().next().value;
+        if (first == null) break;
+        florJidToRealPhoneForPause.delete(first);
+    }
+}
 /** Mensajes enviados por sock.sendMessage en este proceso: el eco fromMe trae el mismo id; no es “humano en celular”. */
 const florOutboundBaileysMessageIds = new Map(); // id -> expiry timestamp
 
@@ -2202,50 +2223,145 @@ function resolveLidToPhone(sock, remoteJid) {
 }
 
 /**
+ * PN en @s.whatsapp.net a veces NO es E.164 (IDs internos tipo 133…, 125… de 15 dígitos); no usar para pausa en DB.
+ * Móviles AR suelen ser 549 + ~10 dígitos (longitud total ~12–13).
+ */
+function isLikelyPseudoWhatsappPn(digits) {
+    const d = String(digits || '').replace(/\D/g, '');
+    if (d.length < 10 || d.length > 15) return true;
+    if (d.length >= 14 && d.startsWith('133')) return true;
+    if (d.length >= 14 && d.startsWith('125')) return true;
+    if (d.length >= 15 && !d.startsWith('54')) return true;
+    return false;
+}
+
+/** Número de teléfono del propio bot (sin @), para no “pausar Flor” contra uno mismo. */
+function getOurBotPhoneDigits() {
+    const raw = phoneNumber || (sock?.user?.id && String(sock.user.id).split(':')[0]) || '';
+    return String(raw).replace(/\D/g, '');
+}
+
+function isOurBotPhoneDigits(digits) {
+    const d = String(digits || '').replace(/\D/g, '');
+    const ours = getOurBotPhoneDigits();
+    if (!ours || d.length < 10) return false;
+    return d === ours || d.endsWith(ours) || ours.endsWith(d);
+}
+
+function jidPnToE164(jidStr) {
+    if (!jidStr || typeof jidStr !== 'string') return null;
+    if (!jidStr.includes('@s.whatsapp.net')) return null;
+    const pn = jidStr.replace(/@s\.whatsapp\.net$/i, '').trim();
+    if (!pn || !/^[0-9]{10,}$/.test(pn.replace(/^\+/, ''))) return null;
+    const d = pn.replace(/\D/g, '');
+    if (isLikelyPseudoWhatsappPn(d) || isOurBotPhoneDigits(d)) return null;
+    return '+' + d;
+}
+
+/** Algunas versiones de Baileys ponen peer_recipient_pn solo en el envelope, no en key. */
+function extractPeerRecipientPnFromMessage(msg) {
+    if (!msg) return null;
+    const blobs = [msg, msg.key, msg.message, msg.message?.extendedTextMessage?.contextInfo].filter(Boolean);
+    const names = ['peerRecipientPn', 'peer_recipient_pn', 'recipientPn', 'recipient_pn'];
+    for (const b of blobs) {
+        for (const n of names) {
+            const v = b[n];
+            if (v && typeof v === 'string') {
+                const e = jidPnToE164(v);
+                if (e) return e;
+            }
+        }
+    }
+    return null;
+}
+
+/**
  * Para mensajes salientes (fromMe) del humano: obtener el mismo identificador que usa el flujo entrante (+E.164),
  * así florPauseMemoryUntil y whatsapp_chats.flor_paused_until coinciden con isFlorPausedForChat.
  */
 function resolvePhoneForFlorPauseFromOutgoing(sock, msg) {
     if (!msg?.key?.remoteJid) return null;
-    const remoteJid = String(msg.key.remoteJid);
+    const key = msg.key;
+    const remoteJid = String(key.remoteJid);
+    const jLower = remoteJid.trim().toLowerCase();
     let numero = remoteJid.replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '').trim();
+
+    // Baileys / WA: en salientes aparece peer_recipient_pn (PN real del cliente) aunque remoteJid sea @lid o PN interno
+    const peerPn =
+        key.peerRecipientPn ||
+        key.peer_recipient_pn ||
+        key.recipientPn ||
+        key.recipient_pn;
+    const fromPeer = jidPnToE164(typeof peerPn === 'string' ? peerPn : '');
+    if (fromPeer) return fromPeer;
+    const fromEnvelope = extractPeerRecipientPnFromMessage(msg);
+    if (fromEnvelope) return fromEnvelope;
+
+    const cacheKeys = [jLower, numero, `${numero}@s.whatsapp.net`, `${numero}@lid`].filter(Boolean);
+    for (const ck of cacheKeys) {
+        const hit = florJidToRealPhoneForPause.get(ck);
+        if (hit && !isLikelyPseudoWhatsappPn(hit.replace(/^\+/, ''))) return hit;
+    }
+
     const remoteJidAlt = msg.key.remoteJidAlt;
     if (remoteJidAlt && String(remoteJidAlt).includes('@s.whatsapp.net')) {
         const altNum = String(remoteJidAlt).replace('@s.whatsapp.net', '').trim();
         if (altNum && /^[0-9]{10,}$/.test(altNum.replace(/^\+/, ''))) {
             const realPhone = altNum.startsWith('+') ? altNum : '+' + altNum.replace(/\D/g, '');
-            return realPhone;
+            if (!isLikelyPseudoWhatsappPn(realPhone)) return realPhone;
         }
     }
+
+    const scanKeyForPn = (key) => {
+        if (!key) return null;
+        const candidates = [
+            key.peerRecipientPn,
+            key.peer_recipient_pn,
+            key.recipientPn,
+            key.recipient_pn,
+            key.senderPn,
+            key.sender_pn,
+            key.participant,
+            key.participantAlt,
+            key.participant_alt,
+            key.remoteJidAlt,
+            key.remote_jid_alt
+        ].filter(Boolean);
+        for (const k of Object.keys(key || {})) {
+            const v = key[k];
+            if (v && typeof v === 'string' && v.includes('@s.whatsapp.net')) candidates.push(v);
+        }
+        for (const jidStr of candidates) {
+            const s = String(jidStr).trim();
+            if (!s.includes('@s.whatsapp.net')) continue;
+            const pn = s.replace(/@s\.whatsapp\.net$/i, '').trim();
+            if (pn && /^[0-9]{10,}$/.test(pn.replace(/^\+/, ''))) {
+                const d = pn.replace(/\D/g, '');
+                if (!isLikelyPseudoWhatsappPn(d) && !isOurBotPhoneDigits(d)) return d.length >= 10 ? ('+' + d) : null;
+            }
+        }
+        return null;
+    };
+
     if (remoteJid.includes('@lid')) {
         let realPhone = resolveLidToPhone(sock, remoteJid);
-        if (!realPhone && msg.key) {
-            const key = msg.key;
-            const candidates = [
-                key.senderPn, key.sender_pn, key.participant, key.participantAlt,
-                key.participant_alt, key.remoteJidAlt, key.remote_jid_alt
-            ].filter(Boolean);
-            for (const k of Object.keys(key || {})) {
-                const v = key[k];
-                if (v && typeof v === 'string' && v.includes('@s.whatsapp.net')) candidates.push(v);
-            }
-            for (const jidStr of candidates) {
-                const s = String(jidStr).trim();
-                if (!s.includes('@s.whatsapp.net')) continue;
-                const pn = s.replace(/@s\.whatsapp\.net$/i, '').trim();
-                if (pn && /^[0-9]{10,}$/.test(pn.replace(/^\+/, ''))) {
-                    realPhone = pn.replace(/\D/g, '');
-                    break;
-                }
-            }
-        }
+        if (!realPhone) realPhone = scanKeyForPn(msg.key)?.replace(/^\+/, '');
         if (realPhone) {
             const d = String(realPhone).replace(/\D/g, '');
-            return d.length >= 10 ? ('+' + d) : null;
+            return d.length >= 10 && !isLikelyPseudoWhatsappPn(d) ? ('+' + d) : null;
+        }
+    } else {
+        // @s.whatsapp.net con dígitos que no son el móvil real: intentar LID store con sufijo @lid
+        let realPhone = resolveLidToPhone(sock, `${numero}@lid`);
+        if (!realPhone) realPhone = scanKeyForPn(msg.key)?.replace(/^\+/, '');
+        if (realPhone) {
+            const d = String(realPhone).replace(/\D/g, '');
+            if (d.length >= 10 && !isLikelyPseudoWhatsappPn(d)) return '+' + d;
         }
     }
+
     const d = String(numero).replace(/\D/g, '');
-    if (d.length >= 10) return '+' + d;
+    if (d.length >= 10 && !isLikelyPseudoWhatsappPn(d) && !isOurBotPhoneDigits(d)) return '+' + d;
     return null;
 }
 
@@ -2876,14 +2992,21 @@ async function connectToWhatsApp() {
                 if (remoteJidOut) {
                     const jidLocal = String(remoteJidOut).replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '').trim();
                     const resolved = resolvePhoneForFlorPauseFromOutgoing(sock, msg);
-                    // Registrar LID y +número: si el cliente escribe con un formato y el asesor respondió con otro, igual aplica silencio
-                    florPauseMemoryTouchMany(resolved, jidLocal);
-                    const primaryForDb = resolved || (jidLocal && /^[0-9]{10,}$/.test(jidLocal.replace(/^\+/, '')) ? ('+' + jidLocal.replace(/\D/g, '')) : jidLocal);
+                    const jidDigits = (jidLocal && /^[0-9]+$/.test(String(jidLocal).replace(/^\+/, '')))
+                        ? String(jidLocal).replace(/\D/g, '')
+                        : '';
+                    const fromJidOk = jidDigits.length >= 10 && !isLikelyPseudoWhatsappPn(jidDigits) && !isOurBotPhoneDigits(jidDigits);
+                    let primaryForDb = resolved || (fromJidOk ? ('+' + jidDigits) : null);
+                    if (primaryForDb && isOurBotPhoneDigits(primaryForDb.replace(/^\+/, ''))) {
+                        console.log(`🔇 Modo Silencio: ignorado (destino es el propio número del bot / eco). jid=${jidLocal} msgId=${msg.key.id || 'n/a'}`);
+                        primaryForDb = null;
+                    }
+                    florPauseMemoryTouchMany(resolved, fromJidOk ? ('+' + jidDigits) : null);
                     if (primaryForDb && !String(primaryForDb).includes('@')) {
                         await setFlorPausedUntil(primaryForDb, FLOR_SILENCE_MINUTES);
-                        console.log(`🔇 Modo Silencio: mensaje saliente HUMANO (WhatsApp/app, no bot) → Flor ${FLOR_SILENCE_MINUTES} min | jid=${jidLocal} resolved=${resolved || '—'} msgId=${msg.key.id || 'n/a'}`);
-                    } else {
-                        console.warn(`⚠️ Modo Silencio: no se pudo fijar pausa en DB para remoteJid=${remoteJidOut} (memoria RAM sí puede tener LID/dígitos)`);
+                        console.log(`🔇 Modo Silencio: mensaje saliente HUMANO (WhatsApp/app, no bot) → Flor ${FLOR_SILENCE_MINUTES} min | jid=${jidLocal} resolved=${resolved || '—'} dbPhone=${primaryForDb} msgId=${msg.key.id || 'n/a'}`);
+                    } else if (!primaryForDb && !isOurBotPhoneDigits(jidDigits)) {
+                        console.warn(`⚠️ Modo Silencio: no se pudo resolver +E.164 real para pausa. remoteJid=${remoteJidOut} jid=${jidLocal}. Si el key trae peer_recipient_pn, actualizar Baileys / redeploy.`);
                     }
                 }
                 continue;
@@ -2997,6 +3120,14 @@ async function connectToWhatsApp() {
             if (esLid && !numero.startsWith('+')) {
                 console.log(`📱 LID: numero final=${numero}, key.senderPn=${msg.key?.senderPn ?? 'n/a'}, key.participant=${msg.key?.participant ?? 'n/a'}`);
             }
+            // Mapear JID → +E.164 para pausar Flor cuando el humano escribe desde el celular (outgoing usa a veces PN interno 133…@s.whatsapp.net)
+            {
+                const nd = String(numero).replace(/\D/g, '');
+                if (nd.length >= 10 && nd.length <= 15 && !isLikelyPseudoWhatsappPn(nd)) {
+                    const e164 = String(numero).startsWith('+') ? numero : ('+' + nd);
+                    rememberFlorChatJidToPhone(remoteJid, e164);
+                }
+            }
             const nombre = msg.pushName || numero;
 
             console.log(`📱 Mensaje recibido de ${nombre} (${numero}): ${texto}${tieneAudio ? ' [audio/voice]' : ''}`);
@@ -3037,13 +3168,22 @@ async function connectToWhatsApp() {
 
             const processPending = async () => {
                 const p = florPendingByUser.get(key);
-                florPendingByUser.delete(key);
                 if (!p || !p.messages.length) return;
 
                 if (await isFlorPausedForChat(p.numero, CONFIG.INSTANCE_NUMBER)) {
+                    florPendingByUser.delete(key);
                     console.log(`⏸️ Flor pausada antes de llamar a la IA (silencio activo para ${p.numero})`);
                     return;
                 }
+
+                // No procesar si el socket se cerró (p. ej. conflicto 440 / rolling update); evita crash en sendPresenceUpdate/sendMessage
+                if (connectionStatus !== 'open' || !sock) {
+                    console.warn(`⚠️ processPending omitido: WhatsApp no conectado (status=${connectionStatus || 'n/a'}). Revisá conflicto 440 o duplicados. Mensajes en cola se descartan para este ciclo.`);
+                    florPendingByUser.delete(key);
+                    return;
+                }
+
+                florPendingByUser.delete(key);
 
                 const textos = p.messages.map(m => m.texto);
                 let combined = textos.length === 1
@@ -3331,7 +3471,9 @@ async function connectToWhatsApp() {
             if (!pending.timeoutId) {
                 pending.timeoutId = setTimeout(() => {
                     pending.timeoutId = null;
-                    processPending();
+                    processPending().catch(err => {
+                        console.error('❌ processPending:', err?.message || err, err?.stack || '');
+                    });
                 }, FLOR_DELAY_MS);
             }
         }
