@@ -157,10 +157,56 @@ let isSyncingAppState = false; // Flag para indicar si se está sincronizando el
 // Si llegan varios en ese lapso → se acumulan y Flor responde a todos juntos. Sin límite de consultas por usuario.
 const FLOR_DELAY_MS = Math.max(0, parseInt(process.env.FLOR_DELAY_MS, 10) || 5000);
 const FLOR_SILENCE_MINUTES = Math.max(1, parseInt(process.env.FLOR_SILENCE_MINUTES || '10', 10) || 10);
+/** Mínimo de tokens de salida Gemini para no cortar descripciones (puede subir con FLOR_MAX_OUTPUT_TOKENS o Supabase flor_ai_config.maxTokens) */
+const FLOR_MAX_OUTPUT_TOKENS_MIN = Math.max(256, parseInt(process.env.FLOR_MAX_OUTPUT_TOKENS_MIN || '1500', 10) || 1500);
 const florPendingByUser = new Map(); // key: remoteJid -> { timeoutId, messages: [{texto, ts}], nombre, numero }
+/** Silencio Flor: respaldo en RAM si aún no existe fila en whatsapp_chats (clave: solo dígitos, ≥10) */
+const florPauseMemoryUntil = new Map();
+/** Mensajes enviados por sock.sendMessage en este proceso: el eco fromMe trae el mismo id; no es “humano en celular”. */
+const florOutboundBaileysMessageIds = new Map(); // id -> expiry timestamp
+
+function florPauseMemoryTouch(phone) {
+    florPauseMemoryTouchMany(phone);
+}
+/** Pausa Flor en RAM bajo todas las variantes de número (evita mismatch LID vs +E.164 al comparar con mensajes entrantes). */
+function florPauseMemoryTouchMany(...phones) {
+    const until = Date.now() + FLOR_SILENCE_MINUTES * 60 * 1000;
+    const seen = new Set();
+    for (const phone of phones) {
+        if (phone == null || phone === '') continue;
+        for (const c of normalizarCandidatosTelefono(phone)) {
+            const d = String(c).replace(/\D/g, '');
+            if (d.length >= 10 && !seen.has(d)) {
+                seen.add(d);
+                florPauseMemoryUntil.set(d, until);
+            }
+        }
+    }
+}
+function florPauseMemoryIsActive(phone) {
+    const now = Date.now();
+    for (const c of normalizarCandidatosTelefono(phone)) {
+        const d = String(c).replace(/\D/g, '');
+        if (d.length < 10) continue;
+        const u = florPauseMemoryUntil.get(d);
+        if (u && u > now) return true;
+    }
+    return false;
+}
+function registerFlorOutboundBaileysMessageId(id) {
+    if (id) florOutboundBaileysMessageIds.set(id, Date.now() + 180000);
+}
+function isFlorOutboundBaileysMessageId(id) {
+    if (!id) return false;
+    const exp = florOutboundBaileysMessageIds.get(id);
+    if (exp && exp > Date.now()) return true;
+    if (exp) florOutboundBaileysMessageIds.delete(id);
+    return false;
+}
 if (FLOR_DELAY_MS > 0) {
     console.log(`⏱️ Flor: delay ${FLOR_DELAY_MS}ms para agrupar mensajes. Usuario puede consultar las veces que quiera; 1 mensaje → 1 respuesta, varios en ${FLOR_DELAY_MS}ms → respuesta a todos.`);
 }
+console.log(`⏸️ Flor: silencio tras intervención humana = ${FLOR_SILENCE_MINUTES} min (env FLOR_SILENCE_MINUTES). Mín. tokens salida = ${FLOR_MAX_OUTPUT_TOKENS_MIN} (+ flor_ai_config / FLOR_MAX_OUTPUT_TOKENS).`);
 
 // Prompt mínimo (spec: conocimiento en servidor, Flor como "capa de lenguaje"). Usado si no hay flor_general_config en Supabase.
 const FLOR_PROMPT_DEFAULT = `Eres **Flor IA** 🌸, asistente virtual de **Checkin24hs**. Tono de lujo: amable, profesional y fluido.
@@ -190,7 +236,7 @@ Al enviar el link de cotización o cerrar la conversación, usá siempre: "¡Gra
 Si piden "humano", "agente" o "asesor"; si no entendés la consulta tras un intento; si es una integración compleja → transferir de inmediato.
 
 **9. Estilo:**
-Máximo 3-4 oraciones por respuesta. Emojis con mesura (1-2 por mensaje). Formato con viñetas cuando enumeres beneficios o servicios. No repitas bloques informativos ya enviados en la misma conversación.
+Sé clara y completa: en saludos o confirmaciones breves usá 2-4 oraciones; si el cliente pide detalle (programas, qué incluye, spa, políticas), podés extenderte hasta ~10 oraciones o una lista con viñetas para no cortar información útil. Emojis con mesura (1-2 por mensaje). No repitas bloques informativos ya enviados en la misma conversación.
 
 **10. Trigger de alerta (reserva/asesor):**
 Cuando detectes intención de reserva ("reservar", "confirmar", "hacer la reserva", "agendar") o pedido de asesor, el sistema disparará automáticamente una alerta al equipo de ventas. Vos respondé al cliente confirmando que lo conectás con un agente especializado.`;
@@ -410,7 +456,7 @@ const FLOR_AI_CONFIG_DEFAULT = {
     provider: 'gemini',
     model: 'gemini-2.0-flash',
     temperature: 0.3,
-    maxTokens: 500,
+    maxTokens: 2048,
     imagen_cotizacion_url: null // URL de imagen para preview del link cotizador (Supabase o env IMAGEN_COTIZACION_URL)
 };
 
@@ -957,7 +1003,9 @@ function normalizarCandidatosTelefono(phone) {
 }
 
 async function isFlorPausedForChat(phone, instanceNumber) {
-    if (!supabase || !phone) return false;
+    if (!phone) return false;
+    if (florPauseMemoryIsActive(phone)) return true;
+    if (!supabase) return false;
     try {
         const candidatos = normalizarCandidatosTelefono(phone);
         const { data, error } = await supabase
@@ -987,25 +1035,48 @@ async function isFlorPausedForChat(phone, instanceNumber) {
  * @param {string} [chatIdOptional] - Si viene del dashboard con chat_id, actualizar por id para no fallar con LID
  */
 async function setFlorPausedUntil(phone, minutes, chatIdOptional = null) {
+    if (phone) florPauseMemoryTouch(phone);
     if (!supabase) return;
     if (!phone && !chatIdOptional) return;
     try {
         const until = new Date(Date.now() + minutes * 60 * 1000).toISOString();
+        const instance = CONFIG.INSTANCE_NUMBER || 1;
         let q = supabase
             .from('whatsapp_chats')
-            .update({ flor_paused_until: until })
-            .eq('whatsapp_instance', CONFIG.INSTANCE_NUMBER || 1);
+            .update({ flor_paused_until: until, updated_at: new Date().toISOString() })
+            .eq('whatsapp_instance', instance);
         if (chatIdOptional && String(chatIdOptional).trim()) {
             q = q.eq('id', String(chatIdOptional).trim());
         } else {
             q = q.in('phone', normalizarCandidatosTelefono(phone));
         }
-        const { error } = await q;
+        const { data: updatedRows, error } = await q.select('id');
         if (error) {
             console.warn('⚠️ No se pudo pausar Flor para el chat:', error.message);
             return;
         }
-        console.log(`⏸️ Flor pausada ${minutes} min para este chat (modo silencio: mensaje enviado desde panel)`);
+        if ((!updatedRows || updatedRows.length === 0) && !chatIdOptional && phone) {
+            const cands = normalizarCandidatosTelefono(phone);
+            const primary = cands.map(c => String(c).trim()).find(p => p.replace(/\D/g, '').length >= 10) || String(phone).trim();
+            const phoneInsert = primary.replace(/^\+/, '').replace(/\D/g, '').length >= 10
+                ? primary.replace(/^\+/, '').replace(/\D/g, '')
+                : primary;
+            const { error: insErr } = await supabase.from('whatsapp_chats').insert({
+                phone: phoneInsert,
+                whatsapp_instance: instance,
+                flor_paused_until: until,
+                name: phoneInsert,
+                channel: 'whatsapp',
+                status: 'active',
+                updated_at: new Date().toISOString()
+            });
+            if (insErr) {
+                console.warn('⚠️ Pausa Flor: update sin filas e insert falló (¿duplicado?):', insErr.message);
+            } else {
+                console.log(`⏸️ Chat creado con flor_paused_until (${minutes} min) para phone=${phoneInsert}`);
+            }
+        }
+        console.log(`⏸️ Flor pausada ${minutes} min para este chat (modo silencio)`);
     } catch (e) {
         console.warn('⚠️ setFlorPausedUntil:', e?.message || e);
     }
@@ -1684,10 +1755,16 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
 
     const model = aiConfig.model || CONFIG.GEMINI_MODEL || 'gemini-2.0-flash';
     const temperature = aiConfig.temperature !== undefined ? aiConfig.temperature : 0.3;
-    const maxTokens = aiConfig.maxTokens !== undefined ? aiConfig.maxTokens : 500;
+    let configured = aiConfig.maxTokens !== undefined
+        ? Number(aiConfig.maxTokens)
+        : (parseInt(process.env.FLOR_MAX_OUTPUT_TOKENS || String(FLOR_MAX_OUTPUT_TOKENS_MIN), 10) || FLOR_MAX_OUTPUT_TOKENS_MIN);
+    if (!Number.isFinite(configured) || configured < 1) {
+        configured = FLOR_MAX_OUTPUT_TOKENS_MIN;
+    }
+    const maxTokens = Math.max(FLOR_MAX_OUTPUT_TOKENS_MIN, Math.min(Math.floor(configured), 8192));
     const startTime = Date.now();
 
-    console.log(`🌸 Flor → Gemini (model=${model}), mensaje=${mensaje.length} chars, herramientas consultarCatalogoHoteles + buscarHotel activas${pareceConsultaHotel ? ', hint hotel inyectado' : ''}`);
+    console.log(`🌸 Flor → Gemini (model=${model}, maxOutputTokens=${maxTokens}), mensaje=${mensaje.length} chars, herramientas consultarCatalogoHoteles + buscarHotel activas${pareceConsultaHotel ? ', hint hotel inyectado' : ''}`);
 
     try {
         let currentContents = contents;
@@ -1736,6 +1813,11 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
                 break;
             }
 
+            const finishReason = candidate.finishReason || candidate.finish_reason;
+            if (finishReason && finishReason !== 'STOP') {
+                console.warn(`⚠️ Flor Gemini finishReason=${finishReason} (si es MAX_TOKENS, subí flor_ai_config.maxTokens o FLOR_MAX_OUTPUT_TOKENS; mínimo servidor=${FLOR_MAX_OUTPUT_TOKENS_MIN})`);
+            }
+
             const parts = candidate.content.parts;
             let textPart = null;
             const functionCalls = [];
@@ -1747,7 +1829,8 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
             if (functionCalls.length > 0) {
                 console.log(`🔧 Flor: Gemini envió ${functionCalls.length} function_call(s): ${functionCalls.map(fc => fc.name).join(', ')}`);
             } else if (textPart) {
-                console.log(`📝 Flor: Gemini devolvió solo texto (sin function_call), ${textPart.length} chars`);
+                const fr = candidate.finishReason || candidate.finish_reason || '';
+                console.log(`📝 Flor: Gemini devolvió solo texto (sin function_call), ${textPart.length} chars, finishReason=${fr || 'n/a'}`);
             }
 
             if (functionCalls.length > 0) {
@@ -2086,6 +2169,73 @@ function resolveLidToPhone(sock, remoteJid) {
 }
 
 /**
+ * Para mensajes salientes (fromMe) del humano: obtener el mismo identificador que usa el flujo entrante (+E.164),
+ * así florPauseMemoryUntil y whatsapp_chats.flor_paused_until coinciden con isFlorPausedForChat.
+ */
+function resolvePhoneForFlorPauseFromOutgoing(sock, msg) {
+    if (!msg?.key?.remoteJid) return null;
+    const remoteJid = String(msg.key.remoteJid);
+    let numero = remoteJid.replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '').trim();
+    const remoteJidAlt = msg.key.remoteJidAlt;
+    if (remoteJidAlt && String(remoteJidAlt).includes('@s.whatsapp.net')) {
+        const altNum = String(remoteJidAlt).replace('@s.whatsapp.net', '').trim();
+        if (altNum && /^[0-9]{10,}$/.test(altNum.replace(/^\+/, ''))) {
+            const realPhone = altNum.startsWith('+') ? altNum : '+' + altNum.replace(/\D/g, '');
+            return realPhone;
+        }
+    }
+    if (remoteJid.includes('@lid')) {
+        let realPhone = resolveLidToPhone(sock, remoteJid);
+        if (!realPhone && msg.key) {
+            const key = msg.key;
+            const candidates = [
+                key.senderPn, key.sender_pn, key.participant, key.participantAlt,
+                key.participant_alt, key.remoteJidAlt, key.remote_jid_alt
+            ].filter(Boolean);
+            for (const k of Object.keys(key || {})) {
+                const v = key[k];
+                if (v && typeof v === 'string' && v.includes('@s.whatsapp.net')) candidates.push(v);
+            }
+            for (const jidStr of candidates) {
+                const s = String(jidStr).trim();
+                if (!s.includes('@s.whatsapp.net')) continue;
+                const pn = s.replace(/@s\.whatsapp\.net$/i, '').trim();
+                if (pn && /^[0-9]{10,}$/.test(pn.replace(/^\+/, ''))) {
+                    realPhone = pn.replace(/\D/g, '');
+                    break;
+                }
+            }
+        }
+        if (realPhone) {
+            const d = String(realPhone).replace(/\D/g, '');
+            return d.length >= 10 ? ('+' + d) : null;
+        }
+    }
+    const d = String(numero).replace(/\D/g, '');
+    if (d.length >= 10) return '+' + d;
+    return null;
+}
+
+/** WhatsApp suele truncar ~4096 caracteres; enviar en partes si hace falta. */
+async function enviarTextoWhatsAppEnPartes(sock, remoteJid, texto) {
+    const max = 4090;
+    const t = String(texto || '');
+    if (t.length <= max) {
+        await sock.sendMessage(remoteJid, { text: t });
+        return;
+    }
+    let rest = t;
+    let part = 0;
+    while (rest.length > 0) {
+        const chunk = rest.slice(0, max);
+        rest = rest.slice(max);
+        part += 1;
+        await sock.sendMessage(remoteJid, { text: part > 1 ? `(continúa ${part})\n${chunk}` : chunk });
+    }
+    console.log(`📤 Flor: respuesta larga partida en ${part} mensaje(s) (${t.length} chars)`);
+}
+
+/**
  * Normaliza el número de teléfono para guardar en Supabase (campo phone).
  * Siempre devuelve un string: E.164 cuando es número real, o el valor limpio (ej. LID), nunca undefined ni el tipo de dato.
  */
@@ -2285,7 +2435,7 @@ async function guardarMensaje(numero, mensaje, esEnviado = false, respuestaFlor 
 // ===== FUNCIÓN PARA CONECTAR WHATSAPP =====
 
 async function connectToWhatsApp() {
-    const { state, saveCreds } = await useMultiFileAuthState(`auth_info_baileys_${CONFIG.INSTANCE_NUMBER}`);
+    const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, `auth_info_baileys_${CONFIG.INSTANCE_NUMBER}`));
     
     const { version } = await fetchLatestBaileysVersion();
     
@@ -2316,6 +2466,16 @@ async function connectToWhatsApp() {
         // Nota: La sincronización del app state es necesaria para WhatsApp
         // Los timeouts aumentados deberían dar suficiente tiempo para completar la autenticación
     });
+
+    // Distinguir eco fromMe de Flor/API (mismo message id) vs humano escribiendo desde el celular
+    const _origSendMessage = sock.sendMessage.bind(sock);
+    sock.sendMessage = async function (...args) {
+        const res = await _origSendMessage(...args);
+        try {
+            if (res && res.key && res.key.id) registerFlorOutboundBaileysMessageId(res.key.id);
+        } catch (e) { /* ignore */ }
+        return res;
+    };
 
     // Manejar eventos de conexión
     sock.ev.on('connection.update', async (update) => {
@@ -2670,14 +2830,27 @@ async function connectToWhatsApp() {
         }
 
         for (const msg of messages) {
-            // Mensajes SALIENTES (enviados por humano desde WhatsApp app o dashboard): activar Modo Silencio 10 min
+            // Mensajes SALIENTES (fromMe): Baileys recibe también lo enviado por Flor y por el humano desde el teléfono.
             if (msg.key.fromMe) {
                 const remoteJidOut = msg.key.remoteJid;
+                if (remoteJidOut && String(remoteJidOut).includes('@g.us')) {
+                    continue;
+                }
+                if (msg.key.id && isFlorOutboundBaileysMessageId(msg.key.id)) {
+                    // Eco del mismo proceso (Flor o API que usa sock.sendMessage); no pausar
+                    continue;
+                }
                 if (remoteJidOut) {
-                    const phoneOut = String(remoteJidOut).replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '').trim();
-                    if (phoneOut) {
-                        await setFlorPausedUntil(phoneOut, FLOR_SILENCE_MINUTES);
-                        console.log(`🔇 Modo Silencio: mensaje enviado por humano a ${phoneOut} → Flor pausada ${FLOR_SILENCE_MINUTES} min para este chat`);
+                    const jidLocal = String(remoteJidOut).replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '').trim();
+                    const resolved = resolvePhoneForFlorPauseFromOutgoing(sock, msg);
+                    // Registrar LID y +número: si el cliente escribe con un formato y el asesor respondió con otro, igual aplica silencio
+                    florPauseMemoryTouchMany(resolved, jidLocal);
+                    const primaryForDb = resolved || (jidLocal && /^[0-9]{10,}$/.test(jidLocal.replace(/^\+/, '')) ? ('+' + jidLocal.replace(/\D/g, '')) : jidLocal);
+                    if (primaryForDb && !String(primaryForDb).includes('@')) {
+                        await setFlorPausedUntil(primaryForDb, FLOR_SILENCE_MINUTES);
+                        console.log(`🔇 Modo Silencio: mensaje saliente HUMANO (WhatsApp/app, no bot) → Flor ${FLOR_SILENCE_MINUTES} min | jid=${jidLocal} resolved=${resolved || '—'} msgId=${msg.key.id || 'n/a'}`);
+                    } else {
+                        console.warn(`⚠️ Modo Silencio: no se pudo fijar pausa en DB para remoteJid=${remoteJidOut} (memoria RAM sí puede tener LID/dígitos)`);
                     }
                 }
                 continue;
@@ -2833,6 +3006,11 @@ async function connectToWhatsApp() {
                 const p = florPendingByUser.get(key);
                 florPendingByUser.delete(key);
                 if (!p || !p.messages.length) return;
+
+                if (await isFlorPausedForChat(p.numero, CONFIG.INSTANCE_NUMBER)) {
+                    console.log(`⏸️ Flor pausada antes de llamar a la IA (silencio activo para ${p.numero})`);
+                    return;
+                }
 
                 const textos = p.messages.map(m => m.texto);
                 let combined = textos.length === 1
@@ -3074,7 +3252,12 @@ async function connectToWhatsApp() {
                         await sock.sendMessage(p.remoteJid, { text: mensajeParaEnvio.textWithLink });
                         console.log('📍 Combo ubicación enviado: imagen del hotel + texto con link');
                     } else {
-                        await sock.sendMessage(p.remoteJid, mensajeParaEnvio);
+                        const plainText = mensajeParaEnvio.text;
+                        if (plainText && plainText.length > 4090) {
+                            await enviarTextoWhatsAppEnPartes(sock, p.remoteJid, plainText);
+                        } else {
+                            await sock.sendMessage(p.remoteJid, mensajeParaEnvio);
+                        }
                     }
                     const textoGuardado = mensajeParaEnvio.sendAsCombo
                         ? (mensajeParaEnvio.caption + '\n\n' + mensajeParaEnvio.textWithLink)
