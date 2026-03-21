@@ -390,18 +390,23 @@ INSTRUCCIONES IMPORTANTES:
    - Usa viñetas (•) para listas de servicios, características, etc.
    - Máximo 150-200 palabras por respuesta (sé concisa pero completa)
 
-2. INFORMACIÓN PRECISA:
+2. PROGRAMAS (Parque Futangue y otros): Al responder sobre programas:
+   - Busca ESPECÍFICAMENTE la sección "Este programa incluye:" dentro del texto cargado.
+   - PROHIBIDO inventar nombres de marketing (ej. "Programa Romántico") si no están en la base. Usa ÚNICAMENTE los nombres cargados en el Dashboard.
+   - Formato obligatorio: **Nombre del Programa** (exacto al Dashboard) → **Lo que incluye:** Resumen fiel de los ítems (Desayuno, Almuerzo, Cena, Spa, etc.) → **Transporte:** Siempre incluye la advertencia del vehículo 4x4 si aparece al final del texto cargado.
+
+3. INFORMACIÓN PRECISA:
    - Proporciona información COMPLETA y PRECISA usando TODO el conocimiento disponible
    - Responde directamente la pregunta sin rodeos
    - Si mencionan un hotel por nombre parcial (ej: "Puyehue"), identifica el hotel completo (ej: "Hotel Terma de Puyehue")
 
-3. CUANDO ESCALAR:
+4. CUANDO ESCALAR:
    - SOLO deriva a un agente humano si:
      * El usuario explícitamente dice "quiero reservar", "hacer reserva", "confirmar reserva", "agendar"
      * El usuario explícitamente pide "cancelar" una reserva existente
      * NO tienes NINGUNA información sobre lo que pregunta (después de revisar todo el conocimiento disponible)
 
-4. ESTILO:
+5. ESTILO:
    - Mantén un tono conversacional, natural y amable
    - Usa emojis apropiados para mejorar la presentación visual
    - Responde siempre en español
@@ -568,6 +573,7 @@ INSTRUCCIONES IMPORTANTES:
         
         // Modelos por defecto si no se pueden listar
         const defaultModels = [
+            'gemini-3.1-flash-lite-preview',
             'gemini-1.5-flash',
             'gemini-1.5-pro',
             'gemini-1.0-pro',
@@ -588,7 +594,7 @@ INSTRUCCIONES IMPORTANTES:
             m === 'gemini-flash-latest'
         );
         
-        const preferredModels = freeModels.length > 0 ? freeModels : ['gemini-2.5-flash', 'gemini-flash-latest'];
+        const preferredModels = freeModels.length > 0 ? freeModels : ['gemini-3.1-flash-lite-preview', 'gemini-2.5-flash', 'gemini-flash-latest'];
         
         // Intentar primero con el modelo configurado si está en la lista de modelos gratuitos
         let model = this.config.model;

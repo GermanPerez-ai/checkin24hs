@@ -1,18 +1,43 @@
 // Servicio de IA para Flor - Integración con APIs de Inteligencia Artificial
 // Checkin24hs - Asistente Virtual Inteligente
-// Mismo prompt que WhatsApp (flor_general_config en Supabase) cuando se usa Gemini
 
+// Mismo prompt y reglas que WhatsApp (flor_general_config + FLOR_REGLAS_PRIORIDAD)
 const FLOR_PROMPT_DEFAULT = `Eres Flor IA 🌸, asistente virtual de Checkin24hs. Operás con inmediatez y eficiencia para atender a clientes de alto poder adquisitivo en una agencia de hoteles de lujo.
+
 **Propósito:** Sos el primer punto de contacto. Gestionás y respondés de forma inmediata y precisa consultas sobre hoteles, servicios y promociones (WhatsApp y redes).
+
 **Público:** Clientes viajeros, aventureros y empresarios con alto poder adquisitivo. Esperan servicio premium y suelen ser impacientes; priorizá velocidad y claridad.
+
 **Tono:** Amable y amigable, profesional y eficiente. Cálida y servicial, nunca lenta.
-**Reglas importantes:** No enviés nunca el carácter '#' al cliente. No des precios por noche como información para cotizar. No realices cotizaciones vos misma.
-**Cotización:** Si el cliente pide cotizar, tarifa o reservar: no des precios. Enviále este enlace: https://cotizar.checkin24hs.com/
-**Escalación a humano:** Cuando pidan "hablar con un humano", reservar, o no entendés la consulta.
-**Límites:** Respuestas directas, concisas. Máximo 3 oraciones, salvo que pidan lista de servicios.`;
+
+**Bienvenida:** "¡Mi nombre es Flor IA 🌸, soy tu asistente virtual y estoy aquí para ayudarte! ¿Me podrías decir brevemente sobre qué hotel o servicio tenés una consulta?"
+
+**Reglas importantes:**
+- No enviés nunca el carácter '#' al cliente.
+- No des precios por noche como información para cotizar; esa información es interna.
+- No realices cotizaciones vos misma.
+
+**Cotización:** Si el cliente pide cotizar, tarifa o reservar: no des precios. Enviále este enlace y explicá que complete los datos para que le pasemos la cotización: https://cotizar.checkin24hs.com/
+
+**Manejo de errores:** Si la consulta no es clara, disculpate de forma concisa y ofrecé pasar a un agente humano.
+
+**Escalación a humano (transferir de inmediato):**
+1. El cliente pide "hablar con un humano", "agente" o "asesor".
+2. El cliente quiere reservar (ej. "Quiero reservar", "Hacer una reserva para [fecha]").
+3. No entendés la consulta o no tenés la información para responder bien.
+
+**Límites:** Respuestas directas, concisas y orientadas a la acción. Máximo 3 oraciones, salvo que pidan una lista de servicios.
+
+**Base de conocimiento:** Usá solo datos verificados sobre hoteles, direcciones, servicios, tarifas y políticas. No compartas datos personales de otros clientes ni información financiera interna.`;
 
 const FLOR_REGLAS_PRIORIDAD = `
-**PRIORIDAD - OBLIGATORIO:** Cuando pregunten por información de un hotel o destino: usá SIEMPRE la base de hoteles proporcionada. NUNCA redirijas a la web solo para dar información general. Solo enviá el link https://cotizar.checkin24hs.com/ cuando pidan explícitamente cotizar, tarifa, precio o reservar. La frase "¡Mi nombre es Flor IA 🌸, soy tu asistente virtual..." es SOLO para el primer saludo. NUNCA la repitas en respuestas sobre hoteles.`;
+**PRIORIDAD - OBLIGATORIO:**
+- Cuando pregunten por información de un hotel o destino (ej. "info de Puyehue", "qué me cuentas de X", "hotel Y"): usá SIEMPRE la base de hoteles proporcionada. NUNCA redirijas a la web solo para dar información general.
+- Solo enviá el link https://cotizar.checkin24hs.com/ cuando pidan explícitamente cotizar, tarifa, precio o reservar. Para consultas de información (descripción, servicios, ubicación, etc.) respondé con los datos de la base de hoteles.
+
+**NO REPETIR PRESENTACIÓN:**
+- La frase "¡Mi nombre es Flor IA 🌸, soy tu asistente virtual y estoy aquí para ayudarte!" es SOLO para el primer saludo. NUNCA la repitas en respuestas sobre hoteles, cotización o consultas concretas.
+- En consultas de hotel, confirmaciones ("sí", "ok") o pedidos de información: respondé directo al tema, sin volver a presentarte.`;
 
 class FlorAIService {
     constructor() {
@@ -91,14 +116,16 @@ class FlorAIService {
         console.log('[Flor AI] 🔧 Configuración actualizada:', this.config);
     }
 
-    // Generar respuesta: 1) Flor API (WhatsApp) 2) Gemini con prompt Supabase (flor_general_config) + hoteles 3) fallback buildSystemPrompt
+    // Generar respuesta: 1) Flor API (WhatsApp) 2) Gemini con prompt Supabase + hoteles 3) null → agente usa reglas
     async generateAIResponse(userMessage, context = {}) {
         let florApiUrl = typeof window !== 'undefined' && window.FLOR_API_URL ? window.FLOR_API_URL : null;
+        // Evitar mixed content: si la página es HTTPS y la API es HTTP, usar HTTPS (puerto 443).
         if (florApiUrl && typeof window !== 'undefined' && window.location && window.location.protocol === 'https:' && florApiUrl.indexOf('http://') === 0) {
             florApiUrl = 'https://' + florApiUrl.replace(/^https?:\/\//, '').replace(/:\d+$/, '');
         }
         if (florApiUrl) {
             try {
+                if (typeof console !== 'undefined' && console.log) console.log('[Flor AI] 📡 Origen: intentando Flor API (WhatsApp)', florApiUrl);
                 const webSessionId = (typeof window !== 'undefined' && window.getFlorWebSessionId && typeof window.getFlorWebSessionId === 'function') ? window.getFlorWebSessionId() : null;
                 const body = { message: userMessage, context: context || {} };
                 if (webSessionId) { body.channel = 'web'; body.external_id = webSessionId; body.display_name = 'Visitante web'; }
@@ -107,46 +134,58 @@ class FlorAIService {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body)
                 });
-                if (res.ok) {
+                if (!res.ok) {
+                    if (typeof console !== 'undefined' && console.warn) console.warn('[Flor AI] Flor API respondió', res.status, res.statusText, '- usando fallback local (reglas)');
+                } else {
                     const data = await res.json().catch(() => ({}));
-                    if (data && data.response != null) return data.response;
+                    if (data && data.response != null) {
+                        if (typeof console !== 'undefined' && console.log) console.log('[Flor AI] 🌸 Respuesta desde Flor API (misma que WhatsApp)');
+                        return data.response;
+                    }
+                    if (typeof console !== 'undefined' && console.warn) console.warn('[Flor AI] Flor API devolvió 200 pero sin response:', data && data.error ? data.error : 'revisar servidor');
                 }
-            } catch (e) { console.warn('[Flor AI] Flor API no alcanzable:', e.message); }
+            } catch (e) {
+                if (typeof console !== 'undefined' && console.warn) console.warn('[Flor AI] Flor API no alcanzable:', e.message);
+            }
         }
 
         if (!this.config.enabled || !this.config.apiKey) {
-            console.log('[Flor AI] ⚠️ IA deshabilitada o sin API key');
+            if (typeof console !== 'undefined' && console.log) console.log('[Flor AI] ⚠️ Flor API no disponible o sin respuesta; sin API key Gemini → reglas + flor_info de Supabase');
             return null;
         }
 
         try {
             const knowledgeBase = FlorKnowledgeBase;
             const hotels = knowledgeBase.getHotelsFromDB();
+            // Si aún no tenemos el prompt de Flor (ej. loadHotelsFromSupabase no terminó), cargar solo flor_general_config ahora
             let promptGeneral = (knowledgeBase.agent && knowledgeBase.agent.promptGeneral) ? knowledgeBase.agent.promptGeneral : null;
             if (!promptGeneral && typeof window !== 'undefined' && window.supabaseClient && window.supabaseClient.isInitialized && window.supabaseClient.isInitialized()) {
                 const loaded = await (knowledgeBase.loadFlorGeneralConfigFromSupabase && knowledgeBase.loadFlorGeneralConfigFromSupabase(window.supabaseClient.client));
                 if (loaded) promptGeneral = knowledgeBase.agent.promptGeneral;
             }
+            // Construir contexto para la IA (incluir userMessage para detectar integraciones)
             context.userMessage = userMessage;
             let systemPrompt, userPrompt;
+            // Usar misma conexión que WhatsApp: prompt de Supabase (flor_general_config) + bloque hoteles + reglas prioridad
             if (this.config.provider === 'gemini' && (promptGeneral || hotels.length > 0)) {
                 const basePrompt = promptGeneral || FLOR_PROMPT_DEFAULT;
-                const hotelsBlock = this.buildHotelsBlockWhatsAppStyle ? this.buildHotelsBlockWhatsAppStyle(hotels) : '';
+                const hotelsBlock = this.buildHotelsBlockWhatsAppStyle(hotels);
                 systemPrompt = basePrompt + '\n\n' + hotelsBlock + '\n' + FLOR_REGLAS_PRIORIDAD;
                 userPrompt = `Mensaje del cliente: ${userMessage}\n\nContexto: ${JSON.stringify(context)}\n\nResponde de manera breve y útil usando la base de hoteles cuando aplique.`;
-                console.log('[Flor AI] 📋 Prompt =', promptGeneral ? 'flor_general_config (Supabase)' : 'FLOR_PROMPT_DEFAULT', '| Hoteles:', hotels.length);
+                if (typeof console !== 'undefined' && console.log) console.log('[Flor AI] 📋 Origen: Gemini. Prompt =', promptGeneral ? 'flor_general_config (Supabase)' : 'FLOR_PROMPT_DEFAULT', '| Hoteles:', hotels.length);
             } else {
                 systemPrompt = this.buildSystemPrompt(knowledgeBase, hotels, context);
                 userPrompt = this.buildUserPrompt(userMessage, context);
             }
 
             let response;
+
             switch (this.config.provider) {
                 case 'openai':
                     response = await this.callOpenAI(systemPrompt, userPrompt);
                     break;
                 case 'gemini':
-                    response = await this.callGemini(systemPrompt, userPrompt);
+                    response = await this.callGemini(systemPrompt, userPrompt, context);
                     break;
                 case 'claude':
                     response = await this.callClaude(systemPrompt, userPrompt);
@@ -155,30 +194,23 @@ class FlorAIService {
                     response = await this.callCustomAPI(systemPrompt, userPrompt);
                     break;
                 default:
-                    throw new Error('Proveedor no soportado: ' + this.config.provider);
+                    throw new Error(`Proveedor no soportado: ${this.config.provider}`);
             }
+
             return response;
+
         } catch (error) {
             console.error('[Flor AI] ❌ Error al generar respuesta:', error);
-            return null;
+            console.error('[Flor AI] 📋 Detalles del error:', {
+                message: error.message,
+                stack: error.stack,
+                name: error.name,
+                provider: this.config.provider,
+                enabled: this.config.enabled,
+                hasApiKey: !!this.config.apiKey
+            });
+            return null; // Retornar null para usar fallback
         }
-    }
-
-    buildHotelsBlockWhatsAppStyle(hotels) {
-        const active = (hotels || []).filter(h => {
-            const s = (h.status || '').toLowerCase();
-            return s !== 'inactivo' && s !== 'inactive';
-        });
-        if (active.length === 0) return 'No hay hoteles activos cargados en la base. Indicá que consultes con el equipo.';
-        const parts = active.map(h => {
-            const fi = h.flor_info || {};
-            const hotelName = h.name || 'Sin nombre';
-            let nameVariants = [hotelName, hotelName.toLowerCase(), hotelName.replace(/hotel\s+/i, '').replace(/terma[s]?\s+de\s+/i, '').trim(), hotelName.replace(/hotel\s+/i, '').trim(), hotelName.replace(/^parque\s+/i, '').trim()].filter((v, i, arr) => v && arr.indexOf(v) === i);
-            if (hotelName.toLowerCase().includes('futangue')) nameVariants.push('futanque', 'Futanque');
-            const lines = [`### ${hotelName}`, `Nombres alternativos: ${nameVariants.join(', ')}`, `Ubicación: ${h.location || '-'}`, fi.description ? `Descripción: ${String(fi.description).slice(0, 400)}` : '', fi.services ? `Servicios: ${String(fi.services).slice(0, 300)}` : '', fi.excursions ? `Excursiones: ${String(fi.excursions).slice(0, 250)}` : '', fi.policies ? `Políticas: ${String(fi.policies).slice(0, 200)}` : ''].filter(Boolean);
-            return lines.join('\n');
-        });
-        return '## Hoteles Checkin24hs\n\nSi el cliente menciona un nombre parcial (ej: Puyehue, Futangue, Corralco), buscá en "Nombres alternativos". Responde con la información del hotel que coincida.\n\n' + parts.join('\n\n');
     }
 
     // Construir prompt del sistema con toda la información de Flor
@@ -541,6 +573,48 @@ INSTRUCCIONES IMPORTANTES:
         return userMessage;
     }
 
+    // Bloque de hoteles en el mismo formato que WhatsApp (getHotelsBlockForFlor) para misma esencia de Flor
+    buildHotelsBlockWhatsAppStyle(hotels) {
+        const active = (hotels || []).filter(h => {
+            const s = (h.status || '').toLowerCase();
+            return s !== 'inactivo' && s !== 'inactive';
+        });
+        if (active.length === 0) {
+            return 'No hay hoteles activos cargados en la base. Indicá que consultes con el equipo.';
+        }
+        const parts = active.map(h => {
+            const fi = h.flor_info || {};
+            const hotelName = h.name || 'Sin nombre';
+            let nameVariants = [
+                hotelName,
+                hotelName.toLowerCase(),
+                hotelName.replace(/hotel\s+/i, '').replace(/terma[s]?\s+de\s+/i, '').trim(),
+                hotelName.replace(/terma[s]?\s+de\s+/i, '').trim(),
+                hotelName.replace(/hotel\s+/i, '').trim(),
+                hotelName.replace(/^parque\s+/i, '').trim(),
+                hotelName.replace(/^parque\s+/i, '').toLowerCase().trim()
+            ];
+            if (hotelName.toLowerCase().includes('futangue')) {
+                nameVariants.push('futanque', 'Futanque');
+            }
+            nameVariants = nameVariants.filter((v, i, arr) => v && arr.indexOf(v) === i);
+            const lines = [
+                `### ${hotelName}`,
+                `Nombres alternativos: ${nameVariants.join(', ')}`,
+                `Ubicación: ${h.location || '-'}`,
+                fi.description ? `Descripción: ${String(fi.description).slice(0, 400)}` : '',
+                fi.services ? `Servicios: ${String(fi.services).slice(0, 300)}` : '',
+                fi.excursions ? `Excursiones/actividades: ${String(fi.excursions).slice(0, 250)}` : '',
+                fi.prices ? `Precios (resumen): ${String(fi.prices).slice(0, 200)}` : '',
+                fi.policies ? `Políticas: ${String(fi.policies).slice(0, 200)}` : '',
+                fi.transport ? `Cómo llegar: ${String(fi.transport).slice(0, 150)}` : '',
+                fi.contact ? `Contacto: ${String(fi.contact).slice(0, 120)}` : ''
+            ].filter(Boolean);
+            return lines.join('\n');
+        });
+        return `## Hoteles Checkin24hs\n\nIMPORTANTE: Si el cliente menciona un nombre parcial (ej: "Puyehue", "Futangue", "futanque", "Corralco"), buscá en "Nombres alternativos" de cada hotel. "Futangue" o "futanque" = Parque Futangue. "Puyehue" = Termas de Puyehue. Responde con la información completa del hotel que coincida.\n\n${parts.join('\n\n')}`;
+    }
+
     // Llamar a OpenAI API
     async callOpenAI(systemPrompt, userPrompt) {
         const url = this.config.apiUrl || 'https://api.openai.com/v1/chat/completions';
@@ -613,8 +687,8 @@ INSTRUCCIONES IMPORTANTES:
         return null;
     }
 
-    // Llamar a Google Gemini API
-    async callGemini(systemPrompt, userPrompt) {
+    // Llamar a Google Gemini API (misma estructura que WhatsApp: systemInstruction + contents)
+    async callGemini(systemPrompt, userPrompt, context) {
         // Primero, intentar listar modelos disponibles
         let availableModelsInfo = null;
         try {
@@ -623,152 +697,68 @@ INSTRUCCIONES IMPORTANTES:
             console.warn('[Flor AI] ⚠️ No se pudieron listar modelos, usando lista por defecto');
         }
         
-        // Modelos por defecto si no se pueden listar
-        const defaultModels = [
-            'gemini-3.1-flash-lite-preview',
-            'gemini-1.5-flash',
-            'gemini-1.5-pro',
-            'gemini-1.0-pro',
-            'gemini-pro',
-            'gemini-1.5-flash-latest',
-            'gemini-1.5-pro-latest'
-        ];
-        
-        // Usar modelos listados o los por defecto
-        const apiVersion = availableModelsInfo?.version || 'v1beta';
+        // v1beta soporta systemInstruction (igual que WhatsApp)
+        const apiVersion = 'v1beta';
+        const defaultModels = ['gemini-3.1-flash-lite-preview', 'gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
         const availableModels = availableModelsInfo?.models || defaultModels;
+        const model = this.config.model && availableModels.some(m => m === this.config.model || m.includes(this.config.model)) ? this.config.model : (availableModels[0] || 'gemini-3.1-flash-lite-preview');
+        const cleanModel = String(model).replace('models/', '');
         
-        // Priorizar modelos gratuitos (flash, flash-lite, lite) sobre modelos pro/preview que requieren facturación
-        const freeModels = availableModels.filter(m => 
-            (m.includes('flash') && !m.includes('preview') && !m.includes('exp') && !m.includes('pro')) ||
-            m.includes('flash-lite') || 
-            m.includes('lite-latest') ||
-            m === 'gemini-flash-latest'
-        );
-        
-        const preferredModels = freeModels.length > 0 ? freeModels : ['gemini-3.1-flash-lite-preview', 'gemini-2.5-flash', 'gemini-flash-latest'];
-        
-        // Intentar primero con el modelo configurado si está en la lista de modelos gratuitos
-        let model = this.config.model;
-        
-        // Si el modelo configurado no está en la lista de gratuitos, o no está disponible, usar uno gratuito
-        if (!model || 
-            !availableModels.some(m => m === model || m.includes(model.replace('models/', ''))) ||
-            (preferredModels.length > 0 && !preferredModels.some(m => m === model || m.includes(model.replace('models/', ''))))) {
-            model = preferredModels[0] || availableModels[0];
-            console.log(`[Flor AI] 📝 Usando modelo gratuito: ${model}`);
-        }
-        
-        // Crear lista de modelos a probar: primero los gratuitos preferidos, luego el configurado, luego los demás
-        const otherModels = availableModels.filter(m => 
-            m !== model && !preferredModels.includes(m)
-        );
-        
-        // Construir lista priorizando modelos gratuitos
-        let modelsToTry = [];
-        if (model && preferredModels.some(m => m === model || m.includes(model.replace('models/', '')))) {
-            modelsToTry.push(model, ...preferredModels.filter(m => m !== model && !m.includes(model.replace('models/', ''))));
-        } else {
-            modelsToTry.push(...preferredModels);
-            if (model && availableModels.includes(model)) {
-                modelsToTry.push(model);
+        // Misma estructura que WhatsApp: systemInstruction + contents (no concatenar en un solo texto)
+        const requestBody = {
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ parts: [{ text: userPrompt }] }],
+            generationConfig: {
+                temperature: this.config.temperature !== undefined ? this.config.temperature : 0.7,
+                maxOutputTokens: Math.min(this.config.maxTokens || 500, 1024)
             }
-        }
-        modelsToTry.push(...otherModels);
-        
-        console.log(`[Flor AI] 🔄 Modelos a probar: ${modelsToTry.join(', ')}`);
+        };
         
         let lastError = null;
+        const modelsToTry = [cleanModel, 'gemini-3.1-flash-lite-preview', 'gemini-2.5-flash', 'gemini-1.5-flash'].filter((m, i, arr) => arr.indexOf(m) === i);
         
         for (const modelToTry of modelsToTry) {
             try {
-                // Limpiar el nombre del modelo (eliminar prefijo 'models/' si existe)
-                const cleanModel = modelToTry.replace('models/', '');
+                const tryUrl = `https://generativelanguage.googleapis.com/${apiVersion}/models/${modelToTry}:generateContent?key=${this.config.apiKey}`;
+                console.log(`[Flor AI] 🔄 Intentando con ${apiVersion}/${modelToTry}...`);
                 
-                // Gemini requiere la API key en la URL
-                const url = `https://generativelanguage.googleapis.com/${apiVersion}/models/${cleanModel}:generateContent?key=${this.config.apiKey}`;
-                
-                // Gemini usa un formato diferente - combina system y user en un solo prompt
-                const fullPrompt = `${systemPrompt}\n\nUsuario: ${userPrompt}\n\nAsistente:`;
-                
-                console.log(`[Flor AI] 🔄 Intentando con ${apiVersion} y modelo ${cleanModel}...`);
-                
-                const response = await fetch(url, {
+                const response = await fetch(tryUrl, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        contents: [{
-                            parts: [{
-                                text: fullPrompt
-                            }]
-                        }],
-                        generationConfig: {
-                            temperature: this.config.temperature,
-                            maxOutputTokens: Math.min(this.config.maxTokens, 200) // Limitar a 200 tokens para respuestas muy concisas
-                        }
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
                 });
 
                 if (!response.ok) {
                     const error = await response.json().catch(() => ({}));
                     const errorMessage = error.error?.message || error.message || `Error ${response.status}: ${response.statusText}`;
                     lastError = errorMessage;
-                    
-                    // Si es error 429 (quota exceeded), saltar a modelos gratuitos directamente
-                    if (response.status === 429) {
-                        console.warn(`[Flor AI] ⚠️ Cuota excedida con ${cleanModel} (plan gratuito limitado). Saltando a modelos gratuitos...`);
-                        // Filtrar modelos que probablemente requieren facturación
-                        const freeModels = modelsToTry.filter(m => 
-                            m.includes('flash') && !m.includes('pro') && !m.includes('preview') && !m.includes('exp') ||
-                            m.includes('flash-lite') || 
-                            m === 'gemini-flash-latest'
-                        );
-                        if (freeModels.length > 0) {
-                            // Actualizar lista de modelos a probar con solo los gratuitos
-                            modelsToTry.splice(0, modelsToTry.length, ...freeModels);
-                            continue;
-                        }
-                    }
-                    
-                    console.warn(`[Flor AI] ⚠️ Error con ${apiVersion}/${cleanModel}: ${errorMessage}`);
-                    continue; // Intentar con el siguiente modelo
+                    if (response.status === 429) console.warn(`[Flor AI] ⚠️ Cuota excedida con ${modelToTry}`);
+                    console.warn(`[Flor AI] ⚠️ Error con ${modelToTry}: ${errorMessage}`);
+                    continue;
                 }
 
                 const data = await response.json();
-                
-                // Verificar si hay contenido en la respuesta
                 if (!data.candidates || data.candidates.length === 0) {
                     lastError = 'No se recibió respuesta de Gemini';
                     continue;
                 }
-                
                 const text = data.candidates[0]?.content?.parts?.[0]?.text?.trim();
                 if (!text) {
                     lastError = 'La respuesta de Gemini está vacía';
                     continue;
                 }
-                
-                console.log(`[Flor AI] ✅ Respuesta exitosa con ${apiVersion} y modelo ${cleanModel}`);
-                
-                // Guardar el modelo que funcionó para próximas llamadas
-                if (cleanModel !== this.config.model) {
-                    this.config.model = cleanModel;
+                console.log(`[Flor AI] ✅ Respuesta exitosa con ${modelToTry}`);
+                if (modelToTry !== this.config.model) {
+                    this.config.model = modelToTry;
                     this.saveConfig();
-                    console.log(`[Flor AI] 💾 Modelo guardado: ${cleanModel}`);
                 }
-                
                 return text;
-                
             } catch (error) {
                 lastError = error.message;
                 console.warn(`[Flor AI] ⚠️ Excepción con ${modelToTry}: ${error.message}`);
                 continue;
             }
         }
-        
-        // Si llegamos aquí, todos los intentos fallaron
         throw new Error(`No se pudo conectar con Gemini. Último error: ${lastError}. Verifica tu API key o la disponibilidad de los modelos.`);
     }
 
@@ -879,8 +869,9 @@ INSTRUCCIONES IMPORTANTES:
         return responseText.trim();
     }
 
-    // Verificar si el servicio está disponible
+    // Verificar si el servicio está disponible (API Flor en servidor o IA en navegador)
     isAvailable() {
+        if (typeof window !== 'undefined' && window.FLOR_API_URL) return true;
         return this.config.enabled && this.config.apiKey && this.config.apiKey.trim() !== '';
     }
 }

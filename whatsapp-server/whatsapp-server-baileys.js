@@ -53,7 +53,8 @@ const CONFIG = {
     SAVE_TO_SUPABASE: true,
     USE_GEMINI_AI: true,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
-    GEMINI_MODEL: process.env.GEMINI_MODEL || 'gemini-2.0-flash', // Bajo costo y latencia (spec); override con env o flor_ai_config
+    // Default: Gemini 3.1 Flash-Lite (Google anunció apagado de Gemini 2.0 ~jun 2026). Override: GEMINI_MODEL o flor_ai_config en Supabase.
+    GEMINI_MODEL: process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite-preview',
     SUPABASE: {
         url: process.env.SUPABASE_URL || 'https://lmoeuyasuvoqhtvhkyia.supabase.co',
         anonKey: process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxtb2V1eWFzdXZvcWh0dmhreWlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzNjE5NjAsImV4cCI6MjA3OTkzNzk2MH0.28xpqAqAa7rkeT3Ma5fPmbzYnetlq2wOPOgh9XBF3g4'
@@ -454,7 +455,7 @@ async function detectarIntegracionActivada(mensaje, lastHotelNombre) {
 const FLOR_AI_CONFIG_DEFAULT = {
     enabled: true,
     provider: 'gemini',
-    model: 'gemini-2.0-flash',
+    model: 'gemini-3.1-flash-lite-preview',
     temperature: 0.3,
     maxTokens: 2048,
     imagen_cotizacion_url: null // URL de imagen para preview del link cotizador (Supabase o env IMAGEN_COTIZACION_URL)
@@ -1349,6 +1350,15 @@ function esRespuestaCotizacion(texto) {
     return /cotizar\.checkin24hs\.com/i.test(texto);
 }
 
+/** Caption corto para imagen de cotización; el texto largo va en un 2.º mensaje (límite WA ~1024 en caption). */
+function captionImagenCotizacionResumido(textoCompleto) {
+    const t = String(textoCompleto || '');
+    const m = t.match(/\S*cotizar\.checkin24hs\.com[^\s]*/i);
+    const linkLine = m ? m[0].trim() : 'https://cotizar.checkin24hs.com/';
+    const cap = `🌸 Flor · Cotización Checkin24hs\n${linkLine}\n\n📩 El detalle completo viene en el siguiente mensaje.`;
+    return cap.length > 1024 ? cap.slice(0, 1021) + '...' : cap;
+}
+
 /** Detecta si una URL es de Google Maps (corta o larga). */
 function esLinkMaps(url) {
     if (!url || typeof url !== 'string') return false;
@@ -1458,8 +1468,16 @@ async function prepararMensajeFlorParaEnvio(texto) {
     const aiConfig = await getFlorAIConfig();
     const imagenCotizacionUrl = (aiConfig.imagen_cotizacion_url || CONFIG.IMAGEN_COTIZACION_URL || '').trim() || null;
     if (esRespuestaCotizacion(texto) && imagenCotizacionUrl) {
-        const caption = texto.length > captionMaxLen ? texto.slice(0, captionMaxLen - 3) + '...' : texto;
-        return { image: { url: imagenCotizacionUrl }, caption };
+        // WhatsApp limita el caption de imagen a ~1024 chars; si no, el cliente ve el texto cortado ("Estadía míni...").
+        if (texto.length <= captionMaxLen) {
+            return { image: { url: imagenCotizacionUrl }, caption: texto };
+        }
+        return {
+            sendCotizacionCombo: true,
+            imageUrl: imagenCotizacionUrl,
+            caption: captionImagenCotizacionResumido(texto),
+            textFull: texto
+        };
     }
     // Combo ubicación: si el mensaje tiene link de Maps y encontramos hotel con imagen, enviar imagen + texto
     const combo = await prepararComboUbicacionConImagen(texto);
@@ -1516,7 +1534,18 @@ async function downloadUrlToBuffer(url) {
 }
 
 /**
- * Transcribir audio a texto usando Gemini 2.0 Flash (multimodal: audio → texto).
+ * Clona `candidate.content.parts` del turno modelo para el siguiente paso con function calling.
+ * Gemini 3 exige devolver thoughtSignature / thought_signature en la primera functionCall (y el orden de partes);
+ * en 2.5 la firma puede estar en la primera parte aunque no sea functionCall. Reenviar todas las partes evita 400.
+ * @see https://ai.google.dev/gemini-api/docs/thought-signatures
+ */
+function cloneModelPartsForToolFollowup(parts) {
+    if (!Array.isArray(parts)) return [];
+    return parts.map(p => (p && typeof p === 'object' ? { ...p } : p));
+}
+
+/**
+ * Transcribir audio a texto usando Gemini (multimodal: audio → texto).
  * @param {string} audioBase64 - Audio en base64
  * @param {string} mimeType - Ej: audio/ogg, audio/mp3 (Gemini soporta ogg, mp3, wav, aac, flac)
  * @returns {Promise<string|null>} - Texto transcrito o null si falla
@@ -1526,7 +1555,7 @@ async function transcribeAudioWithGemini(audioBase64, mimeType = 'audio/ogg') {
         console.warn('⚠️ Transcripción de audio: GEMINI_API_KEY no configurada. Configura la variable de entorno en EasyPanel (servicio WhatsApp).');
         return null;
     }
-    const model = CONFIG.GEMINI_MODEL || 'gemini-2.0-flash';
+    const model = CONFIG.GEMINI_MODEL || 'gemini-3.1-flash-lite-preview';
     const prompt = 'Transcribe this voice message to text. Reply only with the transcribed text, in the same language as the speaker. No other commentary or punctuation beyond what was said.';
     try {
         const requestBody = {
@@ -1753,7 +1782,7 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
         }
     ];
 
-    const model = aiConfig.model || CONFIG.GEMINI_MODEL || 'gemini-2.0-flash';
+    const model = aiConfig.model || CONFIG.GEMINI_MODEL || 'gemini-3.1-flash-lite-preview';
     const temperature = aiConfig.temperature !== undefined ? aiConfig.temperature : 0.3;
     let configured = aiConfig.maxTokens !== undefined
         ? Number(aiConfig.maxTokens)
@@ -1834,7 +1863,11 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
             }
 
             if (functionCalls.length > 0) {
-                const modelParts = functionCalls.map(fc => ({ functionCall: fc }));
+                let modelParts = cloneModelPartsForToolFollowup(parts);
+                if (!modelParts.some(p => p && p.functionCall)) {
+                    console.warn('⚠️ Flor: parts sin functionCall; fallback sin thought signatures (Gemini 3 puede responder 400)');
+                    modelParts = functionCalls.map(fc => ({ functionCall: fc }));
+                }
                 const functionResponses = [];
                 for (const fc of functionCalls) {
                     if (fc.name === 'consultarCatalogoHoteles') {
@@ -2021,7 +2054,7 @@ async function guardarFlorInteraction(opts) {
             intent: String(intent),
             success: !!success,
             used_ai: !!usedAi,
-            ai_model: CONFIG.GEMINI_MODEL || 'gemini-2.0-flash',
+            ai_model: CONFIG.GEMINI_MODEL || 'gemini-3.1-flash-lite-preview',
             whatsapp_instance: CONFIG.INSTANCE_NUMBER || 1
         };
         if (responseTimeMs != null) row.response_time_ms = Math.round(responseTimeMs);
@@ -3249,8 +3282,20 @@ async function connectToWhatsApp() {
                             imagePayload = { image: { url: imgUrl }, caption: mensajeParaEnvio.caption };
                         }
                         await sock.sendMessage(p.remoteJid, imagePayload);
-                        await sock.sendMessage(p.remoteJid, { text: mensajeParaEnvio.textWithLink });
+                        const twl = mensajeParaEnvio.textWithLink || '';
+                        if (twl.length > 4090) {
+                            await enviarTextoWhatsAppEnPartes(sock, p.remoteJid, twl);
+                        } else {
+                            await sock.sendMessage(p.remoteJid, { text: twl });
+                        }
                         console.log('📍 Combo ubicación enviado: imagen del hotel + texto con link');
+                    } else if (mensajeParaEnvio.sendCotizacionCombo) {
+                        await sock.sendMessage(p.remoteJid, {
+                            image: { url: mensajeParaEnvio.imageUrl },
+                            caption: mensajeParaEnvio.caption
+                        });
+                        await enviarTextoWhatsAppEnPartes(sock, p.remoteJid, mensajeParaEnvio.textFull);
+                        console.log(`📋 Cotización: imagen + texto completo (${mensajeParaEnvio.textFull.length} chars, sin truncar caption)`);
                     } else {
                         const plainText = mensajeParaEnvio.text;
                         if (plainText && plainText.length > 4090) {
@@ -3261,7 +3306,9 @@ async function connectToWhatsApp() {
                     }
                     const textoGuardado = mensajeParaEnvio.sendAsCombo
                         ? (mensajeParaEnvio.caption + '\n\n' + mensajeParaEnvio.textWithLink)
-                        : (mensajeParaEnvio.caption || mensajeParaEnvio.text || textoConEmoji);
+                        : mensajeParaEnvio.sendCotizacionCombo
+                            ? mensajeParaEnvio.textFull
+                            : (mensajeParaEnvio.caption || mensajeParaEnvio.text || textoConEmoji);
                     await guardarMensaje(p.numero, textoGuardado, true, respuestaFlor, p.nombre);
                     await guardarFlorInteraction({
                         phone: p.numero,
@@ -3822,12 +3869,23 @@ app.post('/api/send', async (req, res) => {
         const textoConEmoji = añadirEmojiMensaje(text, esCotizacion ? 'cotizacion' : 'manual');
         const aiConfigSend = await getFlorAIConfig();
         const imagenCotizacionUrlSend = (aiConfigSend.imagen_cotizacion_url || CONFIG.IMAGEN_COTIZACION_URL || '').trim() || null;
-        const mensajeParaEnvio = esCotizacion && imagenCotizacionUrlSend
-            ? { image: { url: imagenCotizacionUrlSend }, caption: normalizarLinksParaWhatsApp(textoConEmoji).slice(0, 1024) }
-            : await prepararMensajeConPreview(textoConEmoji);
-        await sock.sendMessage(jid, mensajeParaEnvio);
+        const textoNorm = normalizarLinksParaWhatsApp(textoConEmoji);
+        if (esCotizacion && imagenCotizacionUrlSend) {
+            if (textoNorm.length <= 1024) {
+                await sock.sendMessage(jid, { image: { url: imagenCotizacionUrlSend }, caption: textoNorm });
+            } else {
+                await sock.sendMessage(jid, {
+                    image: { url: imagenCotizacionUrlSend },
+                    caption: captionImagenCotizacionResumido(textoNorm)
+                });
+                await enviarTextoWhatsAppEnPartes(sock, jid, textoNorm);
+            }
+        } else {
+            const mensajeParaEnvio = await prepararMensajeConPreview(textoConEmoji);
+            await sock.sendMessage(jid, mensajeParaEnvio);
+        }
 
-        const textoGuardado = mensajeParaEnvio.caption || mensajeParaEnvio.text || textoConEmoji;
+        const textoGuardado = textoNorm;
         await guardarMensaje(num.replace(/@.*$/, ''), textoGuardado, true, null, null, chatIdFromDashboard || null);
         await setFlorPausedUntil(num.replace(/@.*$/, ''), FLOR_SILENCE_MINUTES, chatIdFromDashboard || null);
 

@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-03-20T17:00:26Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 138; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-03-21T15:46:29Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 139; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -292,7 +292,7 @@
             // Flor IA - valores por defecto (modelo, etc.)
             flor: {
                 aiProvider: 'gemini',
-                aiModel: 'gemini-2.0-flash'
+                aiModel: 'gemini-3.1-flash-lite-preview'
             }
         };
         // Compatibilidad: supabase-client.js usa window.SUPABASE_CONFIG
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">138</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">139</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -4299,8 +4299,8 @@
                                 </div>
                                 <div style="margin-bottom: 16px;">
                                     <label style="display: block; font-weight: 500; margin-bottom: 8px;">Modelo</label>
-                                    <input type="text" id="ai-model" value="gemini-2.0-flash" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
-                                    <p id="ai-model-help" style="font-size: 0.8rem; color: #666; margin-top: 4px;">Modelos: gemini-2.0-flash (recomendado), gemini-2.5-flash, gemini-2.5-pro</p>
+                                    <input type="text" id="ai-model" value="gemini-3.1-flash-lite-preview" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+                                    <p id="ai-model-help" style="font-size: 0.8rem; color: #666; margin-top: 4px;">Modelos: gemini-3.1-flash-lite-preview (recomendado), gemini-2.5-flash, gemini-2.5-pro</p>
                                 </div>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
                                     <div>
@@ -7084,15 +7084,7 @@ Ej:
             if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                 try {
                     const reservations = await window.supabaseClient.getReservations();
-                    try {
-                        localStorage.setItem('reservationsDB', JSON.stringify(reservations));
-                    } catch (storageError) {
-                        if (storageError.name === 'QuotaExceededError' || storageError.code === 22) {
-                            console.warn('⚠️ localStorage lleno, estadísticas usan solo datos de Supabase');
-                        } else {
-                            throw storageError;
-                        }
-                    }
+                    tryCacheReservationsToLocalStorage(reservations);
                     return reservations;
                 } catch (e) {
                     console.warn('⚠️ Error cargando reservas desde Supabase, usando localStorage:', e);
@@ -17600,7 +17592,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                             document.getElementById('ai-api-key').value = cloudConfig.apiKey || '';
                         }
                         if (document.getElementById('ai-model')) {
-                            document.getElementById('ai-model').value = cloudConfig.model || 'gemini-2.0-flash';
+                            document.getElementById('ai-model').value = cloudConfig.model || 'gemini-3.1-flash-lite-preview';
                         }
                         if (document.getElementById('ai-temperature')) {
                             document.getElementById('ai-temperature').value = cloudConfig.temperature || 0.7;
@@ -20630,6 +20622,21 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
         // ===== FUNCIONES DE RESERVAS =====
 
+        /** Intenta guardar reservas en localStorage; si no hay cuota (muchas reservas), no lanza error. */
+        function tryCacheReservationsToLocalStorage(reservations) {
+            if (!Array.isArray(reservations)) return false;
+            try {
+                localStorage.setItem('reservationsDB', JSON.stringify(reservations));
+                return true;
+            } catch (e) {
+                if (e.name === 'QuotaExceededError' || e.code === 22 || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
+                    console.warn('⚠️ localStorage sin espacio: no se cachean ' + reservations.length + ' reservas en disco. Los datos siguen en Supabase; no es un error de conexión.');
+                    return false;
+                }
+                throw e;
+            }
+        }
+
         // Función para inicializar base de datos de reservas
         async function initReservationsDB() {
             console.log('Inicializando base de datos de reservas...');
@@ -20640,7 +20647,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     console.log('☁️ Supabase disponible, cargando reservas desde la nube...');
                     const supabaseReservations = await window.supabaseClient.getReservations();
                     if (supabaseReservations && supabaseReservations.length > 0) {
-                        localStorage.setItem('reservationsDB', JSON.stringify(supabaseReservations));
+                        tryCacheReservationsToLocalStorage(supabaseReservations);
                         console.log(`✅ ${supabaseReservations.length} reservas cargadas desde Supabase`);
                         
                         // IMPORTANTE: Actualizar estadísticas después de cargar reservas
@@ -20695,9 +20702,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     console.log(`✅ ${reservations.length} reservas cargadas desde Supabase`);
                     loadedFromSupabase = true;
                     
-                    // IMPORTANTE: Guardar en localStorage para que otras funciones tengan acceso
-                    localStorage.setItem('reservationsDB', JSON.stringify(reservations));
-                    console.log('💾 Reservas guardadas en localStorage');
+                    // IMPORTANTE: Guardar en localStorage para que otras funciones tengan acceso (si hay cuota)
+                    if (tryCacheReservationsToLocalStorage(reservations)) {
+                        console.log('💾 Reservas guardadas en localStorage');
+                    }
                 } catch (error) {
                     console.warn('Error cargando desde Supabase, usando localStorage:', error);
                     reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
@@ -21061,8 +21069,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     reservations = await window.supabaseClient.getReservations();
                     allReservationsForDebug = [...reservations]; // Copia para debug
                     console.log(`✅ ${reservations.length} reservas cargadas desde Supabase`);
-                    // Sincronizar con localStorage
-                    localStorage.setItem('reservationsDB', JSON.stringify(reservations));
+                    // Sincronizar con localStorage si cabe (evita QuotaExceededError en consola)
+                    tryCacheReservationsToLocalStorage(reservations);
                 } catch (error) {
                     console.warn('⚠️ Error cargando desde Supabase, usando localStorage:', error);
                     reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
@@ -29058,7 +29066,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         const modelHelp = document.getElementById('ai-model-help');
         
         const models = {
-            gemini: { default: 'gemini-2.0-flash', help: 'Modelos: gemini-2.0-flash (recomendado), gemini-2.5-flash, gemini-2.5-pro' },
+            gemini: { default: 'gemini-3.1-flash-lite-preview', help: 'Modelos: gemini-3.1-flash-lite-preview (recomendado), gemini-2.5-flash, gemini-2.5-pro' },
             openai: { default: 'gpt-4o-mini', help: 'Modelos OpenAI: gpt-4o-mini (económico), gpt-4o (potente), gpt-4-turbo' },
             claude: { default: 'claude-3-haiku-20240307', help: 'Modelos Claude: claude-3-haiku (rápido), claude-3-sonnet, claude-3-opus (potente)' }
         };
@@ -29104,7 +29112,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             enabled: document.getElementById('ai-enabled')?.checked || false,
             provider: document.getElementById('ai-provider')?.value || 'gemini',
             // apiKey ya no se guarda - está configurada de forma segura en el servidor (.env)
-            model: document.getElementById('ai-model')?.value || 'gemini-2.0-flash',
+            model: document.getElementById('ai-model')?.value || 'gemini-3.1-flash-lite-preview',
             temperature: parseFloat(document.getElementById('ai-temperature')?.value) || 0.7,
             maxTokens: parseInt(document.getElementById('ai-max-tokens')?.value) || 500,
             imagen_cotizacion_url: (document.getElementById('ai-imagen-cotizador-url')?.value || '').trim() || null
