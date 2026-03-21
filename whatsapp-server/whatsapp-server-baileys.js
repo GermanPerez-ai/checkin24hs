@@ -222,7 +222,51 @@ function collectJidStringsForFlorPauseMap(obj, depth, visited, outSet) {
 }
 
 /**
- * Teléfono +E.164 del destino de sendMessage (Flor/API): para @lid usa LID store o cola Flor pendiente (mismo remoteJid).
+ * processPending borra florPendingByUser al arrancar (antes de los sendMessage), así que el wrapper de sendMessage
+ * no puede usar la cola. Esta pila vive durante todo el envío Flor y enlaza cualquier @lid (incl. el que usa WA al salir).
+ */
+let florDispatchStack = [];
+
+function pruneFlorDispatchStack() {
+    const now = Date.now();
+    const maxAge = 15 * 60 * 1000;
+    florDispatchStack = florDispatchStack.filter((x) => now - x.startedAt < maxAge);
+}
+
+function pushFlorDispatchContext(remoteJid, phoneE164) {
+    if (!remoteJid || !phoneE164) return;
+    pruneFlorDispatchStack();
+    const nd = String(phoneE164).replace(/\D/g, '');
+    if (nd.length < 10 || isLikelyPseudoWhatsappPn(nd) || isOurBotPhoneDigits(nd)) return;
+    const e164 = String(phoneE164).startsWith('+') ? phoneE164 : '+' + nd;
+    florDispatchStack.push({
+        remoteJidLower: String(remoteJid).trim().toLowerCase(),
+        phoneE164: e164,
+        startedAt: Date.now()
+    });
+}
+
+function popFlorDispatchContext(remoteJid) {
+    if (!remoteJid) return;
+    const want = String(remoteJid).trim().toLowerCase();
+    const i = florDispatchStack.findIndex((x) => x.remoteJidLower === want);
+    if (i >= 0) florDispatchStack.splice(i, 1);
+}
+
+/** Si hay un solo envío Flor activo y el @lid no coincide con el entrante, igual usamos su +E.164 (WA usa otro LID al salir). */
+function peekFlorDispatchPhoneForLid(destJid) {
+    const d = String(destJid || '').trim().toLowerCase();
+    if (!d.includes('@lid')) return null;
+    pruneFlorDispatchStack();
+    for (const x of florDispatchStack) {
+        if (x.remoteJidLower === d) return x.phoneE164;
+    }
+    if (florDispatchStack.length === 1) return florDispatchStack[0].phoneE164;
+    return null;
+}
+
+/**
+ * Teléfono +E.164 del destino de sendMessage (Flor/API): para @lid usa LID store o pila de dispatch Flor.
  */
 function resolvePhoneForFlorSendDestination(sock, destJid) {
     const dest = String(destJid || '').trim();
@@ -238,12 +282,14 @@ function resolvePhoneForFlorSendDestination(sock, destJid) {
             const d = String(fromStore).replace(/\D/g, '');
             if (d.length >= 10 && !isLikelyPseudoWhatsappPn(d) && !isOurBotPhoneDigits(d)) return '+' + d;
         }
+        const fromDispatch = peekFlorDispatchPhoneForLid(dest);
+        if (fromDispatch) return fromDispatch;
         const destLow = dest.toLowerCase();
-        for (const p of florPendingByUser.values()) {
-            const rj = p.remoteJid && String(p.remoteJid).trim();
+        for (const pend of florPendingByUser.values()) {
+            const rj = pend.remoteJid && String(pend.remoteJid).trim();
             if (!rj) continue;
             if (rj.toLowerCase() !== destLow) continue;
-            const num = p.numero;
+            const num = pend.numero;
             if (!num) continue;
             const nd = String(num).replace(/\D/g, '');
             if (nd.length >= 10 && !isLikelyPseudoWhatsappPn(nd) && !isOurBotPhoneDigits(nd)) {
@@ -3339,8 +3385,19 @@ async function connectToWhatsApp() {
                     return;
                 }
 
+                let dispatchPushed = false;
+                const ndDispatch = String(p.numero || '').replace(/\D/g, '');
+                let phoneE164ForDispatch = null;
+                if (ndDispatch.length >= 10 && !isLikelyPseudoWhatsappPn(ndDispatch) && !isOurBotPhoneDigits(ndDispatch)) {
+                    phoneE164ForDispatch = String(p.numero || '').startsWith('+') ? p.numero : '+' + ndDispatch;
+                }
+                if (phoneE164ForDispatch && p.remoteJid) {
+                    pushFlorDispatchContext(p.remoteJid, phoneE164ForDispatch);
+                    dispatchPushed = true;
+                }
                 florPendingByUser.delete(key);
 
+                try {
                 const textos = p.messages.map(m => m.texto);
                 let combined = textos.length === 1
                     ? textos[0]
@@ -3620,6 +3677,9 @@ async function connectToWhatsApp() {
                 // Quitar indicador "escribiendo"
                 if (sock && p.remoteJid) {
                     try { sock.sendPresenceUpdate('paused', p.remoteJid); } catch (e) { /* ignore */ }
+                }
+                } finally {
+                    if (dispatchPushed) popFlorDispatchContext(p.remoteJid);
                 }
             };
 
