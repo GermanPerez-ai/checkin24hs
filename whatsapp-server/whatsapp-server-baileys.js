@@ -83,31 +83,61 @@ const io = new Server(server, {
     }
 });
 
-// CORS: permitir dashboard (el preflight OPTIONS debe devolver cabeceras; Traefik no las añade)
+// CORS: el middleware manual DEBE usar la misma lógica que cors(); si no, el preflight OPTIONS falla
+// (ej. dashboard en https://dashboard.checkin24hs.com → POST /api/send).
 const allowedOrigins = [
     'https://dashboard.checkin24hs.com',
     'http://dashboard.checkin24hs.com',
     'https://www.checkin24hs.com',
     'http://www.checkin24hs.com',
+    'https://checkin24hs.com',
+    'http://checkin24hs.com',
+    'https://cotizar.checkin24hs.com',
+    'http://cotizar.checkin24hs.com',
     'http://localhost:3000',
     'http://127.0.0.1:3000'
 ];
-// Cualquier origen que parezca dashboard o local (para que "Estado" en Flor IA deje de mostrar "No se pudo conectar")
+
+function isAllowedCorsOrigin(originRaw) {
+    if (originRaw == null || String(originRaw).trim() === '') return true;
+    const origin = String(originRaw).trim();
+    if (allowedOrigins.includes(origin)) return true;
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return true;
+    try {
+        const u = new URL(origin);
+        const h = u.hostname.toLowerCase();
+        if (h === 'checkin24hs.com' || h.endsWith('.checkin24hs.com')) return true;
+        if (h.includes('easypanel')) return true;
+    } catch (e) { /* ignore */ }
+    if (/dashboard|easypanel|checkin24hs/i.test(origin)) return true;
+    return false;
+}
+
+/** Valor exacto para Access-Control-Allow-Origin (nunca mentir con otro dominio). */
+function accessControlAllowOriginHeader(originRaw) {
+    if (originRaw == null || String(originRaw).trim() === '') return '*';
+    const origin = String(originRaw).trim();
+    return isAllowedCorsOrigin(origin) ? origin : null;
+}
+
 function corsOrigin(origin, cb) {
     if (!origin) return cb(null, true);
-    if (allowedOrigins.includes(origin)) return cb(null, true);
-    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return cb(null, true);
-    if (/dashboard|easypanel|checkin24hs/i.test(origin)) return cb(null, true);
+    if (isAllowedCorsOrigin(origin)) return cb(null, true);
     return cb(null, false);
 }
-// Middleware CORS que corre primero: responde OPTIONS y añade cabeceras a todas las respuestas (necesario para que el dashboard envíe por Chats)
+
+const CORS_ALLOW_HEADERS = 'Content-Type, Authorization, Accept, X-Requested-With';
+const CORS_ALLOW_METHODS = 'GET, POST, OPTIONS, PUT, DELETE';
+
+// Primero: OPTIONS y cabeceras en TODAS las respuestas (incl. preflight desde el dashboard).
 app.use((req, res, next) => {
     const origin = req.headers.origin;
-    const allow = !origin || allowedOrigins.includes(origin);
-    const allowOrigin = allow ? (origin || '*') : allowedOrigins[0];
-    res.setHeader('Access-Control-Allow-Origin', allowOrigin);
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
+    const allowOrigin = accessControlAllowOriginHeader(origin);
+    if (allowOrigin) {
+        res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+    }
+    res.setHeader('Access-Control-Allow-Methods', CORS_ALLOW_METHODS);
+    res.setHeader('Access-Control-Allow-Headers', CORS_ALLOW_HEADERS);
     res.setHeader('Access-Control-Max-Age', '86400');
     res.setHeader('Vary', 'Origin');
     if (req.method === 'OPTIONS') {
@@ -115,19 +145,20 @@ app.use((req, res, next) => {
     }
     next();
 });
+// Segundo: sin credentials para evitar choque con Allow-Origin en fetch del dashboard (mode cors por defecto).
 app.use(cors({
     origin: corsOrigin,
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-    credentials: true
+    methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+    credentials: false
 }));
 
 app.options('*', (req, res) => {
     const origin = req.headers.origin;
-    const allow = !origin || allowedOrigins.includes(origin);
-    res.setHeader('Access-Control-Allow-Origin', allow ? (origin || '*') : allowedOrigins[0]);
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept');
+    const allowOrigin = accessControlAllowOriginHeader(origin);
+    if (allowOrigin) res.setHeader('Access-Control-Allow-Origin', allowOrigin);
+    res.setHeader('Access-Control-Allow-Methods', CORS_ALLOW_METHODS);
+    res.setHeader('Access-Control-Allow-Headers', CORS_ALLOW_HEADERS);
     res.status(204).end();
 });
 
@@ -1139,24 +1170,32 @@ function normalizarCandidatosTelefono(phone) {
     return [...new Set(candidatos)];
 }
 
+function florPausedUntilFromRows(rows) {
+    if (!rows || !rows.length) return null;
+    const raw = rows[0].flor_paused_until;
+    if (!raw) return null;
+    const until = new Date(raw).getTime();
+    return until > Date.now() ? until : null;
+}
+
 async function isFlorPausedForChat(phone, instanceNumber) {
     if (!phone) return false;
     if (florPauseMemoryIsActive(phone)) return true;
     if (!supabase) return false;
     try {
         const candidatos = normalizarCandidatosTelefono(phone);
-        const { data, error } = await supabase
-            .from('whatsapp_chats')
-            .select('flor_paused_until')
-            .in('phone', candidatos)
-            .eq('whatsapp_instance', instanceNumber || 1)
-            .order('updated_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-        if (error || !data || !data.flor_paused_until) return false;
-        const until = new Date(data.flor_paused_until).getTime();
-        if (until > Date.now()) {
-            return true;
+        const inst = instanceNumber || 1;
+        // La fila puede tener el cliente en `phone` (a veces LID) o en `real_phone` mientras `phone` ya es +E.164
+        for (const col of ['phone', 'real_phone']) {
+            const { data: rows, error } = await supabase
+                .from('whatsapp_chats')
+                .select('flor_paused_until')
+                .eq('whatsapp_instance', inst)
+                .in(col, candidatos)
+                .order('updated_at', { ascending: false })
+                .limit(1);
+            if (error) continue;
+            if (florPausedUntilFromRows(rows)) return true;
         }
         return false;
     } catch (e) {
@@ -1167,32 +1206,65 @@ async function isFlorPausedForChat(phone, instanceNumber) {
 /**
  * Pausar Flor para un chat por N minutos (ej: cuando Flor deriva a asesor humano, o cuando un humano envía mensaje desde el panel).
  * Actualiza flor_paused_until en whatsapp_chats por phone + whatsapp_instance, o por chatId si se indica.
- * @param {string} phone - Número del chat
+ * @param {string} phone - Número del chat (+E.164 o null si solo hay LID)
  * @param {number} minutes - Minutos de pausa (ej: 10)
  * @param {string} [chatIdOptional] - Si viene del dashboard con chat_id, actualizar por id para no fallar con LID
+ * @param {string} [lidDigitsForRowMatch] - JID local @lid (solo dígitos): la fila en Supabase a menudo tiene phone=LID; sin esto el UPDATE por +549 no pega y Flor sigue respondiendo.
  */
-async function setFlorPausedUntil(phone, minutes, chatIdOptional = null) {
+async function setFlorPausedUntil(phone, minutes, chatIdOptional = null, lidDigitsForRowMatch = null) {
+    const lidClean = lidDigitsForRowMatch ? String(lidDigitsForRowMatch).replace(/\D/g, '') : '';
     if (phone) florPauseMemoryTouch(phone);
+    if (lidClean.length >= 10) florPauseMemoryTouchMany('+' + lidClean);
     if (!supabase) return;
-    if (!phone && !chatIdOptional) return;
+    if (!chatIdOptional && !phone && lidClean.length < 10) return;
     try {
         const until = new Date(Date.now() + minutes * 60 * 1000).toISOString();
         const instance = CONFIG.INSTANCE_NUMBER || 1;
-        let q = supabase
-            .from('whatsapp_chats')
-            .update({ flor_paused_until: until, updated_at: new Date().toISOString() })
-            .eq('whatsapp_instance', instance);
+        const updates = { flor_paused_until: until, updated_at: new Date().toISOString() };
+
+        const mergeMatchKeys = () => {
+            const s = new Set();
+            if (phone) {
+                for (const c of normalizarCandidatosTelefono(phone)) s.add(String(c).trim());
+            }
+            if (lidClean.length >= 10) {
+                s.add(lidClean);
+                s.add('+' + lidClean);
+            }
+            return [...s].filter(Boolean);
+        };
+        const keys = mergeMatchKeys();
+
+        let anyUpdated = false;
         if (chatIdOptional && String(chatIdOptional).trim()) {
-            q = q.eq('id', String(chatIdOptional).trim());
-        } else {
-            q = q.in('phone', normalizarCandidatosTelefono(phone));
+            const { data: updatedRows, error } = await supabase
+                .from('whatsapp_chats')
+                .update(updates)
+                .eq('whatsapp_instance', instance)
+                .eq('id', String(chatIdOptional).trim())
+                .select('id');
+            if (error) {
+                console.warn('⚠️ No se pudo pausar Flor para el chat:', error.message);
+                return;
+            }
+            anyUpdated = !!(updatedRows && updatedRows.length);
+        } else if (keys.length) {
+            for (const col of ['phone', 'real_phone']) {
+                const { data: updatedRows, error } = await supabase
+                    .from('whatsapp_chats')
+                    .update(updates)
+                    .eq('whatsapp_instance', instance)
+                    .in(col, keys)
+                    .select('id');
+                if (error) {
+                    console.warn(`⚠️ Pausa Flor (${col}):`, error.message);
+                    continue;
+                }
+                if (updatedRows && updatedRows.length) anyUpdated = true;
+            }
         }
-        const { data: updatedRows, error } = await q.select('id');
-        if (error) {
-            console.warn('⚠️ No se pudo pausar Flor para el chat:', error.message);
-            return;
-        }
-        if ((!updatedRows || updatedRows.length === 0) && !chatIdOptional && phone) {
+
+        if (!anyUpdated && !chatIdOptional && phone) {
             const cands = normalizarCandidatosTelefono(phone);
             const primary = cands.map(c => String(c).trim()).find(p => p.replace(/\D/g, '').length >= 10) || String(phone).trim();
             const phoneInsert = primary.replace(/^\+/, '').replace(/\D/g, '').length >= 10
@@ -3203,10 +3275,18 @@ async function connectToWhatsApp() {
                         console.log(`🔇 Modo Silencio: ignorado (destino es el propio número del bot / eco). jid=${jidLocal} msgId=${msg.key.id || 'n/a'}`);
                         primaryForDb = null;
                     }
-                    florPauseMemoryTouchMany(resolved, fromJidOk ? ('+' + jidDigits) : null);
+                    // Siempre tocar RAM con el JID local (LID o PN): el entrante puede matchear otro formato que +E.164
+                    if (jidDigits.length >= 10) {
+                        florPauseMemoryTouchMany(resolved, '+' + jidDigits);
+                    } else {
+                        florPauseMemoryTouchMany(resolved);
+                    }
                     if (primaryForDb && !String(primaryForDb).includes('@')) {
-                        await setFlorPausedUntil(primaryForDb, FLOR_SILENCE_MINUTES);
+                        await setFlorPausedUntil(primaryForDb, FLOR_SILENCE_MINUTES, null, jidDigits.length >= 10 ? jidDigits : null);
                         console.log(`🔇 Modo Silencio: mensaje saliente HUMANO (WhatsApp/app, no bot) → Flor ${FLOR_SILENCE_MINUTES} min | jid=${jidLocal} resolved=${resolved || '—'} dbPhone=${primaryForDb} msgId=${msg.key.id || 'n/a'}`);
+                    } else if (jidDigits.length >= 10 && !isOurBotPhoneDigits(jidDigits)) {
+                        await setFlorPausedUntil(null, FLOR_SILENCE_MINUTES, null, jidDigits);
+                        console.log(`🔇 Modo Silencio: HUMANO desde móvil (solo LID en remoteJid) → Flor ${FLOR_SILENCE_MINUTES} min | jid=${jidLocal} (DB por phone/real_phone=LID)`);
                     } else if (!primaryForDb && !isOurBotPhoneDigits(jidDigits)) {
                         console.warn(`⚠️ Modo Silencio: no se pudo resolver +E.164 real para pausa. remoteJid=${remoteJidOut} jid=${jidLocal}. Si el key trae peer_recipient_pn, actualizar Baileys / redeploy.`);
                     }
@@ -4214,7 +4294,7 @@ app.post('/api/send', async (req, res) => {
             return res.status(400).json({ error: 'number y text son requeridos' });
         }
 
-        if (connectionStatus !== 'open') {
+        if (connectionStatus !== 'open' || !sock) {
             return res.status(400).json({ error: 'WhatsApp no está conectado' });
         }
 
