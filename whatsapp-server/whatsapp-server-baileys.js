@@ -188,7 +188,7 @@ let isSyncingAppState = false; // Flag para indicar si se está sincronizando el
 // Si en esos 5s llega 1 solo mensaje → Flor responde esa consulta y queda atenta a la siguiente.
 // Si llegan varios en ese lapso → se acumulan y Flor responde a todos juntos. Sin límite de consultas por usuario.
 const FLOR_DELAY_MS = Math.max(0, parseInt(process.env.FLOR_DELAY_MS, 10) || 5000);
-const FLOR_SILENCE_MINUTES = Math.max(1, parseInt(process.env.FLOR_SILENCE_MINUTES || '10', 10) || 10);
+const FLOR_SILENCE_MINUTES = Math.max(1, parseInt(process.env.FLOR_SILENCE_MINUTES || '30', 10) || 30);
 /** Mínimo de tokens de salida Gemini para no cortar descripciones (puede subir con FLOR_MAX_OUTPUT_TOKENS o Supabase flor_ai_config.maxTokens) */
 const FLOR_MAX_OUTPUT_TOKENS_MIN = Math.max(256, parseInt(process.env.FLOR_MAX_OUTPUT_TOKENS_MIN || '1500', 10) || 1500);
 const florPendingByUser = new Map(); // key: remoteJid -> { timeoutId, messages: [{texto, ts}], nombre, numero }
@@ -1829,11 +1829,11 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
     // Detectar si el mensaje requiere una respuesta predefinida
     const mensajeLower = (mensaje || '').toLowerCase().trim();
     
-    // Detectar solicitud de transferencia a humano → respuesta predefinida y pausar Flor 20 min
+    // Detectar solicitud de transferencia a humano → respuesta predefinida y pausar Flor (por defecto 30 min)
     const transferKeywords = ['hablar con humano', 'hablar con agente', 'hablar con asesor', 'transferir', 'agente humano', 'asesor humano', 'quiero hablar con alguien', 'asesor'];
     if (transferKeywords.some(kw => mensajeLower.includes(kw))) {
-        console.log('🔄 Usando respuesta predefinida: transferir (Flor se pausará 20 min para este chat)');
-        return { text: responses.transferir, intent: 'transferir', pausarFlor20Min: true };
+        console.log(`🔄 Usando respuesta predefinida: transferir (Flor se pausará ${FLOR_SILENCE_MINUTES} min para este chat)`);
+        return { text: responses.transferir, intent: 'transferir', pausarFlorMin: FLOR_SILENCE_MINUTES, pausarFlor20Min: true };
     }
 
     // Detectar despedida
@@ -1904,7 +1904,20 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
     const hintContextDrift = (esPreguntaProgramas && !hotelExtraido && lastHotel)
         ? (() => { console.log(`🔄 Flor: Context Drift fix - forzando buscarHotel/consultarCatalogoHoteles con hotel="${lastHotel}" para pregunta de programas`); return ` [CONTEXT DRIFT - OBLIGATORIO: El usuario pregunta sobre programas/spa/menú pero NO mencionó hotel en este mensaje. En la conversación anterior ya habíamos hablado de "${lastHotel}". DEBÉS llamar buscarHotel(nombre_hotel="${lastHotel}") o consultarCatalogoHoteles(hotel_especifico="${lastHotel}") ANTES de responder. No uses memoria ni historial; traé datos frescos de la función.]`; })()
         : '';
-    let userPart = `${multiConsultasNote}Mensaje del cliente: ${mensaje}${hintCampana}${hintHotel}${hintContextDrift}`;
+    // Refuerzo para consultas cortas/ambiguas: usar hotel previo del chat y evitar "no entendí".
+    const shortAmbiguousKeywords = ['info', 'detalle', 'detalles', 'precio', 'tarifa', 'valor', 'cuanto sale', 'cuánto sale', 'incluye', 'que incluye', 'qué incluye'];
+    const esConsultaAmbigua = !hotelExtraido
+        && !!lastHotel
+        && !pareceConsultaHotel
+        && mensajeLower.length <= 80
+        && shortAmbiguousKeywords.some(kw => mensajeLower.includes(kw));
+    const hintAmbiguoConContexto = esConsultaAmbigua
+        ? (() => {
+            console.log(`🔄 Flor: refuerzo contexto - consulta ambigua, forzando hotel previo="${lastHotel}"`);
+            return ` [SEGUIMIENTO AMBIGUO - OBLIGATORIO: El usuario hizo una consulta corta sin nombrar hotel, pero en esta conversación el hotel en contexto es "${lastHotel}". Debés llamar buscarHotel(nombre_hotel="${lastHotel}") o consultarCatalogoHoteles(hotel_especifico="${lastHotel}") ANTES de responder. No pidas destino de nuevo.]`;
+        })()
+        : '';
+    let userPart = `${multiConsultasNote}Mensaje del cliente: ${mensaje}${hintCampana}${hintHotel}${hintContextDrift}${hintAmbiguoConContexto}`;
     if (imageParts && imageParts.length > 0) {
         userPart += ' [ANUNCIO/PUBLICIDAD: Analizá esta imagen publicitaria. Identificá el hotel (Puyehue, Corralco o Huilo Huilo) y respondé basándote EXCLUSIVAMENTE en ese hotel. IGNORÁ el historial previo; priorizá solo lo que ves en esta imagen. Llamá consultarCatalogoHoteles con el nombre del hotel que identifiques en la imagen.]';
     }
@@ -3653,7 +3666,7 @@ async function connectToWhatsApp() {
                 }
                 const intentFlor = (typeof raw === 'object' && raw != null && raw.intent) ? raw.intent : 'consulta_general';
                 const usedAi = intentFlor !== 'rate_limit_429';
-                const pausarFlor = (typeof raw === 'object' && raw != null && raw.pausarFlor20Min === true) || intentFlor === 'transferir';
+                const pausarFlor = (typeof raw === 'object' && raw != null && (raw.pausarFlor20Min === true || Number(raw.pausarFlorMin) > 0)) || intentFlor === 'transferir';
                 if (pausarFlor && p.numero) {
                     console.log(`📤 Slack: disparando alerta de escalación (transferir) para ${p.numero} — último mensaje: "${(combined || '').slice(0, 80)}..."`);
                     await setFlorPausedUntil(p.numero, FLOR_SILENCE_MINUTES);
