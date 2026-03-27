@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-03-27T14:56:59Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 141; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-03-27T15:24:26Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 142; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">141</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">142</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -27407,7 +27407,18 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             .trim();
     }
 
-    function parseCsv(text) {
+    function detectCsvDelimiter(sample) {
+        const line = String(sample || '').split(/\r?\n/).find(l => String(l).trim()) || '';
+        const counts = {
+            ',': (line.match(/,/g) || []).length,
+            ';': (line.match(/;/g) || []).length,
+            '\t': (line.match(/\t/g) || []).length
+        };
+        return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0] || ',';
+    }
+
+    function parseCsv(text, delimiter) {
+        const sep = delimiter || detectCsvDelimiter(text);
         const rows = [];
         let row = [];
         let value = '';
@@ -27422,7 +27433,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 } else {
                     inQuotes = !inQuotes;
                 }
-            } else if (ch === ',' && !inQuotes) {
+            } else if (ch === sep && !inQuotes) {
                 row.push(value);
                 value = '';
             } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
@@ -27443,9 +27454,20 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     }
 
     function getCellByAliases(rowObj, aliases) {
+        const normalizedKeys = Object.keys(rowObj || {}).map(k => ({ raw: k, norm: normalizeHeader(k) }));
         for (const alias of aliases) {
             const k = normalizeHeader(alias);
             if (rowObj[k] != null && String(rowObj[k]).trim() !== '') return String(rowObj[k]).trim();
+            // Fuzzy: soporta headers mojibake tipo "ca d igo tkb"
+            const aliasTokens = k.split(' ').filter(Boolean);
+            const keyMatch = normalizedKeys.find(({ norm }) =>
+                aliasTokens.every(t => norm.includes(t)) ||
+                (aliasTokens.includes('codigo') && norm.includes('tkb')) ||
+                (aliasTokens.includes('codigo') && norm.includes('voucher'))
+            );
+            if (keyMatch && rowObj[keyMatch.raw] != null && String(rowObj[keyMatch.raw]).trim() !== '') {
+                return String(rowObj[keyMatch.raw]).trim();
+            }
         }
         return '';
     }
