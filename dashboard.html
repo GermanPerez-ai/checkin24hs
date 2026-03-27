@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-03-27T16:21:11Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 144; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-03-27T16:52:52Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 145; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">144</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">145</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -3395,6 +3395,7 @@
                         </table>
                     </div>
                     <input type="file" id="corralcoCsvInput" accept=".csv,text/csv" style="display:none;" onchange="handleImportCorralcoFile(event)">
+                    <input type="file" id="flexiVoucherCapturaPagoFile" accept="image/*" style="display:none;" onchange="handleFlexiVoucherCapturaFileFromDetail(event)">
                 </div>
 
                 <!-- Vouchers Table -->
@@ -3422,6 +3423,7 @@
                                     <th style="padding: 12px; text-align: center; font-weight: 500;">Cupos</th>
                                     <th style="padding: 12px; text-align: center; font-weight: 500;">Periodo de Uso</th>
                                     <th style="padding: 12px; text-align: center; font-weight: 500;">Estado</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;" title="Captura / comprobante de pago">Pago</th>
                                     <th style="padding: 12px; text-align: center; font-weight: 500;">Acciones</th>
                                 </tr>
                             </thead>
@@ -27174,6 +27176,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         <label style="display: block; margin-bottom: 8px; font-weight: 500;">Notas</label>
                         <textarea id="voucherNotas" rows="2" placeholder="Notas adicionales (opcional)" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; resize: vertical;"></textarea>
                     </div>
+                    <div class="form-group" style="margin-top: 16px; padding: 16px; background: #fafafa; border-radius: 8px; border: 1px dashed #bdbdbd;">
+                        <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-weight: 500;">
+                            <span class="material-icons" style="color: #4caf50;">receipt_long</span>
+                            Captura de pago (opcional)
+                        </label>
+                        <small style="color: #666; display: block; margin-bottom: 10px;">Comprobante que envía el cliente (se comprime automáticamente).</small>
+                        <input type="file" id="emitVoucherCapturaInput" accept="image/*" onchange="handleEmitVoucherCapturaChange(event)" style="font-size: 13px;">
+                        <div id="emitVoucherCapturaPreview" style="margin-top: 12px;"></div>
+                    </div>
                 </div>
                 
                 <div class="modal-footer" style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; padding-top: 16px; border-top: 1px solid #e0e0e0;">
@@ -27362,6 +27373,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     let flexiVouchers = [];
     let flexiCanjes = [];
     let currentVoucherForCanje = null;
+    let flexiCapturaPagoTargetVoucherId = null;
     // Sync Corralco desde Google Sheet (publicado como CSV)
     const FLEXI_CORRALCO_SHEET = {
         docId: '1Vey4FYeQOMqs-CSJwxAJfrrr_NrlRQl-',
@@ -28171,6 +28183,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     function openEmitVoucherModal() {
         document.getElementById('emitVoucherForm').reset();
         document.getElementById('voucherProgramaInfo').style.display = 'none';
+        window.__flexiEmitCapturaDataUrl = undefined;
+        const capPrev = document.getElementById('emitVoucherCapturaPreview');
+        if (capPrev) capPrev.innerHTML = '';
+        const capInp = document.getElementById('emitVoucherCapturaInput');
+        if (capInp) capInp.value = '';
         loadProgramsForVoucher();
         generateVoucherCode();
         document.getElementById('voucherFechaVenta').value = new Date().toISOString().split('T')[0];
@@ -28179,6 +28196,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
     function closeEmitVoucherModal() {
         document.getElementById('emitVoucherModal').style.display = 'none';
+        window.__flexiEmitCapturaDataUrl = undefined;
     }
 
     function loadProgramsForVoucher() {
@@ -28248,10 +28266,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             fechaFinUso: program.fechaFin,
             estado: 'Activo',
             notas: document.getElementById('voucherNotas').value,
-            fechaCreacion: new Date().toISOString()
+            fechaCreacion: new Date().toISOString(),
+            capturaPagoUrl: window.__flexiEmitCapturaDataUrl || undefined
         };
         
         flexiVouchers.push(voucher);
+        window.__flexiEmitCapturaDataUrl = undefined;
         saveFlexiDataToStorage();
         updateFlexiStats();
         renderFlexiVouchersTable();
@@ -28273,6 +28293,112 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         return packs === 1 ? '1 PACK Flexi' : `${packs} PACK Flexi`;
     }
 
+    const FLEXI_CAPTURA_MAX_DATAURL_LEN = 2 * 1024 * 1024;
+
+    function compressImageToJpegDataUrl(file, maxEdge, quality) {
+        return new Promise((resolve, reject) => {
+            if (!file || !file.type.startsWith('image/')) {
+                reject(new Error('no imagen'));
+                return;
+            }
+            const img = new Image();
+            const objUrl = URL.createObjectURL(file);
+            img.onload = () => {
+                URL.revokeObjectURL(objUrl);
+                let w = img.naturalWidth || img.width;
+                let h = img.naturalHeight || img.height;
+                const scale = Math.min(maxEdge / w, maxEdge / h, 1);
+                w = Math.round(w * scale);
+                h = Math.round(h * scale);
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, w, h);
+                let q = quality;
+                let dataUrl = canvas.toDataURL('image/jpeg', q);
+                let guard = 0;
+                while (dataUrl.length > FLEXI_CAPTURA_MAX_DATAURL_LEN && q > 0.4 && guard < 8) {
+                    q -= 0.08;
+                    dataUrl = canvas.toDataURL('image/jpeg', q);
+                    guard++;
+                }
+                resolve(dataUrl);
+            };
+            img.onerror = () => {
+                URL.revokeObjectURL(objUrl);
+                reject(new Error('load'));
+            };
+            img.src = objUrl;
+        });
+    }
+
+    async function handleEmitVoucherCapturaChange(ev) {
+        const f = ev.target.files && ev.target.files[0];
+        const prev = document.getElementById('emitVoucherCapturaPreview');
+        if (!f) return;
+        try {
+            const dataUrl = await compressImageToJpegDataUrl(f, 1600, 0.82);
+            if (dataUrl.length > FLEXI_CAPTURA_MAX_DATAURL_LEN) {
+                showNotification('La imagen es demasiado grande incluso comprimida. Probá con otra más chica.', 'warning');
+                ev.target.value = '';
+                return;
+            }
+            window.__flexiEmitCapturaDataUrl = dataUrl;
+            if (prev) {
+                const safe = dataUrl.replace(/"/g, '&quot;');
+                prev.innerHTML = `<img src="${safe}" alt="" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid #c8e6c9;">`;
+            }
+        } catch (e) {
+            console.warn(e);
+            showNotification('No se pudo cargar la imagen.', 'error');
+        }
+        ev.target.value = '';
+    }
+
+    function triggerFlexiVoucherCapturaFromDetail(ev, voucherId) {
+        if (ev && typeof ev.stopPropagation === 'function') ev.stopPropagation();
+        flexiCapturaPagoTargetVoucherId = voucherId;
+        const inp = document.getElementById('flexiVoucherCapturaPagoFile');
+        if (inp) inp.click();
+    }
+
+    async function handleFlexiVoucherCapturaFileFromDetail(ev) {
+        const f = ev.target.files && ev.target.files[0];
+        const vid = flexiCapturaPagoTargetVoucherId;
+        flexiCapturaPagoTargetVoucherId = null;
+        ev.target.value = '';
+        if (!f || !vid) return;
+        try {
+            const dataUrl = await compressImageToJpegDataUrl(f, 1600, 0.82);
+            if (dataUrl.length > FLEXI_CAPTURA_MAX_DATAURL_LEN) {
+                showNotification('La imagen es demasiado grande. Probá con otra foto.', 'warning');
+                return;
+            }
+            const v = flexiVouchers.find(x => x.id === vid);
+            if (!v) return;
+            v.capturaPagoUrl = dataUrl;
+            saveFlexiDataToStorage();
+            updateFlexiStats();
+            renderFlexiVouchersTable();
+            viewVoucherDetail(vid);
+            showNotification('Captura de pago guardada.', 'success');
+        } catch (e) {
+            showNotification('No se pudo procesar la imagen.', 'error');
+        }
+    }
+
+    function removeFlexiVoucherCapturaPago(voucherId) {
+        if (!confirm('¿Quitar la captura de pago de este voucher?')) return;
+        const v = flexiVouchers.find(x => x.id === voucherId);
+        if (!v) return;
+        delete v.capturaPagoUrl;
+        saveFlexiDataToStorage();
+        renderFlexiVouchersTable();
+        viewVoucherDetail(voucherId);
+        showNotification('Captura eliminada.', 'info');
+    }
+
     function renderFlexiVouchersTable() {
         const tbody = document.getElementById('flexiVouchersTableBody');
         if (!tbody) return;
@@ -28280,7 +28406,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         if (flexiVouchers.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="7" style="text-align: center; padding: 40px; color: #666;">
+                    <td colspan="8" style="text-align: center; padding: 40px; color: #666;">
                         <span class="material-icons" style="font-size: 48px; color: #e0e0e0;">card_giftcard</span>
                         <p style="margin-top: 16px;">No hay vouchers emitidos</p>
                         <button onclick="openEmitVoucherModal()" class="form-button" style="background: #4caf50; color: white; margin-top: 12px;">
@@ -28309,9 +28435,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     <td style="padding: 12px; text-align: center;">${cuposDisplay}</td>
                     <td style="padding: 12px; text-align: center; font-size: 12px;">${formatDateRange(voucher.fechaInicioUso, voucher.fechaFinUso)}</td>
                     <td style="padding: 12px; text-align: center;">${estadoBadge}</td>
+                    <td style="padding: 12px; text-align: center;" title="${voucher.capturaPagoUrl ? 'Tiene comprobante de pago' : 'Sin captura'}">
+                        <span class="material-icons" style="font-size: 22px; vertical-align: middle; color: ${voucher.capturaPagoUrl ? '#2e7d32' : '#bdbdbd'};">receipt_long</span>
+                    </td>
                     <td style="padding: 12px; text-align: center;">
                         <button onclick="viewVoucherDetail('${voucher.id}')" class="form-button secondary" style="padding: 6px 12px; font-size: 12px;" title="Ver detalles">
                             <span class="material-icons" style="font-size: 16px;">visibility</span>
+                        </button>
+                        <button type="button" onclick="triggerFlexiVoucherCapturaFromDetail(event, '${voucher.id}')" class="form-button secondary" style="padding: 6px 12px; font-size: 12px;" title="Subir captura de pago">
+                            <span class="material-icons" style="font-size: 16px;">add_photo_alternate</span>
                         </button>
                         ${voucher.cuposDisponibles > 0 && voucher.estado !== 'Vencido' ? `
                         <button onclick="quickCanje('${voucher.id}')" class="form-button" style="padding: 6px 12px; font-size: 12px; background: #ff9800; color: white;" title="Registrar canje">
@@ -28688,6 +28820,22 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         <div><strong>Email:</strong> ${voucher.clienteEmail}</div>
                         <div><strong>Teléfono:</strong> ${voucher.clienteTelefono}</div>
                     </div>
+                    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #c8e6c9;">
+                        <strong style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+                            <span class="material-icons" style="font-size: 20px;">receipt_long</span> Captura de pago
+                        </strong>
+                        ${voucher.capturaPagoUrl ? `
+                        <div style="margin-bottom: 12px;">
+                            <a href="${String(voucher.capturaPagoUrl).replace(/"/g, '&quot;')}" target="_blank" rel="noopener" style="font-size: 13px;">Abrir imagen en pestaña nueva</a>
+                            <div style="margin-top: 8px;"><img src="${String(voucher.capturaPagoUrl).replace(/"/g, '&quot;')}" alt="Comprobante" style="max-width: 100%; max-height: 320px; border-radius: 8px; border: 1px solid #e0e0e0; cursor: zoom-in;" onclick="window.open(this.src,'_blank')"></div>
+                        </div>` : '<p style="color: #666; margin: 0 0 10px 0; font-size: 13px;">Aún no hay comprobante cargado.</p>'}
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            <button type="button" class="form-button" style="background: #2e7d32; color: white; padding: 8px 14px; font-size: 13px;" onclick="triggerFlexiVoucherCapturaFromDetail(event, '${voucher.id}')">
+                                <span class="material-icons" style="font-size: 18px; vertical-align: middle;">add_photo_alternate</span> ${voucher.capturaPagoUrl ? 'Reemplazar imagen' : 'Subir imagen'}
+                            </button>
+                            ${voucher.capturaPagoUrl ? `<button type="button" class="form-button secondary" style="padding: 8px 14px; font-size: 13px;" onclick="removeFlexiVoucherCapturaPago('${voucher.id}')">Quitar</button>` : ''}
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Historial de Canjes -->
@@ -28760,7 +28908,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             'Fecha Venta': v.fechaVenta,
             'Inicio Uso': v.fechaInicioUso,
             'Fin Uso': v.fechaFinUso,
-            'Estado': v.estado
+            'Estado': v.estado,
+            'Captura pago': v.capturaPagoUrl ? 'Sí' : 'No'
         }));
         
         // Crear CSV
