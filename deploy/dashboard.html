@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-03-27T15:40:25Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 143; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-03-27T16:21:11Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 144; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">143</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">144</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -27368,7 +27368,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         pollMs: 60 * 1000,
         timerId: null,
         warned: false,
-        enabled: false // Opción A (archivo local): desactivamos fetch automático a Google
+        enabled: false, // Opción A (archivo local): desactivamos fetch automático a Google
+        /** Seña en pesos por cada PACK Flexi (ej. 92.000 ARS = 1 pack) */
+        seniaPesosPorPack: 92000
     };
 
     // =====================================================
@@ -27502,6 +27504,44 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         return Number.isFinite(n) ? n : fallback;
     }
 
+    /** Montos tipo $ 92.000 (ARS, punto = miles). Evita que 92.000 se lea como 92 USD. */
+    function parseMontoPesosAR(raw) {
+        let s = String(raw == null ? '' : raw).replace(/\s/g, '').trim();
+        if (!s) return 0;
+        s = s.replace(/[^\d,.\-]/g, '');
+        if (!s) return 0;
+        const lastComma = s.lastIndexOf(',');
+        const lastDot = s.lastIndexOf('.');
+        if (lastComma > lastDot) {
+            const intPart = s.slice(0, lastComma).replace(/\./g, '');
+            const dec = s.slice(lastComma + 1);
+            const n = parseFloat(intPart + '.' + dec);
+            return Number.isFinite(n) ? Math.round(n) : 0;
+        }
+        if (lastDot > lastComma && lastDot !== -1) {
+            const intPart = s.slice(0, lastDot).replace(/,/g, '');
+            const decPart = s.slice(lastDot + 1).replace(/,/g, '');
+            const n = decPart ? parseFloat(intPart + '.' + decPart) : parseFloat(intPart);
+            return Number.isFinite(n) ? Math.round(n) : 0;
+        }
+        if (s.includes('.') && !s.includes(',')) {
+            const parts = s.split('.');
+            if (parts.length > 1 && parts[parts.length - 1].length === 3 && parts[parts.length - 1].replace(/\D/g, '') === parts[parts.length - 1]) {
+                return parseInt(parts.join(''), 10) || 0;
+            }
+        }
+        const cleaned = s.replace(/\./g, '').replace(',', '.');
+        const n = Number(cleaned);
+        return Number.isFinite(n) ? Math.round(n) : 0;
+    }
+
+    function inferPackFlexiFromMontoPesos(montoPesos, seniaPorPack) {
+        const unit = seniaPorPack || FLEXI_CORRALCO_SHEET.seniaPesosPorPack || 92000;
+        if (!montoPesos || montoPesos <= 0 || !unit) return 0;
+        const n = Math.round(montoPesos / unit);
+        return n > 0 ? n : 0;
+    }
+
     function extractFirstInt(raw, fallback = 0) {
         const m = String(raw || '').match(/\d+/);
         if (!m) return fallback;
@@ -27547,8 +27587,16 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 id: 'GSHEET-CORRALCO',
                 hotelId: null,
                 hotelName: 'Corralco',
-                cuposPorVoucher: Math.max(1, Math.round(toNumber(getCellByAliases(first, ['cupos/voucher', 'cupos por voucher', 'cupos']), 1))),
-                precioUSD: toNumber(getCellByAliases(first, ['precio usd', 'precio', 'valor usd']), 0),
+                cuposPorVoucher: Math.max(
+                    1,
+                    Math.round(
+                        toNumber(
+                            getCellByAliases(first, ['cupos/voucher', 'cupos por voucher', 'cupos']),
+                            extractFirstInt(getCellByAliases(first, ['ipo ticket 2026', 'ticket', 'producto', 'tipo ticket']), 10)
+                        )
+                    )
+                ),
+                precioUSD: toNumber(getCellByAliases(first, ['precio usd', 'valor usd']), 0),
                 fechaInicio: periodo.inicio || parseDateMaybe(getCellByAliases(first, ['fecha inicio', 'inicio'])),
                 fechaFin: periodo.fin || parseDateMaybe(getCellByAliases(first, ['fecha fin', 'fin'])),
                 descripcion: 'Sincronizado desde Google Sheet Corralco',
@@ -27562,8 +27610,20 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 const codigo = getCellByAliases(r, ['codigo voucher', 'codigo', 'voucher', 'cod voucher']);
                 if (!codigo) continue;
                 const periodoRow = parsePeriodoUso(getCellByAliases(r, ['periodo de uso', 'periodo', 'vigencia']));
-                const cuposIniciales = Math.max(1, Math.round(toNumber(getCellByAliases(r, ['cupos iniciales', 'cupos', 'cupos/voucher']), program.cuposPorVoucher || 1)));
-                const cuposDisponibles = Math.max(0, Math.round(toNumber(getCellByAliases(r, ['cupos disponibles', 'disponibles']), cuposIniciales)));
+                const montoRaw = getCellByAliases(r, ['monto', 'monto pago']);
+                const montoPesos = parseMontoPesosAR(montoRaw);
+                const seniaUnit = FLEXI_CORRALCO_SHEET.seniaPesosPorPack || 92000;
+                const packFlexi = inferPackFlexiFromMontoPesos(montoPesos, seniaUnit);
+                const ticketsPerPack = program.cuposPorVoucher || 1;
+                let cuposIniciales = packFlexi > 0
+                    ? packFlexi * ticketsPerPack
+                    : Math.max(1, Math.round(toNumber(getCellByAliases(r, ['cupos iniciales', 'cupos', 'cupos/voucher']), ticketsPerPack)));
+                let cuposDisponibles = Math.max(0, Math.round(toNumber(getCellByAliases(r, ['cupos disponibles', 'disponibles']), -1)));
+                if (cuposDisponibles < 0) {
+                    const est = getCellByAliases(r, ['estado']);
+                    cuposDisponibles = /usado|vencid|anulad/i.test(est) ? 0 : cuposIniciales;
+                }
+                const precioUsdRow = toNumber(getCellByAliases(r, ['precio usd', 'valor usd']), NaN);
                 importedVouchers.push({
                     id: `GSHEET-${codigo.replace(/\s+/g, '').toUpperCase()}`,
                     codigo: codigo,
@@ -27575,12 +27635,16 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     clienteTelefono: getCellByAliases(r, ['telefono', 'teléfono', 'celular']),
                     cuposIniciales,
                     cuposDisponibles,
-                    precioUSD: toNumber(getCellByAliases(r, ['precio usd', 'precio', 'valor usd']), program.precioUSD || 0),
+                    packFlexi: packFlexi || Math.max(1, Math.round(cuposIniciales / Math.max(1, ticketsPerPack))),
+                    montoPesosSenia: montoPesos || undefined,
+                    precioUSD: Number.isFinite(precioUsdRow) && precioUsdRow > 0 ? precioUsdRow : (program.precioUSD || 0),
                     fechaVenta: parseDateMaybe(getCellByAliases(r, ['fecha venta', 'venta'])),
                     fechaInicioUso: periodoRow.inicio || program.fechaInicio,
                     fechaFinUso: periodoRow.fin || program.fechaFin,
                     estado: getCellByAliases(r, ['estado']) || 'Activo',
-                    notas: 'Sincronizado desde Google Sheet Corralco',
+                    notas: 'Sincronizado desde Google Sheet Corralco.' + (montoPesos > 0
+                        ? ` Seña ${montoPesos.toLocaleString('es-AR')} ARS → ${packFlexi || Math.max(1, Math.round(cuposIniciales / Math.max(1, ticketsPerPack)))} PACK Flexi (${cuposIniciales} cupos).`
+                        : ''),
                     fechaCreacion: new Date().toISOString(),
                     source: 'gsheet-corralco'
                 });
@@ -27682,12 +27746,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             Math.round(
                 toNumber(
                     getCellByAliases(first, ['cupos/voucher', 'cupos por voucher', 'cupos']),
-                    extractFirstInt(getCellByAliases(first, ['ipo ticket 2026', 'ticket', 'producto']), existingCorralcoProgram?.cuposPorVoucher || 1)
+                    extractFirstInt(getCellByAliases(first, ['ipo ticket 2026', 'ticket', 'producto', 'tipo ticket']), existingCorralcoProgram?.cuposPorVoucher || 10)
                 )
             )
         );
         const defaultPrecio = toNumber(
-            getCellByAliases(first, ['precio usd', 'precio', 'valor usd', 'monto', 'monto pago']),
+            getCellByAliases(first, ['precio usd', 'valor usd']),
             existingCorralcoProgram?.precioUSD || 0
         );
         const program = {
@@ -27705,20 +27769,37 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         };
 
         const importedVouchers = [];
+        const seniaUnit = FLEXI_CORRALCO_SHEET.seniaPesosPorPack || 92000;
+        const ticketsPerPackProg = program.cuposPorVoucher || 1;
         for (const r of corralcoRows) {
             const codigo = getCellByAliases(r, ['codigo voucher', 'codigo', 'voucher', 'cod voucher', 'codigo tkb', 'codigo ticket']);
             if (!codigo) continue;
             const periodoRow = parsePeriodoUso(getCellByAliases(r, ['periodo de uso', 'periodo', 'vigencia']));
-            const cuposIniciales = Math.max(
-                1,
-                Math.round(
-                    toNumber(
-                        getCellByAliases(r, ['cupos iniciales', 'cupos', 'cupos/voucher']),
-                        extractFirstInt(getCellByAliases(r, ['ipo ticket 2026', 'ticket', 'producto']), program.cuposPorVoucher || 1)
+            const montoRaw = getCellByAliases(r, ['monto', 'monto pago']);
+            const montoPesos = parseMontoPesosAR(montoRaw);
+            let packFlexi = inferPackFlexiFromMontoPesos(montoPesos, seniaUnit);
+            let cuposIniciales = packFlexi > 0
+                ? packFlexi * ticketsPerPackProg
+                : Math.max(
+                    1,
+                    Math.round(
+                        toNumber(
+                            getCellByAliases(r, ['cupos iniciales', 'cupos', 'cupos/voucher']),
+                            extractFirstInt(getCellByAliases(r, ['ipo ticket 2026', 'ticket', 'producto', 'tipo ticket']), ticketsPerPackProg)
+                        )
                     )
-                )
-            );
-            const cuposDisponibles = Math.max(0, Math.round(toNumber(getCellByAliases(r, ['cupos disponibles', 'disponibles']), cuposIniciales)));
+                );
+            let cuposDisponibles = Math.max(0, Math.round(toNumber(getCellByAliases(r, ['cupos disponibles', 'disponibles']), -1)));
+            if (cuposDisponibles < 0) {
+                const estCol = getCellByAliases(r, ['estado']);
+                cuposDisponibles = /usado|vencid|anulad/i.test(estCol) ? 0 : cuposIniciales;
+            }
+            const precioUsdRow = toNumber(getCellByAliases(r, ['precio usd', 'valor usd']), NaN);
+            const precioUSD = Number.isFinite(precioUsdRow) && precioUsdRow > 0 ? precioUsdRow : (program.precioUSD || 0);
+            const packDisplay = packFlexi || Math.max(1, Math.round(cuposIniciales / Math.max(1, ticketsPerPackProg)));
+            const notasExtra = montoPesos > 0
+                ? ` Seña ${montoPesos.toLocaleString('es-AR')} ARS → ${packDisplay} PACK Flexi (${cuposIniciales} cupos).`
+                : '';
             importedVouchers.push({
                 id: `FILE-${codigo.replace(/\s+/g, '').toUpperCase()}`,
                 codigo,
@@ -27731,12 +27812,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 clienteTelefono: getCellByAliases(r, ['telefono', 'teléfono', 'celular']),
                 cuposIniciales,
                 cuposDisponibles,
-                precioUSD: toNumber(getCellByAliases(r, ['precio usd', 'precio', 'valor usd', 'monto', 'monto pago']), program.precioUSD || 0),
+                packFlexi: packDisplay,
+                montoPesosSenia: montoPesos || undefined,
+                precioUSD,
                 fechaVenta: parseDateMaybe(getCellByAliases(r, ['fecha venta', 'venta', 'fecha transaccion', 'fecha transacción'])),
                 fechaInicioUso: periodoRow.inicio || program.fechaInicio || '',
                 fechaFinUso: periodoRow.fin || program.fechaFin || '',
-                estado: /vencid|expirad|anulad/i.test(getCellByAliases(r, ['estado', 'tipo pago', 'pago'])) ? 'Vencido' : 'Activo',
-                notas: 'Importado manualmente desde CSV Corralco',
+                estado: /vencid|expirad|anulad/i.test(getCellByAliases(r, ['estado'])) ? 'Vencido' : 'Activo',
+                notas: 'Importado manualmente desde CSV Corralco.' + notasExtra,
                 fechaCreacion: new Date().toISOString(),
                 source: 'corralco-import-file'
             });
@@ -28175,6 +28258,20 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         showNotification(`✅ Voucher ${voucher.codigo} emitido exitosamente`, 'success');
     }
 
+    function getFlexiProgramByVoucher(voucher) {
+        if (!voucher || !voucher.programaId) return null;
+        return (flexiPrograms || []).find(p => p.id === voucher.programaId) || null;
+    }
+
+    function formatFlexiCuposPackLabel(voucher) {
+        const prog = getFlexiProgramByVoucher(voucher);
+        const perPack = Math.max(1, prog?.cuposPorVoucher || 10);
+        const packs = voucher.packFlexi != null && voucher.packFlexi > 0
+            ? voucher.packFlexi
+            : Math.max(1, Math.round((voucher.cuposIniciales || 0) / perPack));
+        return packs === 1 ? '1 PACK Flexi' : `${packs} PACK Flexi`;
+    }
+
     function renderFlexiVouchersTable() {
         const tbody = document.getElementById('flexiVouchersTableBody');
         if (!tbody) return;
@@ -28197,7 +28294,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         
         tbody.innerHTML = flexiVouchers.map(voucher => {
             const estadoBadge = getEstadoBadge(voucher);
-            const cuposDisplay = `<span style="font-weight: bold; color: ${voucher.cuposDisponibles > 0 ? '#4caf50' : '#f44336'};">${voucher.cuposDisponibles}</span>/${voucher.cuposIniciales}`;
+            const packHint = formatFlexiCuposPackLabel(voucher);
+            const cuposDisplay = `<span style="font-weight: bold; color: ${voucher.cuposDisponibles > 0 ? '#4caf50' : '#f44336'};">${voucher.cuposDisponibles}</span>/${voucher.cuposIniciales} <span style="font-size: 11px; color: #666; display: inline-block; max-width: 140px; vertical-align: middle;">(${packHint})</span>`;
             
             return `
                 <tr style="border-bottom: 1px solid #e0e0e0;">
@@ -28570,8 +28668,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
                         <div><strong>Hotel:</strong> ${voucher.hotelName}</div>
                         <div><strong>Estado:</strong> ${getEstadoBadge(voucher)}</div>
-                        <div><strong>Cupos:</strong> <span style="font-weight: bold; color: ${voucher.cuposDisponibles > 0 ? '#4caf50' : '#f44336'};">${voucher.cuposDisponibles}/${voucher.cuposIniciales}</span></div>
-                        <div><strong>Precio:</strong> $${voucher.precioUSD.toLocaleString()} USD</div>
+                        <div><strong>Cupos:</strong> <span style="font-weight: bold; color: ${voucher.cuposDisponibles > 0 ? '#4caf50' : '#f44336'};">${voucher.cuposDisponibles}/${voucher.cuposIniciales}</span> <span style="font-size: 12px; color: #666;">(${formatFlexiCuposPackLabel(voucher)})</span></div>
+                        ${(voucher.montoPesosSenia != null && voucher.montoPesosSenia > 0) ? `<div><strong>Seña abonada:</strong> $${Number(voucher.montoPesosSenia).toLocaleString('es-AR')} ARS</div>` : ''}
+                        ${(voucher.precioUSD != null && Number(voucher.precioUSD) > 0) ? `<div><strong>Precio (USD):</strong> $${Number(voucher.precioUSD).toLocaleString()} USD</div>` : ''}
                         <div><strong>Periodo de Uso:</strong> ${formatDateRange(voucher.fechaInicioUso, voucher.fechaFinUso)}</div>
                         <div><strong>Fecha de Venta:</strong> ${formatDate(voucher.fechaVenta)}</div>
                     </div>
