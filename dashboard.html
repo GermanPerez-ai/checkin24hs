@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-03-27T15:24:26Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 142; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-03-27T15:40:25Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 143; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">142</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">143</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -27503,6 +27503,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         return Number.isFinite(n) ? n : fallback;
     }
 
+    function extractFirstInt(raw, fallback = 0) {
+        const m = String(raw || '').match(/\d+/);
+        if (!m) return fallback;
+        const n = parseInt(m[0], 10);
+        return Number.isFinite(n) ? n : fallback;
+    }
+
     async function syncFlexiCorralcoFromSheet(opts = {}) {
         if (!FLEXI_CORRALCO_SHEET.enabled) return;
         const { silent = false } = opts;
@@ -27668,18 +27675,32 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         const first = corralcoRows[0];
+        const existingCorralcoProgram = (flexiPrograms || []).find(p => /corralco/i.test(String(p.hotelName || '')));
         const periodoTxt = getCellByAliases(first, ['periodo de uso', 'periodo', 'vigencia']);
         const periodo = parsePeriodoUso(periodoTxt);
+        const defaultCupos = Math.max(
+            1,
+            Math.round(
+                toNumber(
+                    getCellByAliases(first, ['cupos/voucher', 'cupos por voucher', 'cupos']),
+                    extractFirstInt(getCellByAliases(first, ['ipo ticket 2026', 'ticket', 'producto']), existingCorralcoProgram?.cuposPorVoucher || 1)
+                )
+            )
+        );
+        const defaultPrecio = toNumber(
+            getCellByAliases(first, ['precio usd', 'precio', 'valor usd', 'monto', 'monto pago']),
+            existingCorralcoProgram?.precioUSD || 0
+        );
         const program = {
             id: 'FILE-CORRALCO',
             hotelId: null,
             hotelName: 'Corralco',
-            cuposPorVoucher: Math.max(1, Math.round(toNumber(getCellByAliases(first, ['cupos/voucher', 'cupos por voucher', 'cupos']), 1))),
-            precioUSD: toNumber(getCellByAliases(first, ['precio usd', 'precio', 'valor usd']), 0),
-            fechaInicio: periodo.inicio || parseDateMaybe(getCellByAliases(first, ['fecha inicio', 'inicio'])),
-            fechaFin: periodo.fin || parseDateMaybe(getCellByAliases(first, ['fecha fin', 'fin'])),
+            cuposPorVoucher: defaultCupos,
+            precioUSD: defaultPrecio,
+            fechaInicio: periodo.inicio || parseDateMaybe(getCellByAliases(first, ['fecha inicio', 'inicio'])) || existingCorralcoProgram?.fechaInicio || '',
+            fechaFin: periodo.fin || parseDateMaybe(getCellByAliases(first, ['fecha fin', 'fin'])) || existingCorralcoProgram?.fechaFin || '',
             descripcion: 'Importado manualmente desde CSV Corralco',
-            estado: getCellByAliases(first, ['estado']) || 'Activo',
+            estado: /inactivo|vencid/i.test(getCellByAliases(first, ['estado'])) ? 'Inactivo' : 'Activo',
             fechaCreacion: new Date().toISOString(),
             source: 'corralco-import-file'
         };
@@ -27689,7 +27710,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             const codigo = getCellByAliases(r, ['codigo voucher', 'codigo', 'voucher', 'cod voucher', 'codigo tkb', 'codigo ticket']);
             if (!codigo) continue;
             const periodoRow = parsePeriodoUso(getCellByAliases(r, ['periodo de uso', 'periodo', 'vigencia']));
-            const cuposIniciales = Math.max(1, Math.round(toNumber(getCellByAliases(r, ['cupos iniciales', 'cupos', 'cupos/voucher']), program.cuposPorVoucher || 1)));
+            const cuposIniciales = Math.max(
+                1,
+                Math.round(
+                    toNumber(
+                        getCellByAliases(r, ['cupos iniciales', 'cupos', 'cupos/voucher']),
+                        extractFirstInt(getCellByAliases(r, ['ipo ticket 2026', 'ticket', 'producto']), program.cuposPorVoucher || 1)
+                    )
+                )
+            );
             const cuposDisponibles = Math.max(0, Math.round(toNumber(getCellByAliases(r, ['cupos disponibles', 'disponibles']), cuposIniciales)));
             importedVouchers.push({
                 id: `FILE-${codigo.replace(/\s+/g, '').toUpperCase()}`,
@@ -27703,11 +27732,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 clienteTelefono: getCellByAliases(r, ['telefono', 'teléfono', 'celular']),
                 cuposIniciales,
                 cuposDisponibles,
-                precioUSD: toNumber(getCellByAliases(r, ['precio usd', 'precio', 'valor usd']), program.precioUSD || 0),
-                fechaVenta: parseDateMaybe(getCellByAliases(r, ['fecha venta', 'venta'])),
-                fechaInicioUso: periodoRow.inicio || program.fechaInicio,
-                fechaFinUso: periodoRow.fin || program.fechaFin,
-                estado: getCellByAliases(r, ['estado']) || 'Activo',
+                precioUSD: toNumber(getCellByAliases(r, ['precio usd', 'precio', 'valor usd', 'monto', 'monto pago']), program.precioUSD || 0),
+                fechaVenta: parseDateMaybe(getCellByAliases(r, ['fecha venta', 'venta', 'fecha transaccion', 'fecha transacción'])),
+                fechaInicioUso: periodoRow.inicio || program.fechaInicio || '',
+                fechaFinUso: periodoRow.fin || program.fechaFin || '',
+                estado: /vencid|expirad|anulad/i.test(getCellByAliases(r, ['estado', 'tipo pago', 'pago'])) ? 'Vencido' : 'Activo',
                 notas: 'Importado manualmente desde CSV Corralco',
                 fechaCreacion: new Date().toISOString(),
                 source: 'corralco-import-file'
@@ -28200,7 +28229,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     function getEstadoBadge(voucher) {
         const today = new Date().toISOString().split('T')[0];
         
-        if (voucher.estado === 'Vencido' || voucher.fechaFinUso < today) {
+        if (voucher.estado === 'Vencido' || (voucher.fechaFinUso && voucher.fechaFinUso < today)) {
             return '<span style="background: #ffebee; color: #c62828; padding: 4px 12px; border-radius: 20px; font-size: 12px;">Vencido</span>';
         } else if (voucher.cuposDisponibles === 0) {
             return '<span style="background: #e3f2fd; color: #1565c0; padding: 4px 12px; border-radius: 20px; font-size: 12px;">Usado</span>';
