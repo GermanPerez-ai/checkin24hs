@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-03-21T15:46:29Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 139; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-03-27T14:47:05Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 140; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">139</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">140</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -3370,6 +3370,12 @@
                 <div class="activity-card" style="margin-bottom: 24px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                         <h3 class="card-title" style="margin: 0;">📋 Programas Flexi Disponibles</h3>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="form-button secondary" onclick="openImportCorralcoFile()" title="Importar CSV local de Corralco">
+                                <span class="material-icons" style="vertical-align: middle; margin-right: 6px;">upload_file</span>
+                                Importar Corralco (CSV)
+                            </button>
+                        </div>
                     </div>
                     <div style="overflow-x: auto;">
                         <table style="width: 100%; border-collapse: collapse; margin-top: 16px;">
@@ -3388,6 +3394,7 @@
                             </tbody>
                         </table>
                     </div>
+                    <input type="file" id="corralcoCsvInput" accept=".csv,text/csv" style="display:none;" onchange="handleImportCorralcoFile(event)">
                 </div>
 
                 <!-- Vouchers Table -->
@@ -11944,14 +11951,7 @@ Ej:
                         loadQuotesTable();
                         updateQuotesStats();
                         
-                        // Verificar si se usó fallback (no abrir WhatsApp automáticamente; prioridad = Chats)
-                        if (result && result.fallback) {
-                            if (confirm('⚠️ No se pudo enviar por el servidor (sección Chats).\n\n¿Querés abrir WhatsApp Web para enviar el mensaje manualmente?\n\n(Cancelar = podés ir a la pestaña Chats y enviar desde ahí)')) {
-                                window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(whatsappMessage)}`, '_blank');
-                            }
-                        } else {
-                            alert('✅ Cotización con tarifa enviada al cliente por WhatsApp (servidor/Chats).');
-                        }
+                        alert('✅ Cotización con tarifa enviada al cliente por WhatsApp (servidor/Chats).');
                     } catch (error) {
                         console.error('❌ Error enviando mensaje:', error);
                         const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(whatsappMessage)}`;
@@ -13017,7 +13017,7 @@ Ej:
                 localStorage.setItem('quotesDB', JSON.stringify(quotesUpdated));
             }
             
-            // Intentar enviar por WhatsApp Business API
+            // Intentar enviar por WhatsApp (servidor /api/send). Solo marcar "enviado" si la promesa resuelve sin error.
             sendWhatsAppMessage(cleanPhone, whatsappMessage).then(async () => {
                 // Cambiar estado a "enviado"
                 quote.status = 'enviado';
@@ -13170,19 +13170,11 @@ Ej:
                     console.error('❌ Error al enviar vía servidor:', serverError);
                     window._lastQuoteSendResult = { sent: false, fallback: true, error: String(serverError?.message || serverError), at: new Date().toISOString() };
                     console.warn('⚠️ COTIZACIÓN NO ENVIADA POR API. Comprobar: window._lastQuoteSendResult');
-                    // No abrir WhatsApp automáticamente: prioridad = enviar por Chats. El llamador puede ofrecer "Abrir WhatsApp Web".
-                    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message.trim())}`;
-                    return { success: false, fallback: true, url: whatsappUrl };
+                    throw new Error(serverError?.message || String(serverError) || 'No se pudo enviar por el servidor WhatsApp');
                 }
                 
             } catch (error) {
                 console.error('❌ Error inesperado en sendWhatsAppMessage:', error);
-                
-                // Si el error NO es de localStorage, intentar abrir WhatsApp Web como último recurso
-                if (error.name !== 'QuotaExceededError' && cleanPhone && message) {
-                    const whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message.trim())}`;
-                    return { success: false, fallback: true, url: whatsappUrl };
-                }
                 
                 const errorMsg = error.message || '❌ Error inesperado al enviar mensaje. Intenta de nuevo.';
                 if (typeof showNotification === 'function') {
@@ -27369,6 +27361,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     let flexiVouchers = [];
     let flexiCanjes = [];
     let currentVoucherForCanje = null;
+    // Sync Corralco desde Google Sheet (publicado como CSV)
+    const FLEXI_CORRALCO_SHEET = {
+        docId: '1Vey4FYeQOMqs-CSJwxAJfrrr_NrlRQl-',
+        gid: '292779405',
+        pollMs: 60 * 1000,
+        timerId: null,
+        warned: false
+    };
 
     // =====================================================
     // INICIALIZACIÓN Y CARGA DE DATOS
@@ -27377,11 +27377,319 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     async function initFlexiData() {
         console.log('🎫 Inicializando Programa Flexi...');
         await loadFlexiDataFromStorage();
+        await syncFlexiCorralcoFromSheet({ silent: true });
         updateFlexiStats();
         renderFlexiProgramsTable();
         renderFlexiVouchersTable();
         renderFlexiCanjesTable();
         checkExpiredVouchers();
+        startFlexiCorralcoPolling();
+    }
+
+    function getFlexiCorralcoCsvUrl() {
+        const custom = (window.FLEXI_CORRALCO_CSV_URL || localStorage.getItem('flexi_corralco_csv_url') || '').trim();
+        if (custom) return custom;
+        return `https://docs.google.com/spreadsheets/d/${FLEXI_CORRALCO_SHEET.docId}/export?format=csv&gid=${FLEXI_CORRALCO_SHEET.gid}`;
+    }
+
+    function normalizeHeader(str) {
+        return String(str || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, ' ')
+            .trim();
+    }
+
+    function parseCsv(text) {
+        const rows = [];
+        let row = [];
+        let value = '';
+        let inQuotes = false;
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            const next = text[i + 1];
+            if (ch === '"') {
+                if (inQuotes && next === '"') {
+                    value += '"';
+                    i++;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (ch === ',' && !inQuotes) {
+                row.push(value);
+                value = '';
+            } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+                if (ch === '\r' && next === '\n') i++;
+                row.push(value);
+                value = '';
+                if (row.some(cell => String(cell).trim() !== '')) rows.push(row);
+                row = [];
+            } else {
+                value += ch;
+            }
+        }
+        if (value.length || row.length) {
+            row.push(value);
+            if (row.some(cell => String(cell).trim() !== '')) rows.push(row);
+        }
+        return rows;
+    }
+
+    function getCellByAliases(rowObj, aliases) {
+        for (const alias of aliases) {
+            const k = normalizeHeader(alias);
+            if (rowObj[k] != null && String(rowObj[k]).trim() !== '') return String(rowObj[k]).trim();
+        }
+        return '';
+    }
+
+    function parseDateMaybe(raw) {
+        const v = String(raw || '').trim();
+        if (!v) return '';
+        const m = v.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+        if (m) {
+            const dd = m[1].padStart(2, '0');
+            const mm = m[2].padStart(2, '0');
+            const yyyy = m[3].length === 2 ? `20${m[3]}` : m[3];
+            return `${yyyy}-${mm}-${dd}`;
+        }
+        const d = new Date(v);
+        if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+        return '';
+    }
+
+    function parsePeriodoUso(raw) {
+        const txt = String(raw || '').trim();
+        if (!txt) return { inicio: '', fin: '' };
+        const parts = txt.split(/\s+a\s+| al | hasta |\-/i).map(s => s.trim()).filter(Boolean);
+        if (parts.length >= 2) {
+            return { inicio: parseDateMaybe(parts[0]), fin: parseDateMaybe(parts[1]) };
+        }
+        return { inicio: '', fin: '' };
+    }
+
+    function toNumber(raw, fallback = 0) {
+        const cleaned = String(raw == null ? '' : raw).replace(/[^0-9,.\-]/g, '').replace(',', '.');
+        const n = Number(cleaned);
+        return Number.isFinite(n) ? n : fallback;
+    }
+
+    async function syncFlexiCorralcoFromSheet(opts = {}) {
+        const { silent = false } = opts;
+        const url = getFlexiCorralcoCsvUrl();
+        try {
+            const res = await fetch(url, { cache: 'no-store' });
+            const csv = await res.text();
+            if (!res.ok || !csv || /google sheets: sign-in|<html/i.test(csv)) {
+                if (!silent && !FLEXI_CORRALCO_SHEET.warned) {
+                    FLEXI_CORRALCO_SHEET.warned = true;
+                    showNotification('⚠️ La planilla de Corralco no está pública para lectura automática (CSV).', 'warning');
+                }
+                return;
+            }
+
+            const rawRows = parseCsv(csv);
+            if (!rawRows.length) return;
+            const headers = rawRows[0].map(h => normalizeHeader(h));
+            const dataRows = rawRows.slice(1).map(r => {
+                const o = {};
+                headers.forEach((h, idx) => { o[h] = (r[idx] || '').trim(); });
+                return o;
+            });
+
+            const corralcoRows = dataRows.filter(r => {
+                const hotel = getCellByAliases(r, ['hotel', 'programa', 'destino']);
+                return /corralco/i.test(hotel || '');
+            });
+            if (!corralcoRows.length) return;
+
+            // Programa Corralco único desde sheet (estructura externa)
+            const first = corralcoRows[0];
+            const periodoTxt = getCellByAliases(first, ['periodo de uso', 'periodo', 'vigencia']);
+            const periodo = parsePeriodoUso(periodoTxt);
+            const program = {
+                id: 'GSHEET-CORRALCO',
+                hotelId: null,
+                hotelName: 'Corralco',
+                cuposPorVoucher: Math.max(1, Math.round(toNumber(getCellByAliases(first, ['cupos/voucher', 'cupos por voucher', 'cupos']), 1))),
+                precioUSD: toNumber(getCellByAliases(first, ['precio usd', 'precio', 'valor usd']), 0),
+                fechaInicio: periodo.inicio || parseDateMaybe(getCellByAliases(first, ['fecha inicio', 'inicio'])),
+                fechaFin: periodo.fin || parseDateMaybe(getCellByAliases(first, ['fecha fin', 'fin'])),
+                descripcion: 'Sincronizado desde Google Sheet Corralco',
+                estado: (getCellByAliases(first, ['estado']) || 'Activo'),
+                fechaCreacion: new Date().toISOString(),
+                source: 'gsheet-corralco'
+            };
+
+            const importedVouchers = [];
+            for (const r of corralcoRows) {
+                const codigo = getCellByAliases(r, ['codigo voucher', 'codigo', 'voucher', 'cod voucher']);
+                if (!codigo) continue;
+                const periodoRow = parsePeriodoUso(getCellByAliases(r, ['periodo de uso', 'periodo', 'vigencia']));
+                const cuposIniciales = Math.max(1, Math.round(toNumber(getCellByAliases(r, ['cupos iniciales', 'cupos', 'cupos/voucher']), program.cuposPorVoucher || 1)));
+                const cuposDisponibles = Math.max(0, Math.round(toNumber(getCellByAliases(r, ['cupos disponibles', 'disponibles']), cuposIniciales)));
+                importedVouchers.push({
+                    id: `GSHEET-${codigo.replace(/\s+/g, '').toUpperCase()}`,
+                    codigo: codigo,
+                    programaId: program.id,
+                    hotelId: null,
+                    hotelName: 'Corralco',
+                    clienteNombre: getCellByAliases(r, ['cliente', 'nombre cliente', 'pasajero']),
+                    clienteEmail: getCellByAliases(r, ['email', 'correo']),
+                    clienteTelefono: getCellByAliases(r, ['telefono', 'teléfono', 'celular']),
+                    cuposIniciales,
+                    cuposDisponibles,
+                    precioUSD: toNumber(getCellByAliases(r, ['precio usd', 'precio', 'valor usd']), program.precioUSD || 0),
+                    fechaVenta: parseDateMaybe(getCellByAliases(r, ['fecha venta', 'venta'])),
+                    fechaInicioUso: periodoRow.inicio || program.fechaInicio,
+                    fechaFinUso: periodoRow.fin || program.fechaFin,
+                    estado: getCellByAliases(r, ['estado']) || 'Activo',
+                    notas: 'Sincronizado desde Google Sheet Corralco',
+                    fechaCreacion: new Date().toISOString(),
+                    source: 'gsheet-corralco'
+                });
+            }
+
+            if (!importedVouchers.length) return;
+
+            // Reemplazar solo datos originados por la sincronización de Corralco
+            flexiPrograms = (flexiPrograms || []).filter(p => p.source !== 'gsheet-corralco');
+            flexiPrograms.push(program);
+            const existingManual = (flexiVouchers || []).filter(v => v.source !== 'gsheet-corralco');
+            flexiVouchers = [...existingManual, ...importedVouchers];
+            saveFlexiDataToStorage();
+            updateFlexiStats();
+            renderFlexiProgramsTable();
+            renderFlexiVouchersTable();
+            if (!silent) showNotification(`✅ Corralco sincronizado (${importedVouchers.length} vouchers)`, 'success');
+        } catch (e) {
+            console.warn('Flexi Corralco sync error:', e);
+            if (!silent && !FLEXI_CORRALCO_SHEET.warned) {
+                FLEXI_CORRALCO_SHEET.warned = true;
+                showNotification('⚠️ No se pudo sincronizar Corralco desde Google Sheet.', 'warning');
+            }
+        }
+    }
+
+    function startFlexiCorralcoPolling() {
+        if (FLEXI_CORRALCO_SHEET.timerId) clearInterval(FLEXI_CORRALCO_SHEET.timerId);
+        FLEXI_CORRALCO_SHEET.timerId = setInterval(() => {
+            if (window.currentSection === 'flexi' || document.getElementById('flexi-section')?.style?.display !== 'none') {
+                syncFlexiCorralcoFromSheet({ silent: true });
+            }
+        }, FLEXI_CORRALCO_SHEET.pollMs);
+    }
+
+    function openImportCorralcoFile() {
+        const inp = document.getElementById('corralcoCsvInput');
+        if (inp) {
+            inp.value = '';
+            inp.click();
+        }
+    }
+
+    function handleImportCorralcoFile(event) {
+        const file = event?.target?.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                const text = String(reader.result || '');
+                importFlexiCorralcoFromCsvText(text);
+            } catch (e) {
+                console.error('Import Corralco CSV error:', e);
+                showNotification('❌ Error al leer el archivo CSV de Corralco.', 'error');
+            }
+        };
+        reader.onerror = () => showNotification('❌ No se pudo leer el archivo.', 'error');
+        reader.readAsText(file, 'utf-8');
+    }
+
+    function importFlexiCorralcoFromCsvText(csvText) {
+        const rawRows = parseCsv(String(csvText || ''));
+        if (!rawRows.length || rawRows.length < 2) {
+            showNotification('⚠️ El CSV está vacío o no tiene datos.', 'warning');
+            return;
+        }
+
+        const headers = rawRows[0].map(h => normalizeHeader(h));
+        const dataRows = rawRows.slice(1).map(r => {
+            const o = {};
+            headers.forEach((h, idx) => { o[h] = (r[idx] || '').trim(); });
+            return o;
+        });
+
+        const corralcoRows = dataRows.filter(r => {
+            const hotel = getCellByAliases(r, ['hotel', 'programa', 'destino']);
+            return /corralco/i.test(hotel || '');
+        });
+
+        if (!corralcoRows.length) {
+            showNotification('⚠️ No se encontraron filas de Corralco en el CSV.', 'warning');
+            return;
+        }
+
+        const first = corralcoRows[0];
+        const periodoTxt = getCellByAliases(first, ['periodo de uso', 'periodo', 'vigencia']);
+        const periodo = parsePeriodoUso(periodoTxt);
+        const program = {
+            id: 'FILE-CORRALCO',
+            hotelId: null,
+            hotelName: 'Corralco',
+            cuposPorVoucher: Math.max(1, Math.round(toNumber(getCellByAliases(first, ['cupos/voucher', 'cupos por voucher', 'cupos']), 1))),
+            precioUSD: toNumber(getCellByAliases(first, ['precio usd', 'precio', 'valor usd']), 0),
+            fechaInicio: periodo.inicio || parseDateMaybe(getCellByAliases(first, ['fecha inicio', 'inicio'])),
+            fechaFin: periodo.fin || parseDateMaybe(getCellByAliases(first, ['fecha fin', 'fin'])),
+            descripcion: 'Importado manualmente desde CSV Corralco',
+            estado: getCellByAliases(first, ['estado']) || 'Activo',
+            fechaCreacion: new Date().toISOString(),
+            source: 'corralco-import-file'
+        };
+
+        const importedVouchers = [];
+        for (const r of corralcoRows) {
+            const codigo = getCellByAliases(r, ['codigo voucher', 'codigo', 'voucher', 'cod voucher']);
+            if (!codigo) continue;
+            const periodoRow = parsePeriodoUso(getCellByAliases(r, ['periodo de uso', 'periodo', 'vigencia']));
+            const cuposIniciales = Math.max(1, Math.round(toNumber(getCellByAliases(r, ['cupos iniciales', 'cupos', 'cupos/voucher']), program.cuposPorVoucher || 1)));
+            const cuposDisponibles = Math.max(0, Math.round(toNumber(getCellByAliases(r, ['cupos disponibles', 'disponibles']), cuposIniciales)));
+            importedVouchers.push({
+                id: `FILE-${codigo.replace(/\s+/g, '').toUpperCase()}`,
+                codigo,
+                programaId: program.id,
+                hotelId: null,
+                hotelName: 'Corralco',
+                clienteNombre: getCellByAliases(r, ['cliente', 'nombre cliente', 'pasajero']),
+                clienteEmail: getCellByAliases(r, ['email', 'correo']),
+                clienteTelefono: getCellByAliases(r, ['telefono', 'teléfono', 'celular']),
+                cuposIniciales,
+                cuposDisponibles,
+                precioUSD: toNumber(getCellByAliases(r, ['precio usd', 'precio', 'valor usd']), program.precioUSD || 0),
+                fechaVenta: parseDateMaybe(getCellByAliases(r, ['fecha venta', 'venta'])),
+                fechaInicioUso: periodoRow.inicio || program.fechaInicio,
+                fechaFinUso: periodoRow.fin || program.fechaFin,
+                estado: getCellByAliases(r, ['estado']) || 'Activo',
+                notas: 'Importado manualmente desde CSV Corralco',
+                fechaCreacion: new Date().toISOString(),
+                source: 'corralco-import-file'
+            });
+        }
+
+        if (!importedVouchers.length) {
+            showNotification('⚠️ Se encontró Corralco pero sin códigos de voucher válidos.', 'warning');
+            return;
+        }
+
+        flexiPrograms = (flexiPrograms || []).filter(p => p.source !== 'corralco-import-file');
+        flexiPrograms.push(program);
+        const keep = (flexiVouchers || []).filter(v => v.source !== 'corralco-import-file');
+        flexiVouchers = [...keep, ...importedVouchers];
+        saveFlexiDataToStorage();
+        updateFlexiStats();
+        renderFlexiProgramsTable();
+        renderFlexiVouchersTable();
+        showNotification(`✅ Corralco importado desde archivo (${importedVouchers.length} vouchers).`, 'success');
     }
 
     function flexiLoadFromLocalStorageOnly() {
