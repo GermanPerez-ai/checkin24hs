@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-03-27T14:47:05Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 140; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-03-27T14:56:59Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 141; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">140</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">141</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -27368,7 +27368,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         gid: '292779405',
         pollMs: 60 * 1000,
         timerId: null,
-        warned: false
+        warned: false,
+        enabled: false // Opción A (archivo local): desactivamos fetch automático a Google
     };
 
     // =====================================================
@@ -27378,13 +27379,17 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     async function initFlexiData() {
         console.log('🎫 Inicializando Programa Flexi...');
         await loadFlexiDataFromStorage();
-        await syncFlexiCorralcoFromSheet({ silent: true });
+        if (FLEXI_CORRALCO_SHEET.enabled) {
+            await syncFlexiCorralcoFromSheet({ silent: true });
+        }
         updateFlexiStats();
         renderFlexiProgramsTable();
         renderFlexiVouchersTable();
         renderFlexiCanjesTable();
         checkExpiredVouchers();
-        startFlexiCorralcoPolling();
+        if (FLEXI_CORRALCO_SHEET.enabled) {
+            startFlexiCorralcoPolling();
+        }
     }
 
     function getFlexiCorralcoCsvUrl() {
@@ -27477,6 +27482,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     }
 
     async function syncFlexiCorralcoFromSheet(opts = {}) {
+        if (!FLEXI_CORRALCO_SHEET.enabled) return;
         const { silent = false } = opts;
         const url = getFlexiCorralcoCsvUrl();
         try {
@@ -27574,6 +27580,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     }
 
     function startFlexiCorralcoPolling() {
+        if (!FLEXI_CORRALCO_SHEET.enabled) return;
         if (FLEXI_CORRALCO_SHEET.timerId) clearInterval(FLEXI_CORRALCO_SHEET.timerId);
         FLEXI_CORRALCO_SHEET.timerId = setInterval(() => {
             if (window.currentSection === 'flexi' || document.getElementById('flexi-section')?.style?.display !== 'none') {
@@ -27621,14 +27628,21 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             return o;
         });
 
-        const corralcoRows = dataRows.filter(r => {
+        let corralcoRows = dataRows.filter(r => {
             const hotel = getCellByAliases(r, ['hotel', 'programa', 'destino']);
             return /corralco/i.test(hotel || '');
         });
-
+        // Si el CSV no trae columna hotel/programa (caso común del reporte del hotel),
+        // tomamos todas las filas con código como Corralco.
         if (!corralcoRows.length) {
-            showNotification('⚠️ No se encontraron filas de Corralco en el CSV.', 'warning');
-            return;
+            corralcoRows = dataRows.filter(r => {
+                const code = getCellByAliases(r, ['codigo voucher', 'codigo', 'voucher', 'cod voucher', 'codigo tkb', 'codigo ticket']);
+                return !!code;
+            });
+            if (!corralcoRows.length) {
+                showNotification('⚠️ No se encontraron filas importables (faltan códigos de voucher).', 'warning');
+                return;
+            }
         }
 
         const first = corralcoRows[0];
@@ -27650,7 +27664,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
         const importedVouchers = [];
         for (const r of corralcoRows) {
-            const codigo = getCellByAliases(r, ['codigo voucher', 'codigo', 'voucher', 'cod voucher']);
+            const codigo = getCellByAliases(r, ['codigo voucher', 'codigo', 'voucher', 'cod voucher', 'codigo tkb', 'codigo ticket']);
             if (!codigo) continue;
             const periodoRow = parsePeriodoUso(getCellByAliases(r, ['periodo de uso', 'periodo', 'vigencia']));
             const cuposIniciales = Math.max(1, Math.round(toNumber(getCellByAliases(r, ['cupos iniciales', 'cupos', 'cupos/voucher']), program.cuposPorVoucher || 1)));
@@ -27661,7 +27675,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 programaId: program.id,
                 hotelId: null,
                 hotelName: 'Corralco',
-                clienteNombre: getCellByAliases(r, ['cliente', 'nombre cliente', 'pasajero']),
+                clienteNombre: getCellByAliases(r, ['cliente', 'nombre cliente', 'pasajero', 'nombre apellidos', 'nombre_apellidos']) ||
+                    [getCellByAliases(r, ['nombre']), getCellByAliases(r, ['apellidos'])].filter(Boolean).join(' ').trim(),
                 clienteEmail: getCellByAliases(r, ['email', 'correo']),
                 clienteTelefono: getCellByAliases(r, ['telefono', 'teléfono', 'celular']),
                 cuposIniciales,
