@@ -332,6 +332,75 @@ function resolvePhoneForFlorSendDestination(sock, destJid) {
 }
 /** Mensajes enviados por sock.sendMessage en este proceso: el eco fromMe trae el mismo id; no es “humano en celular”. */
 const florOutboundBaileysMessageIds = new Map(); // id -> expiry timestamp
+/** TTL del registro de IDs salientes (ms). Ecos pueden llegar tarde (append) o con id distinto; default 15 min. */
+const FLOR_OUTBOUND_BAILEYS_ID_TTL_MS = Math.max(
+    5 * 60 * 1000,
+    Math.min(30 * 60 * 1000, parseInt(process.env.FLOR_OUTBOUND_ID_TTL_MS || '900000', 10) || 900000)
+);
+/** Tras pausar desde /api/send|audio|media, el eco fromMe a veces no coincide en msg.id; evitar doble pausa/log. */
+const recentDashboardFlorPauseByDigits = new Map(); // dígitos E.164 -> expiry
+const RECENT_DASHBOARD_PAUSE_WINDOW_MS = 120000;
+
+function normalizeBaileysMessageId(id) {
+    if (id == null || id === '') return null;
+    if (Buffer.isBuffer(id)) return id.toString('hex');
+    return String(id);
+}
+
+/**
+ * Recoge key.id de la respuesta de sendMessage (objeto, array o { messages: [] }) sin recorrer el proto completo.
+ */
+function collectMessageIdsFromBaileysSendResult(res, out) {
+    if (res == null) return;
+    if (Array.isArray(res)) {
+        for (let i = 0; i < res.length; i++) collectMessageIdsFromBaileysSendResult(res[i], out);
+        return;
+    }
+    if (typeof res !== 'object') return;
+    try {
+        const k = res.key;
+        if (k && k.id != null && k.id !== '') {
+            const n = normalizeBaileysMessageId(k.id);
+            if (n) out.add(n);
+        }
+    } catch (e) { /* ignore */ }
+    if (Array.isArray(res.messages)) {
+        for (let j = 0; j < res.messages.length; j++) collectMessageIdsFromBaileysSendResult(res.messages[j], out);
+    }
+}
+
+function pruneFlorOutboundBaileysIdMap() {
+    const now = Date.now();
+    for (const [id, exp] of florOutboundBaileysMessageIds) {
+        if (exp <= now) florOutboundBaileysMessageIds.delete(id);
+    }
+    while (florOutboundBaileysMessageIds.size > 10000) {
+        const first = florOutboundBaileysMessageIds.keys().next().value;
+        if (first == null) break;
+        florOutboundBaileysMessageIds.delete(first);
+    }
+}
+
+function markRecentDashboardFlorPause(phoneRaw) {
+    const d = String(phoneRaw || '').replace(/\D/g, '');
+    if (d.length < 10) return;
+    recentDashboardFlorPauseByDigits.set(d, Date.now() + RECENT_DASHBOARD_PAUSE_WINDOW_MS);
+    for (const [k, exp] of recentDashboardFlorPauseByDigits) {
+        if (exp <= Date.now()) recentDashboardFlorPauseByDigits.delete(k);
+    }
+}
+
+function shouldSkipFromMePauseBecauseRecentDashboard(primaryForDb, jidDigits) {
+    const d1 = primaryForDb ? String(primaryForDb).replace(/\D/g, '') : '';
+    const d2 = jidDigits ? String(jidDigits).replace(/\D/g, '') : '';
+    const now = Date.now();
+    for (const d of [d1, d2]) {
+        if (d.length < 10) continue;
+        const exp = recentDashboardFlorPauseByDigits.get(d);
+        if (exp && exp > now) return true;
+    }
+    return false;
+}
 
 function florPauseMemoryTouch(phone) {
     florPauseMemoryTouchMany(phone);
@@ -362,19 +431,33 @@ function florPauseMemoryIsActive(phone) {
     return false;
 }
 function registerFlorOutboundBaileysMessageId(id) {
-    if (id) florOutboundBaileysMessageIds.set(id, Date.now() + 180000);
+    const n = normalizeBaileysMessageId(id);
+    if (!n) return;
+    florOutboundBaileysMessageIds.set(n, Date.now() + FLOR_OUTBOUND_BAILEYS_ID_TTL_MS);
+    pruneFlorOutboundBaileysIdMap();
 }
+
+function registerFlorOutboundBaileysMessageIdsFromSendResult(res) {
+    const ids = new Set();
+    collectMessageIdsFromBaileysSendResult(res, ids);
+    for (const n of ids) {
+        florOutboundBaileysMessageIds.set(n, Date.now() + FLOR_OUTBOUND_BAILEYS_ID_TTL_MS);
+    }
+    pruneFlorOutboundBaileysIdMap();
+}
+
 function isFlorOutboundBaileysMessageId(id) {
-    if (!id) return false;
-    const exp = florOutboundBaileysMessageIds.get(id);
+    const n = normalizeBaileysMessageId(id);
+    if (!n) return false;
+    const exp = florOutboundBaileysMessageIds.get(n);
     if (exp && exp > Date.now()) return true;
-    if (exp) florOutboundBaileysMessageIds.delete(id);
+    if (exp) florOutboundBaileysMessageIds.delete(n);
     return false;
 }
 if (FLOR_DELAY_MS > 0) {
     console.log(`⏱️ Flor: delay ${FLOR_DELAY_MS}ms para agrupar mensajes. Usuario puede consultar las veces que quiera; 1 mensaje → 1 respuesta, varios en ${FLOR_DELAY_MS}ms → respuesta a todos.`);
 }
-console.log(`⏸️ Flor: silencio tras intervención humana = ${FLOR_SILENCE_MINUTES} min (env FLOR_SILENCE_MINUTES). Mín. tokens salida = ${FLOR_MAX_OUTPUT_TOKENS_MIN} (+ flor_ai_config / FLOR_MAX_OUTPUT_TOKENS).`);
+console.log(`⏸️ Flor: silencio tras intervención humana = ${FLOR_SILENCE_MINUTES} min (env FLOR_SILENCE_MINUTES). Registro de ids salientes ${Math.round(FLOR_OUTBOUND_BAILEYS_ID_TTL_MS / 60000)} min (FLOR_OUTBOUND_ID_TTL_MS). Mín. tokens salida = ${FLOR_MAX_OUTPUT_TOKENS_MIN} (+ flor_ai_config / FLOR_MAX_OUTPUT_TOKENS).`);
 
 // Prompt mínimo (spec: conocimiento en servidor, Flor como "capa de lenguaje"). Usado si no hay flor_general_config en Supabase.
 const FLOR_PROMPT_DEFAULT = `Eres **Flor IA** 🌸, asistente virtual de **Checkin24hs**. Tono de lujo: amable, profesional y fluido.
@@ -2889,7 +2972,7 @@ async function connectToWhatsApp() {
         let phoneForMap = resolvePhoneForFlorSendDestination(sock, destJid);
         const res = await _origSendMessage(...args);
         try {
-            if (res && res.key && res.key.id) registerFlorOutboundBaileysMessageId(res.key.id);
+            if (res) registerFlorOutboundBaileysMessageIdsFromSendResult(res);
             // Enlace LID ↔ +E.164: los salientes humanos a veces traen otro @lid que el del mensaje entrante;
             // Flor envía a p.remoteJid (@lid) con p.numero ya resuelto — guardamos todos los JID que devuelve el envío.
             const sentRj = res?.key?.remoteJid;
@@ -3266,6 +3349,10 @@ async function connectToWhatsApp() {
                 if (remoteJidOut && String(remoteJidOut).includes('@g.us')) {
                     continue;
                 }
+                // Stubs del protocolo (llamada perdida, etc.): no son “humano escribiendo”.
+                if (msg.message && typeof msg.message.messageStubType === 'number') {
+                    continue;
+                }
                 if (msg.key.id && isFlorOutboundBaileysMessageId(msg.key.id)) {
                     // Eco del mismo proceso (Flor o API que usa sock.sendMessage); no pausar
                     continue;
@@ -3287,6 +3374,10 @@ async function connectToWhatsApp() {
                     if (primaryForDb && isOurBotPhoneDigits(primaryForDb.replace(/^\+/, ''))) {
                         console.log(`🔇 Modo Silencio: ignorado (destino es el propio número del bot / eco). jid=${jidLocal} msgId=${msg.key.id || 'n/a'}`);
                         primaryForDb = null;
+                    }
+                    // Eco tras /api/send: ya pausamos en HTTP; el id del eco a veces no coincide con el registrado.
+                    if (shouldSkipFromMePauseBecauseRecentDashboard(primaryForDb, jidDigits)) {
+                        continue;
                     }
                     // Siempre tocar RAM con el JID local (LID o PN): el entrante puede matchear otro formato que +E.164
                     if (jidDigits.length >= 10) {
@@ -4339,6 +4430,7 @@ app.post('/api/send', async (req, res) => {
         const textoGuardado = textoNorm;
         await guardarMensaje(num.replace(/@.*$/, ''), textoGuardado, true, null, null, chatIdFromDashboard || null);
         await setFlorPausedUntil(num.replace(/@.*$/, ''), FLOR_SILENCE_MINUTES, chatIdFromDashboard || null);
+        markRecentDashboardFlorPause(num);
 
         res.json({ success: true, message: 'Mensaje enviado' });
     } catch (error) {
@@ -4418,6 +4510,7 @@ app.post('/api/send-audio', async (req, res) => {
         await sock.sendMessage(jid, { audio: buffer, mimetype: mime, ptt: true });
         await guardarMensaje(num.replace(/@.*$/, ''), '[Audio]', true, null, null, chatIdFromDashboard || null);
         await setFlorPausedUntil(num.replace(/@.*$/, ''), FLOR_SILENCE_MINUTES, chatIdFromDashboard || null);
+        markRecentDashboardFlorPause(num);
         res.json({ success: true, message: 'Audio enviado' });
     } catch (error) {
         console.error('Error enviando audio:', error);
@@ -4457,6 +4550,7 @@ app.post('/api/send-media', async (req, res) => {
             return res.status(400).json({ error: 'type debe ser image, video o document' });
         }
         await setFlorPausedUntil(num.replace(/@.*$/, ''), FLOR_SILENCE_MINUTES, chatIdFromDashboard || null);
+        markRecentDashboardFlorPause(num);
         res.json({ success: true, message: 'Media enviado' });
     } catch (error) {
         console.error('Error enviando media:', error);
