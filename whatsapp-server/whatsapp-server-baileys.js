@@ -438,6 +438,12 @@ const FLOR_OUTBOUND_BAILEYS_ID_TTL_MS = Math.max(
 /** Tras pausar desde /api/send|audio|media, el eco fromMe a veces no coincide en msg.id; evitar doble pausa/log. */
 const recentDashboardFlorPauseByDigits = new Map(); // dígitos E.164 -> expiry
 const RECENT_DASHBOARD_PAUSE_WINDOW_MS = 120000;
+/** Ecos fromMe (mismo msgId) pueden entrar varias veces (notify + append); evita logs/pausas duplicadas. */
+const recentHumanSilenceFromMeByMsgId = new Map();
+const HUMAN_SILENCE_FROM_ME_DEDUPE_MS = Math.max(
+    60_000,
+    Math.min(300_000, parseInt(process.env.FLOR_HUMAN_FROMME_DEDUPE_MS || '120000', 10) || 120000)
+);
 
 function normalizeBaileysMessageId(id) {
     if (id == null || id === '') return null;
@@ -498,6 +504,29 @@ function shouldSkipFromMePauseBecauseRecentDashboard(primaryForDb, jidDigits) {
         if (exp && exp > now) return true;
     }
     return false;
+}
+
+function pruneHumanSilenceFromMeDedupe() {
+    const now = Date.now();
+    for (const [id, exp] of recentHumanSilenceFromMeByMsgId) {
+        if (exp <= now) recentHumanSilenceFromMeByMsgId.delete(id);
+    }
+}
+
+function shouldSkipFromMeHumanSilenceDuplicate(msgId) {
+    const n = normalizeBaileysMessageId(msgId);
+    if (!n) return false;
+    pruneHumanSilenceFromMeDedupe();
+    const exp = recentHumanSilenceFromMeByMsgId.get(n);
+    if (exp && exp > Date.now()) return true;
+    return false;
+}
+
+function markFromMeHumanSilenceProcessed(msgId) {
+    const n = normalizeBaileysMessageId(msgId);
+    if (!n) return;
+    recentHumanSilenceFromMeByMsgId.set(n, Date.now() + HUMAN_SILENCE_FROM_ME_DEDUPE_MS);
+    pruneHumanSilenceFromMeDedupe();
 }
 
 function florPauseMemoryTouch(phone) {
@@ -3471,7 +3500,9 @@ async function connectToWhatsApp() {
                     const jidDigits = (jidLocal && /^[0-9]+$/.test(String(jidLocal).replace(/^\+/, '')))
                         ? String(jidLocal).replace(/\D/g, '')
                         : '';
-                    const fromJidOk = jidDigits.length >= 10 && !isLikelyPseudoWhatsappPn(jidDigits) && !isOurBotPhoneDigits(jidDigits);
+                    // @lid: el user no es E.164; jamás armar +<dígitos> solo desde el JID (ej. 72005227429971 → falso +720…).
+                    const remoteIsLid = String(remoteJidOut).includes('@lid');
+                    const fromJidOk = !remoteIsLid && jidDigits.length >= 10 && !isLikelyPseudoWhatsappPn(jidDigits) && !isOurBotPhoneDigits(jidDigits);
                     let primaryForDb = resolved || (fromJidOk ? ('+' + jidDigits) : null);
                     if (primaryForDb && isOurBotPhoneDigits(primaryForDb.replace(/^\+/, ''))) {
                         console.log(`🔇 Modo Silencio: ignorado (destino es el propio número del bot / eco). jid=${jidLocal} msgId=${msg.key.id || 'n/a'}`);
@@ -3480,6 +3511,15 @@ async function connectToWhatsApp() {
                     // Eco tras /api/send: ya pausamos en HTTP; el id del eco a veces no coincide con el registrado.
                     if (shouldSkipFromMePauseBecauseRecentDashboard(primaryForDb, jidDigits)) {
                         continue;
+                    }
+                    const willPauseFromMeHuman =
+                        (primaryForDb && !String(primaryForDb).includes('@')) ||
+                        (jidDigits.length >= 10 && !isOurBotPhoneDigits(jidDigits));
+                    if (willPauseFromMeHuman && shouldSkipFromMeHumanSilenceDuplicate(msg.key.id)) {
+                        continue;
+                    }
+                    if (willPauseFromMeHuman) {
+                        markFromMeHumanSilenceProcessed(msg.key.id);
                     }
                     // Siempre tocar RAM con el JID local (LID o PN): el entrante puede matchear otro formato que +E.164
                     if (jidDigits.length >= 10) {
