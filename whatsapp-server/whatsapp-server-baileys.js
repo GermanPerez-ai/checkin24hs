@@ -191,6 +191,104 @@ const FLOR_DELAY_MS = Math.max(0, parseInt(process.env.FLOR_DELAY_MS, 10) || 500
 const FLOR_SILENCE_MINUTES = Math.max(1, parseInt(process.env.FLOR_SILENCE_MINUTES || '30', 10) || 30);
 /** Mínimo de tokens de salida Gemini para no cortar descripciones (puede subir con FLOR_MAX_OUTPUT_TOKENS o Supabase flor_ai_config.maxTokens) */
 const FLOR_MAX_OUTPUT_TOKENS_MIN = Math.max(256, parseInt(process.env.FLOR_MAX_OUTPUT_TOKENS_MIN || '1500', 10) || 1500);
+
+/** Ventana deslizante para errores cripto/sesión (Bad MAC, decrypt). Resumen en log + campo en /health. */
+const FLOR_SESSION_CRYPTO_WINDOW_MS = Math.max(60_000, parseInt(process.env.FLOR_SESSION_CRYPTO_WINDOW_MS || '300000', 10) || 300_000);
+const FLOR_SESSION_CRYPTO_SUMMARY = process.env.FLOR_SESSION_CRYPTO_SUMMARY !== '0' && process.env.FLOR_SESSION_CRYPTO_SUMMARY !== 'false';
+const _origConsoleErrorForFlor = console.error.bind(console);
+const florSessionCryptoIssueTimes = [];
+let florSessionCryptoLastSummaryAt = 0;
+
+function florSessionCryptoNormalizeDetail(args) {
+    return args.map((a) => {
+        if (typeof a === 'string') return a;
+        if (a && typeof a === 'object') {
+            if (a.msg) return String(a.msg);
+            if (a.err && a.err.message) return String(a.err.message);
+            try {
+                return JSON.stringify(a);
+            } catch (e) {
+                return String(a);
+            }
+        }
+        return String(a);
+    }).join(' ');
+}
+
+function florSessionCryptoIsMatch(text) {
+    return /Bad MAC|failed to decrypt|SessionError|No matching sessions|Session error:\s*Error:\s*Bad MAC/i.test(String(text || ''));
+}
+
+function pruneFlorSessionCryptoIssueTimes() {
+    const now = Date.now();
+    while (florSessionCryptoIssueTimes.length && florSessionCryptoIssueTimes[0] < now - FLOR_SESSION_CRYPTO_WINDOW_MS) {
+        florSessionCryptoIssueTimes.shift();
+    }
+}
+
+function recordFlorSessionCryptoIssue(detail) {
+    if (!FLOR_SESSION_CRYPTO_SUMMARY) return;
+    const now = Date.now();
+    pruneFlorSessionCryptoIssueTimes();
+    florSessionCryptoIssueTimes.push(now);
+    const n = florSessionCryptoIssueTimes.length;
+    const shouldLog =
+        n === 1 ||
+        n === 5 ||
+        n === 15 ||
+        n === 30 ||
+        (n % 50 === 0) ||
+        (now - florSessionCryptoLastSummaryAt > 120_000 && n >= 3);
+    if (shouldLog) {
+        florSessionCryptoLastSummaryAt = now;
+        const winMin = Math.max(1, Math.round(FLOR_SESSION_CRYPTO_WINDOW_MS / 60000));
+        _origConsoleErrorForFlor(
+            `🔐 Flor: ${n} evento(s) cripto/sesión en ~${winMin} min (Bad MAC / decrypt). ` +
+                `Si crece: 1 réplica, volumen auth estable, deploy stop-first; si sigue: reset auth+QR. ` +
+                `Muestra: ${String(detail).slice(0, 180)}`
+        );
+    }
+}
+
+function getFlorSessionCryptoIssueCount() {
+    pruneFlorSessionCryptoIssueTimes();
+    return florSessionCryptoIssueTimes.length;
+}
+
+function createFlorBaileysLogger() {
+    const emit = (level, args) => {
+        const [one] = args;
+        const text = florSessionCryptoNormalizeDetail(args);
+        if (florSessionCryptoIsMatch(text)) recordFlorSessionCryptoIssue(text.slice(0, 300));
+        if (typeof one === 'object' && one !== null && one.msg !== undefined) {
+            const line = JSON.stringify(one);
+            if (level === 'error' || level === 'fatal') _origConsoleErrorForFlor(line);
+            else if (level === 'warn') console.warn(line);
+            else console.log(line);
+            return;
+        }
+        if (level === 'error' || level === 'fatal') _origConsoleErrorForFlor(...args);
+        else if (level === 'warn') console.warn(...args);
+        else console.log(...args);
+    };
+    const base = {};
+    for (const level of ['trace', 'debug', 'info', 'warn', 'error', 'fatal']) {
+        base[level] = (...args) => emit(level, args);
+    }
+    base.child = () => createFlorBaileysLogger();
+    return base;
+}
+
+if (FLOR_SESSION_CRYPTO_SUMMARY) {
+    console.error = function (...args) {
+        try {
+            const text = florSessionCryptoNormalizeDetail(args);
+            if (florSessionCryptoIsMatch(text)) recordFlorSessionCryptoIssue(text.slice(0, 300));
+        } catch (e) { /* ignore */ }
+        return _origConsoleErrorForFlor.apply(console, args);
+    };
+}
+
 const florPendingByUser = new Map(); // key: remoteJid -> { timeoutId, messages: [{texto, ts}], nombre, numero }
 /** Silencio Flor: respaldo en RAM si aún no existe fila en whatsapp_chats (clave: solo dígitos, ≥10) */
 const florPauseMemoryUntil = new Map();
@@ -458,6 +556,9 @@ if (FLOR_DELAY_MS > 0) {
     console.log(`⏱️ Flor: delay ${FLOR_DELAY_MS}ms para agrupar mensajes. Usuario puede consultar las veces que quiera; 1 mensaje → 1 respuesta, varios en ${FLOR_DELAY_MS}ms → respuesta a todos.`);
 }
 console.log(`⏸️ Flor: silencio tras intervención humana = ${FLOR_SILENCE_MINUTES} min (env FLOR_SILENCE_MINUTES). Registro de ids salientes ${Math.round(FLOR_OUTBOUND_BAILEYS_ID_TTL_MS / 60000)} min (FLOR_OUTBOUND_ID_TTL_MS). Mín. tokens salida = ${FLOR_MAX_OUTPUT_TOKENS_MIN} (+ flor_ai_config / FLOR_MAX_OUTPUT_TOKENS).`);
+if (FLOR_SESSION_CRYPTO_SUMMARY) {
+    console.log(`🔐 Flor: resumen cripto/sesión cada ~${Math.round(FLOR_SESSION_CRYPTO_WINDOW_MS / 60000)} min en /health (florSessionCryptoIssuesLastWindow). Desactivar: FLOR_SESSION_CRYPTO_SUMMARY=0. Ventana ms: FLOR_SESSION_CRYPTO_WINDOW_MS.`);
+}
 
 // Prompt mínimo (spec: conocimiento en servidor, Flor como "capa de lenguaje"). Usado si no hay flor_general_config en Supabase.
 const FLOR_PROMPT_DEFAULT = `Eres **Flor IA** 🌸, asistente virtual de **Checkin24hs**. Tono de lujo: amable, profesional y fluido.
@@ -2938,6 +3039,7 @@ async function connectToWhatsApp() {
     const { version } = await fetchLatestBaileysVersion();
     
     sock = makeWASocket({
+        logger: createFlorBaileysLogger(),
         auth: state,
         version,
         browser: ['Chrome', 'Desktop', '1.0.0'],
@@ -3895,7 +3997,9 @@ app.get(['/api/health', '/health'], (req, res) => {
         status: 'ok',
         instance: CONFIG.INSTANCE_NUMBER,
         whatsapp: connectionStatus,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        florSessionCryptoIssuesLastWindow: getFlorSessionCryptoIssueCount(),
+        florSessionCryptoWindowMinutes: Math.max(1, Math.round(FLOR_SESSION_CRYPTO_WINDOW_MS / 60000))
     });
 });
 
