@@ -1,0 +1,253 @@
+.section {
+  padding: 48px 0;
+  background: var(--bg);
+}
+
+.title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin: 0 0 24px;
+  text-align: center;
+}
+
+.carouselBadge {
+  font-size: 0.65em;
+  font-weight: 500;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+/* Contenedor del carrusel: una sola línea, scroll horizontal (móvil y desktop) */
+.carouselOuter {
+  position: relative;
+  margin: 0 -8px;
+  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Viewport fijo: limita el ancho para que el track haga scroll dentro */
+.carouselViewport {
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  min-width: 0;
+}
+
+/* Forzar una fila: el track tiene ancho fijo del padre, el contenido hace scroll */
+.carouselTrack {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  padding: 8px 0 16px;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  box-sizing: border-box;
+}
+
+.carouselTrack::-webkit-scrollbar {
+  height: 6px;
+}
+
+.carouselTrack::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+/* Tarjeta carrusel: 200×300px fijos */
+.cardLink {
+  flex: 0 0 200px;
+  width: 200px;
+  min-width: 200px;
+  height: 300px;
+  scroll-snap-align: start;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  display: block;
+  box-sizing: border-box;
+}
+
+.cardLink:hover .card {
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.cardLink:hover .cardTitle {
+  color: var(--primary);
+}
+
+.card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-alt);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: var(--card-shadow);
+  transition: box-shadow 0.2s ease;
+}
+
+.img {
+  width: 100%;
+  height: 125px;
+  flex: 0 0 125px;
+  object-fit: cover;
+  display: block;
+}
+
+/* Video usa la misma huella que la imagen */
+.card video.img {
+  object-fit: cover;
+  background: #000;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  padding: 10px 12px 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fecha: 6pt/8px, gris */
+.date {
+  font-size: 8px;
+  color: #888;
+  display: block;
+  margin-bottom: 4px;
+}
+
+/* Título: 12pt/16px, bold, negro, máx. 2 líneas */
+.cardTitle {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: #000;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Mensaje de gancho (resumen): 6pt/8px, #444, font-weight 500 para más peso que la fecha */
+.resumen {
+  margin: 0;
+  font-size: 8px;
+  font-weight: 500;
+  color: #444;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Bloque de texto que empuja el botón hacia abajo */
+.bodyText {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Botón de acción (slug): anclado al pie de la tarjeta */
+.cardBtn {
+  display: block;
+  width: 100%;
+  margin-top: auto;
+  padding: 10px 12px;
+  font-size: 17px;
+  font-weight: 700;
+  text-align: center;
+  color: #fff;
+  background: #003580;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  flex-shrink: 0;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.cardLink:hover .cardBtn {
+  background: #002a66;
+}
+
+/* Flechas para desplazar el carrusel */
+.arrowBtn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: var(--primary);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 53, 128, 0.3);
+  transition: background 0.2s, opacity 0.2s;
+  z-index: 2;
+}
+
+.arrowBtn:hover {
+  background: var(--primary-light);
+}
+
+.arrowBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.arrowLeft {
+  left: -8px;
+}
+
+.arrowRight {
+  right: -8px;
+}
+
+@media (max-width: 768px) {
+  .carouselOuter {
+    overflow: hidden;
+    width: 100%;
+  }
+  .carouselTrack {
+    display: flex;
+    flex-wrap: nowrap;
+    width: 100%;
+    min-width: 0;
+    overflow-x: scroll;
+    -webkit-overflow-scrolling: touch;
+  }
+  .cardLink {
+    flex: 0 0 200px;
+    width: 200px;
+    min-width: 200px;
+    height: 300px;
+  }
+  /* En móvil no mostramos flechas: el usuario desliza con el dedo */
+  .arrowBtn {
+    display: none;
+  }
+}
+
+.empty {
+  margin: 0;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 24px 0;
+}

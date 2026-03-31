@@ -1,0 +1,161 @@
+.container {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 99999;
+  font-family: inherit;
+  width: auto;
+  height: auto;
+}
+
+/* Cuando va dentro del contenedor fijo de App (junto con WhatsApp) */
+.containerInline {
+  position: relative;
+  bottom: auto;
+  right: auto;
+  z-index: 1;
+  font-family: inherit;
+  width: auto;
+  height: auto;
+}
+
+/* En móvil respetar safe-area (notch, barra de gestos) */
+@media (max-width: 768px) {
+  .container {
+    bottom: max(16px, env(safe-area-inset-bottom));
+    right: max(16px, env(safe-area-inset-right));
+  }
+}
+
+.bubble {
+  /* Tamaño fijo para que nunca se deforme a una tira */
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
+  min-height: 56px;
+  max-width: 56px;
+  max-height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  box-shadow: 0 4px 12px rgba(30, 58, 95, 0.4);
+  transition: transform 0.2s;
+  /* Evitar que el contenido (emoji/texto) deforme el botón */
+  flex-shrink: 0;
+  overflow: hidden;
+  padding: 0;
+  line-height: 1;
+  writing-mode: horizontal-tb;
+  text-orientation: mixed;
+}
+
+.bubble:hover {
+  transform: scale(1.05);
+}
+
+/* Móvil: botón táctil grande y siempre circular */
+@media (max-width: 768px) {
+  .bubble {
+    width: 52px;
+    height: 52px;
+    min-width: 52px;
+    min-height: 52px;
+    max-width: 52px;
+    max-height: 52px;
+    font-size: 26px;
+    /* Área táctil mínima 44px recomendada por Apple/Google */
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+.window {
+  position: absolute;
+  bottom: 70px;
+  right: 0;
+  width: 380px;
+  max-width: calc(100vw - 24px);
+  height: 520px;
+  max-height: 80vh;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  /* Cerrada: no mostrar ningún fragmento (evitar tira fina en móvil) */
+  visibility: hidden;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.windowOpen {
+  display: flex;
+  visibility: visible;
+  pointer-events: auto;
+  opacity: 1;
+}
+
+.header {
+  background: var(--primary);
+  color: white;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.avatar {
+  font-size: 24px;
+}
+
+.sub {
+  display: block;
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+.close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+}
+
+.iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+@media (max-width: 500px) {
+  .window {
+    bottom: 0;
+    right: 0;
+    left: 0;
+    width: 100%;
+    max-width: 100%;
+    /* Altura reducida para que el campo de escribir quede visible (teclado y barra del navegador) */
+    height: 82vh;
+    max-height: 82vh;
+    border-radius: 0;
+    position: fixed;
+    inset: 0;
+    top: auto;
+  }
+}

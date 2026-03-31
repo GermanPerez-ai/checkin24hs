@@ -1,0 +1,67 @@
+.footer {
+  background: var(--primary);
+  color: rgba(255,255,255,0.9);
+  padding: 40px 0 24px;
+  margin-top: 48px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 32px;
+  margin-bottom: 32px;
+}
+
+@media (max-width: 600px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.brand {
+  font-size: 1.25rem;
+  display: block;
+  margin-bottom: 8px;
+  color: white;
+}
+
+.about {
+  margin: 0;
+  font-size: 0.9rem;
+  max-width: 400px;
+  line-height: 1.5;
+  opacity: 0.9;
+}
+
+.redes {
+  display: flex;
+  gap: 16px;
+}
+
+.redLink {
+  color: white;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.redLink:hover {
+  text-decoration: underline;
+  color: white;
+}
+
+.legales {
+  border-top: 1px solid rgba(255,255,255,0.2);
+  padding-top: 20px;
+}
+
+.legales p {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.85;
+}
+
+.buildInfo {
+  margin-top: 8px !important;
+  font-size: 0.7rem !important;
+  opacity: 0.6 !important;
+}

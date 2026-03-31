@@ -1,0 +1,55 @@
+.link {
+  position: fixed;
+  bottom: 20px;
+  right: 92px; /* A la izquierda del botón de Flor (56px + 16px gap) */
+  z-index: 100000; /* Por encima de Flor (99999) para que no lo tape */
+  width: 56px;
+  height: 56px;
+  min-width: 56px;
+  min-height: 56px;
+  border-radius: 50%;
+  background: #25d366;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(37, 211, 102, 0.4);
+  transition: transform 0.2s;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Cuando va dentro del contenedor fijo de App (junto con Flor) */
+.linkInline {
+  position: static;
+}
+
+.link:hover {
+  transform: scale(1.05);
+  color: white;
+}
+
+.link:active {
+  color: white;
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .link {
+    bottom: max(16px, env(safe-area-inset-bottom));
+    right: 84px; /* A la izquierda de Flor (52px + 16px gap) */
+    width: 52px;
+    height: 52px;
+    min-width: 52px;
+    min-height: 52px;
+  }
+  .icon svg {
+    width: 26px;
+    height: 26px;
+  }
+}

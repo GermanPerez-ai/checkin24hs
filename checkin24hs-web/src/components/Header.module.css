@@ -1,0 +1,99 @@
+/* Sin sticky para que el slide no quede tapado por la barra azul */
+.header {
+  background: var(--primary);
+  color: white;
+  position: relative;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 56px;
+  padding: 10px 0;
+}
+
+.logo {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: white;
+  text-decoration: none;
+  letter-spacing: -0.02em;
+  flex-shrink: 0;
+}
+
+.logo:hover {
+  color: rgba(255,255,255,0.9);
+  text-decoration: none;
+}
+
+.nav {
+  display: flex;
+  gap: 1.5rem;
+  flex-shrink: 0;
+}
+
+.nav a {
+  color: rgba(255,255,255,0.9);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.nav a:hover {
+  color: white;
+  text-decoration: none;
+}
+
+.navLink {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: rgba(255,255,255,0.9);
+  font-size: 0.9rem;
+  font-weight: 500;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.navLink:hover {
+  color: white;
+}
+
+/* Móvil: evitar que "Inicio" se pegue al logo */
+@media (max-width: 600px) {
+  .inner {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+  .logo {
+    font-size: 1.1rem;
+  }
+  .nav {
+    gap: 0.75rem;
+    width: 100%;
+    justify-content: flex-end;
+  }
+  .nav a,
+  .nav .navLink {
+    font-size: 0.8rem;
+  }
+}
+
+/* Pantallas muy chicas: nav en segunda línea con espacio claro */
+@media (max-width: 380px) {
+  .inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .nav {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

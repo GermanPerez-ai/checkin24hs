@@ -1,0 +1,19 @@
+/* Contenedor fijo: WhatsApp (izq) + Flor (der) siempre visibles */
+.floatingActions {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 99999;
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+@media (max-width: 768px) {
+  .floatingActions {
+    bottom: max(16px, env(safe-area-inset-bottom));
+    right: max(16px, env(safe-area-inset-right));
+    gap: 10px;
+  }
+}

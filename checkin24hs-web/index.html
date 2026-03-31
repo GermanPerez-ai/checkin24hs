@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Reservas hoteleras en Argentina y Chile. Patagonia, Bariloche, Villa La Angostura, San Martín de los Andes." />
+    <meta name="facebook-domain-verification" content="k1aktt3uvl1kn9e8bn243c76c2eqzk" />
+    <title>Checkin24hs | Reservas hoteleras Argentina y Chile</title>
+    <style>
+      #whatsapp-floating-btn:hover { transform: scale(1.05); }
+      /* Ícono a tamaño completo: tapa todo el botón (redondo, fondo blanco, contorno negro) */
+      #whatsapp-floating-btn img {
+        width: 100%; height: 100%;
+        border-radius: 50%;
+        background: #fff;
+        border: 2px solid #000;
+        box-sizing: border-box;
+        object-fit: cover;
+      }
+      @media (max-width: 768px) {
+        #whatsapp-floating-btn { bottom: max(16px, env(safe-area-inset-bottom)); right: max(16px, env(safe-area-inset-right)); width: 52px; height: 52px; }
+        #whatsapp-floating-btn img { border-width: 1.5px; }
+      }
+    </style>
+    <!-- Meta Pixel Code -->
+    <script>
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window, document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', '1872668640119699');
+      fbq('track', 'PageView');
+    </script>
+    <!-- End Meta Pixel Code -->
+  </head>
+  <body>
+    <!-- Meta Pixel (noscript): debe ir en body; en head no está permitido img dentro de noscript -->
+    <noscript><img height="1" width="1" style="display:none"
+      src="https://www.facebook.com/tr?id=1872668640119699&ev=PageView&noscript=1"
+      alt="" /></noscript>
+    <div id="root"></div>
+    <!-- Botón WhatsApp fijo (siempre visible, no depende del JS de React) -->
+    <a id="whatsapp-floating-btn" href="https://wa.me/5492944411580?text=Hola%2C%20tengo%20una%20consulta%20desde%20checkin24hs.com" target="_blank" rel="noopener noreferrer" aria-label="Escribinos por WhatsApp" title="Escribinos por WhatsApp" style="position:fixed;bottom:20px;right:20px;z-index:100000;width:56px;height:56px;border-radius:50%;overflow:hidden;display:block;box-shadow:0 4px 12px rgba(0,0,0,0.2);text-decoration:none;transition:transform 0.2s;">
+      <img src="/icono-whatsapp.png" alt="" width="56" height="56" style="display:block;width:100%;height:100%;object-fit:cover">
+    </a>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
