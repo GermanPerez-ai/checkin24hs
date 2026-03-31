@@ -1,0 +1,44 @@
+.section {
+  padding: 48px 0;
+  background: var(--bg);
+}
+
+.title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin: 0 0 20px;
+  text-align: center;
+}
+
+.content {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.content p {
+  margin: 0 0 16px;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.content p:last-child {
+  margin-bottom: 0;
+}
+
+.pilares {
+  margin: 0 0 16px;
+  padding-left: 20px;
+  color: var(--text);
+}
+
+.pilares li {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.pilares li:last-child {
+  margin-bottom: 0;
+}
