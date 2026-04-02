@@ -138,6 +138,7 @@ app.get('*', (req, res) => {
   res.json({ received: req.url, path: req.path, method: req.method });
 });
 
-app.listen(PORT, () => {
-  console.log(`[flor-web-api] Escuchando en ${PORT}, proxy a ${WHATSAPP_URL}`);
+// 0.0.0.0: en Docker/Swarm el proxy y otros contenedores no usan 127.0.0.1; sin esto el VIP no llega al puerto.
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`[flor-web-api] Escuchando en 0.0.0.0:${PORT}, proxy a ${WHATSAPP_URL}`);
 });
