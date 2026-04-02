@@ -1,0 +1,15 @@
+{
+  "name": "flor-web-api",
+  "version": "1.0.0",
+  "description": "API proxy para el chat Flor en la web (mismo origen, sin CORS)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
