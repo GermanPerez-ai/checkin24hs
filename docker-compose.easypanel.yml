@@ -1,0 +1,180 @@
+# EasyPanel: Deploy/Redeploy desde este compose para que Traefik mantenga los labels en cada redeploy.
+#
+# Flujo automático:
+# 1. Traefik/EasyPanel debe usar la red "easypanel" (normalmente ya existe).
+# 2. En EasyPanel, para esta app: usar siempre "Deploy / Redeploy from Compose" apuntando a este archivo
+#    (o al repo con este compose). No editar labels a mano en la interfaz.
+# 3. Cada cambio de código → git push → en EasyPanel hacés Redeploy → Traefik vuelve a leer estos labels.
+#
+# Dominios: dashboard, whatsapp, cotizar, webmail, www, flor-api.checkin24hs.com
+# Puertos INTERNOS por servicio (solo dentro del contenedor; Traefik enruta por host):
+#   whatsapp=3001, cotizador=80, webmail=80, web=80 (sin conflicto: cada uno en su contenedor).
+# Cotizador: Dockerfile.cotizador. Web: checkin24hs-web (Vite + nginx:80). Webmail: roundcube.
+#
+# DASHBOARD - No está en este compose a propósito (bloqueado para no actualizarlo por error).
+# Se actualiza SOLO con: scp dashboard.html al servidor + ./BUILD_DASHBOARD_CON_LOGS.sh.
+# El servicio checkin24hs_dashboard ya corre en Swarm; al no estar aquí, un "Deploy from Compose" no lo toca.
+# Si algún día EasyPanel borra servicios que no están en el compose, habría que volver a añadir dashboard.
+
+services:
+  whatsapp:
+    build:
+      context: ./whatsapp-server
+      dockerfile: Dockerfile
+    image: easypanel/checkin24hs/whatsapp:latest
+    deploy:
+      replicas: 1   # Una sola sesión WhatsApp por número; más réplicas = conflicto "replaced"
+      update_config:
+        order: stop-first  # Evitar overlap durante deploy: detener antes de iniciar nuevo
+      # Swarm: Traefik lee labels del SERVICIO; deben ir en deploy.labels
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=easypanel"
+        - "traefik.http.routers.whatsapp.rule=Host(`whatsapp.checkin24hs.com`)"
+        - "traefik.http.routers.whatsapp.entrypoints=websecure"
+        - "traefik.http.routers.whatsapp.service=whatsapp"
+        - "traefik.http.routers.whatsapp.tls=true"
+        - "traefik.http.routers.whatsapp.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.whatsapp.middlewares=whatsapp-cors,whatsapp-body"
+        - "traefik.http.routers.whatsapp.priority=100"
+        - "traefik.http.routers.checkin24hs_whatsapp.rule=Host(`whatsapp.checkin24hs.com`)"
+        - "traefik.http.routers.checkin24hs_whatsapp.entrypoints=websecure"
+        - "traefik.http.routers.checkin24hs_whatsapp.service=whatsapp"
+        - "traefik.http.routers.checkin24hs_whatsapp.tls=true"
+        - "traefik.http.routers.checkin24hs_whatsapp.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.checkin24hs_whatsapp.middlewares=whatsapp-cors,whatsapp-body"
+        - "traefik.http.routers.checkin24hs_whatsapp.priority=100"
+        - "traefik.http.middlewares.whatsapp-cors.headers.accesscontrolallowmethods=GET,POST,OPTIONS"
+        - "traefik.http.middlewares.whatsapp-cors.headers.accesscontrolallowheaders=Content-Type,Authorization,Accept"
+        - "traefik.http.middlewares.whatsapp-cors.headers.accesscontrolalloworiginlist=https://dashboard.checkin24hs.com,https://www.checkin24hs.com"
+        # No fijar Access-Control-Allow-Origin a un solo valor: Traefik usa la lista y devuelve el Origin del request si está permitido (para que Flor web = Flor WhatsApp)
+        - "traefik.http.middlewares.whatsapp-cors.headers.customresponseheaders.Access-Control-Allow-Methods=GET, POST, OPTIONS"
+        - "traefik.http.middlewares.whatsapp-cors.headers.customresponseheaders.Access-Control-Allow-Headers=Content-Type, Authorization, Accept"
+        - "traefik.http.middlewares.whatsapp-cors.headers.customresponseheaders.Access-Control-Allow-Credentials=true"
+        - "traefik.http.middlewares.whatsapp-cors.headers.accesscontrolmaxage=86400"
+        - "traefik.http.middlewares.whatsapp-cors.headers.addvaryheader=true"
+        - "traefik.http.middlewares.whatsapp-body.buffering.maxRequestBodyBytes=33554432"
+        - "traefik.http.services.whatsapp.loadbalancer.server.port=3001"
+    networks:
+      - easypanel
+    volumes:
+      - whatsapp-auth:/app/auth_info_baileys_1
+
+  cotizador:
+    build:
+      context: .
+      dockerfile: Dockerfile.cotizador
+    image: easypanel/checkin24hs/cotizador:latest
+    networks:
+      - easypanel
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=easypanel"
+        - "traefik.http.routers.cotizador.rule=Host(`cotizar.checkin24hs.com`)"
+        - "traefik.http.routers.cotizador.entrypoints=websecure"
+        - "traefik.http.routers.cotizador.service=cotizador"
+        - "traefik.http.routers.cotizador.tls=true"
+        - "traefik.http.routers.cotizador.tls.certresolver=letsencrypt"
+        - "traefik.http.services.cotizador.loadbalancer.server.port=80"
+
+  webmail:
+    image: roundcube/roundcubemail:1.6.11-apache
+    networks:
+      - easypanel
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=easypanel"
+        - "traefik.http.routers.webmail.rule=Host(`webmail.checkin24hs.com`)"
+        - "traefik.http.routers.webmail.entrypoints=websecure"
+        - "traefik.http.routers.webmail.service=webmail"
+        - "traefik.http.routers.webmail.tls=true"
+        - "traefik.http.routers.webmail.tls.certresolver=letsencrypt"
+        - "traefik.http.services.webmail.loadbalancer.server.port=80"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=easypanel"
+      - "traefik.http.routers.webmail.rule=Host(`webmail.checkin24hs.com`)"
+      - "traefik.http.routers.webmail.entrypoints=websecure"
+      - "traefik.http.routers.webmail.service=webmail"
+      - "traefik.http.routers.webmail.tls=true"
+      - "traefik.http.routers.webmail.tls.certresolver=letsencrypt"
+      - "traefik.http.services.webmail.loadbalancer.server.port=80"
+
+  # API Flor para la web: proxy a WhatsApp. Subdominio flor-api.checkin24hs.com (evita 404 por path en EasyPanel)
+  # No entra en conflicto con WhatsApp: solo reenvía la petición. CORS en Traefik + Express para www.checkin24hs.com.
+  flor-api:
+    build:
+      context: ./flor-web-api
+      dockerfile: Dockerfile
+    image: easypanel/checkin24hs/flor-api:latest
+    environment:
+      # En Swarm el servicio se llama checkin24hs_whatsapp; si usás stack deploy, probar checkin24hs_whatsapp:3001
+      - WHATSAPP_URL=http://checkin24hs_whatsapp:3001
+      - PORT=8080
+    networks:
+      - easypanel
+    deploy:
+      replicas: 1
+      # Evita VIP de Swarm (10.0.x VIP a veces no enruta al task → Traefik 404). Con dnsrr el nombre resuelve a la IP del task.
+      endpoint_mode: dnsrr
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=easypanel"
+        - "traefik.http.routers.florapi.rule=Host(`flor-api.checkin24hs.com`)"
+        - "traefik.http.routers.florapi.entrypoints=websecure"
+        - "traefik.http.routers.florapi.service=flor-api"
+        - "traefik.http.routers.florapi.tls=true"
+        - "traefik.http.routers.florapi.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.florapi.middlewares=florapi-cors"
+        - "traefik.http.routers.florapi.priority=200"
+        # Router explícito para OPTIONS (preflight CORS): prioridad mayor para que no caiga en otro router
+        - "traefik.http.routers.florapi-options.rule=Host(`flor-api.checkin24hs.com`) && Method(`OPTIONS`)"
+        - "traefik.http.routers.florapi-options.entrypoints=websecure"
+        - "traefik.http.routers.florapi-options.service=flor-api"
+        - "traefik.http.routers.florapi-options.tls=true"
+        - "traefik.http.routers.florapi-options.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.florapi-options.middlewares=florapi-cors"
+        - "traefik.http.routers.florapi-options.priority=300"
+        - "traefik.http.middlewares.florapi-cors.headers.accesscontrolallowmethods=GET,POST,OPTIONS"
+        - "traefik.http.middlewares.florapi-cors.headers.accesscontrolallowheaders=Content-Type,Authorization,Accept"
+        - "traefik.http.middlewares.florapi-cors.headers.accesscontrolalloworiginlist=https://www.checkin24hs.com,https://checkin24hs.com"
+        - "traefik.http.middlewares.florapi-cors.headers.accesscontrolmaxage=86400"
+        - "traefik.http.middlewares.florapi-cors.headers.addvaryheader=true"
+        - "traefik.http.services.flor-api.loadbalancer.server.port=8080"
+
+  # Web pública www.checkin24hs.com (React/Vite + nginx, puerto interno 80)
+  # Build: desde checkin24hs-web/. Build args (usar .env o export en el servidor):
+  #   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_COTIZADOR_URL, VITE_FLOR_CHATBOT_URL, VITE_FLOR_API_URL
+  web:
+    build:
+      context: ./checkin24hs-web
+      dockerfile: Dockerfile
+      args:
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY}
+        VITE_COTIZADOR_URL: ${VITE_COTIZADOR_URL:-https://cotizar.checkin24hs.com}
+        VITE_FLOR_CHATBOT_URL: ${VITE_FLOR_CHATBOT_URL:-https://www.checkin24hs.com/flor-chatbot.html}
+        VITE_FLOR_API_URL: ${VITE_FLOR_API_URL:-https://flor-api.checkin24hs.com}
+    image: easypanel/checkin24hs/web:latest
+    networks:
+      - easypanel
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=easypanel"
+      - "traefik.http.routers.web.rule=Host(`www.checkin24hs.com`) || Host(`checkin24hs.com`)"
+      - "traefik.http.routers.web.entrypoints=websecure"
+      - "traefik.http.routers.web.service=web"
+      - "traefik.http.routers.web.tls=true"
+      - "traefik.http.routers.web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.web.loadbalancer.server.port=80"
+
+networks:
+  easypanel:
+    external: true
+
+volumes:
+  whatsapp-auth:
