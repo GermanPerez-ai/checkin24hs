@@ -1,15 +1,29 @@
-# EasyPanel: el contexto suele ser la raíz del repo clonado.
-# Si GitHub extrae en una subcarpeta (ej. checkin24hs-main), en EasyPanel:
-# - poné "Ruta de compilación" = esa carpeta, O
-# - build-arg: REPO_DIR=checkin24hs-main
+# Proxy Flor (flor-web-api). Compatible con:
+# - Raíz del repo: ./flor-web-api/...
+# - ZIP de GitHub: ./<carpeta>-main/flor-web-api/... (nombre variable)
 #
-# ARG antes de FROM no aplica tras FROM; hay que redeclarar ARG aquí o COPY falla (/flor-web-api/...).
+# Etapa 1: localizar flor-web-api aunque venga anidada una carpeta.
+FROM node:20-alpine AS prep
+WORKDIR /ctx
+COPY . .
+RUN S=$(find . -type f -path '*/flor-web-api/server.js' | head -n1) && \
+    if [ -z "$S" ]; then \
+      echo "ERROR: No se encontró flor-web-api/server.js en el contexto de build."; \
+      echo "Contenido (máx. 3 niveles):"; \
+      find . -maxdepth 3 -type d 2>/dev/null || ls -laR; \
+      exit 1; \
+    fi && \
+    D=$(dirname "$S") && \
+    echo "Usando: $D" && \
+    mkdir -p /out && \
+    cp "$D/package.json" /out/ && \
+    cp "$D/server.js" /out/
+
 FROM node:20-alpine
-ARG REPO_DIR=.
 WORKDIR /app
-COPY ${REPO_DIR}/flor-web-api/package*.json ./
+COPY --from=prep /out/package.json ./
 RUN npm install --production
-COPY ${REPO_DIR}/flor-web-api/server.js ./
+COPY --from=prep /out/server.js ./
 EXPOSE 8080
 ENV PORT=8080
 CMD ["node", "server.js"]
