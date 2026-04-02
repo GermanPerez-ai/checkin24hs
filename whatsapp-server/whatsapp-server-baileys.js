@@ -3694,6 +3694,15 @@ async function connectToWhatsApp() {
                 console.log(`📬 Mensaje adicional de ${nombre} durante la espera (${pending.messages.length} en cola, ${FLOR_DELAY_MS}ms)`);
             }
 
+            /** Presencia Baileys: puede devolver Promise; try/catch síncrono no evita crash si rechaza. */
+            const safeSendPresenceUpdate = async (state, jid) => {
+                if (!sock || !jid) return;
+                try {
+                    const pr = sock.sendPresenceUpdate(state, jid);
+                    if (pr && typeof pr.then === 'function') await pr.catch(() => {});
+                } catch (e) { /* conexión cerrada / 428 */ }
+            };
+
             const processPending = async () => {
                 const p = florPendingByUser.get(key);
                 if (!p || !p.messages.length) return;
@@ -3752,7 +3761,7 @@ async function connectToWhatsApp() {
                                     await guardarMensaje(p.numero, audioFallback, true, audioFallback, p.nombre);
                                     await guardarFlorInteraction({ phone: p.numero, userMessage: '[Audio]', botResponse: audioFallback, intent: 'audio_fallback', success: false, usedAi: false, responseTimeMs: 0 });
                                 }
-                                if (sock && p.remoteJid) try { sock.sendPresenceUpdate('paused', p.remoteJid); } catch (e) { /* ignore */ }
+                                await safeSendPresenceUpdate('paused', p.remoteJid);
                                 return;
                             }
                         }
@@ -3762,7 +3771,7 @@ async function connectToWhatsApp() {
                             await sock.sendMessage(p.remoteJid, { text: añadirEmojiMensaje(audioFallback, 'flor') });
                             await guardarMensaje(p.numero, audioFallback, true, audioFallback, p.nombre);
                         }
-                        if (sock && p.remoteJid) try { sock.sendPresenceUpdate('paused', p.remoteJid); } catch (e) { /* ignore */ }
+                        await safeSendPresenceUpdate('paused', p.remoteJid);
                         return;
                     }
                 }
@@ -3822,7 +3831,7 @@ async function connectToWhatsApp() {
                     }
                     await guardarMensaje(p.numero, contenido, true, contenido, p.nombre);
                     await guardarFlorInteraction({ phone: p.numero, userMessage: combined, botResponse: contenido, intent: 'integracion_override', success: true, usedAi: false, responseTimeMs: 0 });
-                    if (sock && p.remoteJid) try { sock.sendPresenceUpdate('paused', p.remoteJid); } catch (e) { /* ignore */ }
+                    await safeSendPresenceUpdate('paused', p.remoteJid);
                     return;
                 }
 
@@ -3875,9 +3884,7 @@ async function connectToWhatsApp() {
                 }
 
                 // Simulación de escritura (spec: UX premium)
-                if (sock && p.remoteJid) {
-                    try { sock.sendPresenceUpdate('composing', p.remoteJid); } catch (e) { /* ignore */ }
-                }
+                await safeSendPresenceUpdate('composing', p.remoteJid);
 
                 const t0 = Date.now();
                 const raw = await procesarConFlor(combined, {
@@ -4001,9 +4008,9 @@ async function connectToWhatsApp() {
                     console.log(`✅ Flor respondió a ${p.nombre} (${textos.length} consulta(s))${intentFlor === 'rate_limit_429' ? ' [rate_limit_429]' : ''}`);
                 }
                 // Quitar indicador "escribiendo"
-                if (sock && p.remoteJid) {
-                    try { sock.sendPresenceUpdate('paused', p.remoteJid); } catch (e) { /* ignore */ }
-                }
+                await safeSendPresenceUpdate('paused', p.remoteJid);
+                } catch (procErr) {
+                    console.error('❌ processPending:', procErr?.message || procErr, procErr?.stack || '');
                 } finally {
                     if (dispatchPushed) popFlorDispatchContext(p.remoteJid);
                 }
