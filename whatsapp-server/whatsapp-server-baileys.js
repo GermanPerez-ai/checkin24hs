@@ -376,6 +376,26 @@ function applyFlorDestJidDeviceTransfer(p, destJid) {
     return destJid;
 }
 
+/** PN sin :device → JID canónico con dispositivo (evita retries "message not available" en Business). */
+async function enrichPnJidWithOnWhatsApp(sock, pnJidBare) {
+    if (!sock || typeof sock.onWhatsApp !== 'function' || !pnJidBare || !String(pnJidBare).includes('@s.whatsapp.net')) {
+        return pnJidBare;
+    }
+    if (String(pnJidBare).includes('@lid')) return pnJidBare;
+    try {
+        const r = await sock.onWhatsApp(pnJidBare);
+        const arr = Array.isArray(r) ? r : r ? [r] : [];
+        const j = arr.find((x) => x && x.jid && String(x.jid).includes('@s.whatsapp.net') && !String(x.jid).includes('@lid'));
+        if (j?.jid && j.jid !== pnJidBare) {
+            console.log(`📤 Flor: onWhatsApp enriqueció PN → ${j.jid}`);
+            return j.jid;
+        }
+    } catch (e) {
+        console.warn('⚠️ enrichPnJidWithOnWhatsApp:', e?.message || e);
+    }
+    return pnJidBare;
+}
+
 /** Primer argumento de sock.sendMessage: string JID u objeto con jid/remoteJid. */
 function extractDestJidFromSendArgs(args) {
     const a0 = args && args[0];
@@ -1455,7 +1475,10 @@ function florPausedUntilFromRows(rows) {
 
 async function isFlorPausedForChat(phone, instanceNumber) {
     if (!phone) return false;
-    if (florPauseMemoryIsActive(phone)) return true;
+    if (florPauseMemoryIsActive(phone)) {
+        console.log(`⏸️ Flor pausa: memoria RAM (silencio reciente) — clave numérica asociada a este chat`);
+        return true;
+    }
     if (!supabase) return false;
     try {
         const candidatos = normalizarCandidatosTelefono(phone);
@@ -1470,7 +1493,11 @@ async function isFlorPausedForChat(phone, instanceNumber) {
                 .order('updated_at', { ascending: false })
                 .limit(1);
             if (error) continue;
-            if (florPausedUntilFromRows(rows)) return true;
+            if (florPausedUntilFromRows(rows)) {
+                const u = rows[0]?.flor_paused_until;
+                console.log(`⏸️ Flor pausa: DB flor_paused_until=${u} (columna ${col})`);
+                return true;
+            }
         }
         return false;
     } catch (e) {
@@ -2856,8 +2883,12 @@ async function resolveFlorSendJid(sock, p) {
             const supPhone = await resolvePausePhoneViaSupabaseLid(lidDigits);
             if (supPhone) {
                 const d = supPhone.replace(/\D/g, '');
-                console.log(`📤 Envío Flor: Supabase (LID→tel) → ${d}@s.whatsapp.net`);
-                return `${d}@s.whatsapp.net`;
+                const basePn = `${d}@s.whatsapp.net`;
+                const enriched = await enrichPnJidWithOnWhatsApp(sock, basePn);
+                if (enriched === basePn) {
+                    console.log(`📤 Envío Flor: Supabase (LID→tel) → ${basePn}`);
+                }
+                return enriched;
             }
         }
         try {
@@ -3952,6 +3983,9 @@ async function connectToWhatsApp() {
                     console.log(`📤 Flor: envío al JID entrante (FLOR_SEND_USE_REMOTE_JID_ONLY) → ${destJid}`);
                 } else {
                     destJid = applyFlorDestJidDeviceTransfer(p, destJid);
+                    if (destJid && String(destJid).includes('@s.whatsapp.net') && !String(destJid).includes('@lid')) {
+                        destJid = await enrichPnJidWithOnWhatsApp(sock, destJid);
+                    }
                 }
 
                 let dispatchPushed = false;
