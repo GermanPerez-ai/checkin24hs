@@ -1,0 +1,31 @@
+# Comandos para Actualizar Dashboard en el Servidor
+
+# ===== Paso 1: Ir al repositorio =====
+cd ~/checkin24hs
+
+# ===== Paso 2: Verificar cambios pendientes =====
+git status
+
+# ===== Paso 3: Guardar cambios locales si hay (opcional) =====
+# Si hay cambios locales que quieres guardar:
+# git stash
+
+# ===== Paso 4: Actualizar desde GitHub =====
+git pull origin main
+
+# ===== Paso 5: Verificar que se actualizó =====
+git log --oneline -5
+
+# ===== Paso 6: Verificar que el archivo dashboard.html se actualizó =====
+grep -n "72.61.58.240:3001" dashboard.html | head -5
+
+# ===== Paso 7: Si el dashboard está en un servicio, reiniciarlo =====
+# Depende de cómo esté configurado:
+# - Si está en PM2: pm2 restart dashboard
+# - Si está en Docker: docker-compose restart dashboard
+# - Si está en EasyPanel: puede actualizarse automáticamente
+
+# ===== Paso 8: Verificar que el dashboard responde =====
+curl -I http://localhost:PUERTO_DEL_DASHBOARD
+
+

@@ -1,0 +1,60 @@
+# 📋 Backup de Configuración de EasyPanel - checkin24hs-dashboard
+
+## Fecha: [FECHA ACTUAL]
+
+---
+
+## 🔧 Configuración del Servicio
+
+### Nombre del Servicio
+checkin24hs-dashboard
+
+---
+
+## 📦 Fuente (Source)
+
+- **Tipo**: GitHub
+- **Propietario**: GermanPerez-ai
+- **Repositorio**: checkin24hs
+- **Rama**: working-version
+- **Ruta de compilación**: /checkin24hs-admin (INCORRECTO - debe ser /)
+
+---
+
+## 🔨 Compilación (Build)
+
+- **Tipo**: Dockerfile
+- **Archivo Dockerfile**: Dockerfile
+- **Comando de inicio**: (definido en Dockerfile)
+
+---
+
+## 🔌 Puertos
+
+- **Protocolo**: TCP
+- **Publicado**: 30002
+- **Destino**: 3000
+- **Modo**: Host
+
+---
+
+## 🌐 Dominios
+
+- **Dominio**: panel.checkin24hs.com
+- **Puerto interno**: 3000
+- **Target Service**: checkin24hs-dashboard
+
+---
+
+## 🔐 Variables de Entorno
+
+[Agregar aquí las variables de entorno si hay alguna]
+
+---
+
+## 📝 Notas
+
+- Este backup es para referencia antes de recrear el servicio
+- La nueva configuración debe tener "Ruta de compilación": / (raíz)
+
+

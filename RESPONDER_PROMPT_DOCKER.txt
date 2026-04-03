@@ -1,0 +1,26 @@
+# Responder al prompt de Docker
+
+Docker está preguntando si quieres eliminar la red ingress (routing-mesh).
+
+Como vamos a reiniciar Docker Swarm de todas formas, es seguro eliminarla.
+
+## Responde:
+
+y
+
+(Presiona Enter después de escribir "y")
+
+## Luego continúa con:
+
+docker swarm leave --force
+docker swarm init
+sleep 5
+docker restart easypanel
+sleep 15
+
+## Verificar:
+
+docker network ls | grep easypanel
+docker ps | grep easypanel
+
+

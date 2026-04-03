@@ -3056,6 +3056,186 @@ class SupabaseClient {
 
         return analysis;
     }
+
+    // ============================================
+    // PROGRAMA FLEXI (vouchers / canjes)
+    // ============================================
+
+    _isUuid(v) {
+        return v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v).trim());
+    }
+
+    _flexiProgramToRow(p) {
+        const hid = p.hotelId || p.hotel_id;
+        return {
+            id: String(p.id),
+            hotel_id: this._isUuid(hid) ? String(hid).trim() : null,
+            hotel_name: p.hotelName || p.hotel_name || '',
+            cupos_por_voucher: parseInt(p.cuposPorVoucher || p.cupos_por_voucher, 10) || 0,
+            precio_usd: parseFloat(p.precioUSD ?? p.precio_usd ?? 0) || 0,
+            fecha_inicio: p.fechaInicio || p.fecha_inicio,
+            fecha_fin: p.fechaFin || p.fecha_fin,
+            descripcion: p.descripcion || null,
+            estado: p.estado || 'Activo',
+            fecha_creacion: p.fechaCreacion || p.fecha_creacion || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+    }
+
+    _flexiProgramFromRow(r) {
+        if (!r) return null;
+        return {
+            id: r.id,
+            hotelId: r.hotel_id,
+            hotelName: r.hotel_name,
+            cuposPorVoucher: r.cupos_por_voucher,
+            precioUSD: parseFloat(r.precio_usd),
+            fechaInicio: r.fecha_inicio,
+            fechaFin: r.fecha_fin,
+            descripcion: r.descripcion || '',
+            estado: r.estado,
+            fechaCreacion: r.fecha_creacion
+        };
+    }
+
+    _flexiVoucherToRow(v) {
+        const hid = v.hotelId || v.hotel_id;
+        return {
+            id: String(v.id),
+            programa_id: v.programaId || v.programa_id || null,
+            codigo: String(v.codigo || '').trim(),
+            hotel_id: this._isUuid(hid) ? String(hid).trim() : null,
+            hotel_name: v.hotelName || v.hotel_name || null,
+            cliente_nombre: v.clienteNombre || v.cliente_nombre || null,
+            cliente_email: v.clienteEmail || v.cliente_email || null,
+            cliente_telefono: v.clienteTelefono || v.cliente_telefono || null,
+            cupos_iniciales: parseInt(v.cuposIniciales ?? v.cupos_iniciales, 10) || 0,
+            cupos_disponibles: parseInt(v.cuposDisponibles ?? v.cupos_disponibles, 10) || 0,
+            precio_usd: v.precioUSD != null ? parseFloat(v.precioUSD) : (v.precio_usd != null ? parseFloat(v.precio_usd) : null),
+            fecha_venta: v.fechaVenta || v.fecha_venta || null,
+            fecha_inicio_uso: v.fechaInicioUso || v.fecha_inicio_uso || null,
+            fecha_fin_uso: v.fechaFinUso || v.fecha_fin_uso || null,
+            estado: v.estado || 'Activo',
+            notas: v.notas || null,
+            captura_pago_url: v.capturaPagoUrl != null ? String(v.capturaPagoUrl) : (v.captura_pago_url != null ? String(v.captura_pago_url) : null),
+            fecha_creacion: v.fechaCreacion || v.fecha_creacion || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+    }
+
+    _flexiVoucherFromRow(r) {
+        if (!r) return null;
+        return {
+            id: r.id,
+            programaId: r.programa_id,
+            codigo: r.codigo,
+            hotelId: r.hotel_id,
+            hotelName: r.hotel_name,
+            clienteNombre: r.cliente_nombre,
+            clienteEmail: r.cliente_email,
+            clienteTelefono: r.cliente_telefono,
+            cuposIniciales: r.cupos_iniciales,
+            cuposDisponibles: r.cupos_disponibles,
+            precioUSD: r.precio_usd != null ? parseFloat(r.precio_usd) : undefined,
+            fechaVenta: r.fecha_venta,
+            fechaInicioUso: r.fecha_inicio_uso,
+            fechaFinUso: r.fecha_fin_uso,
+            estado: r.estado,
+            notas: r.notas || '',
+            capturaPagoUrl: r.captura_pago_url || null,
+            fechaCreacion: r.fecha_creacion
+        };
+    }
+
+    _flexiCanjeToRow(c) {
+        return {
+            id: String(c.id),
+            voucher_id: String(c.voucherId || c.voucher_id),
+            voucher_codigo: c.voucherCodigo || c.voucher_codigo || null,
+            cliente_nombre: c.clienteNombre || c.cliente_nombre || null,
+            hotel_name: c.hotelName || c.hotel_name || null,
+            check_in: c.checkIn || c.check_in || null,
+            check_out: c.checkOut || c.check_out || null,
+            personas: c.personas != null ? parseInt(c.personas, 10) : null,
+            cupos_usados: parseInt(c.cuposUsados ?? c.cupos_usados, 10) || 0,
+            notas: c.notas || null,
+            estado: c.estado || 'Confirmado',
+            fecha_registro: c.fechaRegistro || c.fecha_registro || new Date().toISOString(),
+            motivo_anulacion: c.motivoAnulacion || c.motivo_anulacion || null,
+            fecha_anulacion: c.fechaAnulacion || c.fecha_anulacion || null,
+            fecha_noshow: c.fechaNoShow || c.fecha_noshow || null,
+            updated_at: new Date().toISOString()
+        };
+    }
+
+    _flexiCanjeFromRow(r) {
+        if (!r) return null;
+        return {
+            id: r.id,
+            voucherId: r.voucher_id,
+            voucherCodigo: r.voucher_codigo,
+            clienteNombre: r.cliente_nombre,
+            hotelName: r.hotel_name,
+            checkIn: r.check_in,
+            checkOut: r.check_out,
+            personas: r.personas,
+            cuposUsados: r.cupos_usados,
+            notas: r.notas || '',
+            estado: r.estado,
+            fechaRegistro: r.fecha_registro,
+            motivoAnulacion: r.motivo_anulacion,
+            fechaAnulacion: r.fecha_anulacion,
+            fechaNoShow: r.fecha_noshow
+        };
+    }
+
+    async getFlexiPrograms() {
+        if (!this.isInitialized()) return [];
+        const { data, error } = await this.client.from('flexi_programs').select('*').order('fecha_creacion', { ascending: false });
+        if (error) throw error;
+        return (data || []).map(r => this._flexiProgramFromRow(r)).filter(Boolean);
+    }
+
+    async getFlexiVouchers() {
+        if (!this.isInitialized()) return [];
+        const { data, error } = await this.client.from('flexi_vouchers').select('*').order('fecha_creacion', { ascending: false });
+        if (error) throw error;
+        return (data || []).map(r => this._flexiVoucherFromRow(r)).filter(Boolean);
+    }
+
+    async getFlexiCanjes() {
+        if (!this.isInitialized()) return [];
+        const { data, error } = await this.client.from('flexi_canjes').select('*').order('fecha_registro', { ascending: false });
+        if (error) throw error;
+        return (data || []).map(r => this._flexiCanjeFromRow(r)).filter(Boolean);
+    }
+
+    /** Upsert masivo (órden: programas → vouchers → canjes por FKs). */
+    async syncFlexiData(programs, vouchers, canjes) {
+        if (!this.isInitialized()) return;
+        const pRows = (programs || []).map(p => this._flexiProgramToRow(p));
+        const vRows = (vouchers || []).map(v => this._flexiVoucherToRow(v));
+        const cRows = (canjes || []).map(c => this._flexiCanjeToRow(c));
+
+        if (pRows.length) {
+            const { error } = await this.client.from('flexi_programs').upsert(pRows, { onConflict: 'id' });
+            if (error) throw error;
+        }
+        if (vRows.length) {
+            const { error } = await this.client.from('flexi_vouchers').upsert(vRows, { onConflict: 'id' });
+            if (error) throw error;
+        }
+        if (cRows.length) {
+            const { error } = await this.client.from('flexi_canjes').upsert(cRows, { onConflict: 'id' });
+            if (error) throw error;
+        }
+    }
+
+    async deleteFlexiProgramFromDb(id) {
+        if (!this.isInitialized() || !id) return;
+        const { error } = await this.client.from('flexi_programs').delete().eq('id', String(id));
+        if (error) throw error;
+    }
 }
 
 // Crear instancia global

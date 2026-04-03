@@ -1,0 +1,268 @@
+# ============================================
+# COPIAR Y PEGAR ESTOS COMANDOS EN EL SERVIDOR (SSH)
+# ============================================
+
+# 1. Crear script de diagnóstico
+cat > ~/checkin24hs/DIAGNOSTICO_SERVICIO_EASYPANEL.sh << 'EOFSCRIPT'
+#!/bin/bash
+# Diagnóstico completo del servicio checkin24hs_dashboard
+
+echo "=========================================="
+echo "🔍 DIAGNÓSTICO DEL SERVICIO EN EASYPANEL"
+echo "=========================================="
+echo ""
+
+# 1. Verificar si el servicio existe
+echo "=== 1. SERVICIO DOCKER SWARM ==="
+SERVICE_NAME="checkin24hs_dashboard"
+if docker service ls | grep -q "$SERVICE_NAME"; then
+    echo "✅ Servicio encontrado: $SERVICE_NAME"
+    docker service ls | grep "$SERVICE_NAME"
+else
+    echo "❌ Servicio NO encontrado: $SERVICE_NAME"
+    exit 1
+fi
+echo ""
+
+# 2. Ver todas las labels del servicio
+echo "=== 2. LABELS DEL SERVICIO ==="
+echo "Labels actuales:"
+docker service inspect "$SERVICE_NAME" --format '{{range $key, $value := .Spec.Labels}}{{$key}}={{$value}}{"\n"}}{{end}}' | grep -v "^$" || echo "   (ninguna label configurada)"
+echo ""
+
+# 3. Verificar si tiene labels de EasyPanel
+echo "=== 3. LABELS DE EASYPANEL ==="
+EASYPANEL_LABELS=$(docker service inspect "$SERVICE_NAME" --format '{{range $key, $value := .Spec.Labels}}{{$key}}={{$value}}{"\n"}}{{end}}' | grep -i "easypanel\|com.docker\|project" || echo "")
+if [ -n "$EASYPANEL_LABELS" ]; then
+    echo "✅ Labels de EasyPanel encontradas:"
+    echo "$EASYPANEL_LABELS"
+else
+    echo "⚠️  NO se encontraron labels de EasyPanel"
+    echo "   Esto sugiere que el servicio fue creado manualmente (CLI)"
+fi
+echo ""
+
+# 4. Verificar si tiene labels de Traefik
+echo "=== 4. LABELS DE TRAEFIK ==="
+TRAEFIK_LABELS=$(docker service inspect "$SERVICE_NAME" --format '{{range $key, $value := .Spec.Labels}}{{$key}}={{$value}}{"\n"}}{{end}}' | grep -i "traefik" || echo "")
+if [ -n "$TRAEFIK_LABELS" ]; then
+    echo "✅ Labels de Traefik encontradas:"
+    echo "$TRAEFIK_LABELS"
+else
+    echo "❌ NO se encontraron labels de Traefik"
+    echo "   Por eso Traefik no puede enrutar el servicio"
+fi
+echo ""
+
+# 5. Verificar red del servicio
+echo "=== 5. RED DEL SERVICIO ==="
+NETWORKS=$(docker service inspect "$SERVICE_NAME" --format '{{range .Spec.TaskTemplate.Networks}}{{.Target}}{"\n"}}{{end}}')
+if echo "$NETWORKS" | grep -q "easypanel"; then
+    echo "✅ Servicio está en la red 'easypanel'"
+else
+    echo "⚠️  Servicio NO está en la red 'easypanel'"
+    echo "   Redes actuales:"
+    echo "$NETWORKS"
+fi
+echo ""
+
+# 6. Verificar puertos expuestos
+echo "=== 6. PUERTOS EXPUESTOS ==="
+PORTS=$(docker service inspect "$SERVICE_NAME" --format '{{range .Endpoint.Ports}}{{.PublishedPort}}->{{.TargetPort}}/{{.Protocol}}{"\n"}}{{end}}')
+if [ -n "$PORTS" ]; then
+    echo "Puertos:"
+    echo "$PORTS"
+else
+    echo "⚠️  No hay puertos expuestos directamente"
+fi
+echo ""
+
+# 7. Verificar contenedores del servicio
+echo "=== 7. CONTENEDORES DEL SERVICIO ==="
+CONTAINERS=$(docker service ps "$SERVICE_NAME" --format "{{.Name}}" --no-trunc | head -1)
+if [ -n "$CONTAINERS" ]; then
+    echo "✅ Contenedores activos:"
+    docker service ps "$SERVICE_NAME" --format "table {{.Name}}\t{{.CurrentState}}\t{{.Node}}" | head -5
+else
+    echo "❌ No hay contenedores activos"
+fi
+echo ""
+
+# 8. Verificar si Traefik está corriendo
+echo "=== 8. TRAEFIK ==="
+if docker service ls | grep -qi "traefik"; then
+    echo "✅ Traefik está corriendo como servicio"
+    docker service ls | grep -i "traefik"
+elif docker ps | grep -qi "traefik"; then
+    echo "✅ Traefik está corriendo como contenedor"
+    docker ps | grep -i "traefik"
+else
+    echo "❌ Traefik NO está corriendo"
+fi
+echo ""
+
+# 9. Verificar dominio configurado (si hay labels de Traefik)
+echo "=== 9. DOMINIO CONFIGURADO ==="
+DOMAIN=$(docker service inspect "$SERVICE_NAME" --format '{{range $key, $value := .Spec.Labels}}{{if eq $key "traefik.http.routers.dashboard.rule"}}{{$value}}{{end}}{{end}}' | sed 's/Host(`\(.*\)`)/\1/')
+if [ -n "$DOMAIN" ]; then
+    echo "✅ Dominio configurado: $DOMAIN"
+else
+    echo "⚠️  No se encontró dominio configurado en las labels"
+fi
+echo ""
+
+# 10. Resumen y recomendaciones
+echo "=========================================="
+echo "📋 RESUMEN Y RECOMENDACIONES"
+echo "=========================================="
+echo ""
+
+if [ -z "$TRAEFIK_LABELS" ]; then
+    echo "❌ PROBLEMA: El servicio NO tiene labels de Traefik"
+    echo ""
+    echo "✅ SOLUCIÓN:"
+    echo "   1. Si el servicio está en EasyPanel:"
+    echo "      - Ve a EasyPanel → Servicios → dashboard"
+    echo "      - Configura un dominio (Domain)"
+    echo "      - Haz clic en 'Deploy' o 'Save'"
+    echo ""
+    echo "   2. Si el servicio NO está en EasyPanel:"
+    echo "      - Ejecuta: bash ~/checkin24hs/AGREGAR_LABELS_TRAEFIK_MANUAL.sh"
+    echo ""
+    echo "   3. O recrea el servicio desde EasyPanel:"
+    echo "      - Crea un nuevo servicio desde EasyPanel"
+    echo "      - Configura el dominio"
+    echo "      - EasyPanel aplicará las labels automáticamente"
+else
+    echo "✅ El servicio tiene labels de Traefik"
+    echo "   Si aún hay problemas, verifica:"
+    echo "   - Que Traefik esté corriendo"
+    echo "   - Que el servicio esté en la red 'easypanel'"
+    echo "   - Que el dominio esté correctamente configurado"
+fi
+echo ""
+EOFSCRIPT
+chmod +x ~/checkin24hs/DIAGNOSTICO_SERVICIO_EASYPANEL.sh
+echo "✅ Script de diagnóstico creado"
+
+# 2. Crear script para agregar labels de Traefik
+cat > ~/checkin24hs/AGREGAR_LABELS_TRAEFIK_MANUAL.sh << 'EOFSCRIPT'
+#!/bin/bash
+# Agregar labels de Traefik manualmente al servicio checkin24hs_dashboard
+
+SERVICE_NAME="checkin24hs_dashboard"
+DOMAIN="dashboard.checkin24hs.com"
+
+echo "=========================================="
+echo "🔧 AGREGAR LABELS DE TRAEFIK"
+echo "=========================================="
+echo ""
+
+# Verificar que el servicio existe
+if ! docker service ls | grep -q "$SERVICE_NAME"; then
+    echo "❌ Error: El servicio $SERVICE_NAME no existe"
+    exit 1
+fi
+
+echo "Servicio: $SERVICE_NAME"
+echo "Dominio: $DOMAIN"
+echo ""
+
+# Verificar que el servicio está en la red easypanel
+echo "=== 1. Verificar red ==="
+if docker service inspect "$SERVICE_NAME" --format '{{range .Spec.TaskTemplate.Networks}}{{.Target}}{"\n"}}{{end}}' | grep -q "easypanel"; then
+    echo "✅ Servicio está en la red 'easypanel'"
+else
+    echo "⚠️  Servicio NO está en la red 'easypanel'"
+    echo "   Agregando red 'easypanel'..."
+    docker service update --network-add easypanel "$SERVICE_NAME"
+    sleep 5
+fi
+echo ""
+
+# Obtener el puerto del servicio
+echo "=== 2. Obtener puerto del servicio ==="
+PORT=$(docker service inspect "$SERVICE_NAME" --format '{{range .Endpoint.Ports}}{{.TargetPort}}{{end}}' | head -1)
+if [ -z "$PORT" ]; then
+    # Si no hay puerto expuesto, asumimos que es 3000 (puerto interno del dashboard)
+    PORT=3000
+    echo "⚠️  No se encontró puerto expuesto, usando puerto por defecto: $PORT"
+else
+    echo "✅ Puerto encontrado: $PORT"
+fi
+echo ""
+
+# Agregar labels de Traefik
+echo "=== 3. Agregar labels de Traefik ==="
+echo "Agregando labels..."
+
+docker service update \
+  --label-add "traefik.enable=true" \
+  --label-add "traefik.http.routers.dashboard.rule=Host(\`$DOMAIN\`)" \
+  --label-add "traefik.http.routers.dashboard.entrypoints=web" \
+  --label-add "traefik.http.routers.dashboard.entrypoints=websecure" \
+  --label-add "traefik.http.routers.dashboard.service=dashboard" \
+  --label-add "traefik.http.services.dashboard.loadbalancer.server.port=$PORT" \
+  "$SERVICE_NAME"
+
+if [ $? -eq 0 ]; then
+    echo "✅ Labels agregadas correctamente"
+else
+    echo "❌ Error al agregar labels"
+    exit 1
+fi
+echo ""
+
+# Esperar a que el servicio se actualice
+echo "=== 4. Esperando actualización del servicio ==="
+sleep 10
+
+# Verificar que las labels se aplicaron
+echo "=== 5. Verificar labels aplicadas ==="
+TRAEFIK_LABELS=$(docker service inspect "$SERVICE_NAME" --format '{{range $key, $value := .Spec.Labels}}{{$key}}={{$value}}{"\n"}}{{end}}' | grep -i "traefik")
+if [ -n "$TRAEFIK_LABELS" ]; then
+    echo "✅ Labels de Traefik aplicadas:"
+    echo "$TRAEFIK_LABELS"
+else
+    echo "❌ Error: Las labels no se aplicaron"
+    exit 1
+fi
+echo ""
+
+# Verificar que Traefik detectó el servicio
+echo "=== 6. Verificar que Traefik detectó el servicio ==="
+sleep 5
+if docker service ls | grep -qi "traefik"; then
+    TRAEFIK_SERVICE=$(docker service ls | grep -i "traefik" | awk '{print $1}' | head -1)
+    echo "✅ Traefik está corriendo (servicio: $TRAEFIK_SERVICE)"
+    echo ""
+    echo "Espera 10-30 segundos para que Traefik detecte el nuevo servicio"
+    echo "Luego prueba: curl -I https://$DOMAIN"
+else
+    echo "⚠️  Traefik no está corriendo como servicio"
+    echo "   Verifica que Traefik esté instalado y corriendo"
+fi
+echo ""
+
+echo "=========================================="
+echo "✅ PROCESO COMPLETADO"
+echo "=========================================="
+echo ""
+echo "Próximos pasos:"
+echo "1. Espera 10-30 segundos"
+echo "2. Prueba: curl -I https://$DOMAIN"
+echo "3. Si aún hay problemas, verifica los logs de Traefik:"
+echo "   docker service logs $TRAEFIK_SERVICE --tail 50"
+echo ""
+EOFSCRIPT
+chmod +x ~/checkin24hs/AGREGAR_LABELS_TRAEFIK_MANUAL.sh
+echo "✅ Script para agregar labels creado"
+
+echo ""
+echo "=========================================="
+echo "✅ AMBOS SCRIPTS CREADOS"
+echo "=========================================="
+echo ""
+echo "Ahora puedes ejecutar:"
+echo "  bash ~/checkin24hs/DIAGNOSTICO_SERVICIO_EASYPANEL.sh"
+echo ""

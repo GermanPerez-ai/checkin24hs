@@ -1,0 +1,12 @@
+# Comandos para ejecutar en el servidor (copiar y pegar uno por uno)
+
+# 1. Descargar el script
+curl -o /tmp/actualizar_dashboard.sh https://raw.githubusercontent.com/GermanPerez-ai/checkin24hs/main/actualizar_dashboard_desde_servidor.sh
+
+# 2. Dar permisos de ejecución
+chmod +x /tmp/actualizar_dashboard.sh
+
+# 3. Ejecutar el script
+/tmp/actualizar_dashboard.sh
+
+

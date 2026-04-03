@@ -1,0 +1,46 @@
+# Comandos para Clonar y Configurar Baileys en el Servidor
+
+# ===== OPCIÓN 1: Clonar repositorio completo =====
+cd ~
+git clone https://github.com/GermanPerez-ai/checkin24hs.git
+cd checkin24hs/whatsapp-server-baileys
+npm install
+
+# ===== OPCIÓN 2: Si ya tienes el repositorio en otro lugar =====
+# Buscar dónde está
+find ~ -name ".git" -type d 2>/dev/null | head -5
+
+# O buscar la carpeta
+find ~ -type d -name "checkin24hs" 2>/dev/null
+
+# Cuando la encuentres:
+cd /ruta/encontrada/checkin24hs
+git pull origin main
+cd whatsapp-server-baileys
+npm install
+
+# ===== DESPUÉS DE INSTALAR =====
+# Configurar variables (opcional)
+export GEMINI_API_KEY="tu-gemini-key"
+export SUPABASE_URL="https://lmoeuyasuvoqhtvhkyia.supabase.co"
+export SUPABASE_ANON_KEY="tu-supabase-key"
+
+# Instalar PM2
+npm install -g pm2
+
+# Crear carpeta para logs
+mkdir -p logs
+
+# Iniciar las 4 instancias
+pm2 start ecosystem.config.js
+
+# Guardar configuración
+pm2 save
+
+# Ver estado
+pm2 status
+
+# Ver logs
+pm2 logs whatsapp-1
+
+

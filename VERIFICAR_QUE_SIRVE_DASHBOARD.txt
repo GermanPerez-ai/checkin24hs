@@ -1,0 +1,16 @@
+# Verificar qué archivo está sirviendo el dashboard
+
+# Opción 1: Ver el título de la página
+curl -s http://localhost:3000 | grep -i "<title>" | head -1
+
+# Opción 2: Buscar palabras clave del dashboard
+curl -s http://localhost:3000 | grep -i "dashboard\|flor\|whatsapp\|administración" | head -3
+
+# Opción 3: Ver las primeras líneas del HTML
+curl -s http://localhost:3000 | head -20
+
+# Opción 4: Verificar que NO es index.html (buscar "Checkin24hs" del frontend)
+curl -s http://localhost:3000 | grep -i "TUS RESERVAS TIENEN BENEFICIOS" | head -1
+# Si NO aparece nada, significa que está sirviendo dashboard.html ✅
+
+

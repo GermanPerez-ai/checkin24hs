@@ -1,0 +1,38 @@
+# Verificar que Evolution API está respondiendo
+
+# ===== Método 1: Verificar desde dentro del contenedor =====
+docker exec evolution-api-checkin24hs curl http://localhost:8080
+
+# ===== Método 2: Ver logs completos =====
+docker logs evolution-api-checkin24hs 2>&1
+
+# ===== Método 3: Verificar puertos del contenedor =====
+docker port evolution-api-checkin24hs
+
+# ===== Método 4: Verificar red =====
+docker network inspect evolution-api_evolution-network | grep -A 10 evolution-api
+
+# ===== Método 5: Conectar desde el host usando la IP del contenedor =====
+# Obtener IP del contenedor
+CONTAINER_IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' evolution-api-checkin24hs)
+echo "IP del contenedor: $CONTAINER_IP"
+curl http://$CONTAINER_IP:8080
+
+# ===== Método 6: Verificar que el puerto está mapeado =====
+docker ps | grep 8080
+
+# ===== Método 7: Probar desde fuera usando la IP del servidor =====
+# Si estás en el servidor, usar la IP pública o 0.0.0.0
+curl http://0.0.0.0:8080
+curl http://127.0.0.1:8080
+
+# ===== Método 8: Ver procesos dentro del contenedor =====
+docker exec evolution-api-checkin24hs ps aux
+
+# ===== Método 9: Ver variables de entorno del contenedor =====
+docker exec evolution-api-checkin24hs env | grep -E "PORT|SERVER"
+
+# ===== Método 10: Verificar que el proceso está escuchando =====
+docker exec evolution-api-checkin24hs netstat -tulpn | grep 8080
+
+

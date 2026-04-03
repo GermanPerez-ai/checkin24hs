@@ -1,0 +1,2 @@
+echo "🔍 Probando conexión con IP directa..." && echo "" && echo "IP del contenedor: 10.11.131.85" && echo "" && echo "Prueba desde Traefik:" && docker exec $(docker ps | grep traefik | awk '{print $1}') wget -O- http://10.11.131.85:3000 2>&1 | head -15 && echo "" && echo "Verificando configuración del servicio para agregar alias:" && docker service inspect checkin24hs_checkin24hs-dashboard --format '{{json .Spec.TaskTemplate.Networks}}' | jq
+

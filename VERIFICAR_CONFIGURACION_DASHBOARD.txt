@@ -1,0 +1,35 @@
+# Verificar configuración del Dashboard
+
+# ===== Paso 1: Verificar que el dashboard responde localmente =====
+curl -I http://localhost:3000
+
+# ===== Paso 2: Verificar que responde desde fuera (con IP) =====
+curl -I http://72.61.58.240:3000
+
+# ===== Paso 3: Verificar configuración de Traefik/Nginx =====
+# Buscar configuración de dashboard.checkin24hs.com
+grep -r "dashboard.checkin24hs.com" /etc/nginx/ 2>/dev/null
+# O en Traefik
+docker ps | grep traefik
+docker exec $(docker ps | grep traefik | awk '{print $1}') cat /etc/traefik/traefik.yml 2>/dev/null
+
+# ===== Paso 4: Verificar resolución DNS =====
+nslookup dashboard.checkin24hs.com
+dig dashboard.checkin24hs.com
+
+# ===== Paso 5: Verificar firewall =====
+ufw status | grep 3000
+netstat -tulpn | grep 3000
+
+# ===== Paso 6: Probar acceso directo =====
+# Desde tu navegador, prueba:
+# http://72.61.58.240:3000
+
+# ===== Paso 7: Ver logs de Traefik/Nginx si hay proxy =====
+# Si usas Traefik:
+# docker logs $(docker ps | grep traefik | awk '{print $1}') --tail 50
+
+# Si usas Nginx:
+# tail -50 /var/log/nginx/error.log
+
+

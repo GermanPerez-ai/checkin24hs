@@ -1,0 +1,88 @@
+# 🔍 DIAGNÓSTICO COMPLETO: Timeout en Dashboard
+# Ejecutar estos comandos en el servidor para identificar el problema
+
+# ============================================
+# 1. VERIFICAR ESTADO DE PM2
+# ============================================
+echo "=== ESTADO DE PM2 ==="
+pm2 status
+echo ""
+
+# ============================================
+# 2. VERIFICAR PROCESO DEL DASHBOARD
+# ============================================
+echo "=== INFORMACIÓN DEL DASHBOARD ==="
+pm2 info dashboard
+echo ""
+
+# ============================================
+# 3. VER LOGS DEL DASHBOARD (ÚLTIMAS 50 LÍNEAS)
+# ============================================
+echo "=== LOGS DEL DASHBOARD (ÚLTIMAS 50 LÍNEAS) ==="
+pm2 logs dashboard --lines 50 --nostream
+echo ""
+
+# ============================================
+# 4. VER ERRORES DEL DASHBOARD
+# ============================================
+echo "=== ERRORES DEL DASHBOARD ==="
+pm2 logs dashboard --err --lines 50 --nostream
+echo ""
+
+# ============================================
+# 5. VERIFICAR PUERTOS ABIERTOS
+# ============================================
+echo "=== PUERTOS ABIERTOS (NODE) ==="
+netstat -tulpn | grep node
+echo ""
+
+# ============================================
+# 6. VERIFICAR PUERTO 3000 ESPECÍFICAMENTE
+# ============================================
+echo "=== PUERTO 3000 ==="
+netstat -tulpn | grep 3000
+echo ""
+
+# ============================================
+# 7. PROBAR ACCESO LOCAL AL DASHBOARD
+# ============================================
+echo "=== PROBAR ACCESO LOCAL ==="
+curl -I http://localhost:3000
+echo ""
+
+# ============================================
+# 8. VERIFICAR PROCESO DEL SERVIDOR
+# ============================================
+echo "=== PROCESOS NODE ==="
+ps aux | grep node | grep -v grep
+echo ""
+
+# ============================================
+# 9. VERIFICAR ARCHIVO SERVER.JS EXISTE
+# ============================================
+echo "=== VERIFICAR ARCHIVOS ==="
+ls -la server.js
+ls -la dashboard.html
+echo ""
+
+# ============================================
+# 10. VERIFICAR FIREWALL
+# ============================================
+echo "=== ESTADO DEL FIREWALL ==="
+ufw status
+echo ""
+
+# ============================================
+# 11. VERIFICAR RESOLUCIÓN DNS
+# ============================================
+echo "=== RESOLUCIÓN DNS ==="
+nslookup dashboard.checkin24hs.com
+echo ""
+
+# ============================================
+# 12. VERIFICAR IP DEL SERVIDOR
+# ============================================
+echo "=== IP DEL SERVIDOR ==="
+hostname -I
+echo ""
+

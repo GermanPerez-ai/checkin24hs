@@ -1,0 +1,27 @@
+{
+  "name": "checkin24hs-whatsapp-flor-baileys",
+  "version": "3.0.0",
+  "description": "Servidor de WhatsApp para Flor - Checkin24hs con Baileys (sin Chrome)",
+  "main": "whatsapp-server-baileys.js",
+  "scripts": {
+    "start": "node whatsapp-server-baileys.js",
+    "dev": "nodemon whatsapp-server-baileys.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.7.0",
+    "pino": "^8.17.0",
+    "qrcode-terminal": "^0.12.0",
+    "qrcode": "^1.5.3",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "socket.io": "^4.7.2",
+    "@supabase/supabase-js": "^2.39.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+

@@ -1,0 +1,41 @@
+echo "=========================================="
+echo "🔍 DIAGNÓSTICO: Puerto 30002 No Funciona"
+echo "=========================================="
+echo ""
+echo "1️⃣ Estado del servicio:"
+docker service ps checkin24hs_checkin24hs-dashboard --no-trunc | head -5
+echo ""
+echo "2️⃣ Verificar si el servicio existe:"
+docker service ls | grep checkin24hs-dashboard
+echo ""
+echo "3️⃣ Ver puertos publicados:"
+docker service inspect checkin24hs_checkin24hs-dashboard --format '{{json .Endpoint.Ports}}' 2>&1 | jq 2>&1 || docker service inspect checkin24hs_checkin24hs-dashboard --format '{{json .Endpoint.Ports}}' 2>&1
+echo ""
+echo "4️⃣ Verificar si el puerto 30002 está en uso:"
+sudo netstat -tuln | grep 30002 || echo "❌ Puerto 30002 NO está en uso"
+echo ""
+echo "5️⃣ Verificar contenedores corriendo:"
+docker ps | grep checkin24hs-dashboard
+echo ""
+echo "6️⃣ Ver logs del servicio:"
+docker service logs checkin24hs_checkin24hs-dashboard --tail 20 2>&1
+echo ""
+echo "7️⃣ Probar conexión local desde el servidor:"
+curl -I http://localhost:30002 2>&1 | head -10
+echo ""
+echo "8️⃣ Probar conexión con IP del contenedor:"
+CONTAINER_ID=$(docker ps | grep checkin24hs_checkin24hs-dashboard | awk '{print $1}' | head -1)
+if [ -z "$CONTAINER_ID" ]; then
+    echo "❌ No se encontró el contenedor"
+else
+    CURRENT_IP=$(docker inspect $CONTAINER_ID --format '{{range $key, $value := .NetworkSettings.Networks}}{{if eq $key "easypanel"}}{{$value.IPAddress}}{{end}}{{end}}')
+    echo "IP del contenedor: $CURRENT_IP"
+    curl -I http://$CURRENT_IP:3000 2>&1 | head -10
+fi
+echo ""
+echo "9️⃣ Verificar firewall:"
+sudo ufw status 2>&1 | head -5 || echo "Firewall no configurado o no disponible"
+echo ""
+echo "=========================================="
+
+

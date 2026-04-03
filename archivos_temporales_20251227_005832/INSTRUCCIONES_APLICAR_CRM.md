@@ -1,0 +1,141 @@
+# Instrucciones para Aplicar serve-crm.js en el Servidor
+
+## Opción 1: Comando Único (Más Rápido)
+
+Copia y pega este comando completo en el servidor:
+
+```bash
+cat > /root/checkin24hs/serve-crm.js << 'EOFCRM'
+const express = require('express');
+const path = require('path');
+const app = express();
+const PORT = process.env.PORT || 3005;
+app.use((req, res, next) => {
+    if (req.path === '/' || req.path === '/crm.html' || req.path.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+    next();
+});
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'crm.html'));
+});
+app.get('/index.html', (req, res) => {
+    res.redirect('/crm.html');
+});
+app.use(express.static(__dirname, { index: false }));
+app.get('/crm.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'crm.html'));
+});
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'crm.html'));
+});
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`CRM corriendo en http://0.0.0.0:${PORT}`);
+    console.log(`Sirviendo archivos desde: ${__dirname}`);
+});
+EOFCRM
+SERVICE_NAME="checkin24hs_crm"
+TASK_ID=$(docker service ps $SERVICE_NAME --filter "desired-state=running" --format "{{.ID}}" | head -1)
+CONTAINER_NAME=$(docker service ps $SERVICE_NAME --filter "id=$TASK_ID" --format "{{.Name}}" | head -1)
+CONTAINER_ID=$(docker ps --filter "name=$CONTAINER_NAME" --format "{{.ID}}" | head -1)
+if [ -z "$CONTAINER_ID" ]; then CONTAINER_ID=$(docker ps -a --filter "name=$CONTAINER_NAME" --format "{{.ID}}" | head -1); fi
+docker cp /root/checkin24hs/serve-crm.js $CONTAINER_ID:/app/serve-crm.js
+docker service update --force $SERVICE_NAME
+sleep 30
+NEW_TASK_ID=$(docker service ps $SERVICE_NAME --filter "desired-state=running" --format "{{.ID}}" | head -1)
+NEW_CONTAINER_NAME=$(docker service ps $SERVICE_NAME --filter "id=$NEW_TASK_ID" --format "{{.Name}}" | head -1)
+NEW_CONTAINER_ID=$(docker ps --filter "name=$NEW_CONTAINER_NAME" --format "{{.ID}}" | head -1)
+docker cp /root/checkin24hs/serve-crm.js $NEW_CONTAINER_ID:/app/serve-crm.js
+docker service logs $SERVICE_NAME --tail 20
+```
+
+## Opción 2: Usar el Script
+
+1. **Sube el script al servidor** (desde tu máquina local):
+
+```powershell
+scp CREAR_Y_APLICAR_CRM_DIRECTO.sh root@72.61.58.240:/root/checkin24hs/
+```
+
+2. **Ejecuta en el servidor:**
+
+```bash
+cd /root/checkin24hs
+chmod +x CREAR_Y_APLICAR_CRM_DIRECTO.sh
+bash CREAR_Y_APLICAR_CRM_DIRECTO.sh
+```
+
+## Opción 3: Manual (Paso a Paso)
+
+```bash
+# 1. Crear serve-crm.js
+cat > /root/checkin24hs/serve-crm.js << 'EOF'
+const express = require('express');
+const path = require('path');
+const app = express();
+const PORT = process.env.PORT || 3005;
+app.use((req, res, next) => {
+    if (req.path === '/' || req.path === '/crm.html' || req.path.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+    next();
+});
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'crm.html'));
+});
+app.get('/index.html', (req, res) => {
+    res.redirect('/crm.html');
+});
+app.use(express.static(__dirname, { index: false }));
+app.get('/crm.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'crm.html'));
+});
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'crm.html'));
+});
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`CRM corriendo en http://0.0.0.0:${PORT}`);
+    console.log(`Sirviendo archivos desde: ${__dirname}`);
+});
+EOF
+
+# 2. Obtener contenedor
+SERVICE_NAME="checkin24hs_crm"
+TASK_ID=$(docker service ps $SERVICE_NAME --filter "desired-state=running" --format "{{.ID}}" | head -1)
+CONTAINER_NAME=$(docker service ps $SERVICE_NAME --filter "id=$TASK_ID" --format "{{.Name}}" | head -1)
+CONTAINER_ID=$(docker ps --filter "name=$CONTAINER_NAME" --format "{{.ID}}" | head -1)
+
+# 3. Copiar archivo
+docker cp /root/checkin24hs/serve-crm.js $CONTAINER_ID:/app/serve-crm.js
+
+# 4. Reiniciar servicio
+docker service update --force $SERVICE_NAME
+
+# 5. Esperar y copiar al nuevo contenedor
+sleep 30
+NEW_TASK_ID=$(docker service ps $SERVICE_NAME --filter "desired-state=running" --format "{{.ID}}" | head -1)
+NEW_CONTAINER_NAME=$(docker service ps $SERVICE_NAME --filter "id=$NEW_TASK_ID" --format "{{.Name}}" | head -1)
+NEW_CONTAINER_ID=$(docker ps --filter "name=$NEW_CONTAINER_NAME" --format "{{.ID}}" | head -1)
+docker cp /root/checkin24hs/serve-crm.js $NEW_CONTAINER_ID:/app/serve-crm.js
+
+# 6. Verificar logs
+docker service logs $SERVICE_NAME --tail 20
+```
+
+## Verificación
+
+Después de ejecutar cualquiera de las opciones, verifica:
+
+```bash
+docker service logs checkin24hs_crm --tail 50
+```
+
+Deberías ver:
+```
+CRM corriendo en http://0.0.0.0:3005
+```
+

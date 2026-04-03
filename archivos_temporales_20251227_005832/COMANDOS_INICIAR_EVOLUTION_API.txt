@@ -1,0 +1,36 @@
+# Comandos para Iniciar Evolution API
+
+# ===== PASO 1: Verificar que estás en la carpeta correcta =====
+cd ~/evolution-api
+pwd
+ls -la
+
+# ===== PASO 2: Verificar archivos necesarios =====
+ls -la docker-compose.yml
+ls -la .env
+
+# ===== PASO 3: Iniciar Evolution API =====
+docker-compose up -d
+
+# ===== PASO 4: Ver logs para verificar que inicia =====
+docker-compose logs -f evolution-api
+
+# Presiona Ctrl+C para salir de los logs
+
+# ===== PASO 5: Verificar que está corriendo =====
+docker ps | grep evolution
+
+# ===== PASO 6: Verificar que responde =====
+curl http://localhost:8080
+
+# ===== Si hay errores, ver logs detallados =====
+docker-compose logs evolution-api | tail -50
+
+# ===== Si el puerto 8080 está ocupado =====
+# Ver qué está usando el puerto
+netstat -tulpn | grep 8080
+
+# O cambiar el puerto en docker-compose.yml
+# Cambiar "8080:8080" por "8081:8080" (por ejemplo)
+
+

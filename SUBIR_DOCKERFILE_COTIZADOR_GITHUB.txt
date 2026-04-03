@@ -1,0 +1,26 @@
+# Comandos para subir Dockerfile.cotizador a GitHub
+
+# Desde PowerShell en tu computadora:
+
+cd C:\Users\German\Downloads\Checkin24hs
+
+# Verificar estado de git
+git status Dockerfile.cotizador
+
+# Si no está en git, agregarlo
+git add Dockerfile.cotizador
+
+# También verificar si los otros archivos necesarios están en git
+git status cotizador-cliente.html supabase-config.js supabase-client.js
+
+# Agregar todos los archivos necesarios para el cotizador
+git add Dockerfile.cotizador cotizador-cliente.html supabase-config.js supabase-client.js
+
+# Commit con mensaje descriptivo
+git commit -m "Agregar Dockerfile y archivos para servicio cotizador"
+
+# Subir a GitHub
+git push origin main
+
+# Verificar que se subió correctamente
+# Puedes verificar en: https://github.com/GermanPerez-ai/checkin24hs/blob/main/Dockerfile.cotizador

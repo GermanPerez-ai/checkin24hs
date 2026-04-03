@@ -1,0 +1,31 @@
+# Verificar que el Dashboard está funcionando correctamente
+
+# ===== Paso 1: Verificar que el dashboard está corriendo =====
+pm2 status dashboard
+
+# ===== Paso 2: Ver logs del dashboard =====
+pm2 logs dashboard --lines 30 --nostream
+
+# ===== Paso 3: Verificar en qué puerto está escuchando =====
+netstat -tulpn | grep node | grep -E "dashboard|3000|8080"
+
+# O ver información detallada de PM2
+pm2 info dashboard
+
+# ===== Paso 4: Verificar que los servidores Baileys responden =====
+curl -s http://localhost:3001/api/status
+curl -s http://localhost:3002/api/status
+curl -s http://localhost:3003/api/status
+curl -s http://localhost:3004/api/status
+
+# ===== Paso 5: Verificar que el archivo dashboard.html tiene las URLs correctas =====
+grep -n "72.61.58.240:300" dashboard.html | head -10
+
+# ===== Paso 6: Probar acceso local al dashboard =====
+# Ver en qué puerto está el dashboard
+pm2 info dashboard | grep "script path\|port"
+
+# Intentar acceder localmente
+# curl http://localhost:PUERTO_DEL_DASHBOARD
+
+

@@ -1,0 +1,26 @@
+# Instalar Docker Compose Manualmente
+
+# ===== Paso 1: Descargar docker-compose =====
+curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+
+# ===== Paso 2: Dar permisos de ejecución =====
+chmod +x /usr/local/bin/docker-compose
+
+# ===== Paso 3: Verificar instalación =====
+docker-compose --version
+
+# Debería mostrar algo como: docker-compose version 2.x.x
+
+# ===== Paso 4: Si no funciona, crear symlink =====
+# A veces necesita estar en /usr/bin
+ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
+
+# Verificar de nuevo
+docker-compose --version
+
+# ===== Paso 5: Una vez instalado, iniciar Evolution API =====
+cd ~/evolution-api
+docker-compose up -d
+docker-compose logs -f evolution-api
+
+

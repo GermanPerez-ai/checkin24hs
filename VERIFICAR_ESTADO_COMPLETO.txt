@@ -1,0 +1,30 @@
+# Verificar estado completo de Baileys
+
+# ===== Paso 1: Ver estado de PM2 =====
+pm2 status
+
+# ===== Paso 2: Ver qué respondió el servidor =====
+curl http://localhost:3001/api/status | python3 -m json.tool
+# O si no tienes python3:
+curl http://localhost:3001/api/status
+
+# ===== Paso 3: Ver logs sin seguir (solo últimas líneas) =====
+pm2 logs whatsapp-1 --lines 30 --nostream
+
+# ===== Paso 4: Verificar todas las instancias =====
+for i in 1 2 3 4; do
+  echo "=== WhatsApp $i ==="
+  curl -s http://localhost:300$i/api/status
+  echo ""
+done
+
+# ===== Paso 5: Ver QR codes =====
+curl http://localhost:3001/api/qr | head -20
+
+# ===== Paso 6: Ver información detallada de PM2 =====
+pm2 info whatsapp-1
+
+# ===== Paso 7: Ver puertos abiertos =====
+netstat -tulpn | grep -E "3001|3002|3003|3004"
+
+

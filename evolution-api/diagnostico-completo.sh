@@ -1,0 +1,58 @@
+#!/bin/bash
+
+echo "=========================================="
+echo "DIAGNÓSTICO COMPLETO DE EVOLUTION API"
+echo "=========================================="
+echo ""
+
+echo "1. CONTENEDORES (todos):"
+echo "----------------------------------------"
+docker ps -a | grep evolution
+echo ""
+
+echo "2. CONTENEDORES CORRIENDO:"
+echo "----------------------------------------"
+docker ps | grep evolution
+echo ""
+
+echo "3. ESTADO DEL CONTENEDOR:"
+echo "----------------------------------------"
+docker inspect evolution-api-checkin24hs 2>/dev/null | grep -A 10 '"State"' || echo "Contenedor no existe"
+echo ""
+
+echo "4. LOGS DEL CONTENEDOR (últimas 30 líneas):"
+echo "----------------------------------------"
+docker logs evolution-api-checkin24hs 2>&1 | tail -30
+echo ""
+
+echo "5. PUERTOS ABIERTOS:"
+echo "----------------------------------------"
+netstat -tulpn | grep 8080 || echo "Puerto 8080 no está abierto"
+netstat -tulpn | grep 6379 || echo "Puerto 6379 no está abierto"
+echo ""
+
+echo "6. PUERTOS DEL CONTENEDOR:"
+echo "----------------------------------------"
+docker port evolution-api-checkin24hs 2>&1
+echo ""
+
+echo "7. ESTADO CON DOCKER-COMPOSE:"
+echo "----------------------------------------"
+docker-compose ps
+echo ""
+
+echo "8. VERIFICAR ARCHIVOS:"
+echo "----------------------------------------"
+ls -la docker-compose.yml .env 2>&1
+echo ""
+
+echo "9. INTENTAR CONECTAR:"
+echo "----------------------------------------"
+curl -v http://localhost:8080 2>&1 | head -20
+echo ""
+
+echo "=========================================="
+echo "FIN DEL DIAGNÓSTICO"
+echo "=========================================="
+
+

@@ -1,0 +1,33 @@
+# El contenedor está reiniciándose constantemente - hay un error
+
+# ===== Paso 1: Ver logs completos para encontrar el error =====
+docker logs evolution-api-checkin24hs 2>&1
+
+# ===== Paso 2: Ver los últimos logs antes del reinicio =====
+docker logs evolution-api-checkin24hs 2>&1 | tail -100
+
+# ===== Paso 3: Detener el contenedor para evitar reinicios =====
+docker stop evolution-api-checkin24hs
+
+# ===== Paso 4: Ver logs completos sin reinicios =====
+docker logs evolution-api-checkin24hs 2>&1 | tail -200
+
+# ===== Paso 5: Verificar configuración =====
+cat .env
+cat docker-compose.yml | grep -A 10 "environment:"
+
+# ===== Paso 6: Posibles problemas comunes =====
+# - Variables de entorno incorrectas
+# - Puerto ya en uso
+# - Problemas con Redis
+# - Problemas con volúmenes
+# - Problemas con la imagen
+
+# ===== Paso 7: Reiniciar limpiamente =====
+docker-compose down
+docker-compose up -d
+
+# Ver logs inmediatamente
+docker logs -f evolution-api-checkin24hs
+
+

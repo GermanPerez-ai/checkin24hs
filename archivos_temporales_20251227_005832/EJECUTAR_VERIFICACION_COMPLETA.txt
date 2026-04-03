@@ -1,0 +1,46 @@
+# Ejecutar verificación completa
+
+cd ~/checkin24hs/whatsapp-server-baileys
+
+cat > verificar-estado.sh << 'EOF'
+#!/bin/bash
+
+echo "=========================================="
+echo "VERIFICACIÓN COMPLETA DE BAILEYS"
+echo "=========================================="
+echo ""
+
+echo "1. ESTADO DE PM2:"
+pm2 status
+echo ""
+
+echo "2. RESPUESTA DE STATUS (WhatsApp 1):"
+curl -s http://localhost:3001/api/status
+echo ""
+echo ""
+
+echo "3. LOGS DE WHATSAPP-1 (últimas 30 líneas):"
+pm2 logs whatsapp-1 --lines 30 --nostream
+echo ""
+
+echo "4. QR CODE DE WHATSAPP-1 (primeras líneas):"
+curl -s http://localhost:3001/api/qr | head -5
+echo ""
+
+echo "5. VERIFICAR TODAS LAS INSTANCIAS:"
+for i in 1 2 3 4; do
+  echo "WhatsApp $i:"
+  curl -s http://localhost:300$i/api/status
+  echo ""
+done
+
+echo "6. PUERTOS ABIERTOS:"
+netstat -tulpn | grep -E "3001|3002|3003|3004"
+echo ""
+EOF
+
+chmod +x verificar-estado.sh
+./verificar-estado.sh > estado-completo.txt 2>&1
+cat estado-completo.txt
+
+

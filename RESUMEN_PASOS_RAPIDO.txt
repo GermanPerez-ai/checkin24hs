@@ -1,0 +1,28 @@
+📋 RESUMEN RÁPIDO DE PASOS
+
+1. ✅ Verificar código local (dashboard.html funciona)
+2. ✅ Verificar código en GitHub (rama working-version)
+3. ✅ Subir código a GitHub (si falta algo)
+4. ✅ Hacer backup de configuración actual en EasyPanel
+5. ✅ Eliminar servicio actual en EasyPanel
+6. ✅ Crear servicio nuevo (nombre: checkin24hs-dashboard)
+7. ✅ Configurar Fuente:
+   - Propietario: GermanPerez-ai
+   - Repositorio: checkin24hs
+   - Rama: working-version
+   - Ruta de compilación: / (raíz) ⚠️ IMPORTANTE
+8. ✅ Configurar Compilación:
+   - Tipo: Dockerfile
+   - Archivo: Dockerfile
+9. ✅ Configurar Puerto:
+   - Publicado: 30002
+   - Destino: 3000
+10. ✅ Configurar Dominio (si había)
+11. ✅ Restaurar Variables de Entorno (si había)
+12. ✅ Implementar servicio
+13. ✅ Verificar logs (debe mostrar "🚀 Servidor iniciado")
+14. ✅ Probar dashboard: http://72.61.58.240:30002
+
+⚠️ PUNTO CRÍTICO: Ruta de compilación debe ser / (raíz), NO /checkin24hs-admin
+
+

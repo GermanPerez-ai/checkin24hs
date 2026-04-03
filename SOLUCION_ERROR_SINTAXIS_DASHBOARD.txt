@@ -1,0 +1,44 @@
+# Solución: Error de Sintaxis en Dashboard
+
+## Problema Identificado:
+1. ✅ Error de sintaxis en línea 8966 - `} else {` mal posicionado
+2. ⚠️ Bucle infinito de "📱 QR recibido" (posiblemente código dinámico)
+3. ⚠️ Conflicto con EasyPanel en puerto 3000
+
+## Solución Aplicada:
+- ✅ Corregido error de sintaxis en dashboard.html
+- ✅ Estructura de if/else corregida
+
+## Próximos Pasos:
+
+### 1. Actualizar en el servidor:
+```bash
+cd ~/checkin24hs
+git pull origin main
+pm2 restart dashboard
+```
+
+### 2. Verificar que funciona:
+```bash
+curl -I http://localhost:3000
+pm2 logs dashboard --lines 20 --nostream
+```
+
+### 3. Si el problema persiste:
+- Limpiar caché del navegador (Ctrl + Shift + Delete)
+- Probar en modo incógnito
+- Verificar que no hay código JavaScript ejecutándose en bucle
+
+### 4. Si EasyPanel está usando el puerto 3000:
+- Cambiar el puerto del dashboard en server.js
+- O detener el servicio de EasyPanel que usa el puerto 3000
+
+## Nota sobre "📱 QR recibido":
+Este mensaje podría estar viniendo de:
+- Código JavaScript dinámico
+- Algún archivo externo cargado
+- Eventos de Socket.IO que se están ejecutando repetidamente
+
+Si persiste después de corregir el error de sintaxis, necesitaremos investigar más a fondo.
+
+

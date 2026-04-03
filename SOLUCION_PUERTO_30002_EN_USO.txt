@@ -1,0 +1,3 @@
+echo "🔍 Identificando qué está usando el puerto 30002..." && echo "" && echo "1. Proceso usando el puerto 30002:" && sudo lsof -i :30002 || sudo netstat -tulpn | grep 30002 && echo "" && echo "2. Contenedores usando el puerto 30002:" && docker ps --format "table {{.Names}}\t{{.Ports}}" | grep 30002 && echo "" && echo "3. Servicios Docker usando el puerto 30002:" && docker service ls --format "table {{.Name}}\t{{.Ports}}" | grep 30002 && echo "" && echo "4. Proceso docker-proxy en puerto 30002:" && ps aux | grep docker-proxy | grep 30002
+
+

@@ -1,0 +1,68 @@
+=== COMANDOS PARA EJECUTAR EN EL SERVIDOR ===
+
+1. Conecta al servidor:
+   ssh root@72.61.58.240
+
+2. Ejecuta estos comandos UNO POR UNO:
+
+cd /root/checkin24hs
+
+# Verificar que existe el archivo
+ls -la deploy/dashboard.html
+
+# Detener contenedores
+docker stop $(docker ps -q --filter "name=checkin24hs_dashboard")
+
+# Esperar 3 segundos
+sleep 3
+
+# Verificar que están detenidos
+docker ps | grep checkin24hs_dashboard
+
+# Copiar archivo (ejecuta este comando completo en una línea)
+for c in $(docker ps -a --format '{{.Names}}' | grep checkin24hs_dashboard); do docker cp deploy/dashboard.html $c:/app/dashboard.html 2>/dev/null || docker cp deploy/dashboard.html $c:/usr/share/nginx/html/dashboard.html 2>/dev/null; echo "Copiado: $c"; done
+
+# Reiniciar contenedores
+docker start $(docker ps -aq --filter "name=checkin24hs_dashboard")
+
+# Esperar 3 segundos
+sleep 3
+
+# Verificar estado
+docker ps | grep checkin24hs_dashboard
+
+=== ALTERNATIVA: Crear y ejecutar script ===
+
+# Crear el script directamente en el servidor
+cat > /root/checkin24hs/aplicar.sh << 'EOF'
+#!/bin/bash
+cd /root/checkin24hs
+echo "Deteniendo contenedores..."
+docker stop $(docker ps -q --filter "name=checkin24hs_dashboard") 2>/dev/null
+sleep 3
+echo "Copiando archivo..."
+for c in $(docker ps -a --format '{{.Names}}' | grep checkin24hs_dashboard); do
+    docker cp deploy/dashboard.html $c:/app/dashboard.html 2>/dev/null || \
+    docker cp deploy/dashboard.html $c:/usr/share/nginx/html/dashboard.html 2>/dev/null
+    echo "✅ $c"
+done
+echo "Reiniciando contenedores..."
+docker start $(docker ps -aq --filter "name=checkin24hs_dashboard") 2>/dev/null
+sleep 3
+echo "✅ Completado"
+docker ps | grep checkin24hs_dashboard
+EOF
+
+# Dar permisos y ejecutar
+chmod +x /root/checkin24hs/aplicar.sh
+bash /root/checkin24hs/aplicar.sh
+
+
+
+
+
+
+
+
+
+

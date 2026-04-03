@@ -1,0 +1,55 @@
+# Comandos para crear el servicio cotizador en el servidor
+# Ejecuta estos comandos uno por uno en el servidor
+
+# ============================================
+# PASO 1: Verificar que los archivos estén
+# ============================================
+cd /root/checkin24hs
+ls -la cotizador-cliente.html
+ls -la supabase-config.js
+ls -la supabase-client.js
+ls -la Dockerfile.cotizador
+
+# ============================================
+# PASO 2: Construir la imagen Docker
+# ============================================
+docker build -f Dockerfile.cotizador -t cotizador:latest .
+
+# Verificar que se construyó
+docker images | grep cotizador
+
+# ============================================
+# PASO 3: Crear servicio Docker Swarm
+# ============================================
+docker service create \
+  --name cotizador \
+  --network easypanel \
+  --replicas 1 \
+  --label "traefik.enable=true" \
+  --label "traefik.http.routers.cotizador.rule=Host(\`cotizar.checkin24hs.com\`)" \
+  --label "traefik.http.routers.cotizador.entrypoints=web" \
+  --label "traefik.http.routers.cotizador.entrypoints=websecure" \
+  --label "traefik.http.routers.cotizador.tls.certresolver=letsencrypt" \
+  --label "traefik.http.services.cotizador.loadbalancer.server.port=80" \
+  cotizador:latest
+
+# ============================================
+# PASO 4: Verificar que funciona
+# ============================================
+# Ver el servicio
+docker service ls | grep cotizador
+
+# Ver logs
+docker service logs cotizador --tail 50
+
+# Verificar que Traefik detectó el dominio
+docker logs traefik --tail 100 | grep cotizar
+
+# ============================================
+# NOTAS:
+# ============================================
+# - El servicio estará disponible en: https://cotizar.checkin24hs.com
+# - Espera 2-3 minutos para que Traefik genere el certificado SSL
+# - Si necesitas actualizar el servicio:
+#   1. Reconstruir: docker build -f Dockerfile.cotizador -t cotizador:latest .
+#   2. Actualizar: docker service update --force cotizador

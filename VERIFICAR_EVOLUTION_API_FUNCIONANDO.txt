@@ -1,0 +1,38 @@
+# Verificar que Evolution API está funcionando
+
+# ===== Paso 1: Verificar contenedores corriendo =====
+docker ps | grep evolution
+
+# Deberías ver:
+# evolution-api-checkin24hs
+# evolution-redis
+
+# ===== Paso 2: Verificar que Evolution API responde =====
+curl http://localhost:8080
+
+# Debería responder con HTML o JSON
+
+# ===== Paso 3: Ver logs (sin el flag -f para evitar el error) =====
+docker-compose logs evolution-api | tail -50
+
+# O ver logs en tiempo real de otra forma:
+docker logs -f evolution-api-checkin24hs
+
+# ===== Paso 4: Verificar puertos =====
+netstat -tulpn | grep 8080
+netstat -tulpn | grep 6379
+
+# ===== Paso 5: Probar crear instancias =====
+cd ~/evolution-api
+./probar-evolution-api.sh
+
+# O manualmente:
+API_KEY="checkin24hs-secret-key-2024"
+API_URL="http://localhost:8080"
+
+curl -X POST $API_URL/instance/create \
+  -H "apikey: $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"instanceName": "whatsapp-1", "qrcode": true, "integration": "WHATSAPP-BAILEYS"}'
+
+

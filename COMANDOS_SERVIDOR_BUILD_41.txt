@@ -1,0 +1,16 @@
+# Comandos para ejecutar en el servidor (SSH)
+
+# 1. Ir al directorio
+cd /root/checkin24hs
+
+# 2. Descargar dashboard.html desde GitHub
+curl -L -o /root/checkin24hs/dashboard.html https://raw.githubusercontent.com/GermanPerez-ai/checkin24hs/main/dashboard.html
+
+# 3. Verificar que se descargó correctamente (debe mostrar Build #41)
+grep "DASHBOARD_BUILD_NUMBER" /root/checkin24hs/dashboard.html | head -1
+
+# 4. Actualizar el servicio Docker
+docker service update --force checkin24hs_dashboard
+
+# 5. Verificar que el servicio se actualizó
+docker service ps checkin24hs_dashboard

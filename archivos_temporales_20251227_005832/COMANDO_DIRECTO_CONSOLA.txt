@@ -1,0 +1,16 @@
+===========================================
+COMANDO PARA EJECUTAR EN LA CONSOLA (F12)
+===========================================
+
+1. Presiona F12
+2. Haz clic en "Console"
+3. Escribe: allow pasting
+4. Presiona Enter
+5. Copia y pega esto:
+
+document.getElementById('imageManagerModal').style.display = 'block';
+
+6. Presiona Enter
+
+Si el modal aparece, entonces el modal existe y el problema es que el botón no está funcionando.
+

@@ -1,0 +1,123 @@
+# 🔧 SOLUCIONAR TIMEOUT EN DASHBOARD
+# Ejecutar estos comandos paso a paso en el servidor
+
+# ============================================
+# PASO 1: IR AL DIRECTORIO DEL PROYECTO
+# ============================================
+cd ~/checkin24hs
+
+# ============================================
+# PASO 2: VERIFICAR SI EL DASHBOARD ESTÁ CORRIENDO
+# ============================================
+pm2 status
+
+# Si NO está corriendo, continuar con PASO 3
+# Si SÍ está corriendo pero no responde, ir a PASO 4
+
+# ============================================
+# PASO 3: INICIAR EL DASHBOARD
+# ============================================
+# Opción A: Si ya existe en PM2 pero está detenido
+pm2 restart dashboard
+
+# Opción B: Si no existe en PM2, iniciarlo
+pm2 start server.js --name dashboard
+
+# Opción C: Si el archivo se llama diferente
+# pm2 start npm --name dashboard -- start
+# O según tu package.json:
+# pm2 start npm --name dashboard -- run dashboard
+
+# ============================================
+# PASO 4: SI ESTÁ CORRIENDO PERO NO RESPONDE
+# ============================================
+# Detener completamente
+pm2 stop dashboard
+pm2 delete dashboard
+
+# Esperar 2 segundos
+sleep 2
+
+# Iniciar de nuevo
+pm2 start server.js --name dashboard
+
+# Guardar configuración
+pm2 save
+
+# ============================================
+# PASO 5: VERIFICAR QUE ESTÁ ESCUCHANDO
+# ============================================
+# Esperar 5 segundos para que inicie
+sleep 5
+
+# Verificar puerto
+netstat -tulpn | grep 3000
+
+# Probar acceso local
+curl -I http://localhost:3000
+
+# ============================================
+# PASO 6: VER LOGS PARA VERIFICAR ERRORES
+# ============================================
+pm2 logs dashboard --lines 30 --nostream
+
+# ============================================
+# PASO 7: VERIFICAR CONFIGURACIÓN DEL DOMINIO
+# ============================================
+# Si usas Traefik o Nginx como proxy reverso, verificar:
+# - Que el dominio dashboard.checkin24hs.com apunta a este servidor
+# - Que Traefik/Nginx está configurado para redirigir al puerto 3000
+# - Que Traefik/Nginx está corriendo
+
+# Verificar Traefik
+docker ps | grep traefik
+# O
+systemctl status traefik
+
+# Verificar Nginx
+systemctl status nginx
+# O
+docker ps | grep nginx
+
+# ============================================
+# PASO 8: VERIFICAR FIREWALL
+# ============================================
+# Ver estado
+ufw status
+
+# Si el firewall está activo y bloquea el puerto 3000:
+# ufw allow 3000/tcp
+
+# ============================================
+# PASO 9: VERIFICAR QUE EL ARCHIVO EXISTE
+# ============================================
+ls -la server.js
+ls -la dashboard.html
+
+# Si no existen, clonar el repositorio:
+# cd ~
+# git clone https://github.com/GermanPerez-ai/checkin24hs.git
+# cd checkin24hs
+# npm install
+
+# ============================================
+# PASO 10: VERIFICAR VARIABLES DE ENTORNO
+# ============================================
+# Ver si hay un archivo .env
+ls -la .env
+
+# Ver el contenido (sin mostrar secretos)
+cat .env | grep -v "SECRET\|PASSWORD\|KEY" | head -20
+
+# ============================================
+# VERIFICACIÓN FINAL
+# ============================================
+echo "=== ESTADO FINAL ==="
+pm2 status
+echo ""
+echo "=== PUERTO 3000 ==="
+netstat -tulpn | grep 3000
+echo ""
+echo "=== PRUEBA LOCAL ==="
+curl -I http://localhost:3000
+

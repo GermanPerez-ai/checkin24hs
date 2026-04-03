@@ -1,0 +1,33 @@
+# Verificar que Baileys está instalado y funcionando
+
+# ===== Paso 1: Verificar que npm install funcionó =====
+ls -la node_modules/ | head -10
+
+# Verificar que Baileys está instalado
+ls -la node_modules/@whiskeysockets/
+
+# ===== Paso 2: Verificar PM2 =====
+pm2 --version
+
+# ===== Paso 3: Ver estado de PM2 =====
+pm2 status
+
+# ===== Paso 4: Ver logs =====
+pm2 logs whatsapp-1 --lines 50
+
+# ===== Paso 5: Verificar que los servidores responden =====
+curl http://localhost:3001/api/status
+curl http://localhost:3002/api/status
+curl http://localhost:3003/api/status
+curl http://localhost:3004/api/status
+
+# ===== Paso 6: Ver procesos corriendo =====
+ps aux | grep node | grep whatsapp
+
+# ===== Paso 7: Ver puertos abiertos =====
+netstat -tulpn | grep -E "3001|3002|3003|3004"
+
+# ===== Si hay errores, ver logs detallados =====
+pm2 logs --err --lines 100
+
+

@@ -1,0 +1,53 @@
+===========================================
+COMANDOS PARA LIBERAR PUERTO 3000 E INSTALAR EASYPANEL
+===========================================
+
+EJECUTA ESTOS COMANDOS EN EL SERVIDOR:
+
+# 1. Detener PM2 dashboard
+pm2 stop dashboard
+pm2 delete dashboard
+
+# 2. Ver qué está usando el puerto 3000
+sudo lsof -i :3000
+
+# 3. Matar proceso usando puerto 3000
+sudo kill -9 $(sudo lsof -ti :3000)
+
+# 4. Verificar que el puerto esté libre
+sudo lsof -i :3000
+
+# 5. Detener contenedor Docker dashboard-nginx-proxy (si existe)
+docker stop dashboard-nginx-proxy
+docker rm dashboard-nginx-proxy
+
+# 6. Instalar EasyPanel
+curl -fsSL https://easypanel.io/install.sh | bash
+
+# 7. Verificar que EasyPanel esté corriendo
+docker ps | grep easypanel
+sudo lsof -i :3000
+
+===========================================
+DESPUÉS DE INSTALAR EASYPANEL:
+===========================================
+
+1. Accede a EasyPanel en: http://72.61.58.240:3000
+2. Crea un nuevo servicio para el dashboard
+3. Configura:
+   - Tipo: Static Site o Node.js
+   - Repositorio: Tu repositorio de GitHub (si usas GitHub)
+   - O sube los archivos directamente
+   - Puerto: 3000 (o el que prefieras)
+   - Dominio: dashboard.checkin24hs.com (o el que prefieras)
+
+===========================================
+NOTAS:
+===========================================
+
+- EasyPanel usará Docker para correr el servicio
+- El puerto 3000 será usado por EasyPanel
+- Podrás gestionar el dashboard desde la interfaz web de EasyPanel
+- Los cambios se aplicarán automáticamente cuando subas a GitHub (si configuras auto-deploy)
+
+

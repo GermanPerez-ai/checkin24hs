@@ -1,0 +1,41 @@
+# Comandos para descargar dashboard.html del servidor
+# Copia y pega estos comandos uno por uno
+
+# ============================================
+# PASO 1: Conectarse al servidor
+# ============================================
+ssh root@72.61.58.240
+
+# ============================================
+# PASO 2: En el servidor, ejecutar estos comandos
+# ============================================
+
+# Buscar contenedor
+CONTAINER_ID=$(docker ps | grep dashboard | grep -v nginx | awk '{print $1}' | head -1)
+echo "Contenedor: $CONTAINER_ID"
+
+# Buscar archivo
+DASHBOARD_PATH=$(docker exec $CONTAINER_ID find / -name "dashboard.html" -type f 2>/dev/null | grep -v node_modules | head -1)
+echo "Ruta: $DASHBOARD_PATH"
+
+# Copiar a /tmp
+docker cp $CONTAINER_ID:$DASHBOARD_PATH /tmp/dashboard_servidor.html
+
+# Verificar
+ls -lh /tmp/dashboard_servidor.html
+
+# ============================================
+# PASO 3: En una NUEVA ventana PowerShell (Windows)
+# ============================================
+cd C:\Users\German\Downloads\Checkin24hs
+
+# Backup
+Copy-Item dashboard.html "dashboard.html.backup.$(Get-Date -Format 'yyyyMMdd_HHmmss')"
+
+# Descargar
+scp root@72.61.58.240:/tmp/dashboard_servidor.html dashboard.html
+
+# ============================================
+# PASO 4: Volver a la ventana SSH y limpiar
+# ============================================
+rm /tmp/dashboard_servidor.html

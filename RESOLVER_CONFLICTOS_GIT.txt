@@ -1,0 +1,52 @@
+# Resolver conflictos de Git antes de actualizar
+
+# ===== OPCIÓN 1: Guardar cambios locales temporalmente (RECOMENDADO) =====
+cd ~/checkin24hs
+
+# Guardar cambios locales
+git stash
+
+# Actualizar desde GitHub
+git pull origin main
+
+# Verificar que se descargó Baileys
+ls -la whatsapp-server-baileys/
+
+# Si necesitas recuperar tus cambios después:
+# git stash pop
+
+# ===== OPCIÓN 2: Hacer commit de los cambios locales primero =====
+cd ~/checkin24hs
+
+# Ver qué cambios hay
+git status
+
+# Hacer commit de los cambios
+git add .
+git commit -m "Guardar cambios locales antes de actualizar"
+
+# Actualizar desde GitHub
+git pull origin main
+
+# ===== OPCIÓN 3: Descartar cambios locales (CUIDADO: pierdes cambios) =====
+cd ~/checkin24hs
+
+# Descartar cambios en archivos específicos
+git checkout -- dashboard.html
+git checkout -- server.js
+git checkout -- whatsapp-server/ecosystem.config.js
+git checkout -- whatsapp-server/whatsapp-server.js
+
+# Actualizar desde GitHub
+git pull origin main
+
+# ===== DESPUÉS DE ACTUALIZAR =====
+cd whatsapp-server-baileys
+npm install
+npm install -g pm2
+mkdir -p logs
+pm2 start ecosystem.config.js
+pm2 save
+pm2 status
+
+

@@ -1,0 +1,19 @@
+# Comandos para verificar CRM en el servidor
+
+# 1. Verificar si el servicio existe
+docker service ls | grep crm
+
+# 2. Ver detalles del servicio (si existe)
+docker service inspect checkin24hs_crm 2>/dev/null || echo "Servicio no existe"
+
+# 3. Ver contenedores activos
+docker ps | grep -i crm
+
+# 4. Verificar Traefik
+docker service logs traefik --tail 100 2>&1 | grep -iE "crm|checkin24hs_crm" | tail -5
+
+# 5. Verificar DNS
+nslookup crm.checkin24hs.com
+
+# 6. Verificar archivos del CRM
+ls -la crm/ 2>/dev/null || echo "Directorio crm no existe"

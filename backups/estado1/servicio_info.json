@@ -1,0 +1,195 @@
+[
+    {
+        "ID": "alkbsa4q533qts03e72xvcq0z",
+        "Version": {
+            "Index": 11168
+        },
+        "CreatedAt": "2025-12-24T13:53:39.486988492Z",
+        "UpdatedAt": "2025-12-25T20:59:23.814352663Z",
+        "Spec": {
+            "Name": "checkin24hs_dashboard",
+            "Labels": {
+                "traefik.enable": "true",
+                "traefik.http.routers.dashboard.entrypoints": "web",
+                "traefik.http.routers.dashboard.rule": "Host(`dashboard.checkin24hs.com`)",
+                "traefik.http.services.dashboard.loadbalancer.server.port": "3000"
+            },
+            "TaskTemplate": {
+                "ContainerSpec": {
+                    "Image": "easypanel/checkin24hs/dashboard:latest",
+                    "Command": [
+                        "/bin/sh"
+                    ],
+                    "Args": [
+                        "-c",
+                        "node server.js"
+                    ],
+                    "Env": [
+                        "PORT=80",
+                        "DEPLOY_TIMESTAMP=1766611674850",
+                        "GIT_SHA=4d2f370be332c60455489df3469c3907d1251c8d",
+                        "PORT=3000"
+                    ],
+                    "Init": false,
+                    "StopGracePeriod": 10000000000,
+                    "DNSConfig": {},
+                    "Isolation": "default"
+                },
+                "Resources": {
+                    "Limits": {},
+                    "Reservations": {},
+                    "MemorySwappiness": null
+                },
+                "RestartPolicy": {
+                    "Condition": "on-failure",
+                    "Delay": 5000000000,
+                    "MaxAttempts": 0
+                },
+                "Placement": {},
+                "Networks": [
+                    {
+                        "Target": "xmv09tpxwryie79b0jv531623",
+                        "Aliases": [
+                            "checkin24hs-dashboard"
+                        ]
+                    },
+                    {
+                        "Target": "nvhtv52umzihypz8u7adejvpo",
+                        "Aliases": [
+                            "checkin24hs-dashboard",
+                            "dashboard"
+                        ]
+                    }
+                ],
+                "LogDriver": {
+                    "Name": "json-file",
+                    "Options": {
+                        "max-file": "3",
+                        "max-size": "10m"
+                    }
+                },
+                "ForceUpdate": 5,
+                "Runtime": "container"
+            },
+            "Mode": {
+                "Replicated": {
+                    "Replicas": 1
+                }
+            },
+            "UpdateConfig": {
+                "Parallelism": 1,
+                "FailureAction": "pause",
+                "Monitor": 5000000000,
+                "MaxFailureRatio": 0,
+                "Order": "start-first"
+            },
+            "RollbackConfig": {
+                "Parallelism": 1,
+                "FailureAction": "pause",
+                "Monitor": 5000000000,
+                "MaxFailureRatio": 0,
+                "Order": "stop-first"
+            },
+            "EndpointSpec": {
+                "Mode": "vip"
+            }
+        },
+        "PreviousSpec": {
+            "Name": "checkin24hs_dashboard",
+            "Labels": {
+                "traefik.enable": "true",
+                "traefik.http.routers.dashboard.entrypoints": "web",
+                "traefik.http.routers.dashboard.rule": "Host(`dashboard.checkin24hs.com`)",
+                "traefik.http.services.dashboard.loadbalancer.server.port": "3000"
+            },
+            "TaskTemplate": {
+                "ContainerSpec": {
+                    "Image": "easypanel/checkin24hs/dashboard:latest",
+                    "Command": [
+                        "/bin/sh"
+                    ],
+                    "Args": [
+                        "-c",
+                        "node server.js"
+                    ],
+                    "Env": [
+                        "PORT=80",
+                        "DEPLOY_TIMESTAMP=1766611674850",
+                        "GIT_SHA=4d2f370be332c60455489df3469c3907d1251c8d",
+                        "PORT=3000"
+                    ],
+                    "Init": false,
+                    "Isolation": "default"
+                },
+                "Resources": {
+                    "Limits": {},
+                    "Reservations": {},
+                    "MemorySwappiness": null
+                },
+                "RestartPolicy": {
+                    "Condition": "on-failure",
+                    "MaxAttempts": 0
+                },
+                "Networks": [
+                    {
+                        "Target": "xmv09tpxwryie79b0jv531623",
+                        "Aliases": [
+                            "checkin24hs-dashboard"
+                        ]
+                    },
+                    {
+                        "Target": "nvhtv52umzihypz8u7adejvpo",
+                        "Aliases": [
+                            "checkin24hs-dashboard",
+                            "dashboard"
+                        ]
+                    }
+                ],
+                "LogDriver": {
+                    "Name": "json-file",
+                    "Options": {
+                        "max-file": "3",
+                        "max-size": "10m"
+                    }
+                },
+                "ForceUpdate": 4,
+                "Runtime": "container"
+            },
+            "Mode": {
+                "Replicated": {
+                    "Replicas": 1
+                }
+            },
+            "UpdateConfig": {
+                "Parallelism": 1,
+                "FailureAction": "pause",
+                "MaxFailureRatio": 0,
+                "Order": "start-first"
+            },
+            "EndpointSpec": {
+                "Mode": "vip"
+            }
+        },
+        "Endpoint": {
+            "Spec": {
+                "Mode": "vip"
+            },
+            "VirtualIPs": [
+                {
+                    "NetworkID": "xmv09tpxwryie79b0jv531623",
+                    "Addr": "10.0.1.4/24"
+                },
+                {
+                    "NetworkID": "nvhtv52umzihypz8u7adejvpo",
+                    "Addr": "10.0.2.2/24"
+                }
+            ]
+        },
+        "UpdateStatus": {
+            "State": "completed",
+            "StartedAt": "2025-12-25T20:59:17.271696306Z",
+            "CompletedAt": "2025-12-25T20:59:23.81433702Z",
+            "Message": "update completed"
+        }
+    }
+]

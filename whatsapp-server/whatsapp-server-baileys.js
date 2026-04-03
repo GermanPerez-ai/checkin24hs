@@ -2547,16 +2547,18 @@ async function obtenerOcrearChatId(numero, nombre = null) {
         }
 
         // Si no existe, crear uno nuevo en whatsapp_chats (nombre y real_phone para mostrar en dashboard)
-        const isRealPhone = (n) => /^\+?[0-9]{10,}$/.test(String(n || '').trim()) && !String(n).includes('@');
+        const dIns = String(numero ?? '').replace(/\D/g, '');
+        const nombreIns = nombre != null ? String(nombre).trim() : '';
+        const nameLooksLikeLidOnly = nombreIns && nombreIns.replace(/\D/g, '') === dIns;
         const insertPayload = {
             phone: numero,
-            name: nombre || numero,
+            name: isLikelyPseudoWhatsappPn(dIns) && (!nombreIns || nameLooksLikeLidOnly) ? 'Cliente' : (nombre || numero),
             whatsapp_instance: CONFIG.INSTANCE_NUMBER,
             status: 'active',
             last_message: '',
             unread_count: 0
         };
-        if (isRealPhone(numero)) {
+        if (isRealPhoneForStorage(numero)) {
             insertPayload.real_phone = String(numero).replace(/^\+/, '').trim();
         }
         const { data: nuevoChat, error: errorCrearChat } = await supabase
@@ -2646,6 +2648,19 @@ function isLikelyPseudoWhatsappPn(digits) {
     if (d.length >= 14 && d.startsWith('125')) return true;
     if (d.length >= 15 && !d.startsWith('54')) return true;
     return false;
+}
+
+/**
+ * Para guardar en whatsapp_chats.real_phone / no pisar con LID: los LID son 10–15 dígitos pero NO son MSISDN.
+ * Antes /^\+?[0-9]{10,}$/ marcaba 280671952093251 como “teléfono” y sobrescribía real_phone con el LID.
+ */
+function isRealPhoneForStorage(numero) {
+    const s = String(numero ?? '').trim();
+    if (!s || s.includes('@')) return false;
+    const d = s.replace(/\D/g, '');
+    if (d.length < 10 || d.length > 15) return false;
+    if (isLikelyPseudoWhatsappPn(d)) return false;
+    return true;
 }
 
 /** Número de teléfono del propio bot (sin @), para no “pausar Flor” contra uno mismo. */
@@ -2871,10 +2886,12 @@ function normalizarPhoneParaSupabase(numero) {
     if (numero == null || (typeof numero !== 'string' && typeof numero !== 'number')) return 'unknown';
     const s = String(numero).trim();
     if (s === '') return 'unknown';
-    // Si parece número (solo dígitos y opcional +), normalizar a E.164 (solo dígitos, sin + interno)
     const digits = s.replace(/^\+/, '').replace(/\D/g, '');
-    if (digits.length >= 10) return '+' + digits;
-    // LID o valor raro: devolver tal cual (sin dejar que llegue "varchar" ni undefined)
+    if (digits.length >= 10) {
+        // No anteponer + a un LID (se confunde con E.164 en el dashboard)
+        if (isLikelyPseudoWhatsappPn(digits)) return digits;
+        return '+' + digits;
+    }
     return s;
 }
 
@@ -3010,16 +3027,22 @@ async function guardarMensaje(numero, mensaje, esEnviado = false, respuestaFlor 
             unreadCount = (chatData?.unread_count || 0) + 1;
         }
         
-        // Si el número es real (solo dígitos, sin @lid), guardar en real_phone para mostrarlo en el dashboard
-        const isRealPhone = (n) => /^\+?[0-9]{10,}$/.test(String(n || '').trim()) && !String(n).includes('@');
+        // real_phone: solo MSISDN plausible; nunca LID (15 dígitos tipo 280…). name: no usar LID como nombre si no hay pushName.
+        const dNum = String(numero ?? '').replace(/\D/g, '');
+        const nombreStr = nombre != null ? String(nombre).trim() : '';
+        const nombreEsSoloLid = nombreStr && nombreStr.replace(/\D/g, '') === dNum;
         const updatePayload = {
             last_message: mensajePreview,
             last_message_time: new Date().toISOString(),
-            name: nombre || numero,
             unread_count: unreadCount,
             updated_at: new Date().toISOString()
         };
-        if (isRealPhone(numero)) {
+        if (isLikelyPseudoWhatsappPn(dNum)) {
+            if (nombreStr && !nombreEsSoloLid) updatePayload.name = nombreStr;
+        } else {
+            updatePayload.name = nombreStr || numero;
+        }
+        if (isRealPhoneForStorage(numero)) {
             updatePayload.real_phone = String(numero).replace(/^\+/, '').trim();
         }
 

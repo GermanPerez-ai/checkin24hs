@@ -1,0 +1,58 @@
+# Comandos para configurar cotizador en el servidor
+
+# ============================================
+# PASO 1: Subir archivos al servidor
+# ============================================
+# Desde tu computadora (PowerShell):
+
+cd C:\Users\German\Downloads\Checkin24hs
+
+# Subir archivos necesarios
+scp cotizador-cliente.html root@72.61.58.240:/root/checkin24hs/
+scp supabase-config.js root@72.61.58.240:/root/checkin24hs/
+scp supabase-client.js root@72.61.58.240:/root/checkin24hs/
+scp Dockerfile.cotizador root@72.61.58.240:/root/checkin24hs/
+
+# ============================================
+# PASO 2: Verificar archivos en servidor
+# ============================================
+# Conéctate al servidor:
+ssh root@72.61.58.240
+
+# Verificar que los archivos estén
+cd /root/checkin24hs
+ls -la cotizador-cliente.html
+ls -la supabase-config.js
+ls -la supabase-client.js
+ls -la Dockerfile.cotizador
+
+# ============================================
+# PASO 3: Verificar DNS (opcional)
+# ============================================
+# Verificar que el DNS está configurado
+nslookup cotizar.checkin24hs.com
+dig cotizar.checkin24hs.com
+
+# ============================================
+# PASO 4: Verificar servicios Docker
+# ============================================
+# Ver servicios existentes
+docker ps | grep cotizador
+
+# Ver logs de Traefik (para ver si detecta el dominio)
+docker logs traefik --tail 100 | grep -i cotizar
+
+# ============================================
+# NOTAS:
+# ============================================
+# 1. Configura el DNS en tu proveedor de dominio:
+#    - Tipo: A
+#    - Nombre: cotizar
+#    - Valor: 72.61.58.240
+#
+# 2. En EasyPanel:
+#    - Crea servicio "cotizador" o "cotizador-cliente"
+#    - Usa Dockerfile.cotizador como Dockerfile
+#    - Agrega dominio: cotizar.checkin24hs.com
+#
+# 3. Espera 2-3 minutos para que Traefik actualice

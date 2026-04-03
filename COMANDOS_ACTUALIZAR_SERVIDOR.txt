@@ -1,0 +1,22 @@
+COMANDOS PARA EJECUTAR EN EL SERVIDOR:
+
+1. Conectarse al servidor:
+   ssh root@72.61.58.240
+
+2. Ir al directorio:
+   cd /root/checkin24hs
+
+3. Ejecutar el script de actualización:
+   python3 ACTUALIZAR_DASHBOARD_SERVIDOR.py
+
+O si prefieres el script bash:
+   bash VERIFICAR_Y_ACTUALIZAR_BASE_CONOCIMIENTO.sh
+
+4. Después de ejecutar, verifica en el navegador:
+   - Limpia la caché (Ctrl+Shift+R o Ctrl+F5)
+   - Ve a Flor IA → Pestaña "📚 Conocimiento"
+   - Selecciona un hotel del selector
+   - Deberías ver toda la información del hotel
+
+
+

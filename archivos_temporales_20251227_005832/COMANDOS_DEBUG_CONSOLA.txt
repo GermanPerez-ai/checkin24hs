@@ -1,0 +1,57 @@
+===========================================
+COMANDOS PARA EJECUTAR EN LA CONSOLA (F12)
+===========================================
+
+Copia y pega estos comandos uno por uno en la consola del navegador:
+
+---
+
+1. VERIFICAR QUE EL MODAL EXISTE:
+----------------------------------
+const modal = document.getElementById('imageManagerModal');
+console.log('Modal existe?', !!modal);
+console.log('Modal:', modal);
+
+---
+
+2. ABRIR EL MODAL MANUALMENTE:
+-------------------------------
+const modal = document.getElementById('imageManagerModal');
+if (modal) {
+    modal.style.display = 'block';
+    console.log('✅ Modal abierto - Display:', modal.style.display);
+} else {
+    console.error('❌ Modal no encontrado');
+}
+
+---
+
+3. VERIFICAR VARIABLES GLOBALES:
+---------------------------------
+console.log('globalEditingHotelId:', typeof globalEditingHotelId !== 'undefined' ? globalEditingHotelId : 'NO DEFINIDA');
+console.log('currentEditingHotelId:', typeof currentEditingHotelId !== 'undefined' ? currentEditingHotelId : 'NO DEFINIDA');
+console.log('uploadedImages:', typeof uploadedImages !== 'undefined' ? uploadedImages : 'NO DEFINIDA');
+
+---
+
+4. EJECUTAR LA FUNCIÓN COMPLETA:
+---------------------------------
+openImageManager('main');
+
+---
+
+5. VERIFICAR QUE EL FORMULARIO EXISTE:
+---------------------------------------
+const form = document.getElementById('editHotelForm');
+console.log('Formulario existe?', !!form);
+if (form) {
+    console.log('Dataset:', {
+        mode: form.dataset.mode,
+        hotelId: form.dataset.hotelId
+    });
+}
+
+---
+
+Ejecuta estos comandos en orden y dime qué resultado obtienes en cada uno.
+

@@ -1,0 +1,24 @@
+# Comandos para ejecutar directamente en el servidor
+# Copia y pega estos comandos uno por uno
+
+# 1. Verificar que el archivo crm.js existe
+ls -lh /root/checkin24hs/deploy/crm.js
+
+# 2. Obtener contenedor del CRM
+CONTAINER_ID=$(docker ps --filter "name=crm" --format "{{.ID}}" | head -1)
+echo "Contenedor encontrado: $CONTAINER_ID"
+
+# 3. Copiar archivo al contenedor
+docker cp /root/checkin24hs/deploy/crm.js $CONTAINER_ID:/app/crm.js
+
+# 4. Verificar que se copió
+docker exec $CONTAINER_ID ls -lh /app/crm.js
+
+# 5. Verificar que tiene la función initRealtimeSubscriptions
+docker exec $CONTAINER_ID grep -n "initRealtimeSubscriptions" /app/crm.js | head -5
+
+
+
+
+
+

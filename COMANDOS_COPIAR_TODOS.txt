@@ -1,0 +1,37 @@
+=== COMANDOS PARA COPIAR A TODOS LOS CONTENEDORES ===
+
+Ejecuta estos comandos en el servidor:
+
+cd /root/checkin24hs
+
+# 1. Detener contenedores
+docker stop $(docker ps -q --filter "name=checkin24hs_dashboard")
+sleep 3
+
+# 2. Copiar a cada contenedor (ejecuta cada línea)
+docker cp deploy/dashboard.html checkin24hs_dashboard.1.v05zfiv0m8tnhqxlg52ugi3ur:/app/dashboard.html
+docker cp deploy/dashboard.html checkin24hs_dashboard.1.d7nv4sbj67mk1du60og7ih90t:/app/dashboard.html
+docker cp deploy/dashboard.html checkin24hs_dashboard.1.1n4i84vqrhrr82iohy4fp39x2:/app/dashboard.html
+docker cp deploy/dashboard.html checkin24hs_dashboard.1.2953li8rsiyllvpy2uhii45n8:/app/dashboard.html
+docker cp deploy/dashboard.html checkin24hs_dashboard.1.jrfny1ufj3lmt4w877ufcag4n:/app/dashboard.html
+
+# 3. Reiniciar contenedores
+docker start $(docker ps -aq --filter "name=checkin24hs_dashboard")
+sleep 3
+
+# 4. Verificar
+docker ps | grep checkin24hs_dashboard
+
+=== O EJECUTA EL SCRIPT ===
+
+bash /root/checkin24hs/copiar_a_todos.sh
+
+
+
+
+
+
+
+
+
+

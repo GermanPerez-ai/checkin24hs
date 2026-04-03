@@ -1,0 +1,13 @@
+# Comandos para verificar el Build en el servidor
+
+# Opción 1: Buscar sin case sensitive
+grep -i "build_number" /root/checkin24hs/dashboard.html | head -1
+
+# Opción 2: Buscar la variable completa
+grep "window.DASHBOARD_BUILD_NUMBER" /root/checkin24hs/dashboard.html | head -1
+
+# Opción 3: Ver las primeras líneas del archivo donde suele estar
+head -20 /root/checkin24hs/dashboard.html | grep -i build
+
+# Opción 4: Verificar tamaño del archivo (debe ser ~1.3MB)
+ls -lh /root/checkin24hs/dashboard.html

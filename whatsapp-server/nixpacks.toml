@@ -1,0 +1,15 @@
+# Configuración de Nixpacks para WhatsApp Server
+# Este archivo evita que Nixpacks genere automáticamente paquetes Nix incorrectos
+
+[phases.setup]
+nixPkgs = ["nodejs_22"]
+
+[phases.install]
+cmds = [
+  "npm install",
+  "npx puppeteer browsers install chrome"
+]
+
+[start]
+cmd = "npm run start"
+

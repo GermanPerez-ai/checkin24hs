@@ -1,0 +1,25 @@
+# Comandos para ejecutar en el servidor (copiar y pegar uno por uno)
+
+# 1. Verificar el archivo actual
+grep -n "dataPath: '.wwebjs_auth'" whatsapp-server.js
+
+# 2. Crear backup
+cp whatsapp-server.js whatsapp-server.js.backup.manual
+
+# 3. Buscar la línea donde está el cliente
+grep -n "new Client({" whatsapp-server.js | head -1
+
+# 4. Ver el contexto alrededor de dataPath
+grep -B 5 -A 5 "dataPath: '.wwebjs_auth'" whatsapp-server.js
+
+# 5. Aplicar cambios usando sed (reemplazar dataPath)
+sed -i "s/dataPath: '.wwebjs_auth'/dataPath: sessionDataPath/" whatsapp-server.js
+
+# 6. Agregar la función cleanChromeLocks ANTES de la línea donde está "new Client({"
+# Primero, encontrar la línea
+LINEA_CLIENTE=$(grep -n "new Client({" whatsapp-server.js | head -1 | cut -d: -f1)
+echo "Línea del cliente: $LINEA_CLIENTE"
+
+# 7. Insertar el código ANTES de esa línea
+# (Esto requiere un archivo temporal con el código a insertar)
+

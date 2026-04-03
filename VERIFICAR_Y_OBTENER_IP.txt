@@ -1,0 +1,27 @@
+# Verificar estado y obtener IP del servidor
+
+# ===== Paso 1: Verificar que PM2 está corriendo =====
+pm2 status
+
+# ===== Paso 2: Ver logs para verificar que inició =====
+pm2 logs whatsapp-1 --lines 30 --nostream
+
+# ===== Paso 3: Obtener IP del servidor =====
+hostname -I
+
+# O
+ip addr show | grep "inet " | grep -v 127.0.0.1 | awk '{print $2}' | cut -d/ -f1
+
+# ===== Paso 4: Verificar puertos abiertos =====
+netstat -tulpn | grep -E "3001|3002|3003|3004"
+
+# ===== Paso 5: Verificar que responde localmente =====
+curl http://localhost:3001/api/status
+curl http://localhost:3001/api/qr
+
+# ===== Paso 6: Verificar firewall =====
+ufw status
+# O
+iptables -L -n | grep -E "3001|3002|3003|3004"
+
+

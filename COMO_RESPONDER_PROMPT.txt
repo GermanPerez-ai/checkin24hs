@@ -1,0 +1,50 @@
+# Cómo Responder al Prompt de Docker
+
+## El Problema
+
+Escribiste "y" como un comando separado, pero Docker está esperando una respuesta al prompt.
+
+## Solución
+
+Ejecuta este comando nuevamente:
+
+```bash
+docker network prune -f
+```
+
+Cuando aparezca este mensaje:
+
+```
+WARNING! Before removing the routing-mesh network...
+Are you sure you want to continue? [y/N]
+```
+
+**NO escribas "y" como comando nuevo.**
+**En su lugar, simplemente escribe "y" y presiona Enter en la misma línea donde está el prompt.**
+
+## Pasos Correctos
+
+1. Ejecuta: `docker network prune -f`
+2. Cuando veas el prompt `[y/N]`, escribe: `y`
+3. Presiona Enter
+4. Docker continuará con la eliminación
+
+## Luego Continúa Con:
+
+```bash
+docker swarm leave --force
+docker swarm init
+sleep 5
+docker restart easypanel
+sleep 15
+```
+
+## Nota
+
+El prompt `[y/N]` significa:
+- `y` = Yes (Sí, continuar)
+- `N` = No (No, cancelar) - es la opción por defecto
+
+Debes escribir "y" y presionar Enter cuando veas ese prompt, no como un comando nuevo.
+
+

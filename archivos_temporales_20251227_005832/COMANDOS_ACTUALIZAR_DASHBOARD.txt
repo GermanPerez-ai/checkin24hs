@@ -1,0 +1,19 @@
+# Comandos para ejecutar en el servidor después de conectarte
+
+# 1. Ir al repositorio
+cd ~/checkin24hs
+
+# 2. Actualizar desde GitHub
+git pull origin main
+
+# 3. Reiniciar el dashboard
+pm2 restart dashboard
+
+# 4. Verificar que funciona
+curl -I http://localhost:3000
+
+# 5. Ver estado de PM2
+pm2 status
+
+# 6. Ver logs del dashboard (últimas 20 líneas)
+pm2 logs dashboard --lines 20 --nostream

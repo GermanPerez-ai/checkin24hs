@@ -1,0 +1,24 @@
+# Comandos Manuales para Subir dashboard.html
+
+## En PowerShell (ejecuta uno por uno):
+
+# 1. Ir a la carpeta
+cd C:\Users\German\Downloads\Checkin24hs
+
+# 2. Subir el archivo
+scp dashboard.html root@72.61.58.240:/tmp/dashboard.html
+
+# 3. Conectarse al servidor
+ssh root@72.61.58.240
+
+## En el Servidor (después de conectarte):
+
+# 1. Descargar script
+curl -o reemplazar_dashboard.sh https://raw.githubusercontent.com/GermanPerez-ai/checkin24hs/main/reemplazar_dashboard_servidor.sh
+
+# 2. Dar permisos
+chmod +x reemplazar_dashboard.sh
+
+# 3. Ejecutar
+./reemplazar_dashboard.sh
+

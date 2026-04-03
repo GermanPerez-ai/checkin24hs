@@ -1,0 +1,18 @@
+# Comandos para ejecutar en el servidor
+
+# 1. Agregar Dockerfile y archivos relacionados
+git add Dockerfile
+git add serve-dashboard.js
+git add dashboard.html
+git add deploy/dashboard.html
+
+# 2. Eliminar index.html (ya no se necesita)
+git rm index.html public/index.html checkin24hs-admin/public/index.html 2>/dev/null || true
+
+# 3. Hacer commit
+git commit -m "Actualizar Dockerfile y configuración del dashboard"
+
+# 4. Push a GitHub
+git push origin main
+
+

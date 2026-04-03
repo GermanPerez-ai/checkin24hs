@@ -1,0 +1,17 @@
+# Comandos de diagnóstico directos
+
+# 1. Ver todos los contenedores
+docker ps
+
+# 2. Ver servicios Docker Swarm
+docker service ls
+
+# 3. Ver procesos Node.js
+ps aux | grep node | grep -v grep
+
+# 4. Ver puerto 3000
+netstat -tulpn | grep 3000
+
+# 5. Ver todos los contenedores (incluso detenidos)
+docker ps -a | head -20
+

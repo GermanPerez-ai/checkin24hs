@@ -1,0 +1,53 @@
+# Comandos para ejecutar directamente en el servidor
+# Copia y pega estos comandos uno por uno en el servidor
+
+# 1. Ir al directorio
+cd /root/checkin24hs
+
+# 2. Crear backup
+cp dashboard.html dashboard.html.backup_$(date +%Y%m%d_%H%M%S)
+
+# 3. Eliminar emojis usando sed (ejecutar todos estos comandos)
+sed -i 's/🎫//g' dashboard.html
+sed -i 's/🤖//g' dashboard.html
+sed -i 's/✅//g' dashboard.html
+sed -i 's/💾//g' dashboard.html
+sed -i 's/🔄//g' dashboard.html
+sed -i 's/📊//g' dashboard.html
+sed -i 's/☁️//g' dashboard.html
+sed -i 's/⚠️//g' dashboard.html
+sed -i 's/❌//g' dashboard.html
+sed -i 's/🔐//g' dashboard.html
+sed -i 's/📁//g' dashboard.html
+sed -i 's/✏️//g' dashboard.html
+sed -i 's/🗑️//g' dashboard.html
+sed -i 's/🖼️//g' dashboard.html
+sed -i 's/👁️//g' dashboard.html
+sed -i 's/⚙️//g' dashboard.html
+sed -i 's/⏭️//g' dashboard.html
+sed -i 's/ℹ️//g' dashboard.html
+
+# 4. Verificar que showSection esté definida
+head -50 dashboard.html | grep -q "window.showSection" && echo "OK: showSection encontrada en head" || echo "ERROR: showSection NO encontrada"
+
+# 5. Copiar al contenedor
+CONTAINER_ID=$(docker ps | grep checkin24hs_dashboard | awk '{print $1}' | head -1)
+echo "Contenedor: $CONTAINER_ID"
+docker cp dashboard.html ${CONTAINER_ID}:/app/dashboard.html
+
+# 6. Reiniciar el servicio
+docker service update --force checkin24hs_dashboard
+
+# 7. Esperar 30 segundos
+sleep 30
+
+# 8. Copiar de nuevo al nuevo contenedor
+NEW_CONTAINER_ID=$(docker ps | grep checkin24hs_dashboard | awk '{print $1}' | head -1)
+echo "Nuevo contenedor: $NEW_CONTAINER_ID"
+docker cp dashboard.html ${NEW_CONTAINER_ID}:/app/dashboard.html
+
+# 9. Verificar
+echo "Verificando archivo en contenedor:"
+docker exec ${NEW_CONTAINER_ID} head -20 /app/dashboard.html | grep -A 5 "showSection"
+
+

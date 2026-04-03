@@ -1,0 +1,32 @@
+# Comandos para Instalar Docker Compose
+
+# ===== OPCIÓN 1: Instalar docker-compose (Tradicional) =====
+apt update
+apt install -y docker-compose
+
+# Verificar instalación
+docker-compose --version
+
+# ===== OPCIÓN 2: Verificar si tienes docker compose (Plugin) =====
+docker compose version
+
+# Si funciona, usa "docker compose" (sin guión) en lugar de "docker-compose"
+
+# ===== Si Docker no está instalado =====
+# Instalar Docker primero
+curl -fsSL https://get.docker.com -o get-docker.sh
+sh get-docker.sh
+
+# Agregar usuario al grupo docker
+usermod -aG docker $USER
+
+# Instalar docker-compose
+apt update
+apt install -y docker-compose
+
+# ===== Después de instalar =====
+cd ~/evolution-api
+docker-compose up -d
+docker-compose logs -f evolution-api
+
+

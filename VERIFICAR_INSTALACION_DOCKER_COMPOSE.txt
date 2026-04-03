@@ -1,0 +1,26 @@
+# Verificar Instalación de Docker Compose
+
+# ===== Verificar que docker-compose se instaló =====
+docker-compose --version
+
+# Si muestra la versión, está instalado correctamente
+
+# ===== Si no funciona, probar docker compose (plugin) =====
+docker compose version
+
+# ===== Si ninguno funciona, instalar manualmente =====
+# Descargar docker-compose
+curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+
+# Dar permisos de ejecución
+chmod +x /usr/local/bin/docker-compose
+
+# Verificar
+docker-compose --version
+
+# ===== Una vez instalado, iniciar Evolution API =====
+cd ~/evolution-api
+docker-compose up -d
+docker-compose logs -f evolution-api
+
+

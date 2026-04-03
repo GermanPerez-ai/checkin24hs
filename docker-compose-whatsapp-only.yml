@@ -1,0 +1,44 @@
+# Solo servicio WhatsApp para stack deploy cuando los demás ya existen.
+# Uso en servidor: docker stack deploy -c docker-compose-whatsapp-only.yml checkin24hs
+
+services:
+  whatsapp:
+    image: easypanel/checkin24hs/whatsapp:latest
+    deploy:
+      replicas: 1
+      update_config:
+        order: stop-first
+      # En Swarm Traefik lee labels del SERVICIO; labels: van al contenedor. deploy.labels van al servicio.
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=easypanel"
+        - "traefik.http.routers.whatsapp.rule=Host(`whatsapp.checkin24hs.com`)"
+        - "traefik.http.routers.whatsapp.entrypoints=websecure"
+        - "traefik.http.routers.whatsapp.service=whatsapp"
+        - "traefik.http.routers.whatsapp.tls=true"
+        - "traefik.http.routers.whatsapp.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.whatsapp.middlewares=whatsapp-cors"
+        - "traefik.http.routers.whatsapp.priority=100"
+        - "traefik.http.routers.checkin24hs_whatsapp.rule=Host(`whatsapp.checkin24hs.com`)"
+        - "traefik.http.routers.checkin24hs_whatsapp.entrypoints=websecure"
+        - "traefik.http.routers.checkin24hs_whatsapp.service=whatsapp"
+        - "traefik.http.routers.checkin24hs_whatsapp.tls=true"
+        - "traefik.http.routers.checkin24hs_whatsapp.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.checkin24hs_whatsapp.middlewares=whatsapp-cors"
+        - "traefik.http.routers.checkin24hs_whatsapp.priority=100"
+        - "traefik.http.middlewares.whatsapp-cors.headers.accesscontrolallowmethods=GET,POST,OPTIONS"
+        - "traefik.http.middlewares.whatsapp-cors.headers.accesscontrolallowheaders=Content-Type,Authorization,Accept"
+        - "traefik.http.middlewares.whatsapp-cors.headers.accesscontrolalloworiginlist=https://dashboard.checkin24hs.com,https://www.checkin24hs.com"
+        # Traefik devuelve el Origin del request si está en la lista (Flor web = Flor WhatsApp)
+        - "traefik.http.services.whatsapp.loadbalancer.server.port=3001"
+    networks:
+      - easypanel
+    volumes:
+      - whatsapp-auth:/app/auth_info_baileys_1
+
+networks:
+  easypanel:
+    external: true
+
+volumes:
+  whatsapp-auth:

@@ -1,0 +1,43 @@
+echo "=========================================="
+echo "✅ VERIFICACIÓN FINAL - DASHBOARD COMPLETO"
+echo "=========================================="
+echo ""
+echo "1️⃣ Estado del servicio:"
+docker service ps checkin24hs_checkin24hs-dashboard --no-trunc | head -3
+echo ""
+echo "2️⃣ Archivos desplegados (debe tener dashboard.html):"
+CONTAINER_ID=$(docker ps | grep checkin24hs_checkin24hs-dashboard | awk '{print $1}' | head -1)
+if [ -z "$CONTAINER_ID" ]; then
+    echo "❌ No se encontró el contenedor"
+else
+    echo "ID: $CONTAINER_ID"
+    echo ""
+    echo "📄 Verificar dashboard.html:"
+    docker exec $CONTAINER_ID ls -lh /app/dashboard.html 2>&1
+    echo ""
+    echo "📄 Verificar server.js:"
+    docker exec $CONTAINER_ID ls -lh /app/server.js 2>&1
+    echo ""
+    echo "📁 Verificar archivos JS necesarios:"
+    docker exec $CONTAINER_ID ls -lh /app/supabase-client.js /app/database.js /app/dashboard-integration.js 2>&1 | head -5
+    echo ""
+    echo "❌ Verificar que NO existe checkin24hs-admin:"
+    docker exec $CONTAINER_ID ls -la /app/checkin24hs-admin 2>&1 | head -3 || echo "✅ No existe checkin24hs-admin (correcto)"
+fi
+echo ""
+echo "3️⃣ Logs del servicio:"
+docker service logs checkin24hs_checkin24hs-dashboard --tail 15
+echo ""
+echo "4️⃣ Probar respuesta del servidor:"
+curl -I http://localhost:30002 2>&1 | head -10
+echo ""
+echo "5️⃣ Ver contenido HTML (debe ser dashboard.html completo):"
+curl http://localhost:30002 2>&1 | head -30
+echo ""
+echo "=========================================="
+echo "✅ Si ves 'dashboard.html' y 'server.js',"
+echo "   y NO ves 'checkin24hs-admin',"
+echo "   entonces está correcto ✅"
+echo "=========================================="
+
+

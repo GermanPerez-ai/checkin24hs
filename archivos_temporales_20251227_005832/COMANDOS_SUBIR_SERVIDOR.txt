@@ -1,0 +1,32 @@
+===========================================
+COMANDOS PARA SUBIR DASHBOARD AL SERVIDOR
+===========================================
+
+EJECUTA ESTOS COMANDOS DESDE TU COMPUTADORA WINDOWS (PowerShell):
+
+1. Subir dashboard.html:
+   scp C:\Users\German\Downloads\Checkin24hs\dashboard.html root@72.61.58.240:/root/checkin24hs/
+
+2. Subir supabase-client.js:
+   scp C:\Users\German\Downloads\Checkin24hs\supabase-client.js root@72.61.58.240:/root/checkin24hs/
+
+3. Subir supabase-config.js (si existe):
+   scp C:\Users\German\Downloads\Checkin24hs\supabase-config.js root@72.61.58.240:/root/checkin24hs/
+
+4. Conectarte al servidor:
+   ssh root@72.61.58.240
+
+5. Una vez conectado, ejecutar:
+   cd /root/checkin24hs
+   pm2 restart dashboard
+   pm2 logs dashboard --lines 15 --nostream
+
+===========================================
+O EJECUTA EL SCRIPT AUTOMÁTICO:
+===========================================
+
+Desde PowerShell en tu computadora Windows:
+   cd C:\Users\German\Downloads\Checkin24hs
+   .\subir_dashboard_completo.ps1
+
+

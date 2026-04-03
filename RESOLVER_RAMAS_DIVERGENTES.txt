@@ -1,0 +1,36 @@
+# Resolver ramas divergentes
+
+# Opción 1: Usar merge directamente (RECOMENDADO)
+git pull --no-rebase origin main
+
+# Si aparece un editor para el mensaje de merge:
+# - Presiona Esc
+# - Escribe :wq
+# - Presiona Enter
+
+# Luego hacer push
+git push origin main
+
+# ============================================
+
+# Opción 2: Configurar merge como predeterminado primero
+git config pull.rebase false
+git pull origin main
+
+# Luego hacer push
+git push origin main
+
+# ============================================
+
+# Opción 3: Usar rebase (más limpio pero puede ser más complejo)
+git pull --rebase origin main
+
+# Si hay conflictos durante el rebase:
+# - Resuélvelos manualmente
+# - Luego: git add .
+# - Luego: git rebase --continue
+
+# Finalmente hacer push
+git push origin main
+
+

@@ -1,0 +1,28 @@
+# PASOS PARA SUBIR CAMBIOS A GITHUB
+
+# PASO 1: Agregar los archivos al staging
+git add Dockerfile
+git add serve-dashboard.js
+git add dashboard.html
+git add deploy/dashboard.html
+
+# PASO 2: Verificar qué se va a commitear
+git status
+
+# PASO 3: Hacer el commit
+git commit -m "Actualizar Dockerfile y configuración del dashboard"
+
+# PASO 4: Push a GitHub (te pedirá credenciales)
+git push origin main
+
+# Si te pide username y password:
+# Username: GermanPerez-ai
+# Password: Usa un Personal Access Token (NO tu contraseña normal)
+# 
+# Para crear un token:
+# 1. Ve a: https://github.com/settings/tokens
+# 2. Click en "Generate new token (classic)"
+# 3. Selecciona permisos: repo
+# 4. Copia el token y úsalo como password
+
+

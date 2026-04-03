@@ -1,0 +1,45 @@
+# Instalar y configurar Baileys
+
+# ===== Paso 1: Instalar dependencias =====
+npm install
+
+# ===== Paso 2: Verificar que se instalaron =====
+ls -la node_modules/ | head -10
+
+# ===== Paso 3: Instalar PM2 (si no lo tienes) =====
+npm install -g pm2
+
+# ===== Paso 4: Crear carpeta para logs =====
+mkdir -p logs
+
+# ===== Paso 5: Configurar variables de entorno (opcional) =====
+# Puedes crear un archivo .env o exportar variables:
+export GEMINI_API_KEY="tu-gemini-key"
+export SUPABASE_URL="https://lmoeuyasuvoqhtvhkyia.supabase.co"
+export SUPABASE_ANON_KEY="tu-supabase-key"
+
+# ===== Paso 6: Iniciar las 4 instancias =====
+pm2 start ecosystem.config.js
+
+# ===== Paso 7: Guardar configuración PM2 =====
+pm2 save
+
+# ===== Paso 8: Configurar PM2 para iniciar al arrancar =====
+pm2 startup
+# Copia y ejecuta el comando que te muestra
+
+# ===== Paso 9: Ver estado =====
+pm2 status
+
+# ===== Paso 10: Ver logs =====
+pm2 logs whatsapp-1
+
+# Presiona Ctrl+C para salir de los logs
+
+# ===== Paso 11: Verificar que responde =====
+curl http://localhost:3001/api/status
+curl http://localhost:3002/api/status
+curl http://localhost:3003/api/status
+curl http://localhost:3004/api/status
+
+

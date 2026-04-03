@@ -1,0 +1,69 @@
+# Evitar Prompt Interactivo de Docker
+
+## Problema
+
+El prompt de Docker no permite escribir "y" directamente.
+
+## Solución
+
+### Opción 1: Usar `echo y` para responder automáticamente
+
+```bash
+echo y | docker network prune -f
+```
+
+Esto enviará "y" automáticamente al prompt.
+
+### Opción 2: Eliminar la red ingress directamente
+
+```bash
+# Eliminar la red ingress directamente (evita el prompt)
+docker network rm ingress 2>/dev/null || true
+
+# Luego limpiar el resto
+docker network prune -f
+```
+
+### Opción 3: Saltar el paso de prune y continuar
+
+Si el prompt es problemático, puedes saltar ese paso y continuar:
+
+```bash
+# Continuar directamente con reiniciar Swarm
+docker swarm leave --force
+docker swarm init
+sleep 5
+docker restart easypanel
+sleep 15
+```
+
+## Comandos Completos Recomendados
+
+```bash
+# 1. Detener servicios
+docker service ls -q | xargs docker service rm 2>/dev/null || true
+
+# 2. Eliminar redes overlay (excepto ingress, la eliminaremos después)
+docker network ls --filter driver=overlay -q | grep -v ingress | xargs docker network rm 2>/dev/null || true
+
+# 3. Eliminar interfaces VXLAN
+ip link show type vxlan | grep -o 'vxlan[0-9]*' | xargs -I {} ip link delete {} 2>/dev/null || true
+
+# 4. Eliminar red ingress usando echo y
+echo y | docker network prune -f
+
+# 5. Reiniciar Docker Swarm
+docker swarm leave --force
+docker swarm init
+sleep 5
+
+# 6. Reiniciar EasyPanel
+docker restart easypanel
+sleep 15
+
+# 7. Verificar
+docker network ls | grep easypanel
+docker ps | grep easypanel
+```
+
+

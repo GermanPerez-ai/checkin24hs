@@ -1,0 +1,19 @@
+# Comandos para ejecutar en SSH después de conectarte
+# Copia y pega estos comandos uno por uno
+
+# 1. Verificar que los archivos están ahí
+ls -la /root/actualizar_*.sh
+
+# 2. Hacer los archivos ejecutables
+chmod +x /root/actualizar_webmail_traefik.sh
+chmod +x /root/actualizar_dashboard_traefik.sh
+
+# 3. Verificar que ahora son ejecutables (deberías ver 'x' en los permisos)
+ls -la /root/actualizar_*.sh
+
+# 4. Probar el script de webmail
+/root/actualizar_webmail_traefik.sh
+
+# 5. Probar el script de dashboard (opcional)
+/root/actualizar_dashboard_traefik.sh
+

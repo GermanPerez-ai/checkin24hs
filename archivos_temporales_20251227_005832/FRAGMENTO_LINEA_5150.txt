@@ -1,0 +1,29 @@
+=== FRAGMENTO DE CÓDIGO ALREDEDOR DE LA LÍNEA 5150 ===
+
+Línea 5140:            if (body) {
+Línea 5141:                body.classList.add('authenticated');
+Línea 5142:            }
+Línea 5143:            
+Línea 5144:            // Inicializar sincronización en tiempo real después de un pequeño delay
+Línea 5145:            setTimeout(() => {
+Línea 5146:                if (typeof initRealtimeSubscriptions === 'function') {
+Línea 5147:                    initRealtimeSubscriptions();
+Línea 5148:                }
+Línea 5149:            }, 1000);
+Línea 5150:            }, 1000);  <-- ESTA ES LA LÍNEA QUE REPORTA EL ERROR
+Línea 5151:        }
+Línea 5152:
+Línea 5153:        // Manejar el login
+Línea 5154:        function handleLogin(event) {
+
+=== PROBLEMA DETECTADO ===
+La línea 5150 tiene `}, 1000);` pero parece que hay un `setTimeout` duplicado o mal cerrado.
+La línea 5149 ya tiene `}, 1000);` que cierra el setTimeout de la línea 5145.
+
+=== DEFINICIÓN DE showSection ===
+showSection está definida en el HEAD (líneas 1556-1588) y también en el BODY (líneas 1559+).
+
+
+
+
+

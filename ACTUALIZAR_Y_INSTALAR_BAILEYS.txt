@@ -1,0 +1,36 @@
+# Actualizar repositorio existente e instalar Baileys
+
+# ===== Paso 1: Ir al repositorio existente =====
+cd ~/checkin24hs
+
+# ===== Paso 2: Actualizar desde GitHub =====
+git pull origin main
+
+# ===== Paso 3: Verificar que se descargó la carpeta =====
+ls -la whatsapp-server-baileys/
+
+# ===== Paso 4: Ir a la carpeta de Baileys =====
+cd whatsapp-server-baileys
+
+# ===== Paso 5: Instalar dependencias =====
+npm install
+
+# ===== Paso 6: Instalar PM2 =====
+npm install -g pm2
+
+# ===== Paso 7: Crear carpeta para logs =====
+mkdir -p logs
+
+# ===== Paso 8: Iniciar las 4 instancias =====
+pm2 start ecosystem.config.js
+
+# ===== Paso 9: Guardar configuración =====
+pm2 save
+
+# ===== Paso 10: Ver estado =====
+pm2 status
+
+# ===== Paso 11: Ver logs =====
+pm2 logs whatsapp-1
+
+

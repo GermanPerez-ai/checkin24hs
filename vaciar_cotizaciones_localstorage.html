@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vaciar cotizaciones (localStorage)</title>
+    <style>
+        body { font-family: sans-serif; max-width: 400px; margin: 40px auto; padding: 20px; text-align: center; }
+        .ok { color: #0a0; }
+        .info { color: #666; font-size: 0.9rem; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Vaciar cotizaciones (localStorage)</h1>
+    <p id="resultado"></p>
+    <p class="info">Solo afecta a este navegador. Para vaciar Supabase, ejecutá <code>supabase-migrations/020_vaciar_cotizaciones.sql</code> en el SQL Editor de Supabase.</p>
+    <script>
+        (function () {
+            var key = 'quotesDB';
+            var had = localStorage.getItem(key);
+            var count = 0;
+            if (had) {
+                try {
+                    var arr = JSON.parse(had);
+                    count = Array.isArray(arr) ? arr.length : 1;
+                } catch (e) {
+                    count = 1;
+                }
+            }
+            localStorage.removeItem(key);
+            document.getElementById('resultado').innerHTML = '<span class="ok">Listo.</span> Se eliminaron las cotizaciones de localStorage en este navegador' + (count ? ' (' + count + ' cotización/es).' : ' (no había datos).');
+        })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+# Comandos para ejecutar en el servidor
+
+# 1. Traer y fusionar los cambios remotos
+git pull origin main
+
+# Si Git pregunta cómo fusionar, acepta el merge por defecto
+# (solo presiona Enter si aparece un editor)
+
+# 2. Verificar que todo esté bien
+git status
+
+# 3. Hacer push de tus cambios
+git push origin main
+
+# Si te pide credenciales nuevamente:
+# Username: GermanPerez-ai
+# Password: [Tu Personal Access Token]
+
+

@@ -1,0 +1,40 @@
+#!/bin/bash
+
+echo "=========================================="
+echo "DIAGNÓSTICO COMPLETO"
+echo "=========================================="
+echo ""
+
+echo "1. CONTENEDORES:"
+docker ps -a
+echo ""
+
+echo "2. LOGS COMPLETOS (últimas 100 líneas):"
+docker logs evolution-api-checkin24hs 2>&1 | tail -100
+echo ""
+
+echo "3. ESTADO DEL CONTENEDOR:"
+docker inspect evolution-api-checkin24hs 2>&1 | grep -A 10 '"State"'
+echo ""
+
+echo "4. PUERTOS MAPEADOS:"
+docker port evolution-api-checkin24hs 2>&1
+echo ""
+
+echo "5. ARCHIVO .env:"
+cat .env 2>&1
+echo ""
+
+echo "6. CONFIGURACIÓN DE PUERTOS:"
+cat docker-compose.yml | grep -A 3 "ports:"
+echo ""
+
+echo "7. INTENTAR CONECTAR:"
+curl -v http://localhost:8080 2>&1 | head -10
+echo ""
+
+echo "=========================================="
+echo "FIN"
+echo "=========================================="
+
+

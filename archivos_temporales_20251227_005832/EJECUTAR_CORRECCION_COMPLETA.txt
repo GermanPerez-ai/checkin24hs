@@ -1,0 +1,7 @@
+# Ejecutar corrección completa
+
+curl -o aplicar_correccion.sh https://raw.githubusercontent.com/GermanPerez-ai/checkin24hs/main/APLICAR_CORRECCION_LOADHOTELSTABLE_SERVIDOR.sh
+chmod +x aplicar_correccion.sh
+./aplicar_correccion.sh
+
+

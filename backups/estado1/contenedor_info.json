@@ -1,0 +1,248 @@
+[
+    {
+        "Id": "8fdebbf46c361432dd4722109886ee055d1f2716c8a9bc2617431b078e6f4883",
+        "Created": "2025-12-25T20:59:18.361670025Z",
+        "Path": "/bin/sh",
+        "Args": [
+            "-c",
+            "node server.js"
+        ],
+        "State": {
+            "Status": "running",
+            "Running": true,
+            "Paused": false,
+            "Restarting": false,
+            "OOMKilled": false,
+            "Dead": false,
+            "Pid": 2932489,
+            "ExitCode": 0,
+            "Error": "",
+            "StartedAt": "2025-12-25T20:59:18.456745595Z",
+            "FinishedAt": "0001-01-01T00:00:00Z"
+        },
+        "Image": "sha256:adc2165fbbd050946c6ff27cc1d98add635382f7bca6294d78c0fe13044fc60e",
+        "ResolvConfPath": "/var/lib/docker/containers/8fdebbf46c361432dd4722109886ee055d1f2716c8a9bc2617431b078e6f4883/resolv.conf",
+        "HostnamePath": "/var/lib/docker/containers/8fdebbf46c361432dd4722109886ee055d1f2716c8a9bc2617431b078e6f4883/hostname",
+        "HostsPath": "/var/lib/docker/containers/8fdebbf46c361432dd4722109886ee055d1f2716c8a9bc2617431b078e6f4883/hosts",
+        "LogPath": "/var/lib/docker/containers/8fdebbf46c361432dd4722109886ee055d1f2716c8a9bc2617431b078e6f4883/8fdebbf46c361432dd4722109886ee055d1f2716c8a9bc2617431b078e6f4883-json.log",
+        "Name": "/checkin24hs_dashboard.1.clo0dbcor1gts5ke8thog4c31",
+        "RestartCount": 0,
+        "Driver": "overlayfs",
+        "Platform": "linux",
+        "MountLabel": "",
+        "ProcessLabel": "",
+        "AppArmorProfile": "docker-default",
+        "ExecIDs": null,
+        "HostConfig": {
+            "Binds": null,
+            "ContainerIDFile": "",
+            "LogConfig": {
+                "Type": "json-file",
+                "Config": {
+                    "max-file": "3",
+                    "max-size": "10m"
+                }
+            },
+            "NetworkMode": "bridge",
+            "PortBindings": {},
+            "RestartPolicy": {
+                "Name": "no",
+                "MaximumRetryCount": 0
+            },
+            "AutoRemove": false,
+            "VolumeDriver": "",
+            "VolumesFrom": null,
+            "ConsoleSize": [
+                0,
+                0
+            ],
+            "CapAdd": null,
+            "CapDrop": null,
+            "CgroupnsMode": "private",
+            "Dns": null,
+            "DnsOptions": null,
+            "DnsSearch": null,
+            "ExtraHosts": null,
+            "GroupAdd": null,
+            "IpcMode": "private",
+            "Cgroup": "",
+            "Links": null,
+            "OomScoreAdj": 0,
+            "PidMode": "",
+            "Privileged": false,
+            "PublishAllPorts": false,
+            "ReadonlyRootfs": false,
+            "SecurityOpt": null,
+            "UTSMode": "",
+            "UsernsMode": "",
+            "ShmSize": 67108864,
+            "Runtime": "runc",
+            "Isolation": "default",
+            "CpuShares": 0,
+            "Memory": 0,
+            "NanoCpus": 0,
+            "CgroupParent": "",
+            "BlkioWeight": 0,
+            "BlkioWeightDevice": null,
+            "BlkioDeviceReadBps": null,
+            "BlkioDeviceWriteBps": null,
+            "BlkioDeviceReadIOps": null,
+            "BlkioDeviceWriteIOps": null,
+            "CpuPeriod": 0,
+            "CpuQuota": 0,
+            "CpuRealtimePeriod": 0,
+            "CpuRealtimeRuntime": 0,
+            "CpusetCpus": "",
+            "CpusetMems": "",
+            "Devices": null,
+            "DeviceCgroupRules": null,
+            "DeviceRequests": null,
+            "MemoryReservation": 0,
+            "MemorySwap": 0,
+            "MemorySwappiness": null,
+            "OomKillDisable": null,
+            "PidsLimit": null,
+            "Ulimits": [],
+            "CpuCount": 0,
+            "CpuPercent": 0,
+            "IOMaximumIOps": 0,
+            "IOMaximumBandwidth": 0,
+            "MaskedPaths": [
+                "/proc/acpi",
+                "/proc/asound",
+                "/proc/interrupts",
+                "/proc/kcore",
+                "/proc/keys",
+                "/proc/latency_stats",
+                "/proc/sched_debug",
+                "/proc/scsi",
+                "/proc/timer_list",
+                "/proc/timer_stats",
+                "/sys/devices/virtual/powercap",
+                "/sys/firmware"
+            ],
+            "ReadonlyPaths": [
+                "/proc/bus",
+                "/proc/fs",
+                "/proc/irq",
+                "/proc/sys",
+                "/proc/sysrq-trigger"
+            ],
+            "Init": false
+        },
+        "Storage": {
+            "RootFS": {
+                "Snapshot": {
+                    "Name": "overlayfs"
+                }
+            }
+        },
+        "Mounts": [],
+        "Config": {
+            "Hostname": "8fdebbf46c36",
+            "Domainname": "",
+            "User": "",
+            "AttachStdin": false,
+            "AttachStdout": false,
+            "AttachStderr": false,
+            "ExposedPorts": {
+                "3000/tcp": {}
+            },
+            "Tty": false,
+            "OpenStdin": false,
+            "StdinOnce": false,
+            "Env": [
+                "PORT=80",
+                "DEPLOY_TIMESTAMP=1766611674850",
+                "GIT_SHA=4d2f370be332c60455489df3469c3907d1251c8d",
+                "PORT=3000",
+                "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+                "NODE_VERSION=18.20.8",
+                "YARN_VERSION=1.22.22"
+            ],
+            "Cmd": [
+                "-c",
+                "node server.js"
+            ],
+            "Image": "easypanel/checkin24hs/dashboard:latest",
+            "Volumes": null,
+            "WorkingDir": "/app",
+            "Entrypoint": [
+                "/bin/sh"
+            ],
+            "Labels": {
+                "com.docker.swarm.node.id": "ugm0pn0n05lzuk2nd9yttelbd",
+                "com.docker.swarm.service.id": "alkbsa4q533qts03e72xvcq0z",
+                "com.docker.swarm.service.name": "checkin24hs_dashboard",
+                "com.docker.swarm.task": "",
+                "com.docker.swarm.task.id": "clo0dbcor1gts5ke8thog4c31",
+                "com.docker.swarm.task.name": "checkin24hs_dashboard.1.clo0dbcor1gts5ke8thog4c31",
+                "keep": "true"
+            }
+        },
+        "NetworkSettings": {
+            "SandboxID": "dd83cfc3df2d4013acf58364ac843078bf1f69dfb4e0f30d0f71eb12afb688c2",
+            "SandboxKey": "/var/run/docker/netns/dd83cfc3df2d",
+            "Ports": {
+                "3000/tcp": null
+            },
+            "Networks": {
+                "easypanel": {
+                    "IPAMConfig": {
+                        "IPv4Address": "10.0.1.42",
+                        "IPv6Address": ""
+                    },
+                    "Links": null,
+                    "Aliases": null,
+                    "DriverOpts": null,
+                    "GwPriority": 0,
+                    "NetworkID": "xmv09tpxwryie79b0jv531623",
+                    "EndpointID": "1d032dac65441fe3fb31afd5af0ce87f8cfda58e0a349d6ba4b12e7584d01ce1",
+                    "Gateway": "",
+                    "IPAddress": "10.0.1.42",
+                    "MacAddress": "02:42:0a:00:01:2a",
+                    "IPPrefixLen": 24,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "DNSNames": [
+                        "checkin24hs_dashboard.1.clo0dbcor1gts5ke8thog4c31",
+                        "8fdebbf46c36"
+                    ]
+                },
+                "easypanel-checkin24hs": {
+                    "IPAMConfig": {
+                        "IPv4Address": "10.0.2.249",
+                        "IPv6Address": ""
+                    },
+                    "Links": null,
+                    "Aliases": null,
+                    "DriverOpts": null,
+                    "GwPriority": 0,
+                    "NetworkID": "nvhtv52umzihypz8u7adejvpo",
+                    "EndpointID": "3a907975dc81fec7ff35559daa968c9fc4b2643e2dc6205ce333db8c57b430ca",
+                    "Gateway": "",
+                    "IPAddress": "10.0.2.249",
+                    "MacAddress": "02:42:0a:00:02:f9",
+                    "IPPrefixLen": 24,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "DNSNames": [
+                        "checkin24hs_dashboard.1.clo0dbcor1gts5ke8thog4c31",
+                        "8fdebbf46c36"
+                    ]
+                }
+            }
+        },
+        "ImageManifestDescriptor": {
+            "mediaType": "application/vnd.oci.image.manifest.v1+json",
+            "digest": "sha256:33019133ae5aefcdaa42ea09b9e2fd855f648799973dd814c4c3bf729b442b2a",
+            "size": 4659,
+            "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+            }
+        }
+    }
+]

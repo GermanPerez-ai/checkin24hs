@@ -440,6 +440,7 @@ const FlorLearningSystem = {
 
     // Generar ID único
     generateId() {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
         return 'interaction_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     },
 

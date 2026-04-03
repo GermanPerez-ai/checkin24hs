@@ -1,0 +1,39 @@
+echo "=========================================="
+echo "🔍 VERIFICACIÓN COMPLETA DEL DESPLIEGUE"
+echo "=========================================="
+echo ""
+echo "1️⃣ Ver imagen del servicio:"
+docker service inspect checkin24hs_checkin24hs-dashboard --format '{{.Spec.TaskTemplate.ContainerSpec.Image}}' 2>/dev/null || echo "❌ Servicio no encontrado"
+echo ""
+echo "2️⃣ Ver archivos en el contenedor:"
+CONTAINER_ID=$(docker ps | grep checkin24hs_checkin24hs-dashboard | awk '{print $1}' | head -1)
+if [ -z "$CONTAINER_ID" ]; then
+    echo "❌ No se encontró el contenedor"
+else
+    echo "ID del contenedor: $CONTAINER_ID"
+    echo ""
+    echo "📁 Archivos en /app/:"
+    docker exec $CONTAINER_ID ls -la /app/ | head -30
+    echo ""
+    echo "📄 Verificar dashboard.html:"
+    docker exec $CONTAINER_ID ls -lh /app/dashboard.html 2>&1
+    echo ""
+    echo "📄 Verificar server.js:"
+    docker exec $CONTAINER_ID ls -lh /app/server.js 2>&1
+    echo ""
+    echo "📁 Verificar archivos JS necesarios:"
+    docker exec $CONTAINER_ID ls -lh /app/supabase-client.js /app/supabase-config.js /app/database.js /app/dashboard-integration.js 2>&1 | head -10
+    echo ""
+    echo "📁 Verificar si existe checkin24hs-admin (NO debería estar):"
+    docker exec $CONTAINER_ID ls -la /app/checkin24hs-admin 2>&1 | head -5 || echo "✅ No existe checkin24hs-admin (correcto)"
+    echo ""
+    echo "3️⃣ Ver logs del servicio:"
+    docker service logs checkin24hs_checkin24hs-dashboard --tail 15 2>&1
+    echo ""
+    echo "4️⃣ Probar qué responde el servidor:"
+    curl -I http://localhost:30002 2>&1 | head -10
+    echo ""
+    echo "5️⃣ Ver contenido HTML que se sirve:"
+    curl http://localhost:30002 2>&1 | head -30
+fi
+

@@ -431,12 +431,60 @@
         </div>
     </div>
 
+    <!-- Config Supabase: por URL o postMessage (para cargar flor_general_config = prompt de Flor del dashboard) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+    (function() {
+      function applySupabaseConfig(supabaseUrl, supabaseAnonKey) {
+        if (!supabaseUrl || !supabaseAnonKey) return Promise.resolve();
+        try {
+          window.supabaseClient = { client: supabase.createClient(supabaseUrl, supabaseAnonKey), isInitialized: function() { return true; } };
+          if (typeof FlorKnowledgeBase !== 'undefined' && FlorKnowledgeBase.loadHotelsFromSupabase) {
+            return FlorKnowledgeBase.loadHotelsFromSupabase(window.supabaseClient.client).then(function() {
+              if (typeof initializeAIFromCloud === 'function') initializeAIFromCloud();
+            });
+          }
+          if (typeof initializeAIFromCloud === 'function') initializeAIFromCloud();
+        } catch (err) { console.warn('[Flor] Error config Supabase:', err); }
+        return Promise.resolve();
+      }
+      window.addEventListener('message', function(e) {
+        if (e.data && e.data.type === 'flor-config' && e.data.supabaseUrl && e.data.supabaseAnonKey) {
+          if (window.supabaseClient && window.supabaseClient.isInitialized && window.supabaseClient.isInitialized()) return;
+          applySupabaseConfig(e.data.supabaseUrl, e.data.supabaseAnonKey);
+        }
+      });
+      window.applyFlorSupabaseConfig = applySupabaseConfig;
+    })();
+    </script>
+    <script>
+        window.getFlorWebSessionId = function() {
+            try {
+                var id = localStorage.getItem('flor_web_session_id');
+                if (!id) { id = 'w_' + Date.now() + '_' + Math.random().toString(36).substring(2, 12); localStorage.setItem('flor_web_session_id', id); }
+                return id;
+            } catch (e) { return 'web_' + Date.now(); }
+        };
+    </script>
     <!-- Scripts -->
-    <script src="flor-knowledge-base.js?v=3.0.0"></script>
-    <script src="flor-ai-service.js?v=3.0.0"></script>
+    <script src="flor-knowledge-base.js?v=3.0.1"></script>
+    <script src="flor-ai-service.js?v=3.0.1"></script>
     <script src="flor-multimodal-service.js?v=3.0.0"></script>
-    <script src="flor-learning-system.js?v=3.0.0"></script>
+    <script src="flor-learning-system.js?v=3.0.1"></script>
     <script src="flor-agent.js?v=3.0.0"></script>
+    <script>
+        // Contexto desde la web checkin24hs.com (parámetros en la URL del iframe)
+        (function () {
+            const params = new URLSearchParams(window.location.search);
+            const hotel = params.get('hotel') || '';
+            const hotel_name = params.get('hotel_name') || '';
+            const destino = params.get('destino') || '';
+            if (hotel || hotel_name || destino) {
+                window.__florWebContext = { hotel, hotel_name, destino };
+                console.log('[Flor] Contexto desde web:', window.__florWebContext);
+            }
+        })();
+    </script>
     <script>
         // Limpiar hoteles fantasma automáticamente
         (function cleanPhantomHotels() {
@@ -450,8 +498,21 @@
         })();
     </script>
     <script>
+        // Config desde URL: supabaseUrl, supabaseAnonKey, florApiUrl (para que Flor use el mismo prompt que WhatsApp)
+        (function() {
+            var params = new URLSearchParams(window.location.search);
+            var url = params.get('supabaseUrl');
+            var key = params.get('supabaseAnonKey');
+            var florApi = params.get('florApiUrl');
+            if (florApi) { florApi = florApi.replace(/\/$/, ''); if (typeof location !== 'undefined' && location.protocol === 'https:' && florApi.indexOf('http://') === 0) florApi = 'https://' + florApi.replace(/^https?:\/\//, '').replace(/:\d+$/, ''); window.FLOR_API_URL = florApi; }
+            if (url && key && typeof window.applyFlorSupabaseConfig === 'function') {
+                console.log('[Flor] Config aplicada desde URL (Supabase + prompt)');
+                window.florConfigReady = window.applyFlorSupabaseConfig(url, key);
+            }
+        })();
         // Inicializar el chatbot
         const agent = new FlorAgent();
+        if (window.FLOR_API_URL) { agent.setUseAI(true); console.log('[Flor] Usando Flor API (misma que WhatsApp):', window.FLOR_API_URL); }
         const messagesContainer = document.getElementById('chatbotMessages');
         const input = document.getElementById('chatbotInput');
         const sendBtn = document.getElementById('chatbotSendBtn');
@@ -490,20 +551,32 @@
             }
         }
 
-        // Cargar configuración de IA desde localStorage primero
-        if (typeof florAIService !== 'undefined' && florAIService.isAvailable()) {
+        if (!window.FLOR_API_URL && typeof florAIService !== 'undefined' && florAIService.isAvailable()) {
             agent.setUseAI(true);
             console.log('[Chatbot] 🤖 IA habilitada desde localStorage');
         }
-        
-        // Luego intentar sincronizar con Supabase (asíncrono)
         initializeAIFromCloud();
 
-        // Mostrar mensaje de bienvenida al cargar
-        window.addEventListener('DOMContentLoaded', () => {
-            setTimeout(() => {
-                addBotMessage(agent.knowledgeBase.agent.greeting);
-            }, 500);
+        // Mostrar mensaje de bienvenida (esperar a florConfigReady si hay Supabase para usar saludo del dashboard)
+        function showInitialGreeting() {
+            let greeting = agent.knowledgeBase.agent.greeting;
+                if (window.__florWebContext) {
+                    const c = window.__florWebContext;
+                    if (c.hotel_name) {
+                        greeting += '\n\nEstás viendo **' + c.hotel_name + '**. Si tenés dudas sobre este alojamiento, preguntame.';
+                    } else if (c.destino) {
+                        greeting += '\n\nPodés preguntarme sobre destinos como clima, pasos fronterizos o actividades.';
+                    }
+                }
+                addBotMessage(greeting);
+        }
+        window.addEventListener('DOMContentLoaded', function() {
+            if (window.florConfigReady && typeof window.florConfigReady.then === 'function') {
+                window.florConfigReady.then(showInitialGreeting).catch(function() { showInitialGreeting(); });
+            } else {
+                setTimeout(showInitialGreeting, 500);
+            }
+            if (window.parent !== window) try { window.parent.postMessage({ type: 'flor-iframe-ready' }, '*'); } catch (e) {}
         });
 
         // Función para convertir Markdown simple a HTML

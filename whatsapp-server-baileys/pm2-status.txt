@@ -1,0 +1,10 @@
+┌────┬──────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name             │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼──────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 8  │ dashboard        │ default     │ 1.0.0   │ fork    │ 1831344  │ 3D     │ 41   │ online    │ 0%       │ 71.4mb   │ root     │ disabled │
+│ 22 │ whatsapp-1       │ default     │ 2.0.0   │ fork    │ 2264219  │ 15m    │ 2    │ online    │ 0%       │ 134.0mb  │ root     │ disabled │
+│ 23 │ whatsapp-2       │ default     │ 2.0.0   │ fork    │ 2264228  │ 15m    │ 2    │ online    │ 0%       │ 136.4mb  │ root     │ disabled │
+│ 24 │ whatsapp-3       │ default     │ 2.0.0   │ fork    │ 2264249  │ 15m    │ 2    │ online    │ 0%       │ 147.6mb  │ root     │ disabled │
+│ 25 │ whatsapp-4       │ default     │ 2.0.0   │ fork    │ 2264256  │ 15m    │ 2    │ online    │ 0%       │ 133.2mb  │ root     │ disabled │
+│ 13 │ whatsapp-flor    │ default     │ 2.0.0   │ fork    │ 0        │ 0      │ 15   │ errored   │ 0%       │ 0b       │ root     │ disabled │
+└────┴──────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘

@@ -1,0 +1,27 @@
+# Comandos para verificar EasyPanel en el servidor
+# Ya estás conectado, ejecuta estos comandos directamente:
+
+# Verificar puertos que están escuchando
+sudo netstat -tulpn | grep LISTEN | grep -E "(8080|3001|easypanel)"
+
+# O usar ss (más moderno)
+sudo ss -tulpn | grep LISTEN | grep -E "(8080|3001|easypanel)"
+
+# Ver contenedores de EasyPanel
+docker ps | grep easypanel
+
+# Ver todos los contenedores para identificar EasyPanel
+docker ps
+
+# Ver servicios de Docker Swarm
+docker service ls
+
+# Ver qué está usando el puerto 3000 (dashboard)
+sudo lsof -i :3000
+
+# Ver qué está usando otros puertos comunes
+sudo lsof -i :8080
+sudo lsof -i :3001
+
+# Ver todos los puertos en uso
+sudo netstat -tulpn | grep LISTEN

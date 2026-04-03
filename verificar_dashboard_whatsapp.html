@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificación Dashboard WhatsApp - Checkin24hs</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 { color: #333; margin-bottom: 10px; text-align: center; }
+        .subtitle { text-align: center; color: #666; margin-bottom: 30px; }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .test-section h3 { color: #333; margin-bottom: 15px; }
+        .test-item {
+            margin: 10px 0;
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .test-item.success { border-left: 4px solid #28a745; }
+        .test-item.error { border-left: 4px solid #dc3545; }
+        .test-item.warning { border-left: 4px solid #ffc107; }
+        .test-label { font-weight: 500; color: #333; }
+        .test-result { font-family: monospace; font-size: 14px; }
+        .success-text { color: #28a745; }
+        .error-text { color: #dc3545; }
+        .warning-text { color: #856404; }
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            background: #25D366;
+            color: white;
+            margin: 5px;
+        }
+        button:hover { background: #1ea952; }
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .summary {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f0f9f4;
+            border-radius: 8px;
+            border-left: 4px solid #28a745;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Verificación Dashboard WhatsApp</h1>
+        <p class="subtitle">Checkin24hs - Validación de Funcionalidad</p>
+        
+        <div style="text-align: center; margin: 20px 0;">
+            <button onclick="ejecutarVerificacion()">🚀 Ejecutar Verificación Completa</button>
+            <button onclick="limpiarResultados()" style="background: #6c757d;">🗑️ Limpiar</button>
+        </div>
+        
+        <div id="resultados"></div>
+    </div>
+
+    <script>
+        // Copiar funciones del dashboard para probar
+        function normalizeServerUrl(url) {
+            if (!url) return '';
+            url = url.trim();
+            if (!url) return '';
+            
+            if (!url.startsWith('http://') && !url.startsWith('https://')) {
+                const protocol = 'https://';
+                url = protocol + url;
+            }
+            
+            try {
+                const urlObj = new URL(url);
+                const hostname = urlObj.hostname.split(':')[0];
+                return `${urlObj.protocol}//${hostname}`;
+            } catch (e) {
+                let cleanUrl = url;
+                const hasProtocol = cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://');
+                const protocol = hasProtocol ? (cleanUrl.startsWith('https') ? 'https://' : 'http://') : 'https://';
+                let withoutProtocol = hasProtocol ? cleanUrl.replace(/^https?:\/\//, '') : cleanUrl;
+                withoutProtocol = withoutProtocol.split(':')[0];
+                withoutProtocol = withoutProtocol.split('/')[0];
+                withoutProtocol = withoutProtocol.split('?')[0];
+                return protocol + withoutProtocol;
+            }
+        }
+
+        function buildApiUrl(baseUrl, instanceNum, endpoint = 'qr') {
+            const instPort = 3000 + instanceNum;
+            let cleanUrl = baseUrl.replace(/:\d+$/, '');
+            const protocol = cleanUrl.startsWith('https') ? 'https' : 'http';
+            const urlWithoutProtocol = cleanUrl.replace(/^https?:\/\//, '');
+            
+            const isDomainUrl = /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(urlWithoutProtocol) && 
+                               !/^\d+\.\d+\.\d+\.\d+/.test(urlWithoutProtocol.split(':')[0]);
+            
+            if (isDomainUrl) {
+                const subdomainMatch = urlWithoutProtocol.match(/^api(\d+)\.(.+)$/);
+                if (subdomainMatch) {
+                    const existingInstance = parseInt(subdomainMatch[1]);
+                    if (existingInstance === instanceNum) {
+                        return `${protocol}://${urlWithoutProtocol}/api/${endpoint}`;
+                    }
+                }
+                
+                const domainParts = urlWithoutProtocol.split('.');
+                let baseDomain;
+                
+                if (domainParts.length >= 3 && domainParts[0].startsWith('api') && /^\d+$/.test(domainParts[0].replace('api', ''))) {
+                    baseDomain = domainParts.slice(1).join('.');
+                } else if (domainParts.length >= 2) {
+                    baseDomain = domainParts.slice(-2).join('.');
+                } else {
+                    baseDomain = urlWithoutProtocol;
+                }
+                
+                const subdomain = `api${instanceNum}`;
+                return `${protocol}://${subdomain}.${baseDomain}/api/${endpoint}`;
+            } else {
+                return `${cleanUrl}:${instPort}/api/${endpoint}`;
+            }
+        }
+
+        const casosPrueba = [
+            {
+                nombre: 'Normalización de URLs',
+                pruebas: [
+                    { entrada: 'https://checkin24hs.com', esperado: 'https://checkin24hs.com', descripcion: 'URL con HTTPS' },
+                    { entrada: 'http://checkin24hs.com', esperado: 'http://checkin24hs.com', descripcion: 'URL con HTTP' },
+                    { entrada: 'checkin24hs.com', esperado: 'https://checkin24hs.com', descripcion: 'URL sin protocolo' },
+                    { entrada: 'https://api1.checkin24hs.com', esperado: 'https://api1.checkin24hs.com', descripcion: 'URL con subdominio api1' },
+                    { entrada: 'https://checkin24hs.com:3001', esperado: 'https://checkin24hs.com', descripcion: 'URL con puerto' },
+                    { entrada: 'https://checkin24hs.com/api/qr', esperado: 'https://checkin24hs.com', descripcion: 'URL con ruta' },
+                    { entrada: 'http://72.61.58.240', esperado: 'http://72.61.58.240', descripcion: 'URL con IP' },
+                ]
+            },
+            {
+                nombre: 'Construcción de URLs de API',
+                pruebas: [
+                    {
+                        entrada: { baseUrl: 'https://checkin24hs.com', instance: 1, endpoint: 'qr' },
+                        esperado: 'https://api1.checkin24hs.com/api/qr',
+                        descripcion: 'Dominio base → api1 subdominio'
+                    },
+                    {
+                        entrada: { baseUrl: 'https://checkin24hs.com', instance: 2, endpoint: 'status' },
+                        esperado: 'https://api2.checkin24hs.com/api/status',
+                        descripcion: 'Dominio base → api2 subdominio'
+                    },
+                    {
+                        entrada: { baseUrl: 'https://api1.checkin24hs.com', instance: 1, endpoint: 'qr' },
+                        esperado: 'https://api1.checkin24hs.com/api/qr',
+                        descripcion: 'Subdominio api1 → usar directamente'
+                    },
+                    {
+                        entrada: { baseUrl: 'http://72.61.58.240', instance: 1, endpoint: 'qr' },
+                        esperado: 'http://72.61.58.240:3001/api/qr',
+                        descripcion: 'IP → agregar puerto'
+                    },
+                    {
+                        entrada: { baseUrl: 'http://72.61.58.240', instance: 3, endpoint: 'status' },
+                        esperado: 'http://72.61.58.240:3003/api/status',
+                        descripcion: 'IP → puerto 3003'
+                    },
+                ]
+            }
+        ];
+
+        function ejecutarVerificacion() {
+            const resultados = document.getElementById('resultados');
+            resultados.innerHTML = '';
+            
+            let totalTests = 0;
+            let testsExitosos = 0;
+            let testsFallidos = 0;
+            
+            casosPrueba.forEach(seccion => {
+                const sectionDiv = document.createElement('div');
+                sectionDiv.className = 'test-section';
+                sectionDiv.innerHTML = `<h3>${seccion.nombre}</h3>`;
+                
+                seccion.pruebas.forEach(prueba => {
+                    totalTests++;
+                    let resultado;
+                    let exito = false;
+                    
+                    if (seccion.nombre.includes('Normalización')) {
+                        resultado = normalizeServerUrl(prueba.entrada);
+                        exito = resultado === prueba.esperado;
+                    } else if (seccion.nombre.includes('Construcción')) {
+                        resultado = buildApiUrl(
+                            prueba.entrada.baseUrl,
+                            prueba.entrada.instance,
+                            prueba.entrada.endpoint
+                        );
+                        exito = resultado === prueba.esperado;
+                    }
+                    
+                    if (exito) {
+                        testsExitosos++;
+                    } else {
+                        testsFallidos++;
+                    }
+                    
+                    const testItem = document.createElement('div');
+                    testItem.className = `test-item ${exito ? 'success' : 'error'}`;
+                    testItem.innerHTML = `
+                        <div>
+                            <div class="test-label">${prueba.descripcion}</div>
+                            <div class="code-block" style="margin-top: 5px;">
+Entrada: ${typeof prueba.entrada === 'object' ? JSON.stringify(prueba.entrada) : prueba.entrada}
+Esperado: ${prueba.esperado}
+Resultado: ${resultado}
+                            </div>
+                        </div>
+                        <div class="test-result ${exito ? 'success-text' : 'error-text'}">
+                            ${exito ? '✅ OK' : '❌ FALLO'}
+                        </div>
+                    `;
+                    sectionDiv.appendChild(testItem);
+                });
+                
+                resultados.appendChild(sectionDiv);
+            });
+            
+            // Resumen
+            const summaryDiv = document.createElement('div');
+            summaryDiv.className = 'summary';
+            summaryDiv.innerHTML = `
+                <h3>📊 Resumen de Verificación</h3>
+                <div style="display: flex; justify-content: space-around; margin-top: 15px;">
+                    <div>
+                        <div style="font-size: 32px; font-weight: bold; color: #333;">${totalTests}</div>
+                        <div style="color: #666;">Total Tests</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 32px; font-weight: bold; color: #28a745;">${testsExitosos}</div>
+                        <div style="color: #666;">✅ Exitosos</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 32px; font-weight: bold; color: ${testsFallidos > 0 ? '#dc3545' : '#28a745'}">${testsFallidos}</div>
+                        <div style="color: #666;">❌ Fallidos</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 32px; font-weight: bold; color: #667eea;">${Math.round((testsExitosos / totalTests) * 100)}%</div>
+                        <div style="color: #666;">Éxito</div>
+                    </div>
+                </div>
+                ${testsFallidos === 0 ? 
+                    '<div style="margin-top: 20px; padding: 15px; background: #d4edda; border-radius: 4px; color: #155724;"><strong>✅ ¡Todas las pruebas pasaron!</strong> El dashboard está listo para usar.</div>' :
+                    '<div style="margin-top: 20px; padding: 15px; background: #f8d7da; border-radius: 4px; color: #721c24;"><strong>⚠️ Algunas pruebas fallaron.</strong> Revisa los detalles arriba.</div>'
+                }
+            `;
+            resultados.appendChild(summaryDiv);
+            
+            // Verificar localStorage
+            const localStorageDiv = document.createElement('div');
+            localStorageDiv.className = 'test-section';
+            localStorageDiv.innerHTML = `
+                <h3>💾 Verificación de localStorage</h3>
+                <div class="test-item ${localStorage.getItem('whatsapp_server_url') ? 'success' : 'warning'}">
+                    <div>
+                        <div class="test-label">URL del servidor guardada</div>
+                        <div class="code-block" style="margin-top: 5px;">
+${localStorage.getItem('whatsapp_server_url') || 'No hay URL guardada'}
+                        </div>
+                    </div>
+                    <div class="test-result ${localStorage.getItem('whatsapp_server_url') ? 'success-text' : 'warning-text'}">
+                        ${localStorage.getItem('whatsapp_server_url') ? '✅ Configurado' : '⚠️ No configurado'}
+                    </div>
+                </div>
+                <div style="margin-top: 10px; padding: 10px; background: #fff3cd; border-radius: 4px; color: #856404;">
+                    <strong>💡 Sugerencia:</strong> Si no hay URL guardada, configura <code>https://checkin24hs.com</code> en el dashboard.
+                </div>
+            `;
+            resultados.appendChild(localStorageDiv);
+        }
+
+        function limpiarResultados() {
+            document.getElementById('resultados').innerHTML = '';
+        }
+
+        // Ejecutar automáticamente al cargar
+        window.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => ejecutarVerificacion(), 500);
+        });
+    </script>
+</body>
+</html>

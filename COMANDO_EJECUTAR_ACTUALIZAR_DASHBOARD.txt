@@ -1,0 +1,12 @@
+# Comando para ejecutar en el servidor (SSH)
+
+cd /root/checkin24hs
+
+# Si el script no existe, descargarlo desde GitHub
+if [ ! -f "ACTUALIZAR_DASHBOARD_ADMIN_DESDE_GITHUB.sh" ]; then
+    curl -o ACTUALIZAR_DASHBOARD_ADMIN_DESDE_GITHUB.sh https://raw.githubusercontent.com/GermanPerez-ai/checkin24hs/main/ACTUALIZAR_DASHBOARD_ADMIN_DESDE_GITHUB.sh
+    chmod +x ACTUALIZAR_DASHBOARD_ADMIN_DESDE_GITHUB.sh
+fi
+
+# Ejecutar el script
+./ACTUALIZAR_DASHBOARD_ADMIN_DESDE_GITHUB.sh

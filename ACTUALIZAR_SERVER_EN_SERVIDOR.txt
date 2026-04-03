@@ -1,0 +1,18 @@
+# Actualizar server.js en el servidor
+
+# 1. Ir al repositorio
+cd ~/checkin24hs
+
+# 2. Actualizar desde GitHub
+git pull origin main
+
+# 3. Reiniciar el dashboard
+pm2 restart dashboard
+
+# 4. Verificar que funciona
+curl -I http://localhost:3000
+
+# 5. Ver logs para confirmar
+pm2 logs dashboard --lines 10 --nostream
+
+

@@ -1,0 +1,101 @@
+==========================================
+VERIFICACIÓN COMPLETA DE BAILEYS
+==========================================
+
+1. ESTADO DE PM2:
+┌────┬──────────────────┬─────────────┬─────────┬─────────┬──────────┬────────┬──────┬───────────┬──────────┬──────────┬──────────┬──────────┐
+│ id │ name             │ namespace   │ version │ mode    │ pid      │ uptime │ ↺    │ status    │ cpu      │ mem      │ user     │ watching │
+├────┼──────────────────┼─────────────┼─────────┼─────────┼──────────┼────────┼──────┼───────────┼──────────┼──────────┼──────────┼──────────┤
+│ 8  │ dashboard        │ default     │ 1.0.0   │ fork    │ 1831344  │ 3D     │ 41   │ online    │ 0%       │ 71.6mb   │ root     │ disabled │
+│ 22 │ whatsapp-1       │ default     │ 2.0.0   │ fork    │ 2264219  │ 11m    │ 2    │ online    │ 0%       │ 133.6mb  │ root     │ disabled │
+│ 23 │ whatsapp-2       │ default     │ 2.0.0   │ fork    │ 2264228  │ 11m    │ 2    │ online    │ 0%       │ 136.4mb  │ root     │ disabled │
+│ 24 │ whatsapp-3       │ default     │ 2.0.0   │ fork    │ 2264249  │ 11m    │ 2    │ online    │ 0%       │ 143.5mb  │ root     │ disabled │
+│ 25 │ whatsapp-4       │ default     │ 2.0.0   │ fork    │ 2264256  │ 11m    │ 2    │ online    │ 0%       │ 132.9mb  │ root     │ disabled │
+│ 13 │ whatsapp-flor    │ default     │ 2.0.0   │ fork    │ 0        │ 0      │ 15   │ errored   │ 0%       │ 0b       │ root     │ disabled │
+└────┴──────────────────┴─────────────┴─────────┴─────────┴──────────┴────────┴──────┴───────────┴──────────┴──────────┴──────────┴──────────┘
+
+2. RESPUESTA DE STATUS (WhatsApp 1):
+{"connected":false,"whatsapp":"disconnected","flor":"active","autoReply":true,"qrCode":"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=2%40fP1ooPny3Y0JAhnA7I4VahrUAvSLWEcDTTfqNhi2WAKzcqT0djJ5qPymc1WLt%2F8HjerivaTNg8l7LTANwApHzJf0n6meV%2ByOKhU%3D%2C2Eqg4VU55jSvXLmuu%2FHiLeWvIUNK8up%2ByVAzAwkyOE8%3D%2C1ZcVDwDkPC6Dgs8WEsvj4shgo8PRnGjYo45rHC5NDRM%3D%2CXC4%2BGt8eF0J4izIsktRgC%2FzKNq1ci2XhaYHIcbcILLc%3D%2C1","phoneNumber":"-","userName":"-","lastActivity":"23/12/2025, 04:05:30"}
+
+3. LOGS DE WHATSAPP-1 (últimas 30 líneas):
+[TAILING] Tailing last 30 lines for [whatsapp-1] process (change the value with --lines option)
+/root/checkin24hs/whatsapp-server/logs/whatsapp-1-error.log last 30 lines:
+22|whatsap | 2025-12-18 19:16:33 +00:00:     at doListen (node:net:2139:7)
+22|whatsap | 2025-12-18 19:16:33 +00:00:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+22|whatsap | 2025-12-18 19:16:33 +00:00:   code: 'EADDRINUSE',
+22|whatsap | 2025-12-18 19:16:33 +00:00:   errno: -98,
+22|whatsap | 2025-12-18 19:16:33 +00:00:   syscall: 'listen',
+22|whatsap | 2025-12-18 19:16:33 +00:00:   address: '0.0.0.0',
+22|whatsap | 2025-12-18 19:16:33 +00:00:   port: 3001
+22|whatsap | 2025-12-18 19:16:33 +00:00: }
+22|whatsap | 2025-12-18 19:16:34 +00:00: Error: listen EADDRINUSE: address already in use 0.0.0.0:3001
+22|whatsap | 2025-12-18 19:16:34 +00:00:     at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+22|whatsap | 2025-12-18 19:16:34 +00:00:     at listenInCluster (node:net:1965:12)
+22|whatsap | 2025-12-18 19:16:34 +00:00:     at doListen (node:net:2139:7)
+22|whatsap | 2025-12-18 19:16:34 +00:00:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+22|whatsap | 2025-12-18 19:16:34 +00:00:   code: 'EADDRINUSE',
+22|whatsap | 2025-12-18 19:16:34 +00:00:   errno: -98,
+22|whatsap | 2025-12-18 19:16:34 +00:00:   syscall: 'listen',
+22|whatsap | 2025-12-18 19:16:34 +00:00:   address: '0.0.0.0',
+22|whatsap | 2025-12-18 19:16:34 +00:00:   port: 3001
+22|whatsap | 2025-12-18 19:16:34 +00:00: }
+22|whatsap | 2025-12-18 19:16:35 +00:00: Error: listen EADDRINUSE: address already in use 0.0.0.0:3001
+22|whatsap | 2025-12-18 19:16:35 +00:00:     at Server.setupListenHandle [as _listen2] (node:net:1908:16)
+22|whatsap | 2025-12-18 19:16:35 +00:00:     at listenInCluster (node:net:1965:12)
+22|whatsap | 2025-12-18 19:16:35 +00:00:     at doListen (node:net:2139:7)
+22|whatsap | 2025-12-18 19:16:35 +00:00:     at process.processTicksAndRejections (node:internal/process/task_queues:83:21) {
+22|whatsap | 2025-12-18 19:16:35 +00:00:   code: 'EADDRINUSE',
+22|whatsap | 2025-12-18 19:16:35 +00:00:   errno: -98,
+22|whatsap | 2025-12-18 19:16:35 +00:00:   syscall: 'listen',
+22|whatsap | 2025-12-18 19:16:35 +00:00:   address: '0.0.0.0',
+22|whatsap | 2025-12-18 19:16:35 +00:00:   port: 3001
+22|whatsap | 2025-12-18 19:16:35 +00:00: }
+
+/root/checkin24hs/whatsapp-server/logs/whatsapp-1-out.log last 30 lines:
+22|whatsap | 2025-12-23 16:05:16 +00:00: █ ▄▄▄▄▄ █▀ ▀▀▀▀█▀█▀▀ █▄▄▄ ▄▀▀▀▀▄ ▄███▄▄▀█▀ ▄█▀▄▄ ██ ▄▄▄▄▄ █
+22|whatsap | 2025-12-23 16:05:16 +00:00: █ █   █ █▀ █▄▀ █▄▄ ▀▄▄██  ▀█▄▄█ ▀▄  ▀▀ ▀██ ▄▄▄ ▄ ██ █   █ █
+22|whatsap | 2025-12-23 16:05:16 +00:00: █ █▄▄▄█ █▀█▀▄█ ▄▄█▄█▄ █▄▀ █ ▄▄▄ ▀ ▄▀   ▀ ▄▄ ▄█▀▀▄██ █▄▄▄█ █
+22|whatsap | 2025-12-23 16:05:16 +00:00: █▄▄▄▄▄▄▄█▄▀▄█ ▀▄▀▄█ ▀ █▄█ █ █▄█ ▀▄█ ▀▄█▄▀ █ ▀ ▀ ▀▄█▄▄▄▄▄▄▄█
+22|whatsap | 2025-12-23 16:05:16 +00:00: █ ▄   ▀▄▄▄  ▀▄▄█▄▄▄  █▀█▄▀▄ ▄▄  ▀█▀█▀▄ ▄██▀▀▀█▄▄   █ ▀▄▀▄▀█
+22|whatsap | 2025-12-23 16:05:16 +00:00: ██▄█▄  ▄█▀▀█▄▄▄  ▀▀ ▀▀▀ ▄▀ ▄▀█ ▄▀█ ▄█▄▀▄    ▀  ▀▀▄█ ▀ ▀▀▄██
+22|whatsap | 2025-12-23 16:05:16 +00:00: █ ▀██▄▀▄▀▄█ █▀▄▄█▄▀  █▀▄ ▀▄ ██▀█▄██▄▄▄ █▀█ ▀▄█▀█   ▄█▀█  ██
+22|whatsap | 2025-12-23 16:05:16 +00:00: █  ▄█▀█▄█▄▄ ▀█▄▀ ▀▀▄ █   ▄▀▄ ██▄█ ▄█▄▄▀█▀▀█▄▄██▄▄▀ ▄█ ▀▀ ██
+22|whatsap | 2025-12-23 16:05:16 +00:00: █▄    █▄  ▄▀█▄▀▀▀▄▀▄▀▄▀█▀▀ ▀▀ ▀  █▀█ ▄ █▀▀▀▀▄█▄█ ▀▀██▀▀▀▀ █
+22|whatsap | 2025-12-23 16:05:16 +00:00: ██  ▀█ ▄▀   ▀ ▀██ ▄▄▄▀███ ▄▄█▄▀▀███▄█▀▄██▀▀ ██▄▀ █ ▀  ▀▀ ██
+22|whatsap | 2025-12-23 16:05:16 +00:00: ██ ▀█ ▀▄▀▀██▄█▀█▄▀▄ ▄█ ▀▀▄  ▀▀▀  █▄█ ▄▄▄▀█▀ ▄▀ █▄▀ ▄█▀█▄ ▀█
+22|whatsap | 2025-12-23 16:05:16 +00:00: █▀▄███▀▄▄▀▀ ██▀▀▄ ▀▄▄█▀ ▀█▀ ▄ ▄ ███ ▄▄▄▄ ▄██▄ ▀ █▄ █▀█  ▀▀█
+22|whatsap | 2025-12-23 16:05:16 +00:00: █▀█▀▀ ▀▄▄▀██▀█▀ ▀▄▀▄█▄▀█▀ █▀▄█▀▀▄  █▄ ▀▄▀█▀  ▀█▄▀ ▄▄▀█▄▀  █
+22|whatsap | 2025-12-23 16:05:16 +00:00: ███▄▀ ▄▄▄   ▄██▄▄█▄█ ▀▄██▄▄ ▄▄▄   █▄ ██▄ ▄████ █  ▄▄▄ ▀ █▀█
+22|whatsap | 2025-12-23 16:05:16 +00:00: █ █▄█ █▄█ ▄█ ▄ ▀▀▄▄▀▀▄▄█▀▀▀ █▄█ ▀▀▄█ ▄ █▀▀▄ ▄▀▄█▄ █▄█ ██▀ █
+22|whatsap | 2025-12-23 16:05:16 +00:00: █ ▀█ ▄ ▄▄ ▄ ▀▄▀▄▀ ▀ ▀▀  ▀▄▄▄▄▄▄▄  █▀█  ▄█▀▄█ ▀ █    ▄▄   ▀█
+22|whatsap | 2025-12-23 16:05:16 +00:00: ██▄▄█▀█▄▄█▀ ▀▀██ ▄   ▄▄▀▄▀▄▀▄█▀  █▀█ ▄█▄ ▀▀▀ ████▀▀▄▄▄▄▀█ █
+22|whatsap | 2025-12-23 16:05:16 +00:00: █ ▄█▀█▀▄█ ▄▀ ███▄█▀▀███ ▀ ▄ █▄▀  ▀ ▄ ▀█ ▀ ███▀ █  ▄█▀█  ▄▀█
+22|whatsap | 2025-12-23 16:05:16 +00:00: ██▄█▀▀▄▄▀▄▄▄▄█▀▄▀█  ▀▀▀█▄ █▄▀█▀▀▄▀█▄▄ ▀███ ▀▄███▀▀█▀▄▄▄██ █
+22|whatsap | 2025-12-23 16:05:16 +00:00: █▄ █▄  ▄    ▀▄█▄▀█▄ ▀ ▀█▄ ▄▀▀█▀▄ █ ▄▄▀▄█ █▄▄█ █▀▀▀▄▀▀▄▀▀▄▄█
+22|whatsap | 2025-12-23 16:05:16 +00:00: ██▄ █▀▀▄█▄▄█▄▀ ▀█▄█▄▄▄██▀ █▀▄▄▄▄▀█▀█▄  ▄██▀  █▄▄█████▄▀ ███
+22|whatsap | 2025-12-23 16:05:16 +00:00: ██ ▀▀▄▄▄ ▄  ▀█▀▄█▄▀  ▀▀ █▀█▀█▄  █▀▄█ █▀█▄ ▀▀▀█▀ ▀▀▄▀▀█▀▀▄██
+22|whatsap | 2025-12-23 16:05:16 +00:00: █▄▄ █ ▀▄▄▄▄▀▀▀ ▄▄█▀ ▀█▀▄▀ ▄▀▀▄▄█ ▀▄█  ▀▄▄▀▀  ▀▄▄█▄█▄██  █▀█
+22|whatsap | 2025-12-23 16:05:16 +00:00: █ ▀ ▀▀▄▄▀ ▀█▀ █ ▄  ▄▄▀███▄▄ ██▄ ▄██▀▄ ▄▀ ▀  ██▄▀ █▄▀▀█▀▀███
+22|whatsap | 2025-12-23 16:05:16 +00:00: ███████▄▄▀ ▀  ▄██▄▄  ██▀    ▄▄▄ ▄▀ █   ▄▀██▀ ▀▄▄█ ▄▄▄ ███▀█
+22|whatsap | 2025-12-23 16:05:16 +00:00: █ ▄▄▄▄▄ █▄  █  ▀▄▀  ▄█ ▄▄ █ █▄█ █▀▀ █▀ ▄ ▀▄▀▄▀▀   █▄█ ▀▀▄██
+22|whatsap | 2025-12-23 16:05:16 +00:00: █ █   █ █ ▀█▀▀█ ▄▀▄ ▄█▀▀▀▄ ▄▄▄ ▄▄█▄█ ▄ ▄▀▀▀  █▄▄▄   ▄ █▄█▄█
+22|whatsap | 2025-12-23 16:05:16 +00:00: █ █▄▄▄█ █ ▄▀▄▀ ▄▄ ▀█▄█ ▀▀█ █▀▀▀█▄█▄ █ █▀███ ▀▀ ▄ ▄ ▄ █  ███
+22|whatsap | 2025-12-23 16:05:16 +00:00: █▄▄▄▄▄▄▄█▄▄███▄▄▄█▄▄████▄█▄█▄██▄▄▄▄▄▄▄▄███▄▄████▄▄██▄█▄█▄██
+22|whatsap | 2025-12-23 16:05:16 +00:00: 
+
+
+4. VERIFICAR TODAS LAS INSTANCIAS:
+=== WhatsApp 1 ===
+{"connected":false,"whatsapp":"disconnected","flor":"active","autoReply":true,"qrCode":"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=2%40fP1ooPny3Y0JAhnA7I4VahrUAvSLWEcDTTfqNhi2WAKzcqT0djJ5qPymc1WLt%2F8HjerivaTNg8l7LTANwApHzJf0n6meV%2ByOKhU%3D%2C2Eqg4VU55jSvXLmuu%2FHiLeWvIUNK8up%2ByVAzAwkyOE8%3D%2C1ZcVDwDkPC6Dgs8WEsvj4shgo8PRnGjYo45rHC5NDRM%3D%2CXC4%2BGt8eF0J4izIsktRgC%2FzKNq1ci2XhaYHIcbcILLc%3D%2C1","phoneNumber":"-","userName":"-","lastActivity":"23/12/2025, 04:05:30"}
+=== WhatsApp 2 ===
+{"connected":false,"whatsapp":"disconnected","flor":"active","autoReply":true,"qrCode":"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=2%407RY74ZYMiFU4Wz3zdAsKmBLFCghU%2BAQ%2BC5E%2BFV5FGePPPU6Bp3%2FiIS74hCxJaZ6hANCcr8ka9Yyk4v0qJD25iDs0S2ictb4xHLk%3D%2Cu1MBoFmHkFvLKXPod2kmA2M2Mbmr1EjL1Oo5AAgopEE%3D%2C6ipFH0G1dApjVE5ftMrmChZm%2FgB8JlQlFVER%2Ffu%2FTxc%3D%2CSm5aeoKq3fIb1J7AaGFOnm9tWonows%2Bwy9vogOifE8o%3D%2C1","phoneNumber":"-","userName":"-","lastActivity":"23/12/2025, 04:05:30"}
+=== WhatsApp 3 ===
+{"connected":false,"whatsapp":"disconnected","flor":"active","autoReply":true,"qrCode":"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=2%40sQGpzbaTIdDms72UYTt98NvfU5%2BPCej859PA717fhlRzpk4SXZL5cSos8sDbrZQF9RICjt9juSdA6nn%2B%2Fpl7UIxOOtzNXf4TNuY%3D%2CMTm9pN%2FQoicYV%2BUWDwYCunfQTsY8LHtLydwHovlaER0%3D%2CnM%2FMQ4GawJQdxYOuTpsqBpUDCVvK3zfhxdLkPGSSjU0%3D%2CXIJjPAXKCLRjDWXvS9heHIYSWcaU7mFnCXvvpAzzfOE%3D%2C1","phoneNumber":"-","userName":"-","lastActivity":"23/12/2025, 04:05:30"}
+=== WhatsApp 4 ===
+{"connected":false,"whatsapp":"disconnected","flor":"active","autoReply":true,"qrCode":"https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=2%40PhjYcH00tZOcc5i5f7ivukWaa6rALnWvTMSdVnSMzI56HthkaP%2Bjgo3%2BzjQXKrEaAQkOFukGkqdbkUdOxJmbwadw6JOmlezsFjs%3D%2CnHL2k3%2FVv4weccq%2Bz44QI71Gk1bnsB%2BrMJGSAKOxTGI%3D%2Ch8d84B1rCvsR9yhKELhyjRubJpVNXPbEpYWI8zb3YS0%3D%2C18sRw1MWgu%2FUbb9toqKNBkf4ixoNMggoTd%2BR5gPYPJo%3D%2C1","phoneNumber":"-","userName":"-","lastActivity":"23/12/2025, 04:05:30"}
+5. PUERTOS ABIERTOS:
+tcp6       0      0 :::3002                 :::*                    LISTEN      2264228/node /root/ 
+tcp6       0      0 :::3003                 :::*                    LISTEN      2264249/node /root/ 
+tcp6       0      0 :::3001                 :::*                    LISTEN      2264219/node /root/ 
+tcp6       0      0 :::3004                 :::*                    LISTEN      2264256/node /root/ 
+

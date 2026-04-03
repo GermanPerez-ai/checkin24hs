@@ -1,0 +1,41 @@
+# Diagnosticar por qué Evolution API no responde
+
+# ===== Paso 1: Ver TODOS los contenedores (incluyendo detenidos) =====
+docker ps -a | grep evolution
+
+# Esto mostrará si los contenedores están corriendo o detenidos
+
+# ===== Paso 2: Ver logs del contenedor =====
+docker logs evolution-api-checkin24hs
+
+# Esto mostrará qué está pasando y si hay errores
+
+# ===== Paso 3: Verificar estado del contenedor =====
+docker inspect evolution-api-checkin24hs | grep -A 10 "State"
+
+# ===== Paso 4: Si el contenedor está detenido, ver por qué =====
+docker ps -a | grep evolution-api-checkin24hs
+
+# Si está "Exited", ver el código de salida
+
+# ===== Paso 5: Intentar iniciar manualmente =====
+docker start evolution-api-checkin24hs
+
+# Ver logs después de iniciar
+docker logs -f evolution-api-checkin24hs
+
+# ===== Paso 6: Si hay errores, verificar configuración =====
+# Verificar que el archivo .env existe
+cat .env
+
+# Verificar docker-compose.yml
+cat docker-compose.yml | grep -A 5 "ports"
+
+# ===== Paso 7: Reiniciar todo =====
+docker-compose down
+docker-compose up -d
+
+# Ver logs inmediatamente
+docker logs -f evolution-api-checkin24hs
+
+

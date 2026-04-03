@@ -1,0 +1,19 @@
+# Comandos para eliminar el servicio cotizador creado por SSH
+
+# Conectarse al servidor
+ssh root@72.61.58.240
+
+# Eliminar el servicio cotizador
+docker service rm cotizador
+
+# Verificar que se eliminó
+docker service ls | grep cotizador
+
+# Si todavía aparece algún contenedor, eliminarlo también
+docker ps | grep cotizador
+# Si hay contenedores, eliminarlos con:
+# docker rm -f $(docker ps | grep cotizador | awk '{print $1}')
+
+# Verificar que no hay servicios ni contenedores relacionados
+docker service ls
+docker ps | grep cotizador

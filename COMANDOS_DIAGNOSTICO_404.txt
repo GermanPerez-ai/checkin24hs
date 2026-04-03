@@ -1,0 +1,17 @@
+# Comandos de Diagnóstico para Error 404
+# Ejecuta estos comandos uno por uno en el servidor
+
+# 1. Ver qué servicio es el dashboard
+docker service ls | grep dashboard
+
+# 2. Ver las etiquetas de Traefik del servicio (esto es lo MÁS IMPORTANTE)
+docker service inspect $(docker service ls | grep dashboard | grep -v proxy | awk '{print $2}' | head -1) --format '{{range $k, $v := .Spec.Labels}}{{$k}}={{$v}}{{"\n"}}{{end}}' | grep traefik
+
+# 3. Ver el estado completo del servicio
+docker service inspect $(docker service ls | grep dashboard | grep -v proxy | awk '{print $2}' | head -1) | grep -A 50 Labels
+
+# 4. Verificar en qué red está el servicio
+docker service inspect $(docker service ls | grep dashboard | grep -v proxy | awk '{print $2}' | head -1) | grep -A 10 Networks
+
+# 5. Ver logs de Traefik para ver si detecta el dashboard
+docker service logs traefik --tail 100 | grep -i dashboard

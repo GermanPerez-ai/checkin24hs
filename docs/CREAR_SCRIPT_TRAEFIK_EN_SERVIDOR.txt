@@ -1,0 +1,50 @@
+# Crear el script en el servidor (pegar todo el bloque en la SSH)
+
+# En el servidor, ejecutá UNA sola vez este bloque completo (desde "cat" hasta "EOF" inclusive):
+
+mkdir -p ~/checkin24hs/scripts
+cat > ~/checkin24hs/scripts/aplicar_traefik_whatsapp_servidor.sh << 'EOF'
+#!/bin/bash
+# Aplica TODOS los labels de Traefik al servicio WhatsApp (routing + CORS).
+set -e
+SERVICE="${1:-checkin24hs_whatsapp}"
+echo "=== Aplicando labels Traefik al servicio WhatsApp (${SERVICE}) ==="
+docker service update \
+  --label-add "traefik.enable=true" \
+  --label-add "traefik.docker.network=easypanel" \
+  --label-add "traefik.http.routers.whatsapp.rule=Host(\`whatsapp.checkin24hs.com\`) && PathPrefix(\`/api\`)" \
+  --label-add "traefik.http.routers.whatsapp.entrypoints=websecure" \
+  --label-add "traefik.http.routers.whatsapp.service=whatsapp" \
+  --label-add "traefik.http.routers.whatsapp.tls=true" \
+  --label-add "traefik.http.routers.whatsapp.tls.certresolver=letsencrypt" \
+  --label-add "traefik.http.routers.whatsapp.middlewares=whatsapp-cors" \
+  --label-add "traefik.http.routers.whatsapp.priority=10" \
+  --label-add "traefik.http.routers.checkin24hs_whatsapp.rule=Host(\`whatsapp.checkin24hs.com\`) && PathPrefix(\`/api\`)" \
+  --label-add "traefik.http.routers.checkin24hs_whatsapp.entrypoints=websecure" \
+  --label-add "traefik.http.routers.checkin24hs_whatsapp.service=whatsapp" \
+  --label-add "traefik.http.routers.checkin24hs_whatsapp.tls=true" \
+  --label-add "traefik.http.routers.checkin24hs_whatsapp.tls.certresolver=letsencrypt" \
+  --label-add "traefik.http.routers.checkin24hs_whatsapp.middlewares=whatsapp-cors" \
+  --label-add "traefik.http.routers.checkin24hs_whatsapp.priority=10" \
+  --label-add "traefik.http.routers.whatsapp-root.rule=Host(\`whatsapp.checkin24hs.com\`)" \
+  --label-add "traefik.http.routers.whatsapp-root.entrypoints=websecure" \
+  --label-add "traefik.http.routers.whatsapp-root.service=whatsapp" \
+  --label-add "traefik.http.routers.whatsapp-root.tls=true" \
+  --label-add "traefik.http.routers.whatsapp-root.tls.certresolver=letsencrypt" \
+  --label-add "traefik.http.routers.whatsapp-root.middlewares=whatsapp-cors" \
+  --label-add "traefik.http.routers.whatsapp-root.priority=1" \
+  --label-add "traefik.http.middlewares.whatsapp-cors.headers.accesscontrolallowmethods=GET,POST,OPTIONS" \
+  --label-add "traefik.http.middlewares.whatsapp-cors.headers.accesscontrolallowheaders=Content-Type,Authorization,Accept" \
+  --label-add "traefik.http.middlewares.whatsapp-cors.headers.accesscontrolalloworiginlist=https://dashboard.checkin24hs.com" \
+  --label-add "traefik.http.middlewares.whatsapp-cors.headers.customresponseheaders.Access-Control-Allow-Origin=https://dashboard.checkin24hs.com" \
+  --label-add "traefik.http.middlewares.whatsapp-cors.headers.customresponseheaders.Access-Control-Allow-Methods=GET, POST, OPTIONS" \
+  --label-add "traefik.http.middlewares.whatsapp-cors.headers.customresponseheaders.Access-Control-Allow-Headers=Content-Type, Authorization, Accept" \
+  --label-add "traefik.http.middlewares.whatsapp-cors.headers.customresponseheaders.Access-Control-Allow-Credentials=true" \
+  --label-add "traefik.http.middlewares.whatsapp-cors.headers.accesscontrolmaxage=86400" \
+  --label-add "traefik.http.middlewares.whatsapp-cors.headers.addvaryheader=true" \
+  --label-add "traefik.http.services.whatsapp.loadbalancer.server.port=3001" \
+  "$SERVICE"
+echo "=== Listo. Esperá ~10 s y probá: curl -i https://whatsapp.checkin24hs.com/api/send ==="
+EOF
+chmod +x ~/checkin24hs/scripts/aplicar_traefik_whatsapp_servidor.sh
+bash ~/checkin24hs/scripts/aplicar_traefik_whatsapp_servidor.sh

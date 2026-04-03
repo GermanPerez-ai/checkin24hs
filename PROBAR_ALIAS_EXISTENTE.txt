@@ -1,0 +1,2 @@
+echo "🔍 Probando con el alias existente..." && echo "" && echo "Alias encontrado: easypanel-checkin24hs" && echo "" && echo "Probando conexión desde Traefik:" && docker exec $(docker ps | grep traefik | awk '{print $1}') wget -O- http://easypanel-checkin24hs:3000 2>&1 | head -10
+

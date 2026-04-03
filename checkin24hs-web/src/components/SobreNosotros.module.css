@@ -18,7 +18,7 @@
 
 .content p {
   margin: 0 0 16px;
-  font-size: 1rem;
+  font-size: calc(1rem - 2pt);
   line-height: 1.7;
   color: var(--text);
 }
@@ -35,7 +35,7 @@
 
 .pilares li {
   margin: 0 0 10px;
-  font-size: 1rem;
+  font-size: calc(1rem - 2pt);
   line-height: 1.7;
 }
 

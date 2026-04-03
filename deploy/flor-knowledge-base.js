@@ -21,11 +21,72 @@
 })();
 
 const FlorKnowledgeBase = {
+    // Hoteles cargados desde Supabase (si se llama loadHotelsFromSupabase)
+    _hotelsFromSupabase: null,
+
+    // Cargar hoteles y flor_general_config desde Supabase (mismo que checkin24hs-web para usar prompt del dashboard)
+    loadHotelsFromSupabase: async function(supabaseClient) {
+        if (!supabaseClient || typeof supabaseClient.from !== 'function') return;
+        try {
+            const { data: hotels, error } = await supabaseClient.from('hotels').select('id,name,slug,ciudad,region,pais,location,description,status,puntuacion_num,rating,wifi,desayuno,piscina,estacionamiento,calefaccion,pet_friendly,url_reserva_directa,website,imagen_principal,galeria_fotos,flor_info').order('name');
+            if (!error && hotels && Array.isArray(hotels)) {
+                this._hotelsFromSupabase = hotels.map(function(row) {
+                    var location = row.location || [row.ciudad, row.region, row.pais].filter(Boolean).join(', ');
+                    return {
+                        id: row.id, name: row.name, slug: row.slug, location: location || row.ciudad || 'Sin ubicación',
+                        description: row.description || '', status: row.status || 'Activo',
+                        rating: row.puntuacion_num != null ? row.puntuacion_num : (row.rating != null ? row.rating : null),
+                        website: row.url_reserva_directa || row.website || '', flor_info: row.flor_info || {}, is_active: row.is_active !== false
+                    };
+                });
+                console.log('[Flor Knowledge] Hoteles cargados desde Supabase:', this._hotelsFromSupabase.length);
+            }
+            var configRes = await supabaseClient.from('system_config').select('key,value').in('key', ['flor_general_config', 'flor_responses']);
+            if (!configRes.error && configRes.data) {
+                var kb = this;
+                (configRes.data || []).forEach(function(row) {
+                    try {
+                        if (row.key === 'flor_general_config' && row.value) {
+                            var general = JSON.parse(row.value);
+                            if (general.greeting) kb.agent.greeting = general.greeting;
+                            if (general.name) kb.agent.name = general.name;
+                            if (general.role) kb.agent.role = general.role;
+                            if (general.personality) kb.agent.personality = general.personality;
+                            if (general.promptGeneral) kb.agent.promptGeneral = general.promptGeneral;
+                        }
+                        if (row.key === 'flor_responses' && row.value) {
+                            var responses = JSON.parse(row.value);
+                            if (responses.saludo) kb.agent.greeting = responses.saludo;
+                        }
+                    } catch (e) { /* ignorar */ }
+                });
+                console.log('[Flor Knowledge] flor_general_config cargado desde Supabase');
+            }
+        } catch (e) { console.warn('[Flor Knowledge] Error loadHotelsFromSupabase:', e); }
+    },
+
+    loadFlorGeneralConfigFromSupabase: async function(supabaseClient) {
+        if (!supabaseClient || typeof supabaseClient.from !== 'function') return false;
+        try {
+            var res = await supabaseClient.from('system_config').select('key,value').eq('key', 'flor_general_config').single();
+            if (res.error || !res.data || !res.data.value) return false;
+            var general = JSON.parse(res.data.value);
+            var kb = this;
+            if (general.greeting) kb.agent.greeting = general.greeting;
+            if (general.name) kb.agent.name = general.name;
+            if (general.role) kb.agent.role = general.role;
+            if (general.personality) kb.agent.personality = general.personality;
+            if (general.promptGeneral) kb.agent.promptGeneral = general.promptGeneral;
+            console.log('[Flor Knowledge] promptGeneral cargado desde Supabase (flor_general_config)');
+            return !!kb.agent.promptGeneral;
+        } catch (e) { console.warn('[Flor Knowledge] Error loadFlorGeneralConfigFromSupabase:', e); return false; }
+    },
+
     // Información del Agente
     agent: {
         name: "Flor",
         role: "Asistente Virtual",
-        greeting: "¡Hola! Mi nombre es Flor, soy tu asistente virtual y estoy aquí para ayudarte en lo que necesites! ¿Me podrías decir brevemente sobre qué hotel o servicio tienes una consulta?",
+        greeting: "¡Hola! Soy **Flor 🌸**, tu asistente de **Checkin24hs**. Estoy aquí para ayudarte a planificar tu escapada ideal hacia el relax y la naturaleza de la Patagonia. 🏔️✨ ¿Tenés algún hotel en mente (como Puyehue o Huilo Huilo) o te gustaría que te recomiende un refugio mágico para descansar?",
         personality: "Amable, eficiente y profesional"
     },
 
@@ -90,8 +151,9 @@ const FlorKnowledgeBase = {
         confirmacion_precios: "Te puedo dar una idea general de precios. Los rangos varían según el hotel y temporada. ¿Sobre qué hotel te interesa saber?"
     },
 
-    // Función para obtener información de hoteles desde localStorage
+    // Función para obtener hoteles: primero Supabase (si se cargó), sino localStorage
     getHotelsFromDB: function() {
+        if (this._hotelsFromSupabase && this._hotelsFromSupabase.length) return this._hotelsFromSupabase;
         try {
             const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
             return hotels.filter(h => h.is_active !== false);

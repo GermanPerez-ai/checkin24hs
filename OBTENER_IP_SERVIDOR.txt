@@ -1,0 +1,8 @@
+# Comando principal para obtener la IP pública
+curl ifconfig.me
+
+# Si no funciona, prueba estos alternativos:
+# curl -4 ifconfig.me
+# curl ipinfo.io/ip
+# hostname -I | awk '{print $1}'
+

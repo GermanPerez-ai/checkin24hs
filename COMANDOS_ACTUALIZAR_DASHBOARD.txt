@@ -1,0 +1,28 @@
+# Comandos para ejecutar en el servidor para actualizar el dashboard
+
+# 1. Buscar contenedor
+CONTAINER_ID=$(docker ps --filter "name=dashboard" --format "{{.ID}}" | head -1)
+echo "Contenedor: $CONTAINER_ID"
+
+# 2. Buscar ruta del dashboard
+DASHBOARD_PATH="/app/dashboard.html"
+docker exec $CONTAINER_ID test -f "$DASHBOARD_PATH" || DASHBOARD_PATH="/usr/share/nginx/html/dashboard.html"
+echo "Ruta: $DASHBOARD_PATH"
+
+# 3. Crear backup
+BACKUP_PATH="${DASHBOARD_PATH}.backup.$(date +%Y%m%d_%H%M%S)"
+docker exec $CONTAINER_ID cp "$DASHBOARD_PATH" "$BACKUP_PATH"
+echo "Backup creado: $BACKUP_PATH"
+
+# 4. Copiar archivo al contenedor
+docker cp deploy/dashboard.html "${CONTAINER_ID}:${DASHBOARD_PATH}"
+echo "Archivo copiado"
+
+# 5. Reiniciar contenedor
+docker restart $CONTAINER_ID
+sleep 5
+echo "Contenedor reiniciado"
+echo "✅ ACTUALIZACIÓN COMPLETA"
+
+
+

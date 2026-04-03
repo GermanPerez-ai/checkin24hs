@@ -1,0 +1,12 @@
+# Comando corregido para configurar Traefik del cotizador
+# El nombre del servicio es: checkin24hs_cotizador
+
+docker service update \
+  --label-add "traefik.enable=true" \
+  --label-add "traefik.http.routers.cotizador.rule=Host(\`cotizar.checkin24hs.com\`)" \
+  --label-add "traefik.http.routers.cotizador.entrypoints=websecure" \
+  --label-add "traefik.http.routers.cotizador.tls.certresolver=letsencrypt" \
+  --label-add "traefik.http.routers.cotizador.service=cotizador-service" \
+  --label-add "traefik.http.services.cotizador-service.loadbalancer.server.port=80" \
+  --label-add "traefik.docker.network=easypanel" \
+  checkin24hs_cotizador

@@ -1,0 +1,28 @@
+# Cómo salir del editor nano
+
+Estás en el editor nano (no vim).
+
+## Para guardar y salir:
+
+1. Presiona: Ctrl + O (para guardar)
+   - Luego presiona Enter para confirmar el nombre del archivo
+
+2. Presiona: Ctrl + X (para salir)
+
+## O más rápido:
+
+Presiona: Ctrl + X
+Luego presiona: Y (para confirmar que quieres guardar)
+Luego presiona: Enter (para confirmar el nombre del archivo)
+
+## Atajos útiles de nano:
+
+- Ctrl + O = Guardar (Write Out)
+- Ctrl + X = Salir (Exit)
+- Ctrl + G = Ayuda (Help)
+- Ctrl + K = Cortar línea
+- Ctrl + U = Pegar
+
+El mensaje de merge por defecto está bien, solo necesitas guardar y salir.
+
+

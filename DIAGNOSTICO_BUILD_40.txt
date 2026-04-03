@@ -1,0 +1,18 @@
+# Diagnóstico: Por qué sigue mostrando Build #40
+
+# 1. Verificar qué Build tiene el archivo descargado
+grep -o "BUILD.*[0-9]" /root/checkin24hs/dashboard.html | head -5
+
+# 2. Verificar si el servicio usa un bind mount (volumen montado)
+docker service inspect checkin24hs_dashboard | grep -A 10 "Mounts"
+
+# 3. Verificar si hay un contenedor activo y dónde está el archivo
+docker ps | grep dashboard
+CONTAINER=$(docker ps --filter "name=dashboard" --format "{{.ID}}" | head -1)
+docker exec $CONTAINER find / -name "dashboard.html" 2>/dev/null | head -3
+
+# 4. Verificar el Build dentro del contenedor
+docker exec $CONTAINER grep -i "build" /app/dashboard.html | head -3
+
+# 5. Si el servicio usa bind mount, el archivo debe estar en /root/checkin24hs
+# Si usa volumen interno, hay que copiarlo manualmente al contenedor

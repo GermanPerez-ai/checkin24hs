@@ -1,0 +1,26 @@
+==========================================
+COMANDOS PARA COPIAR SCRIPTS AL SERVIDOR
+==========================================
+
+IP del servidor: 72.61.58.240
+
+1. Copiar ACTUALIZAR_COTIZADOR_FINAL.sh:
+   scp ACTUALIZAR_COTIZADOR_FINAL.sh root@72.61.58.240:/root/checkin24hs/
+
+2. Copiar RECORDATORIO_ACTUALIZAR_COTIZADOR.sh:
+   scp RECORDATORIO_ACTUALIZAR_COTIZADOR.sh root@72.61.58.240:/root/checkin24hs/
+
+3. Configurar permisos de ejecución:
+   ssh root@72.61.58.240 "chmod +x /root/checkin24hs/ACTUALIZAR_COTIZADOR_FINAL.sh"
+   ssh root@72.61.58.240 "chmod +x /root/checkin24hs/RECORDATORIO_ACTUALIZAR_COTIZADOR.sh"
+
+4. Verificar que se copiaron:
+   ssh root@72.61.58.240 "ls -lh /root/checkin24hs/*.sh"
+
+==========================================
+O EJECUTA EL SCRIPT AUTOMÁTICO:
+==========================================
+
+.\COPIAR_SCRIPTS_AL_SERVIDOR.ps1
+
+Este script te pedirá la IP del servidor y copiará ambos scripts automáticamente.

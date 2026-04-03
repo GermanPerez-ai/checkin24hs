@@ -1,0 +1,21 @@
+# Verificar que el Dashboard funciona correctamente
+
+# 1. Verificar que el dashboard responde
+curl -I http://localhost:3000
+
+# 2. Verificar que está sirviendo dashboard.html (no index.html)
+curl http://localhost:3000 | grep -i "dashboard\|flor\|whatsapp" | head -5
+
+# 3. Ver estado de PM2
+pm2 status
+
+# 4. Ver logs del dashboard
+pm2 logs dashboard --lines 10 --nostream
+
+# 5. Verificar que los servidores Baileys están funcionando
+for i in 1 2 3 4; do
+  echo "WhatsApp $i:"
+  curl -s http://localhost:300$i/api/status | head -1
+done
+
+

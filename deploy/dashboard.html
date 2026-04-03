@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-04-03T13:14:47Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 147; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-04-03T14:31:56Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 148; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">147</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">148</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -29049,7 +29049,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             if (qrBtn) qrBtn.href = '#';
             return;
         }
-        if (qrBtn) qrBtn.href = baseUrl + '/qr';
+        if (qrBtn) qrBtn.href = baseUrl + '/api/qr';
         statusEl.textContent = '⏳ Comprobando...';
         if (phoneEl) phoneEl.textContent = '';
         if (cardEl) cardEl.style.borderLeftColor = '#9e9e9e';
@@ -30294,6 +30294,37 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
     };
 
+    /** PN/LID interno de WhatsApp (no es móvil). Misma idea que whatsapp-server isLikelyPseudoWhatsappPn. */
+    window.isLikelyPseudoWhatsappPnDashboard = function (v) {
+        const d = String(v || '').replace(/\D/g, '');
+        if (d.length < 10 || d.length > 15) return true;
+        if (d.length >= 14 && d.startsWith('133')) return true;
+        if (d.length >= 14 && d.startsWith('125')) return true;
+        if (d.length >= 15 && !d.startsWith('54')) return true;
+        return false;
+    };
+    window.isDashboardDisplayPhone = function (v) {
+        const s = String(v || '').trim();
+        if (!s || s.includes('@')) return false;
+        if (!/^\+?[0-9]{10,}$/.test(s)) return false;
+        return !window.isLikelyPseudoWhatsappPnDashboard(s);
+    };
+    /** Prioriza el primer campo que sea móvil real; ignora LID en real_phone/phone. */
+    window.pickBestPhoneRawForDashboard = function (chat) {
+        if (!chat) return '';
+        const strip = function (x) {
+            return String(x || '').trim().replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '');
+        };
+        const order = [chat.real_phone, chat.phone, chat.users && chat.users.phone];
+        for (let i = 0; i < order.length; i++) {
+            const c = order[i];
+            if (c == null || c === '') continue;
+            const s = strip(c);
+            if (window.isDashboardDisplayPhone(s)) return s;
+        }
+        return '';
+    };
+
     // Cargar chats activos. Fuente de verdad: Supabase. No guardamos chats en localStorage.
     window.loadChats = async function() {
         console.log('💬 Cargando chats activos... (siempre desde Supabase)');
@@ -30353,9 +30384,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 chats.forEach(chat => saveUserFromChat(chat));
             }
             const esc = (s) => ('' + (s ?? '')).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-            // Solo mostrar como teléfono si es número real (dígitos, sin @). IDs como 280671952093251@lid no son teléfono.
-            const isRealPhone = (v) => { const s = String(v || '').trim(); return /^\+?[0-9]{10,}$/.test(s) && !s.includes('@'); };
-            const formatPhoneForDisplay = (v) => { if (!v) return ''; const s = String(v).trim(); if (!isRealPhone(s)) return ''; if (s.startsWith('+')) return s; return '+' + s; };
+            const isRealPhone = (v) => window.isDashboardDisplayPhone(v);
+            const formatPhoneForDisplay = (v) => { if (!v) return ''; const s = String(v).trim(); if (!isRealPhone(s)) return ''; if (s.startsWith('+')) return s; return '+' + s.replace(/\D/g, ''); };
             const contactDisplayFromRaw = (raw) => { if (!raw) return ''; var s = String(raw).trim(); if (isRealPhone(s)) return formatPhoneForDisplay(s); var clean = s.replace(/@lid$/, '').replace(/@s\.whatsapp\.net$/, ''); return isRealPhone(clean) ? formatPhoneForDisplay(clean) : ('ID: ' + s); };
             const channelLabels = { web: 'Web', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' };
             const getChannelBadge = (ch) => { if (!ch || ch === 'whatsapp') return ''; var label = channelLabels[ch] || ch; return `<span style="background: #5c6bc0; color: white; padding: 2px 6px; border-radius: 6px; font-size: 10px; margin-left: 6px;">${esc(label)}</span>`; };
@@ -30369,11 +30399,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             // WhatsApp: título = teléfono real; debajo el nombre como antes (users.name || chat.name — lead CRM + nombre push WA), sin sustituir el título.
             chatsList.innerHTML = chats.map(chat => {
                 const ch = (chat.channel || 'whatsapp').toLowerCase();
-                const phoneRaw = chat.real_phone || chat.phone || chat.remote_jid || chat.users?.phone || '';
-                const phoneDisplay = ch === 'whatsapp' ? (contactDisplayFromRaw(phoneRaw) || (phoneRaw ? 'Número no disponible' : '')) : '';
+                const phoneRaw = ch === 'whatsapp' ? (window.pickBestPhoneRawForDashboard(chat) || '') : String(chat.phone || chat.display_name || '').trim();
+                const phoneDisplay = ch === 'whatsapp' ? (phoneRaw ? (contactDisplayFromRaw(phoneRaw) || formatPhoneForDisplay(phoneRaw)) : '') : '';
                 const userName = ch !== 'whatsapp'
                     ? (chat.display_name || chat.name || chat.phone || 'Visitante')
-                    : (phoneDisplay || String(chat.phone || '').trim() || chat.name || 'Cliente');
+                    : (phoneDisplay || 'Cliente (sin número)');
                 const nameLooksLikePhoneOnly = (s) => { const t = String(s || '').trim(); const d = t.replace(/\D/g, ''); return d.length >= 10 && /^[+\d\s-]+$/.test(t); };
                 const nameAsBefore = String(chat.users?.name || chat.name || '').trim();
                 const lastMessage = chat.last_message || 'Sin mensajes';
@@ -30451,15 +30481,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
         const ch = (chat.channel || 'whatsapp').toLowerCase();
         const isWhatsApp = ch === 'whatsapp';
-        const phoneRaw = chat.real_phone || chat.phone || chat.remote_jid || chat.users?.phone || '';
+        const phoneRaw = isWhatsApp ? (window.pickBestPhoneRawForDashboard(chat) || '') : String(chat.phone || '').trim();
         const esc = (s) => ('' + (s ?? '')).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        const isRealPhone = (v) => { const s = String(v || '').trim(); return /^\+?[0-9]{10,}$/.test(s) && !s.includes('@'); };
-        const formatPhoneForDisplay = (v) => { if (!v) return ''; const s = String(v).trim(); if (!isRealPhone(s)) return ''; if (s.startsWith('+')) return s; return '+' + s; };
+        const isRealPhone = (v) => window.isDashboardDisplayPhone(v);
+        const formatPhoneForDisplay = (v) => { if (!v) return ''; const s = String(v).trim(); if (!isRealPhone(s)) return ''; if (s.startsWith('+')) return s; return '+' + s.replace(/\D/g, ''); };
         const contactDisplayFromRawHeader = (raw) => { if (!raw) return ''; var s = String(raw).trim(); if (isRealPhone(s)) return formatPhoneForDisplay(s); var clean = s.replace(/@lid$/, '').replace(/@s\.whatsapp\.net$/, ''); return isRealPhone(clean) ? formatPhoneForDisplay(clean) : ('ID: ' + s); };
         const userName = !isWhatsApp
             ? (chat.display_name || chat.name || chat.phone || 'Visitante')
-            : (contactDisplayFromRawHeader(phoneRaw) || (phoneRaw ? 'Número no disponible' : '') || String(chat.phone || '').trim() || chat.name || 'Cliente');
-        let displayPhone = formatPhoneForDisplay(phoneRaw);
+            : (phoneRaw ? (contactDisplayFromRawHeader(phoneRaw) || formatPhoneForDisplay(phoneRaw)) : 'Cliente (sin número)');
+        let displayPhone = phoneRaw ? formatPhoneForDisplay(phoneRaw) : '';
         messagesEl.innerHTML = '<div style="text-align: center; padding: 24px; color: #666;">Cargando mensajes…</div>';
         if (inputContainer) {
             var parent = inputContainer.parentNode;
@@ -30506,12 +30536,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }
         }
         if (!displayPhone) {
-            var idToShow = contactIdFromMessages || phoneRaw || '';
+            var idToShow = contactIdFromMessages || '';
             if (idToShow) {
                 var clean = idToShow.replace(/@lid$/, '').replace(/@s\.whatsapp\.net$/, '');
-                displayPhone = isRealPhone(clean) ? formatPhoneForDisplay(clean) : ('ID: ' + idToShow);
+                displayPhone = isRealPhone(clean) ? formatPhoneForDisplay(clean) : ('ID interno · actualizar número');
             } else {
-                displayPhone = 'Número no disponible';
+                displayPhone = 'Sin número · usá «Actualizar número real»';
             }
         }
         const channelLabels = { web: 'Web', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' };

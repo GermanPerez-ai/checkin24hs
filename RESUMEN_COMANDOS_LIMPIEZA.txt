@@ -1,0 +1,83 @@
+==========================================
+🧹 RESUMEN DE COMANDOS PARA LIMPIEZA
+==========================================
+
+📋 COMANDOS SSH (Ejecutar en el servidor)
+
+1. Ver todos los servicios:
+   docker service ls
+
+2. Ver puertos en uso:
+   sudo netstat -tuln | grep -E ':(300[0-9]|301[0-9]|302[0-9])' | sort
+
+3. Eliminar servicio específico:
+   docker service rm NOMBRE_SERVICIO
+
+4. Ver IP del servidor:
+   curl ifconfig.me
+
+5. Ver logs de un servicio:
+   docker service logs NOMBRE_SERVICIO --tail 50
+
+6. Ver estado de un servicio:
+   docker service ps NOMBRE_SERVICIO
+
+==========================================
+📋 SERVICIOS A ELIMINAR (si existen)
+==========================================
+
+❌ checkin24hs-dashboard
+❌ checkin24hs_checkin24hs-dashboard
+❌ dashboard (si es duplicado)
+
+✅ NO ELIMINAR:
+✅ webmail o checkin24hs_webmail
+✅ traefik
+✅ easypanel
+
+==========================================
+📋 CONFIGURACIÓN FINAL
+==========================================
+
+SERVICIO: dashboard
+- Nombre: dashboard
+- Fuente: GitHub (GermanPerez-ai/checkin24hs, rama: working-version)
+- Ruta compilación: /
+- Tipo: Dockerfile
+- Puerto: 3000:3000 (Ingress)
+- Dominio: dashboard.checkin24hs.com → puerto 3000
+
+SERVICIO: webmail
+- Verificar que existe y está corriendo
+- Dominio: webmail.checkin24hs.com → puerto 80
+
+==========================================
+📋 DNS A CONFIGURAR
+==========================================
+
+En tu panel de DNS, agregar registros A:
+
+dashboard.checkin24hs.com → IP_SERVIDOR
+webmail.checkin24hs.com → IP_SERVIDOR
+
+(Obtener IP con: curl ifconfig.me)
+
+==========================================
+📋 VERIFICACIÓN FINAL
+==========================================
+
+1. Dashboard funciona:
+   http://dashboard.checkin24hs.com
+
+2. Webmail funciona:
+   http://webmail.checkin24hs.com
+
+3. Servicios corriendo:
+   docker service ls
+
+4. Solo 2 servicios principales:
+   - dashboard (verde)
+   - webmail (verde)
+
+==========================================
+

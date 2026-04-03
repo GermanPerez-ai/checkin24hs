@@ -1,0 +1,34 @@
+# Comandos simples que DEBEN mostrar salida
+
+# ===== Comando 1: Verificar que Docker funciona =====
+docker --version
+
+# ===== Comando 2: Ver TODOS los contenedores (sin filtro) =====
+docker ps -a
+
+# ===== Comando 3: Ver si el archivo existe =====
+ls -la
+
+# ===== Comando 4: Ver contenido del archivo de salida =====
+cat salida-completa.txt
+
+# ===== Comando 5: Ver si el contenedor existe =====
+docker ps -a | head -20
+
+# ===== Comando 6: Intentar ver logs de cualquier forma =====
+docker logs evolution-api-checkin24hs 2>&1 | head -20
+
+# ===== Comando 7: Verificar archivos en la carpeta =====
+ls -la *.yml *.env *.sh *.txt 2>&1
+
+# ===== Comando 8: Ver estado de docker-compose =====
+docker-compose ps -a
+
+# ===== Comando 9: Ver si hay procesos de docker =====
+ps aux | grep docker
+
+# ===== Comando 10: Verificar que estamos en la carpeta correcta =====
+pwd
+ls -la
+
+
