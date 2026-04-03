@@ -2945,6 +2945,40 @@ async function resolvePausePhoneViaSupabaseLid(jidDigits) {
 }
 
 /**
+ * Cola Flor: a veces msg.key.senderPn llega después del delay (solo está en el primer upsert como n/a).
+ * La fila en whatsapp_chats puede tener ya phone=+54… y name=LID; usar eso para enviar a *@s.whatsapp.net y no solo a @lid.
+ */
+async function resolveE164FromSupabaseForLidChat(lidDigits) {
+    const fromPause = await resolvePausePhoneViaSupabaseLid(lidDigits);
+    if (fromPause) return fromPause;
+    if (!supabase || !CONFIG.SAVE_TO_SUPABASE || !lidDigits) return null;
+    const d = String(lidDigits).replace(/\D/g, '');
+    if (d.length < 10) return null;
+    try {
+        const inst = CONFIG.INSTANCE_NUMBER || 1;
+        const { data: rows, error } = await supabase
+            .from('whatsapp_chats')
+            .select('phone, real_phone, name')
+            .eq('whatsapp_instance', inst)
+            .eq('name', d)
+            .limit(5);
+        if (error || !rows?.length) return null;
+        for (const row of rows) {
+            const raw = row.phone || row.real_phone;
+            if (!raw) continue;
+            const n = normalizarPhoneParaSupabase(raw);
+            const nd = n.replace(/\D/g, '');
+            if (n.startsWith('+') && nd.length >= 10 && !isLikelyPseudoWhatsappPn(nd) && !isOurBotPhoneDigits(nd)) {
+                return n;
+            }
+        }
+    } catch (e) {
+        /* ignore */
+    }
+    return null;
+}
+
+/**
  * Para mensajes salientes (fromMe) del humano: obtener el mismo identificador que usa el flujo entrante (+E.164),
  * así florPauseMemoryUntil y whatsapp_chats.flor_paused_until coinciden con isFlorPausedForChat.
  */
@@ -4046,7 +4080,42 @@ async function connectToWhatsApp() {
                         const e164 = jidPnToE164(String(sp));
                         if (e164) {
                             p.jidDestino = e164.replace(/\D/g, '') + '@s.whatsapp.net';
+                            p.numero = e164.startsWith('+') ? e164 : '+' + e164.replace(/\D/g, '');
                             rememberLidPnForSend(p.remoteJid, p.jidDestino);
+                            rememberFlorChatJidToPhone(p.remoteJid, p.numero);
+                        }
+                    }
+                }
+
+                const rjPending = String(p.remoteJid || '');
+                const destStillLid = !p.jidDestino || String(p.jidDestino).includes('@lid');
+                if (rjPending.includes('@lid') && destStillLid) {
+                    const lidD = rjPending.replace(/@lid$/i, '').split(':')[0].replace(/\D/g, '');
+                    const e164Db = await resolveE164FromSupabaseForLidChat(lidD);
+                    if (e164Db) {
+                        const nd = e164Db.replace(/\D/g, '');
+                        p.numero = e164Db.startsWith('+') ? e164Db : '+' + nd;
+                        p.jidDestino = `${nd}@s.whatsapp.net`;
+                        rememberLidPnForSend(p.remoteJid, p.jidDestino);
+                        rememberFlorChatJidToPhone(p.remoteJid, p.numero);
+                        console.log(`📤 Flor: MSISDN desde Supabase (name/LID→tel) LID=${lidD} → ${p.jidDestino}`);
+                    } else {
+                        await new Promise((r) => setTimeout(r, 180));
+                        for (const entry of p.messages || []) {
+                            const m = entry.msg;
+                            if (!m?.key) continue;
+                            const sp = m.key.senderPn || m.key.sender_pn;
+                            if (sp && String(sp).includes('@s.whatsapp.net')) {
+                                const e164 = jidPnToE164(String(sp));
+                                if (e164) {
+                                    p.jidDestino = e164.replace(/\D/g, '') + '@s.whatsapp.net';
+                                    p.numero = e164.startsWith('+') ? e164 : '+' + e164.replace(/\D/g, '');
+                                    rememberLidPnForSend(p.remoteJid, p.jidDestino);
+                                    rememberFlorChatJidToPhone(p.remoteJid, p.numero);
+                                    console.log(`📤 Flor: senderPn hidratado tras breve espera → ${p.jidDestino}`);
+                                    break;
+                                }
+                            }
                         }
                     }
                 }
