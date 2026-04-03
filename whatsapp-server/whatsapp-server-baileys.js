@@ -3128,7 +3128,7 @@ async function connectToWhatsApp() {
         try {
             if (res) registerFlorOutboundBaileysMessageIdsFromSendResult(res);
             // Enlace LID ↔ +E.164: los salientes humanos a veces traen otro @lid que el del mensaje entrante;
-            // Flor envía a p.remoteJid (@lid) con p.numero ya resuelto — guardamos todos los JID que devuelve el envío.
+            // Flor puede enviar a PN *@s.whatsapp.net (jidDestino) cuando hay +E.164; el envío devuelve JIDs para el mapa de pausa.
             const sentRj = res?.key?.remoteJid;
             if (!phoneForMap && sentRj) phoneForMap = resolvePhoneForFlorSendDestination(sock, sentRj);
             if (phoneForMap && destJid && !String(destJid).includes('@g.us')) {
@@ -3648,6 +3648,14 @@ async function connectToWhatsApp() {
                         }
                     }
                 }
+                // sender_pn a veces solo viene en el envelope (attrs), no en msg.key → evita enviar solo a @lid ("Esperando mensaje" en el cliente)
+                if (!realPhone && msg) {
+                    const deepE164 = deepScanMessageForRecipientPn(msg, 0, new WeakSet());
+                    if (deepE164) {
+                        realPhone = deepE164.replace(/^\+/, '');
+                        console.log(`📱 Número real desde deepScan (sender_pn / envelope): ${numero} → +${realPhone}`);
+                    }
+                }
                 if (realPhone) {
                     const normalized = String(realPhone).startsWith('+') ? String(realPhone) : '+' + String(realPhone).replace(/\D/g, '');
                     numero = normalized;
@@ -3679,6 +3687,19 @@ async function connectToWhatsApp() {
                     rememberFlorChatJidToPhone(remoteJid, e164);
                 }
             }
+            /** Si ya tenemos +E.164 real, enviar a *@s.whatsapp.net; mandar solo a @lid rompe el cifrado en muchos clientes ("Esperando mensaje"). */
+            let jidDestino = remoteJid;
+            {
+                const ndf = String(numero || '').replace(/\D/g, '');
+                if (numero && String(numero).trim().startsWith('+') && ndf.length >= 10
+                    && !isLikelyPseudoWhatsappPn(ndf) && !isOurBotPhoneDigits(ndf)) {
+                    jidDestino = `${ndf}@s.whatsapp.net`;
+                    if (String(remoteJid).includes('@lid') && jidDestino !== remoteJid) {
+                        console.log(`📤 Flor usará PN para enviar (no solo LID): ${remoteJid} → ${jidDestino}`);
+                    }
+                    rememberFlorChatJidToPhone(jidDestino, String(numero).trim().startsWith('+') ? numero : '+' + ndf);
+                }
+            }
             const nombre = msg.pushName || numero;
 
             console.log(`📱 Mensaje recibido de ${nombre} (${numero}): ${texto}${tieneAudio ? ' [audio/voice]' : ''}`);
@@ -3703,7 +3724,8 @@ async function connectToWhatsApp() {
                     messages: [],
                     nombre,
                     numero,
-                    remoteJid
+                    remoteJid,
+                    jidDestino
                 };
                 florPendingByUser.set(key, pending);
             }
@@ -3712,6 +3734,7 @@ async function connectToWhatsApp() {
             pending.nombre = nombre;
             pending.numero = numero;
             pending.remoteJid = remoteJid;
+            pending.jidDestino = jidDestino;
 
             if (pending.messages.length > 1) {
                 console.log(`📬 Mensaje adicional de ${nombre} durante la espera (${pending.messages.length} en cola, ${FLOR_DELAY_MS}ms)`);
@@ -3751,9 +3774,14 @@ async function connectToWhatsApp() {
                 }
                 if (phoneE164ForDispatch && p.remoteJid) {
                     pushFlorDispatchContext(p.remoteJid, phoneE164ForDispatch);
+                    if (p.jidDestino && p.jidDestino !== p.remoteJid) {
+                        pushFlorDispatchContext(p.jidDestino, phoneE164ForDispatch);
+                    }
                     dispatchPushed = true;
                 }
                 florPendingByUser.delete(key);
+
+                const destJid = p.jidDestino || p.remoteJid;
 
                 try {
                 const textos = p.messages.map(m => m.texto);
@@ -3779,22 +3807,22 @@ async function connectToWhatsApp() {
                                 combined = textos.length === 1 ? textos[0] : textos.map((t, i) => `Consulta ${i + 1}: ${t}`).join('\n\n');
                             } else {
                                 const audioFallback = FLOR_RESPONSES_DEFAULTS.audioFallback;
-                                if (sock && p.remoteJid) {
-                                    await sock.sendMessage(p.remoteJid, { text: añadirEmojiMensaje(audioFallback, 'flor') });
+                                if (sock && destJid) {
+                                    await sock.sendMessage(destJid, { text: añadirEmojiMensaje(audioFallback, 'flor') });
                                     await guardarMensaje(p.numero, audioFallback, true, audioFallback, p.nombre);
                                     await guardarFlorInteraction({ phone: p.numero, userMessage: '[Audio]', botResponse: audioFallback, intent: 'audio_fallback', success: false, usedAi: false, responseTimeMs: 0 });
                                 }
-                                await safeSendPresenceUpdate('paused', p.remoteJid);
+                                await safeSendPresenceUpdate('paused', destJid);
                                 return;
                             }
                         }
                     } catch (e) {
                         const audioFallback = FLOR_RESPONSES_DEFAULTS.audioFallback;
-                        if (sock && p.remoteJid) {
-                            await sock.sendMessage(p.remoteJid, { text: añadirEmojiMensaje(audioFallback, 'flor') });
+                        if (sock && destJid) {
+                            await sock.sendMessage(destJid, { text: añadirEmojiMensaje(audioFallback, 'flor') });
                             await guardarMensaje(p.numero, audioFallback, true, audioFallback, p.nombre);
                         }
-                        await safeSendPresenceUpdate('paused', p.remoteJid);
+                        await safeSendPresenceUpdate('paused', destJid);
                         return;
                     }
                 }
@@ -3803,7 +3831,7 @@ async function connectToWhatsApp() {
                 const phoneKeyInt = (p.numero && String(p.numero).replace(/\D/g, '')) || 'unknown';
                 const lastHotelNombre = florLastHotelByPhone.get(phoneKeyInt) || null;
                 let integracionMatch = await detectarIntegracionActivada(combined, lastHotelNombre);
-                if (integracionMatch && sock && p.remoteJid) {
+                if (integracionMatch && sock && destJid) {
                     const { integration, hotel } = integracionMatch;
                     const integrationName = (integration.name || '').toLowerCase();
                     const isOportunidades = integrationName.includes('temporada') && integrationName.includes('oportunidades');
@@ -3819,16 +3847,16 @@ async function connectToWhatsApp() {
                         }
                     }
                 }
-                if (integracionMatch && sock && p.remoteJid) {
+                if (integracionMatch && sock && destJid) {
                     const { integration, hotel } = integracionMatch;
                     let contenido = (integration.content && String(integration.content).trim()) || '';
                     console.log(`📋 Integración activada: "${integration.name || 'Sin nombre'}" (override, BLOQUEO DE LLM)`);
                     contenido = sanitizarContenidoIntegracionParaLinks(contenido);
-                    if (contenido) await sock.sendMessage(p.remoteJid, { text: contenido });
+                    if (contenido) await sock.sendMessage(destJid, { text: contenido });
                     if (integration.sendImage && hotel) {
                         const fi = hotel.flor_info || {};
                         const imgUrl = fi.img_general || (hotel.images && hotel.images[0]);
-                        if (imgUrl) try { await sock.sendMessage(p.remoteJid, { image: { url: imgUrl } }); } catch (e) { console.warn('⚠️ Imagen integración:', e?.message); }
+                        if (imgUrl) try { await sock.sendMessage(destJid, { image: { url: imgUrl } }); } catch (e) { console.warn('⚠️ Imagen integración:', e?.message); }
                     }
                     const mediaUrls = integration.mediaUrls || [];
                     for (const m of mediaUrls) {
@@ -3841,20 +3869,20 @@ async function connectToWhatsApp() {
                                 const base64Match = url.match(/^data:[^;]+;base64,(.+)$/);
                                 if (base64Match) {
                                     const buf = Buffer.from(base64Match[1], 'base64');
-                                    if (tipo.includes('video')) await sock.sendMessage(p.remoteJid, { video: buf });
-                                    else if (tipo.includes('pdf') || nombre.toLowerCase().endsWith('.pdf')) await sock.sendMessage(p.remoteJid, { document: buf, mimetype: 'application/pdf', fileName: nombre.endsWith('.pdf') ? nombre : nombre + '.pdf' });
-                                    else await sock.sendMessage(p.remoteJid, { image: buf });
+                                    if (tipo.includes('video')) await sock.sendMessage(destJid, { video: buf });
+                                    else if (tipo.includes('pdf') || nombre.toLowerCase().endsWith('.pdf')) await sock.sendMessage(destJid, { document: buf, mimetype: 'application/pdf', fileName: nombre.endsWith('.pdf') ? nombre : nombre + '.pdf' });
+                                    else await sock.sendMessage(destJid, { image: buf });
                                 }
-                            } else if (tipo.includes('video')) await sock.sendMessage(p.remoteJid, { video: { url } });
+                            } else if (tipo.includes('video')) await sock.sendMessage(destJid, { video: { url } });
                             else if (tipo.includes('pdf') || nombre.toLowerCase().endsWith('.pdf')) {
                                 const buf = await downloadUrlToBuffer(url);
-                                if (buf?.length) await sock.sendMessage(p.remoteJid, { document: buf, mimetype: 'application/pdf', fileName: nombre.endsWith('.pdf') ? nombre : nombre + '.pdf' });
-                            } else await sock.sendMessage(p.remoteJid, { image: { url } });
+                                if (buf?.length) await sock.sendMessage(destJid, { document: buf, mimetype: 'application/pdf', fileName: nombre.endsWith('.pdf') ? nombre : nombre + '.pdf' });
+                            } else await sock.sendMessage(destJid, { image: { url } });
                         } catch (e) { console.warn('⚠️ Medio integración:', e?.message); }
                     }
                     await guardarMensaje(p.numero, contenido, true, contenido, p.nombre);
                     await guardarFlorInteraction({ phone: p.numero, userMessage: combined, botResponse: contenido, intent: 'integracion_override', success: true, usedAi: false, responseTimeMs: 0 });
-                    await safeSendPresenceUpdate('paused', p.remoteJid);
+                    await safeSendPresenceUpdate('paused', destJid);
                     return;
                 }
 
@@ -3907,7 +3935,7 @@ async function connectToWhatsApp() {
                 }
 
                 // Simulación de escritura (spec: UX premium)
-                await safeSendPresenceUpdate('composing', p.remoteJid);
+                await safeSendPresenceUpdate('composing', destJid);
 
                 const t0 = Date.now();
                 const raw = await procesarConFlor(combined, {
@@ -3920,7 +3948,7 @@ async function connectToWhatsApp() {
                 const responseTimeMs = Date.now() - t0;
                 let respuestaFlor = (typeof raw === 'object' && raw != null && 'text' in raw) ? raw.text : (typeof raw === 'string' ? raw : null);
                 // Personalizar link de cotización con el número de WhatsApp del usuario: al abrirlo el formulario tendrá el teléfono ya escrito
-                const numeroUsuario = (p.numero && String(p.numero).replace(/\D/g, '')) || (p.remoteJid && String(p.remoteJid).replace(/@.*$/, '').replace(/\D/g, '')) || '';
+                const numeroUsuario = (p.numero && String(p.numero).replace(/\D/g, '')) || (destJid && String(destJid).replace(/@.*$/, '').replace(/\D/g, '')) || '';
                 if (respuestaFlor && numeroUsuario.length >= 10) {
                     respuestaFlor = respuestaFlor.replace(/https:\/\/cotizar\.checkin24hs\.com\/[^\s]*/gi, 'https://cotizar.checkin24hs.com/?phone=' + numeroUsuario);
                     if (respuestaFlor.includes('?phone=' + numeroUsuario)) {
@@ -3942,11 +3970,11 @@ async function connectToWhatsApp() {
                 }
 
                 // Si Flor pidió enviar un PDF como documento, descargar y enviar el archivo (no el link)
-                if (raw && raw.sendDocument && sock && p.remoteJid) {
+                if (raw && raw.sendDocument && sock && destJid) {
                     try {
                         const buf = await downloadUrlToBuffer(raw.sendDocument.url);
                         if (buf && buf.length > 0) {
-                            await sock.sendMessage(p.remoteJid, {
+                            await sock.sendMessage(destJid, {
                                 document: buf,
                                 mimetype: 'application/pdf',
                                 fileName: raw.sendDocument.fileName || 'documento.pdf'
@@ -3960,11 +3988,11 @@ async function connectToWhatsApp() {
                     }
                 }
                 // Si Flor pidió enviar imagen del hotel, enviar desde URL (nunca Base64 como texto)
-                if (raw && raw.sendImage && sock && p.remoteJid) {
+                if (raw && raw.sendImage && sock && destJid) {
                     try {
                         const { url: imgUrl, caption } = raw.sendImage;
                         if (imgUrl && !imgUrl.startsWith('data:')) {
-                            await sock.sendMessage(p.remoteJid, { image: { url: imgUrl }, caption: (caption || '').slice(0, 1024) });
+                            await sock.sendMessage(destJid, { image: { url: imgUrl }, caption: (caption || '').slice(0, 1024) });
                             console.log('🖼️ Imagen del hotel enviada por WhatsApp');
                         } else {
                             console.warn('⚠️ sendImage tiene data: URI o URL vacía; no se envía.');
@@ -3990,27 +4018,27 @@ async function connectToWhatsApp() {
                         } else {
                             imagePayload = { image: { url: imgUrl }, caption: mensajeParaEnvio.caption };
                         }
-                        await sock.sendMessage(p.remoteJid, imagePayload);
+                        await sock.sendMessage(destJid, imagePayload);
                         const twl = mensajeParaEnvio.textWithLink || '';
                         if (twl.length > 4090) {
-                            await enviarTextoWhatsAppEnPartes(sock, p.remoteJid, twl);
+                            await enviarTextoWhatsAppEnPartes(sock, destJid, twl);
                         } else {
-                            await sock.sendMessage(p.remoteJid, { text: twl });
+                            await sock.sendMessage(destJid, { text: twl });
                         }
                         console.log('📍 Combo ubicación enviado: imagen del hotel + texto con link');
                     } else if (mensajeParaEnvio.sendCotizacionCombo) {
-                        await sock.sendMessage(p.remoteJid, {
+                        await sock.sendMessage(destJid, {
                             image: { url: mensajeParaEnvio.imageUrl },
                             caption: mensajeParaEnvio.caption
                         });
-                        await enviarTextoWhatsAppEnPartes(sock, p.remoteJid, mensajeParaEnvio.textFull);
+                        await enviarTextoWhatsAppEnPartes(sock, destJid, mensajeParaEnvio.textFull);
                         console.log(`📋 Cotización: imagen + texto completo (${mensajeParaEnvio.textFull.length} chars, sin truncar caption)`);
                     } else {
                         const plainText = mensajeParaEnvio.text;
                         if (plainText && plainText.length > 4090) {
-                            await enviarTextoWhatsAppEnPartes(sock, p.remoteJid, plainText);
+                            await enviarTextoWhatsAppEnPartes(sock, destJid, plainText);
                         } else {
-                            await sock.sendMessage(p.remoteJid, mensajeParaEnvio);
+                            await sock.sendMessage(destJid, mensajeParaEnvio);
                         }
                     }
                     const textoGuardado = mensajeParaEnvio.sendAsCombo
@@ -4031,11 +4059,11 @@ async function connectToWhatsApp() {
                     console.log(`✅ Flor respondió a ${p.nombre} (${textos.length} consulta(s))${intentFlor === 'rate_limit_429' ? ' [rate_limit_429]' : ''}`);
                 }
                 // Quitar indicador "escribiendo"
-                await safeSendPresenceUpdate('paused', p.remoteJid);
+                await safeSendPresenceUpdate('paused', destJid);
                 } catch (procErr) {
                     console.error('❌ processPending:', procErr?.message || procErr, procErr?.stack || '');
                 } finally {
-                    if (dispatchPushed) popFlorDispatchContext(p.remoteJid);
+                    if (dispatchPushed) popFlorDispatchContext(destJid);
                 }
             };
 
