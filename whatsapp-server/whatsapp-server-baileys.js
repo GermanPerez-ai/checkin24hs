@@ -3832,8 +3832,33 @@ async function connectToWhatsApp() {
                 } else {
                     console.log(`📱 LID key: keys=[${keyKeys.join(',')}] senderPn=${msg.key?.senderPn ?? 'n/a'} participant=${msg.key?.participant ?? 'n/a'}`);
                 }
-                let realPhone = resolveLidToPhone(sock, remoteJid);
-                // Fallback: número real desde key (senderPn, participant, participantAlt o cualquier propiedad con JID @s.whatsapp.net)
+                const lidUserDigits = String(remoteJid).replace(/@lid$/i, '').replace(/@s\.whatsapp\.net$/, '').trim().split(':')[0].replace(/\D/g, '');
+                /** Valor interno tipo "549…" sin +; null si no hay MSISDN fiable */
+                let realPhone = null;
+
+                // 1) senderPn primero: WA suele mandar el móvil real aquí aunque remoteJid sea @lid (antes el LID store devolvía solo LID y todo quedaba "280…").
+                if (msg.key) {
+                    const sp0 = msg.key.senderPn || msg.key.sender_pn;
+                    if (sp0 && String(sp0).includes('@s.whatsapp.net')) {
+                        const e164 = jidPnToE164(String(sp0));
+                        if (e164) {
+                            realPhone = e164.replace(/^\+/, '');
+                            console.log(`📱 LID: prioridad senderPn (móvil real) → ${e164}`);
+                        }
+                    }
+                }
+
+                // 2) Mapeo LID→PN en Baileys (a veces coincide con MSISDN; si no, seguimos buscando)
+                if (!realPhone) {
+                    const fromStore = resolveLidToPhone(sock, remoteJid);
+                    if (fromStore) {
+                        const nd = String(fromStore).replace(/\D/g, '');
+                        if (!isLikelyPseudoWhatsappPn(nd)) realPhone = String(fromStore).replace(/^\+/, '');
+                        else console.log(`📱 LID store devolvió identificador tipo LID/PN interno (${nd}), se ignora para "numero"`);
+                    }
+                }
+
+                // 3) Fallback: participant, remoteJidAlt en key, etc.
                 if (!realPhone && msg.key) {
                     const key = msg.key;
                     const candidates = [
@@ -3845,7 +3870,6 @@ async function connectToWhatsApp() {
                         key.remoteJidAlt,
                         key.remote_jid_alt
                     ].filter(Boolean);
-                    // También revisar todas las propiedades del key por si el nombre varía
                     for (const k of Object.keys(key || {})) {
                         const v = key[k];
                         if (v && typeof v === 'string' && v.includes('@s.whatsapp.net')) candidates.push(v);
@@ -3855,28 +3879,42 @@ async function connectToWhatsApp() {
                         if (!s || !s.includes('@s.whatsapp.net')) continue;
                         const pn = s.replace(/@s\.whatsapp\.net$/i, '').trim();
                         if (pn && /^[0-9]{10,}$/.test(pn.replace(/^\+/, ''))) {
-                            realPhone = pn.startsWith('+') ? pn : '+' + pn.replace(/\D/g, '');
-                            console.log(`📱 Número real desde key: ${numero} → ${realPhone}`);
+                            const cand = pn.startsWith('+') ? pn : '+' + pn.replace(/\D/g, '');
+                            const ndc = cand.replace(/\D/g, '');
+                            if (isLikelyPseudoWhatsappPn(ndc)) continue;
+                            realPhone = cand.replace(/^\+/, '');
+                            console.log(`📱 Número real desde key: ${numero} → +${realPhone}`);
                             break;
                         }
                     }
                 }
-                // sender_pn a veces solo viene en el envelope (attrs), no en msg.key → evita enviar solo a @lid ("Esperando mensaje" en el cliente)
+                // sender_pn a veces solo viene en el envelope (attrs), no en msg.key
                 if (!realPhone && msg) {
                     const deepE164 = deepScanMessageForRecipientPn(msg, 0, new WeakSet());
                     if (deepE164) {
-                        realPhone = deepE164.replace(/^\+/, '');
-                        console.log(`📱 Número real desde deepScan (sender_pn / envelope): ${numero} → +${realPhone}`);
+                        const nd = deepE164.replace(/^\+/, '').replace(/\D/g, '');
+                        if (!isLikelyPseudoWhatsappPn(nd)) {
+                            realPhone = nd;
+                            console.log(`📱 Número real desde deepScan (sender_pn / envelope): ${numero} → +${realPhone}`);
+                        }
                     }
                 }
+                // 4) Chat ya vinculado en Supabase (phone pasó a +54… en mensajes anteriores)
+                if (!realPhone && supabase && CONFIG.SAVE_TO_SUPABASE && lidUserDigits.length >= 10) {
+                    const fromDb = await resolvePausePhoneViaSupabaseLid(lidUserDigits);
+                    if (fromDb) {
+                        realPhone = fromDb.replace(/^\+/, '').replace(/\D/g, '');
+                        console.log(`📱 LID: número real desde Supabase (chat previo) → +${realPhone}`);
+                    }
+                }
+
                 if (realPhone) {
                     const normalized = String(realPhone).startsWith('+') ? String(realPhone) : '+' + String(realPhone).replace(/\D/g, '');
                     numero = normalized;
                     if (supabase && CONFIG.SAVE_TO_SUPABASE) {
-                        const numeroSinLid = String(remoteJid).replace(/@lid$/i, '').replace(/@s\.whatsapp\.net$/, '').trim();
+                        const numeroSinLid = String(remoteJid).replace(/@lid$/i, '').replace(/@s\.whatsapp\.net$/, '').trim().split(':')[0];
                         try {
                             const update = { phone: normalized, real_phone: normalized.replace(/^\+/, ''), name: msg.pushName || normalized };
-                            // Actualizar solo la fila que tiene el LID para no pisar otras y evitar unique constraint
                             const { error: errUpdate } = await supabase
                                 .from('whatsapp_chats')
                                 .update(update)
