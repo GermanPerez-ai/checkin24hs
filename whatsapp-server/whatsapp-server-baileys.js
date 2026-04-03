@@ -199,7 +199,8 @@ let isSyncingAppState = false; // Flag para indicar si se está sincronizando el
 // Si en esos 5s llega 1 solo mensaje → Flor responde esa consulta y queda atenta a la siguiente.
 // Si llegan varios en ese lapso → se acumulan y Flor responde a todos juntos. Sin límite de consultas por usuario.
 const FLOR_DELAY_MS = Math.max(0, parseInt(process.env.FLOR_DELAY_MS, 10) || 5000);
-const FLOR_SILENCE_MINUTES = Math.max(1, parseInt(process.env.FLOR_SILENCE_MINUTES || '30', 10) || 30);
+/** Tras intervención humana, Flor calla este tiempo (RAM + DB). Default 5 min (pruebas); producción estable: FLOR_SILENCE_MINUTES=30 en EasyPanel. */
+const FLOR_SILENCE_MINUTES = Math.max(1, parseInt(process.env.FLOR_SILENCE_MINUTES || '5', 10) || 5);
 /** Mínimo de tokens de salida Gemini para no cortar descripciones (puede subir con FLOR_MAX_OUTPUT_TOKENS o Supabase flor_ai_config.maxTokens) */
 const FLOR_MAX_OUTPUT_TOKENS_MIN = Math.max(256, parseInt(process.env.FLOR_MAX_OUTPUT_TOKENS_MIN || '1500', 10) || 1500);
 
@@ -2952,7 +2953,7 @@ function resolvePhoneForFlorPauseFromOutgoing(sock, msg) {
     const key = msg.key;
     const remoteJid = String(key.remoteJid);
     const jLower = remoteJid.trim().toLowerCase();
-    let numero = remoteJid.replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '').trim();
+    let numero = remoteJid.replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '').trim().split(':')[0];
 
     // Baileys / WA: en salientes aparece peer_recipient_pn (PN real del cliente) aunque remoteJid sea @lid o PN interno
     const peerPn =
@@ -3031,9 +3032,41 @@ function resolvePhoneForFlorPauseFromOutgoing(sock, msg) {
     const deepPn = deepScanMessageForRecipientPn(msg, 0, new WeakSet());
     if (deepPn) return deepPn;
 
+    // Nunca usar el user de @lid como si fuera E.164 (+827…); si no hay peer_pn / cache, no inventar +.
+    if (remoteJid.includes('@lid')) {
+        return null;
+    }
+
     const d = String(numero).replace(/\D/g, '');
     if (d.length >= 10 && !isLikelyPseudoWhatsappPn(d) && !isOurBotPhoneDigits(d)) return '+' + d;
     return null;
+}
+
+/**
+ * Saliente fromMe con texto/media real. Sin esto, eco "unavailable" o sync sin cuerpo pausaba Flor y el cliente veía "Esperando mensaje".
+ */
+function fromMeMessageHasRenderableContent(msg) {
+    let m = msg?.message;
+    if (!m) return false;
+    if (typeof m.messageStubType === 'number') return false;
+    if (m.ephemeralMessage?.message) m = m.ephemeralMessage.message;
+    else if (m.viewOnceMessage?.message) m = m.viewOnceMessage.message;
+    else if (m.viewOnceMessageV2?.message) m = m.viewOnceMessageV2.message;
+    return !!(
+        m.conversation ||
+        m.extendedTextMessage?.text ||
+        m.imageMessage ||
+        m.audioMessage ||
+        m.pttMessage ||
+        m.videoMessage ||
+        m.documentMessage ||
+        m.stickerMessage ||
+        m.contactMessage ||
+        m.locationMessage ||
+        m.liveLocationMessage ||
+        m.buttonsResponseMessage ||
+        m.listResponseMessage
+    );
 }
 
 /** WhatsApp suele truncar ~4096 caracteres; enviar en partes si hace falta. */
@@ -3688,8 +3721,11 @@ async function connectToWhatsApp() {
                     // Eco del mismo proceso (Flor o API que usa sock.sendMessage); no pausar
                     continue;
                 }
+                if (!fromMeMessageHasRenderableContent(msg)) {
+                    continue;
+                }
                 if (remoteJidOut) {
-                    const jidLocal = String(remoteJidOut).replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '').trim();
+                    const jidLocal = String(remoteJidOut).replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '').trim().split(':')[0];
                     let resolved = resolvePhoneForFlorPauseFromOutgoing(sock, msg);
                     if (!resolved) {
                         resolved = await resolvePausePhoneViaSupabaseLid(jidLocal);
