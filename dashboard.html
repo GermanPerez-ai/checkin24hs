@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-04-03T12:44:55Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 146; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-04-03T13:14:47Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 147; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">146</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">147</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -30367,7 +30367,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 const uid = (chat.id != null ? chat.id : '').toString(); return uid ? uid.substring(0, 8) : '';
             };
             // En el mismo paso: nombre y número de teléfono real (real_phone desde Supabase, fallback a phone/remote_jid). Multi-canal: display_name para web/instagram/etc.
-            // WhatsApp: título = teléfono (como antes); nombre de lead/usuario en segunda línea si existe y no duplica el título.
+            // WhatsApp: título = teléfono real; debajo el nombre como antes (users.name || chat.name — lead CRM + nombre push WA), sin sustituir el título.
             chatsList.innerHTML = chats.map(chat => {
                 const ch = (chat.channel || 'whatsapp').toLowerCase();
                 const phoneRaw = chat.real_phone || chat.phone || chat.remote_jid || chat.users?.phone || '';
@@ -30375,6 +30375,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 const userName = ch !== 'whatsapp'
                     ? (chat.display_name || chat.name || chat.phone || 'Visitante')
                     : (phoneDisplay || String(chat.phone || '').trim() || chat.name || 'Cliente');
+                const nameLooksLikePhoneOnly = (s) => { const t = String(s || '').trim(); const d = t.replace(/\D/g, ''); return d.length >= 10 && /^[+\d\s-]+$/.test(t); };
+                const nameAsBefore = String(chat.users?.name || chat.name || '').trim();
                 const lastMessage = chat.last_message || 'Sin mensajes';
                 const lastMessageTime = (typeof formatTimeArgentina === 'function' ? formatTimeArgentina(chat.last_message_time) : (chat.last_message_time ? new Date(chat.last_message_time).toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit' }) : ''));
                 const unreadBadge = chat.unread_count > 0 
@@ -30382,9 +30384,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     : '';
                 const id = (chat.id != null ? chat.id : '').toString().replace(/'/g, "\\'");
                 const channelBadge = getChannelBadge(chat.channel);
-                const leadName = (chat.users && chat.users.name && String(chat.users.name).trim()) || '';
+                const showWaName = ch === 'whatsapp' && nameAsBefore && nameAsBefore !== userName && !nameLooksLikePhoneOnly(nameAsBefore);
                 const phoneLine = ch === 'whatsapp'
-                    ? (leadName && leadName !== userName ? `<div style="margin: 2px 0 0 0; font-size: 0.8rem; color: #666;">👤 ${esc(leadName)}</div>` : '')
+                    ? (showWaName ? `<div style="margin: 2px 0 0 0; font-size: 0.8rem; color: #666;">👤 ${esc(nameAsBefore)}</div>` : '')
                     : (phoneDisplay ? `<div style="margin: 2px 0 0 0; font-size: 0.8rem; color: #1976d2;">📱 ${esc(phoneDisplay)}</div>` : '');
                 const channelIdLine = ch !== 'whatsapp' ? (() => { const sid = getChannelSessionId(chat); return sid ? `<div style="margin: 2px 0 0 0; font-size: 0.75rem; color: #5c6bc0;">ID: ${esc(sid)}</div>` : ''; })() : '';
                 return `
@@ -30515,9 +30517,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
         const channelLabels = { web: 'Web', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' };
         const channelLabel = channelLabels[ch] || ch;
-        const contactName = (chat.name && chat.name !== chat.phone) ? chat.name : userName;
+        const nameLooksLikePhoneOnlyH = (s) => { const t = String(s || '').trim(); const d = t.replace(/\D/g, ''); return d.length >= 10 && /^[+\d\s-]+$/.test(t); };
+        const contactNameRaw = String(chat.users?.name || chat.name || '').trim();
+        const contactName = contactNameRaw && contactNameRaw !== userName && !nameLooksLikePhoneOnlyH(contactNameRaw) ? contactNameRaw : '';
         const contactPhoneLine = isWhatsApp && displayPhone ? `<div style="font-size: 0.85rem; color: #1976d2; margin-top: 4px;"><strong>Teléfono:</strong> ${esc(displayPhone)}</div>` : '';
-        const contactNameLine = isWhatsApp && contactName ? `<div style="font-size: 0.85rem; color: #333; margin-top: 2px;"><strong>Nombre (WhatsApp):</strong> ${esc(contactName)}</div>` : '';
+        const contactNameLine = isWhatsApp && contactName ? `<div style="font-size: 0.85rem; color: #333; margin-top: 2px;"><strong>Nombre (CRM / WhatsApp):</strong> ${esc(contactName)}</div>` : '';
         const contactAboutLine = isWhatsApp && (chat.contact_about && String(chat.contact_about).trim()) ? `<div style="font-size: 0.85rem; color: #555; margin-top: 2px;"><strong>Estado:</strong> ${esc(chat.contact_about)}</div>` : '';
         const chatIdEsc = String(chatId).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
         const contactUpdatePhoneLine = isWhatsApp ? `<div style="margin-top: 6px;"><a href="#" onclick="window.updateChatRealPhone('${chatIdEsc}'); return false;" style="font-size: 0.8rem; color: #1976d2;">Actualizar número real</a></div>` : '';
