@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-03-27T16:52:52Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 145; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-04-03T12:44:55Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 146; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">145</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">146</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -30367,11 +30367,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 const uid = (chat.id != null ? chat.id : '').toString(); return uid ? uid.substring(0, 8) : '';
             };
             // En el mismo paso: nombre y número de teléfono real (real_phone desde Supabase, fallback a phone/remote_jid). Multi-canal: display_name para web/instagram/etc.
+            // WhatsApp: título = teléfono (como antes); nombre de lead/usuario en segunda línea si existe y no duplica el título.
             chatsList.innerHTML = chats.map(chat => {
                 const ch = (chat.channel || 'whatsapp').toLowerCase();
-                const userName = ch !== 'whatsapp' ? (chat.display_name || chat.name || chat.phone || 'Visitante') : (chat.users?.name || chat.name || chat.phone || 'Cliente');
                 const phoneRaw = chat.real_phone || chat.phone || chat.remote_jid || chat.users?.phone || '';
                 const phoneDisplay = ch === 'whatsapp' ? (contactDisplayFromRaw(phoneRaw) || (phoneRaw ? 'Número no disponible' : '')) : '';
+                const userName = ch !== 'whatsapp'
+                    ? (chat.display_name || chat.name || chat.phone || 'Visitante')
+                    : (phoneDisplay || String(chat.phone || '').trim() || chat.name || 'Cliente');
                 const lastMessage = chat.last_message || 'Sin mensajes';
                 const lastMessageTime = (typeof formatTimeArgentina === 'function' ? formatTimeArgentina(chat.last_message_time) : (chat.last_message_time ? new Date(chat.last_message_time).toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit' }) : ''));
                 const unreadBadge = chat.unread_count > 0 
@@ -30379,7 +30382,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     : '';
                 const id = (chat.id != null ? chat.id : '').toString().replace(/'/g, "\\'");
                 const channelBadge = getChannelBadge(chat.channel);
-                const phoneLine = phoneDisplay ? `<div style="margin: 2px 0 0 0; font-size: 0.8rem; color: #1976d2;">📱 ${esc(phoneDisplay)}</div>` : '';
+                const leadName = (chat.users && chat.users.name && String(chat.users.name).trim()) || '';
+                const phoneLine = ch === 'whatsapp'
+                    ? (leadName && leadName !== userName ? `<div style="margin: 2px 0 0 0; font-size: 0.8rem; color: #666;">👤 ${esc(leadName)}</div>` : '')
+                    : (phoneDisplay ? `<div style="margin: 2px 0 0 0; font-size: 0.8rem; color: #1976d2;">📱 ${esc(phoneDisplay)}</div>` : '');
                 const channelIdLine = ch !== 'whatsapp' ? (() => { const sid = getChannelSessionId(chat); return sid ? `<div style="margin: 2px 0 0 0; font-size: 0.75rem; color: #5c6bc0;">ID: ${esc(sid)}</div>` : ''; })() : '';
                 return `
                     <div onclick="selectChat('${id}')" style="padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; ${chat.unread_count > 0 ? 'background: #f0fff4;' : ''}" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='${chat.unread_count > 0 ? '#f0fff4' : 'white'}'">
@@ -30444,11 +30450,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
         const ch = (chat.channel || 'whatsapp').toLowerCase();
         const isWhatsApp = ch === 'whatsapp';
-        const userName = !isWhatsApp ? (chat.display_name || chat.name || chat.phone || 'Visitante') : (chat.users?.name || chat.name || chat.phone || 'Cliente');
         const phoneRaw = chat.real_phone || chat.phone || chat.remote_jid || chat.users?.phone || '';
         const esc = (s) => ('' + (s ?? '')).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         const isRealPhone = (v) => { const s = String(v || '').trim(); return /^\+?[0-9]{10,}$/.test(s) && !s.includes('@'); };
         const formatPhoneForDisplay = (v) => { if (!v) return ''; const s = String(v).trim(); if (!isRealPhone(s)) return ''; if (s.startsWith('+')) return s; return '+' + s; };
+        const contactDisplayFromRawHeader = (raw) => { if (!raw) return ''; var s = String(raw).trim(); if (isRealPhone(s)) return formatPhoneForDisplay(s); var clean = s.replace(/@lid$/, '').replace(/@s\.whatsapp\.net$/, ''); return isRealPhone(clean) ? formatPhoneForDisplay(clean) : ('ID: ' + s); };
+        const userName = !isWhatsApp
+            ? (chat.display_name || chat.name || chat.phone || 'Visitante')
+            : (contactDisplayFromRawHeader(phoneRaw) || (phoneRaw ? 'Número no disponible' : '') || String(chat.phone || '').trim() || chat.name || 'Cliente');
         let displayPhone = formatPhoneForDisplay(phoneRaw);
         messagesEl.innerHTML = '<div style="text-align: center; padding: 24px; color: #666;">Cargando mensajes…</div>';
         if (inputContainer) {
