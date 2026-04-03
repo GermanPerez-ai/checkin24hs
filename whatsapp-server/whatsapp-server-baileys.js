@@ -17,10 +17,19 @@ if (typeof global.crypto === 'undefined') {
     global.crypto = crypto;
 }
 
-const { default: makeWASocket, DisconnectReason, useMultiFileAuthState, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const baileysLib = require('@whiskeysockets/baileys');
+const {
+    default: makeWASocket,
+    DisconnectReason,
+    useMultiFileAuthState,
+    fetchLatestBaileysVersion
+} = baileysLib;
+/** Copia :device entre JIDs (LID→PN); reduce retries "message not available" en Business + LID. */
+const transferDeviceFn = typeof baileysLib.transferDevice === 'function' ? baileysLib.transferDevice : null;
+const jidNormalizedUserFn = typeof baileysLib.jidNormalizedUser === 'function' ? baileysLib.jidNormalizedUser : null;
 let downloadMediaMessage;
 try {
-    downloadMediaMessage = require('@whiskeysockets/baileys').downloadMediaMessage;
+    downloadMediaMessage = baileysLib.downloadMediaMessage;
 } catch (e) {
     downloadMediaMessage = null;
 }
@@ -62,7 +71,9 @@ const CONFIG = {
     // URL de la imagen promocional para cotización (WhatsApp la incrusta al enviar el link). Si está vacía, se envía solo texto.
     IMAGEN_COTIZACION_URL: (process.env.IMAGEN_COTIZACION_URL || 'https://dashboard.checkin24hs.com/og-cotizar.jpg').trim() || null,
     // Slack: alertas cuando Flor escala a humano o no tiene dato técnico (noEntendido). Definir SLACK_WEBHOOK_URL en el servidor.
-    SLACK_WEBHOOK_URL: (process.env.SLACK_WEBHOOK_URL || '').trim() || null
+    SLACK_WEBHOOK_URL: (process.env.SLACK_WEBHOOK_URL || '').trim() || null,
+    /** Prueba A/B: 1 = enviar Flor al mismo JID entrante (@lid) sin pasar a PN (si los retries siguen, probá esto). */
+    FLOR_SEND_USE_REMOTE_JID_ONLY: process.env.FLOR_SEND_USE_REMOTE_JID_ONLY === '1'
 };
 
 // Construir URL base si no está configurada
@@ -327,6 +338,42 @@ function rememberLidPnForSend(remoteJid, pnJid) {
         if (first == null) break;
         florLidToPnSendJid.delete(first);
     }
+}
+
+/** JID entrante con :device si existe (mejor fuente para transferDevice). */
+function pickFromJidForDeviceTransfer(p) {
+    let best = p.remoteJid && String(p.remoteJid);
+    for (const e of p.messages || []) {
+        const rj = e.msg?.key?.remoteJid && String(e.msg.key.remoteJid);
+        if (rj && rj.includes(':') && (rj.includes('@lid') || rj.includes('@s.whatsapp.net'))) {
+            best = rj;
+            break;
+        }
+    }
+    return best || p.remoteJid;
+}
+
+/**
+ * Chat entró como @lid y resolvemos envío a *@s.whatsapp.net: copiar :device del JID entrante (Baileys).
+ * Sin esto, a veces hay retries "message not available" y el cliente queda en "Esperando mensaje".
+ */
+function applyFlorDestJidDeviceTransfer(p, destJid) {
+    if (!p?.remoteJid || !destJid || !transferDeviceFn) return destJid;
+    const from = pickFromJidForDeviceTransfer(p);
+    const to = String(destJid);
+    try {
+        if (String(from).includes('@lid') && to.includes('@s.whatsapp.net') && !to.includes('@lid')) {
+            const toBase = jidNormalizedUserFn ? jidNormalizedUserFn(to) : to;
+            const merged = transferDeviceFn(from, toBase || to);
+            if (merged && merged !== to) {
+                console.log(`📤 Flor: transferDevice (LID→PN) ${from.split('@')[0]} → ${merged}`);
+            }
+            return merged || destJid;
+        }
+    } catch (e) {
+        console.warn('⚠️ transferDevice Flor:', e?.message || e);
+    }
+    return destJid;
 }
 
 /** Primer argumento de sock.sendMessage: string JID u objeto con jid/remoteJid. */
@@ -3899,7 +3946,13 @@ async function connectToWhatsApp() {
                     }
                 }
 
-                const destJid = await resolveFlorSendJid(sock, p);
+                let destJid = await resolveFlorSendJid(sock, p);
+                if (CONFIG.FLOR_SEND_USE_REMOTE_JID_ONLY && p.remoteJid) {
+                    destJid = String(p.remoteJid);
+                    console.log(`📤 Flor: envío al JID entrante (FLOR_SEND_USE_REMOTE_JID_ONLY) → ${destJid}`);
+                } else {
+                    destJid = applyFlorDestJidDeviceTransfer(p, destJid);
+                }
 
                 let dispatchPushed = false;
                 const ndDispatch = String(p.numero || '').replace(/\D/g, '');
