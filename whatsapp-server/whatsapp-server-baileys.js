@@ -314,6 +314,21 @@ function rememberFlorChatJidToPhone(remoteJid, phoneE164) {
     }
 }
 
+/** LID @lid → JID *@s.whatsapp.net para envíos (senderPn a veces hidrata después; evita "Esperando mensaje"). */
+const florLidToPnSendJid = new Map();
+const FLOR_LID_PN_SEND_MAX = 4000;
+function rememberLidPnForSend(remoteJid, pnJid) {
+    if (!remoteJid || !pnJid || !String(remoteJid).includes('@lid')) return;
+    if (!String(pnJid).includes('@s.whatsapp.net') || String(pnJid).includes('@lid')) return;
+    const k = String(remoteJid).trim().toLowerCase();
+    florLidToPnSendJid.set(k, pnJid);
+    while (florLidToPnSendJid.size > FLOR_LID_PN_SEND_MAX) {
+        const first = florLidToPnSendJid.keys().next().value;
+        if (first == null) break;
+        florLidToPnSendJid.delete(first);
+    }
+}
+
 /** Primer argumento de sock.sendMessage: string JID u objeto con jid/remoteJid. */
 function extractDestJidFromSendArgs(args) {
     const a0 = args && args[0];
@@ -2732,6 +2747,90 @@ function deepScanMessageForRecipientPn(obj, depth, visited) {
 }
 
 /**
+ * JID definitivo para enviar respuestas de Flor. Si solo hay @lid, el cliente suele mostrar "Esperando mensaje";
+ * prioriza PN ya resuelto, senderPn en cola, deepScan, LID store, Supabase y onWhatsApp.
+ */
+async function resolveFlorSendJid(sock, p) {
+    const rjLow = p.remoteJid && String(p.remoteJid).trim().toLowerCase();
+    if (rjLow && rjLow.includes('@lid') && florLidToPnSendJid.has(rjLow)) {
+        const j = florLidToPnSendJid.get(rjLow);
+        console.log(`📤 Envío Flor: caché LID→PN → ${j}`);
+        return j;
+    }
+    const fb = (p.jidDestino && String(p.jidDestino).trim()) || (p.remoteJid && String(p.remoteJid).trim());
+    if (fb && fb.includes('@s.whatsapp.net') && !fb.toLowerCase().includes('@lid')) {
+        const e164 = jidPnToE164(fb);
+        if (e164) {
+            const d = e164.replace(/\D/g, '');
+            return `${d}@s.whatsapp.net`;
+        }
+    }
+    for (const entry of p.messages || []) {
+        const msg = entry.msg;
+        if (!msg) continue;
+        const k = msg.key;
+        const sp = k && (k.senderPn || k.sender_pn);
+        if (sp && String(sp).includes('@s.whatsapp.net')) {
+            const e164 = jidPnToE164(String(sp));
+            if (e164) {
+                const d = e164.replace(/\D/g, '');
+                console.log(`📤 Envío Flor: PN desde msg.key.senderPn → ${d}@s.whatsapp.net`);
+                return `${d}@s.whatsapp.net`;
+            }
+        }
+        const fromPeer = extractPeerRecipientPnFromMessage(msg);
+        if (fromPeer) {
+            const d = fromPeer.replace(/\D/g, '');
+            console.log(`📤 Envío Flor: peer_recipient_pn → ${d}@s.whatsapp.net`);
+            return `${d}@s.whatsapp.net`;
+        }
+        const deep = deepScanMessageForRecipientPn(msg, 0, new WeakSet());
+        if (deep) {
+            const d = deep.replace(/\D/g, '');
+            console.log(`📤 Envío Flor: deepScan(cola) → ${d}@s.whatsapp.net`);
+            return `${d}@s.whatsapp.net`;
+        }
+    }
+    if (p.numero && String(p.numero).trim().startsWith('+')) {
+        const nd = String(p.numero).replace(/\D/g, '');
+        if (nd.length >= 10 && !isLikelyPseudoWhatsappPn(nd) && !isOurBotPhoneDigits(nd)) {
+            return `${nd}@s.whatsapp.net`;
+        }
+    }
+    const rj = p.remoteJid && String(p.remoteJid);
+    if (rj && rj.includes('@lid') && sock) {
+        const pn = resolveLidToPhone(sock, rj);
+        if (pn) {
+            console.log(`📤 Envío Flor: LID store → ${pn}@s.whatsapp.net`);
+            return `${pn}@s.whatsapp.net`;
+        }
+        const lidDigits = rj.replace(/@lid$/i, '').replace(/:[0-9]+$/, '').replace(/\D/g, '');
+        if (lidDigits.length >= 10) {
+            const supPhone = await resolvePausePhoneViaSupabaseLid(lidDigits);
+            if (supPhone) {
+                const d = supPhone.replace(/\D/g, '');
+                console.log(`📤 Envío Flor: Supabase (LID→tel) → ${d}@s.whatsapp.net`);
+                return `${d}@s.whatsapp.net`;
+            }
+        }
+        try {
+            if (typeof sock.onWhatsApp === 'function') {
+                const r = await sock.onWhatsApp(rj);
+                const arr = Array.isArray(r) ? r : r ? [r] : [];
+                const j = arr.find((x) => x && x.jid && String(x.jid).includes('@s.whatsapp.net') && !String(x.jid).includes('@lid'));
+                if (j?.jid) {
+                    console.log(`📤 Envío Flor: onWhatsApp → ${j.jid}`);
+                    return j.jid;
+                }
+            }
+        } catch (e) {
+            console.warn('⚠️ resolveFlorSendJid onWhatsApp:', e?.message || e);
+        }
+    }
+    return fb || rj;
+}
+
+/**
  * Si el chat ya existe en Supabase con phone=LID o real_phone=LID y phone actualizado a +54…, usar ese +E.164 para pausa.
  */
 async function resolvePausePhoneViaSupabaseLid(jidDigits) {
@@ -3700,6 +3799,21 @@ async function connectToWhatsApp() {
                     rememberFlorChatJidToPhone(jidDestino, String(numero).trim().startsWith('+') ? numero : '+' + ndf);
                 }
             }
+            // senderPn a veces viene en la misma recepción; priorizar sobre número aún no normalizado (+E.164)
+            {
+                const sp = msg.key && (msg.key.senderPn || msg.key.sender_pn);
+                if (sp && String(sp).includes('@s.whatsapp.net')) {
+                    const e164sp = jidPnToE164(String(sp));
+                    if (e164sp) {
+                        const d = e164sp.replace(/\D/g, '');
+                        jidDestino = `${d}@s.whatsapp.net`;
+                        if (String(remoteJid).includes('@lid')) {
+                            console.log(`📤 Flor: JID destino desde senderPn al encolar: ${remoteJid} → ${jidDestino}`);
+                        }
+                        rememberLidPnForSend(remoteJid, jidDestino);
+                    }
+                }
+            }
             const nombre = msg.pushName || numero;
 
             console.log(`📱 Mensaje recibido de ${nombre} (${numero}): ${texto}${tieneAudio ? ' [audio/voice]' : ''}`);
@@ -3730,7 +3844,12 @@ async function connectToWhatsApp() {
                 florPendingByUser.set(key, pending);
             }
 
-            pending.messages.push({ texto, ts: Date.now(), msg: (tieneImagen || tieneAudio) ? msg : null });
+            // Guardar siempre msg si hay LID: sin msg.key en cola resolveFlorSendJid no puede leer senderPn (hidrata tarde) → "Esperando mensaje"
+            pending.messages.push({
+                texto,
+                ts: Date.now(),
+                msg: (String(remoteJid).includes('@lid') || tieneImagen || tieneAudio) ? msg : null
+            });
             pending.nombre = nombre;
             pending.numero = numero;
             pending.remoteJid = remoteJid;
@@ -3766,6 +3885,22 @@ async function connectToWhatsApp() {
                     return;
                 }
 
+                // senderPn a veces se rellena en msg.key después del encolar (mientras corre el delay / Gemini)
+                for (const entry of p.messages || []) {
+                    const m = entry.msg;
+                    if (!m?.key) continue;
+                    const sp = m.key.senderPn || m.key.sender_pn;
+                    if (sp && String(sp).includes('@s.whatsapp.net')) {
+                        const e164 = jidPnToE164(String(sp));
+                        if (e164) {
+                            p.jidDestino = e164.replace(/\D/g, '') + '@s.whatsapp.net';
+                            rememberLidPnForSend(p.remoteJid, p.jidDestino);
+                        }
+                    }
+                }
+
+                const destJid = await resolveFlorSendJid(sock, p);
+
                 let dispatchPushed = false;
                 const ndDispatch = String(p.numero || '').replace(/\D/g, '');
                 let phoneE164ForDispatch = null;
@@ -3774,14 +3909,12 @@ async function connectToWhatsApp() {
                 }
                 if (phoneE164ForDispatch && p.remoteJid) {
                     pushFlorDispatchContext(p.remoteJid, phoneE164ForDispatch);
-                    if (p.jidDestino && p.jidDestino !== p.remoteJid) {
-                        pushFlorDispatchContext(p.jidDestino, phoneE164ForDispatch);
+                    if (destJid && destJid !== p.remoteJid) {
+                        pushFlorDispatchContext(destJid, phoneE164ForDispatch);
                     }
                     dispatchPushed = true;
                 }
                 florPendingByUser.delete(key);
-
-                const destJid = p.jidDestino || p.remoteJid;
 
                 try {
                 const textos = p.messages.map(m => m.texto);
