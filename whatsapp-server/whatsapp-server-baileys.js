@@ -301,7 +301,7 @@ if (FLOR_SESSION_CRYPTO_SUMMARY) {
     };
 }
 
-const florPendingByUser = new Map(); // key: remoteJid -> { timeoutId, messages: [{texto, ts}], nombre, numero }
+const florPendingByUser = new Map(); // key: remoteJid -> { timeoutId, messages, nombre, numero, supabaseChatId, ... }
 /** Silencio Flor: respaldo en RAM si aún no existe fila en whatsapp_chats (clave: solo dígitos, ≥10) */
 const florPauseMemoryUntil = new Map();
 /** JID del chat (remoteJid / variante) → +E.164 real; evita pausar con PN interno (ej. 133397…@s.whatsapp.net) en mensajes salientes del humano */
@@ -329,11 +329,21 @@ function rememberFlorChatJidToPhone(remoteJid, phoneE164) {
 /** LID @lid → JID *@s.whatsapp.net para envíos (senderPn a veces hidrata después; evita "Esperando mensaje"). */
 const florLidToPnSendJid = new Map();
 const FLOR_LID_PN_SEND_MAX = 4000;
+/** Variantes de JID (280…:3@lid vs 280…@lid) para que la caché acierte siempre. */
+function lidJidKeysForCache(remoteJid) {
+    if (!remoteJid || !String(remoteJid).includes('@lid')) return [];
+    const s = String(remoteJid).trim().toLowerCase();
+    const userPart = s.split('@')[0];
+    const bare = userPart.includes(':') ? userPart.split(':')[0] : userPart;
+    const base = `${bare}@lid`;
+    return [...new Set([s, base])].filter((k) => k.includes('@lid'));
+}
 function rememberLidPnForSend(remoteJid, pnJid) {
     if (!remoteJid || !pnJid || !String(remoteJid).includes('@lid')) return;
     if (!String(pnJid).includes('@s.whatsapp.net') || String(pnJid).includes('@lid')) return;
-    const k = String(remoteJid).trim().toLowerCase();
-    florLidToPnSendJid.set(k, pnJid);
+    for (const k of lidJidKeysForCache(remoteJid)) {
+        florLidToPnSendJid.set(k, pnJid);
+    }
     while (florLidToPnSendJid.size > FLOR_LID_PN_SEND_MAX) {
         const first = florLidToPnSendJid.keys().next().value;
         if (first == null) break;
@@ -2827,10 +2837,14 @@ function deepScanMessageForRecipientPn(obj, depth, visited) {
  */
 async function resolveFlorSendJid(sock, p) {
     const rjLow = p.remoteJid && String(p.remoteJid).trim().toLowerCase();
-    if (rjLow && rjLow.includes('@lid') && florLidToPnSendJid.has(rjLow)) {
-        const j = florLidToPnSendJid.get(rjLow);
-        console.log(`📤 Envío Flor: caché LID→PN → ${j}`);
-        return j;
+    if (rjLow && rjLow.includes('@lid')) {
+        for (const k of lidJidKeysForCache(p.remoteJid)) {
+            if (florLidToPnSendJid.has(k)) {
+                const j = florLidToPnSendJid.get(k);
+                console.log(`📤 Envío Flor: caché LID→PN (${k}) → ${j}`);
+                return j;
+            }
+        }
     }
     const fb = (p.jidDestino && String(p.jidDestino).trim()) || (p.remoteJid && String(p.remoteJid).trim());
     if (fb && fb.includes('@s.whatsapp.net') && !fb.toLowerCase().includes('@lid')) {
@@ -2946,14 +2960,38 @@ async function resolvePausePhoneViaSupabaseLid(jidDigits) {
 
 /**
  * Cola Flor: a veces msg.key.senderPn llega después del delay (solo está en el primer upsert como n/a).
- * La fila en whatsapp_chats puede tener ya phone=+54… y name=LID; usar eso para enviar a *@s.whatsapp.net y no solo a @lid.
+ * La fila en whatsapp_chats puede tener ya phone=+54…; por id de chat siempre encontramos el MSISDN aunque name deje de ser el LID.
  */
-async function resolveE164FromSupabaseForLidChat(lidDigits) {
+async function resolveE164FromSupabaseForLidChat(lidDigits, supabaseChatIdOpt) {
+    if (supabaseChatIdOpt && supabase && CONFIG.SAVE_TO_SUPABASE) {
+        try {
+            const inst = CONFIG.INSTANCE_NUMBER || 1;
+            const { data: row, error } = await supabase
+                .from('whatsapp_chats')
+                .select('phone, real_phone')
+                .eq('whatsapp_instance', inst)
+                .eq('id', String(supabaseChatIdOpt).trim())
+                .maybeSingle();
+            if (!error && row) {
+                const raw = row.phone || row.real_phone;
+                if (raw) {
+                    const n = normalizarPhoneParaSupabase(raw);
+                    const nd = n.replace(/\D/g, '');
+                    if (n.startsWith('+') && nd.length >= 10 && !isLikelyPseudoWhatsappPn(nd) && !isOurBotPhoneDigits(nd)) {
+                        console.log(`📤 Flor: MSISDN por whatsapp_chats.id → ${n}`);
+                        return n;
+                    }
+                }
+            }
+        } catch (e) {
+            /* ignore */
+        }
+    }
+    const d = String(lidDigits ?? '').replace(/\D/g, '');
+    if (d.length < 10) return null;
     const fromPause = await resolvePausePhoneViaSupabaseLid(lidDigits);
     if (fromPause) return fromPause;
-    if (!supabase || !CONFIG.SAVE_TO_SUPABASE || !lidDigits) return null;
-    const d = String(lidDigits).replace(/\D/g, '');
-    if (d.length < 10) return null;
+    if (!supabase || !CONFIG.SAVE_TO_SUPABASE) return null;
     try {
         const inst = CONFIG.INSTANCE_NUMBER || 1;
         const { data: rows, error } = await supabase
@@ -3174,7 +3212,7 @@ async function asegurarConversationExiste(chatId, numero, nombre = null) {
  * @param {string} [messageType] - 'text' | 'audio' | 'voice' | 'image' para whatsapp_messages.message_type
  */
 async function guardarMensaje(numero, mensaje, esEnviado = false, respuestaFlor = null, nombre = null, chatIdFromDashboard = null, messageType = 'text') {
-    if (!supabase || !CONFIG.SAVE_TO_SUPABASE) return;
+    if (!supabase || !CONFIG.SAVE_TO_SUPABASE) return null;
 
     try {
         let chatId = chatIdFromDashboard && String(chatIdFromDashboard).trim() ? String(chatIdFromDashboard).trim() : null;
@@ -3184,7 +3222,7 @@ async function guardarMensaje(numero, mensaje, esEnviado = false, respuestaFlor 
         
         if (!chatId) {
             console.error('❌ No se pudo obtener/crear chat_id. No se puede guardar el mensaje.');
-            return;
+            return null;
         }
 
         // Si whatsapp_messages.conversation_id apunta a whatsapp_conversations(id), asegurar que exista la fila
@@ -3252,7 +3290,7 @@ async function guardarMensaje(numero, mensaje, esEnviado = false, respuestaFlor 
             } else if (!errorMensaje.message?.includes('foreign key') && errorMensaje.code !== '23503') {
                 console.error('❌ Error guardando mensaje:', errorMensaje.message || errorMensaje);
             }
-            return;
+            return null;
         }
 
         console.log(`✅ Mensaje guardado en whatsapp_messages: ${esEnviado ? 'enviado' : 'recibido'} de ${phoneParaInsert} (sender=${sender}, recipient=${recipient})`);
@@ -3320,10 +3358,12 @@ async function guardarMensaje(numero, mensaje, esEnviado = false, respuestaFlor 
             }
         }
 
+        return chatId;
     } catch (error) {
         if (error.message && !error.message.includes('Invalid API key')) {
             console.error('❌ Error guardando mensaje:', error.message || error);
         }
+        return null;
     }
 }
 
@@ -4005,7 +4045,7 @@ async function connectToWhatsApp() {
             console.log(`📱 Mensaje recibido de ${nombre} (${numero}): ${texto}${tieneAudio ? ' [audio/voice]' : ''}`);
 
             // Guardar mensaje recibido de inmediato (message_type: text | audio para logs)
-            await guardarMensaje(numero, texto, false, null, nombre, null, tieneAudio ? 'audio' : 'text');
+            const savedChatIdInbound = await guardarMensaje(numero, texto, false, null, nombre, null, tieneAudio ? 'audio' : 'text');
 
             if (!CONFIG.AUTO_REPLY || !CONFIG.FLOR_ENABLED) continue;
 
@@ -4025,9 +4065,12 @@ async function connectToWhatsApp() {
                     nombre,
                     numero,
                     remoteJid,
-                    jidDestino
+                    jidDestino,
+                    supabaseChatId: savedChatIdInbound || null
                 };
                 florPendingByUser.set(key, pending);
+            } else if (savedChatIdInbound) {
+                pending.supabaseChatId = savedChatIdInbound;
             }
 
             // Guardar siempre msg si hay LID: sin msg.key en cola resolveFlorSendJid no puede leer senderPn (hidrata tarde) → "Esperando mensaje"
@@ -4091,7 +4134,7 @@ async function connectToWhatsApp() {
                 const destStillLid = !p.jidDestino || String(p.jidDestino).includes('@lid');
                 if (rjPending.includes('@lid') && destStillLid) {
                     const lidD = rjPending.replace(/@lid$/i, '').split(':')[0].replace(/\D/g, '');
-                    const e164Db = await resolveE164FromSupabaseForLidChat(lidD);
+                    const e164Db = await resolveE164FromSupabaseForLidChat(lidD, p.supabaseChatId);
                     if (e164Db) {
                         const nd = e164Db.replace(/\D/g, '');
                         p.numero = e164Db.startsWith('+') ? e164Db : '+' + nd;
@@ -4100,7 +4143,7 @@ async function connectToWhatsApp() {
                         rememberFlorChatJidToPhone(p.remoteJid, p.numero);
                         console.log(`📤 Flor: MSISDN desde Supabase (name/LID→tel) LID=${lidD} → ${p.jidDestino}`);
                     } else {
-                        await new Promise((r) => setTimeout(r, 180));
+                        await new Promise((r) => setTimeout(r, 400));
                         for (const entry of p.messages || []) {
                             const m = entry.msg;
                             if (!m?.key) continue;
@@ -4129,6 +4172,24 @@ async function connectToWhatsApp() {
                     if (destJid && String(destJid).includes('@s.whatsapp.net') && !String(destJid).includes('@lid')) {
                         destJid = await enrichPnJidWithOnWhatsApp(sock, destJid);
                     }
+                }
+
+                if (destJid && String(destJid).includes('@lid') && p.supabaseChatId) {
+                    const fixE164 = await resolveE164FromSupabaseForLidChat(null, p.supabaseChatId);
+                    if (fixE164) {
+                        const ndf = fixE164.replace(/\D/g, '');
+                        destJid = `${ndf}@s.whatsapp.net`;
+                        p.numero = fixE164.startsWith('+') ? fixE164 : '+' + ndf;
+                        rememberLidPnForSend(p.remoteJid, destJid);
+                        destJid = applyFlorDestJidDeviceTransfer(p, destJid);
+                        if (destJid && String(destJid).includes('@s.whatsapp.net') && !String(destJid).includes('@lid')) {
+                            destJid = await enrichPnJidWithOnWhatsApp(sock, destJid);
+                        }
+                        console.log(`📤 Flor: destino corregido (@lid→MSISDN) vía chat_id → ${destJid}`);
+                    }
+                }
+                if (destJid && !String(destJid).includes('@lid')) {
+                    console.log(`📤 Flor: sendMessage usará JID final=${destJid}`);
                 }
 
                 let dispatchPushed = false;
