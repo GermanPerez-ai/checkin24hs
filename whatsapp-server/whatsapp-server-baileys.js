@@ -398,6 +398,10 @@ async function enrichPnJidWithOnWhatsApp(sock, pnJidBare) {
         const arr = Array.isArray(r) ? r : r ? [r] : [];
         const j = arr.find((x) => x && x.jid && String(x.jid).includes('@s.whatsapp.net') && !String(x.jid).includes('@lid'));
         if (j?.jid && j.jid !== pnJidBare) {
+            if (!jidPnToE164(j.jid)) {
+                console.warn(`⚠️ enrichPnJidWithOnWhatsApp: ignorando JID no-MSISDN ${j.jid}, se mantiene ${pnJidBare}`);
+                return pnJidBare;
+            }
             console.log(`📤 Flor: onWhatsApp enriqueció PN → ${j.jid}`);
             return j.jid;
         }
@@ -2730,7 +2734,11 @@ function resolveLidToPhone(sock, remoteJid) {
         if (!store || typeof store.getPNForLID !== 'function') return null;
         const lid = String(remoteJid).trim();
         const phone = store.getPNForLID(lid);
-        if (phone && /^[0-9]{10,}$/.test(String(phone).replace(/^\+/, ''))) return String(phone).replace(/^\+/, '');
+        if (phone && /^[0-9]{10,}$/.test(String(phone).replace(/^\+/, ''))) {
+            const digits = String(phone).replace(/^\+/, '').replace(/\D/g, '');
+            if (isLikelyPseudoWhatsappPn(digits)) return null;
+            return digits;
+        }
         return null;
     } catch (e) {
         return null;
@@ -2746,6 +2754,8 @@ function isLikelyPseudoWhatsappPn(digits) {
     if (d.length < 10 || d.length > 15) return true;
     if (d.length >= 14 && d.startsWith('133')) return true;
     if (d.length >= 14 && d.startsWith('125')) return true;
+    /** IDs internos WA (p. ej. 38285489508573) que onWhatsApp/LID store devuelven como @s.whatsapp.net; no son MSISDN. */
+    if (d.length >= 13 && d.startsWith('382')) return true;
     if (d.length >= 15 && !d.startsWith('54')) return true;
     return false;
 }
@@ -2890,8 +2900,13 @@ async function resolveFlorSendJid(sock, p) {
     if (rj && rj.includes('@lid') && sock) {
         const pn = resolveLidToPhone(sock, rj);
         if (pn) {
-            console.log(`📤 Envío Flor: LID store → ${pn}@s.whatsapp.net`);
-            return `${pn}@s.whatsapp.net`;
+            const bare = `${pn}@s.whatsapp.net`;
+            if (!jidPnToE164(bare)) {
+                console.warn(`⚠️ resolveFlorSendJid: LID store devolvió PN interno ${bare}, se ignora`);
+            } else {
+                console.log(`📤 Envío Flor: LID store → ${bare}`);
+                return bare;
+            }
         }
         const lidDigits = rj.replace(/@lid$/i, '').replace(/:[0-9]+$/, '').replace(/\D/g, '');
         if (lidDigits.length >= 10) {
@@ -2900,10 +2915,15 @@ async function resolveFlorSendJid(sock, p) {
                 const d = supPhone.replace(/\D/g, '');
                 const basePn = `${d}@s.whatsapp.net`;
                 const enriched = await enrichPnJidWithOnWhatsApp(sock, basePn);
-                if (enriched === basePn) {
-                    console.log(`📤 Envío Flor: Supabase (LID→tel) → ${basePn}`);
+                if (!jidPnToE164(enriched)) {
+                    console.warn(`⚠️ resolveFlorSendJid: enriquecimiento inválido ${enriched}, usando ${basePn}`);
+                    if (jidPnToE164(basePn)) return basePn;
+                } else {
+                    if (enriched === basePn) {
+                        console.log(`📤 Envío Flor: Supabase (LID→tel) → ${basePn}`);
+                    }
+                    return enriched;
                 }
-                return enriched;
             }
         }
         try {
@@ -2912,8 +2932,12 @@ async function resolveFlorSendJid(sock, p) {
                 const arr = Array.isArray(r) ? r : r ? [r] : [];
                 const j = arr.find((x) => x && x.jid && String(x.jid).includes('@s.whatsapp.net') && !String(x.jid).includes('@lid'));
                 if (j?.jid) {
-                    console.log(`📤 Envío Flor: onWhatsApp → ${j.jid}`);
-                    return j.jid;
+                    if (!jidPnToE164(j.jid)) {
+                        console.warn(`⚠️ resolveFlorSendJid: onWhatsApp(LID) devolvió PN interno ${j.jid} (no enviar a @lid; se usa jidDestino/senderPn)`);
+                    } else {
+                        console.log(`📤 Envío Flor: onWhatsApp → ${j.jid}`);
+                        return j.jid;
+                    }
                 }
             }
         } catch (e) {
