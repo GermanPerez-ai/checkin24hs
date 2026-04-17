@@ -351,6 +351,33 @@ function rememberLidPnForSend(remoteJid, pnJid) {
     }
 }
 
+/**
+ * Baileys re-cifra y reenvía cuando el servidor pide retry; usa getMessage() para recuperar el proto.IMessage.
+ * Si getMessage siempre es undefined → logs "recv retry request, but message not available" y en el móvil "Esperando mensaje".
+ */
+const florOutboundProtoForRetry = new Map();
+const FLOR_OUTBOUND_PROTO_MAX = 5000;
+const FLOR_OUTBOUND_PROTO_TTL_MS = 3 * 60 * 60 * 1000;
+
+function rememberFlorOutboundProtoForRetry(key, message) {
+    if (!key?.id || !message) return;
+    const id = String(key.id);
+    florOutboundProtoForRetry.set(id, { message, ts: Date.now() });
+    while (florOutboundProtoForRetry.size > FLOR_OUTBOUND_PROTO_MAX) {
+        const first = florOutboundProtoForRetry.keys().next().value;
+        if (first == null) break;
+        florOutboundProtoForRetry.delete(first);
+    }
+}
+
+async function getFlorMessageForBaileysRetry(key) {
+    if (!key?.id) return undefined;
+    const ent = florOutboundProtoForRetry.get(String(key.id));
+    if (!ent?.message) return undefined;
+    if (Date.now() - ent.ts > FLOR_OUTBOUND_PROTO_TTL_MS) return undefined;
+    return ent.message;
+}
+
 /** JID entrante con :device si existe (mejor fuente para transferDevice). */
 function pickFromJidForDeviceTransfer(p) {
     let best = p.remoteJid && String(p.remoteJid);
@@ -2813,6 +2840,34 @@ function extractPeerRecipientPnFromMessage(msg) {
     return null;
 }
 
+/**
+ * WA puede mandar sender_pn solo en attrs/cuerpo del nodo, no en msg.key (logs: key.senderPn=n/a pero attrs tienen sender_pn).
+ * Sin esto, numero queda como LID y sendMessage va a …@lid → "Esperando mensaje" / retry message not available.
+ */
+function extractSenderPnFromMessageDeep(msg, depth = 0) {
+    if (!msg || depth > 14) return null;
+    if (typeof msg !== 'object') return null;
+    if (Buffer.isBuffer(msg)) return null;
+    try {
+        for (const k of Object.keys(msg)) {
+            const v = msg[k];
+            if ((k === 'sender_pn' || k === 'senderPn') && typeof v === 'string' && v.includes('@s.whatsapp.net')) {
+                const e164 = jidPnToE164(v);
+                if (e164) return e164.replace(/^\+/, '');
+            }
+        }
+        for (const v of Object.values(msg)) {
+            if (!v || typeof v !== 'object') continue;
+            if (Buffer.isBuffer(v)) continue;
+            const r = extractSenderPnFromMessageDeep(v, depth + 1);
+            if (r) return r;
+        }
+    } catch (e) {
+        return null;
+    }
+    return null;
+}
+
 /** Recorre el objeto del mensaje (attrs internos, etc.) buscando un JID *@s.whatsapp.net válido. */
 function deepScanMessageForRecipientPn(obj, depth, visited) {
     if (depth > 10 || !obj || typeof obj !== 'object') return null;
@@ -2874,6 +2929,14 @@ async function resolveFlorSendJid(sock, p) {
             if (e164) {
                 const d = e164.replace(/\D/g, '');
                 console.log(`📤 Envío Flor: PN desde msg.key.senderPn → ${d}@s.whatsapp.net`);
+                return `${d}@s.whatsapp.net`;
+            }
+        }
+        const spDeep = extractSenderPnFromMessageDeep(msg);
+        if (spDeep) {
+            const d = String(spDeep).replace(/\D/g, '');
+            if (d.length >= 10) {
+                console.log(`📤 Envío Flor: sender_pn profundo (cola) → ${d}@s.whatsapp.net`);
                 return `${d}@s.whatsapp.net`;
             }
         }
@@ -3418,9 +3481,7 @@ async function connectToWhatsApp() {
         shouldSyncHistoryMessage: () => false, // No sincronizar historial
         shouldSyncAppState: () => false, // NO sincronizar app state (modo pasivo)
         shouldIgnoreJid: () => false, // No ignorar ningún JID
-        getMessage: async (key) => {
-            return undefined; // No obtener mensajes antiguos
-        },
+        getMessage: getFlorMessageForBaileysRetry,
         // Optimizar sincronización del app state para evitar timeouts
         appStateSyncTimeoutMs: 0, // 5 minutos - AUMENTADO para dar más tiempo a la sincronización
         // Nota: La sincronización del app state es necesaria para WhatsApp
@@ -3434,6 +3495,7 @@ async function connectToWhatsApp() {
         let phoneForMap = resolvePhoneForFlorSendDestination(sock, destJid);
         const res = await _origSendMessage(...args);
         try {
+            if (res?.key && res.message) rememberFlorOutboundProtoForRetry(res.key, res.message);
             if (res) registerFlorOutboundBaileysMessageIdsFromSendResult(res);
             // Enlace LID ↔ +E.164: los salientes humanos a veces traen otro @lid que el del mensaje entrante;
             // Flor puede enviar a PN *@s.whatsapp.net (jidDestino) cuando hay +E.164; el envío devuelve JIDs para el mapa de pausa.
@@ -3876,6 +3938,19 @@ async function connectToWhatsApp() {
 
             const message = msg.message;
             if (!message) {
+                // Upsert previo al plaintext (o stub): aun así puede traer sender_pn en el envelope; cachear LID→PN antes del continue.
+                if (!msg.key?.fromMe && msg.key?.remoteJid && String(msg.key.remoteJid).includes('@lid')) {
+                    const spEarly = extractSenderPnFromMessageDeep(msg);
+                    if (spEarly) {
+                        const nd = String(spEarly).replace(/\D/g, '');
+                        if (nd.length >= 10 && !isLikelyPseudoWhatsappPn(nd) && !isOurBotPhoneDigits(nd)) {
+                            const jidDestinoEarly = `${nd}@s.whatsapp.net`;
+                            rememberLidPnForSend(msg.key.remoteJid, jidDestinoEarly);
+                            rememberFlorChatJidToPhone(msg.key.remoteJid, '+' + nd);
+                            console.log(`📤 LID→PN cache (sin plaintext aún): ${msg.key.remoteJid} → ${jidDestinoEarly}`);
+                        }
+                    }
+                }
                 console.log(`⚠️ Mensaje sin contenido (message es null/undefined)`);
                 continue;
             }
@@ -3932,10 +4007,13 @@ async function connectToWhatsApp() {
                 }
                 const lidUserDigits = String(remoteJid).replace(/@lid$/i, '').replace(/@s\.whatsapp\.net$/, '').trim().split(':')[0].replace(/\D/g, '');
                 /** Valor interno tipo "549…" sin +; null si no hay MSISDN fiable */
-                let realPhone = null;
+                let realPhone = extractSenderPnFromMessageDeep(msg);
+                if (realPhone) {
+                    console.log(`📱 LID: sender_pn en cuerpo/attrs del mensaje (no solo key) → +${realPhone}`);
+                }
 
                 // 1) senderPn primero: WA suele mandar el móvil real aquí aunque remoteJid sea @lid (antes el LID store devolvía solo LID y todo quedaba "280…").
-                if (msg.key) {
+                if (!realPhone && msg.key) {
                     const sp0 = msg.key.senderPn || msg.key.sender_pn;
                     if (sp0 && String(sp0).includes('@s.whatsapp.net')) {
                         const e164 = jidPnToE164(String(sp0));
@@ -4061,6 +4139,24 @@ async function connectToWhatsApp() {
                             console.log(`📤 Flor: JID destino desde senderPn al encolar: ${remoteJid} → ${jidDestino}`);
                         }
                         rememberLidPnForSend(remoteJid, jidDestino);
+                    }
+                }
+            }
+            if (String(remoteJid).includes('@lid')) {
+                const keyHasPn = msg.key && (msg.key.senderPn || msg.key.sender_pn)
+                    && String(msg.key.senderPn || msg.key.sender_pn).includes('@s.whatsapp.net');
+                if (!keyHasPn) {
+                    const spDeep = extractSenderPnFromMessageDeep(msg);
+                    if (spDeep) {
+                        const nd = String(spDeep).replace(/\D/g, '');
+                        const normalized = '+' + nd;
+                        if (nd.length >= 10 && !isLikelyPseudoWhatsappPn(nd) && !isOurBotPhoneDigits(nd)) {
+                            numero = normalized;
+                            jidDestino = `${nd}@s.whatsapp.net`;
+                            console.log(`📤 Flor: JID/número desde sender_pn profundo (attrs): ${remoteJid} → ${jidDestino}`);
+                            rememberLidPnForSend(remoteJid, jidDestino);
+                            rememberFlorChatJidToPhone(remoteJid, normalized);
+                        }
                     }
                 }
             }
