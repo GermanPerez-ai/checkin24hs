@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-04-03T14:31:56Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 148; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-04-17T14:23:53Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 150; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">148</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">150</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -13019,9 +13019,9 @@ Ej:
                 localStorage.setItem('quotesDB', JSON.stringify(quotesUpdated));
             }
             
-            // Intentar enviar por WhatsApp (servidor /api/send). Solo marcar "enviado" si la promesa resuelve sin error.
+            // Intentar enviar por WhatsApp (servidor Baileys /api/send). Solo marcar "enviado" si la promesa resuelve sin error.
             sendWhatsAppMessage(cleanPhone, whatsappMessage).then(async () => {
-                // Cambiar estado a "enviado"
+                // Cambiar estado a "enviado" (mensaje entregado vía API al número del cliente)
                 quote.status = 'enviado';
                 quote.sentAt = new Date().toISOString();
                 
@@ -13172,6 +13172,7 @@ Ej:
                     console.error('❌ Error al enviar vía servidor:', serverError);
                     window._lastQuoteSendResult = { sent: false, fallback: true, error: String(serverError?.message || serverError), at: new Date().toISOString() };
                     console.warn('⚠️ COTIZACIÓN NO ENVIADA POR API. Comprobar: window._lastQuoteSendResult');
+                    // Importante: lanzar error para que los .catch / await no marquen "enviado" como si la API hubiera entregado el mensaje.
                     throw new Error(serverError?.message || String(serverError) || 'No se pudo enviar por el servidor WhatsApp');
                 }
                 
