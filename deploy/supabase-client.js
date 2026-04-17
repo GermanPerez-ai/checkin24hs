@@ -2137,12 +2137,22 @@ class SupabaseClient {
     // Almacenar suscripciones activas
     activeSubscriptions = {};
 
+    _removeRealtimeChannel(key) {
+        const ch = this.activeSubscriptions[key];
+        if (!ch) return;
+        try {
+            this.client.removeChannel(ch);
+        } catch (e) { /* ignore */ }
+        delete this.activeSubscriptions[key];
+    }
+
     subscribeToReservations(callback) {
         if (!this.isInitialized()) {
             console.warn('⚠️ Supabase no está inicializado, no se pueden usar suscripciones en tiempo real');
             return null;
         }
 
+        this._removeRealtimeChannel('reservations');
         const channel = this.client
             .channel('reservations-changes')
             .on('postgres_changes', 
@@ -2164,6 +2174,7 @@ class SupabaseClient {
             return null;
         }
 
+        this._removeRealtimeChannel('quotes');
         const channel = this.client
             .channel('quotes-changes')
             .on('postgres_changes',
@@ -2186,6 +2197,7 @@ class SupabaseClient {
             return null;
         }
 
+        this._removeRealtimeChannel('hotels');
         const channel = this.client
             .channel('hotels-changes')
             .on('postgres_changes',
@@ -2207,6 +2219,7 @@ class SupabaseClient {
             return null;
         }
 
+        this._removeRealtimeChannel('users');
         const channel = this.client
             .channel('users-changes')
             .on('postgres_changes',
@@ -2228,6 +2241,7 @@ class SupabaseClient {
             return null;
         }
 
+        this._removeRealtimeChannel('expenses');
         const channel = this.client
             .channel('expenses-changes')
             .on('postgres_changes',
@@ -2249,6 +2263,7 @@ class SupabaseClient {
             return null;
         }
 
+        this._removeRealtimeChannel('agents');
         const channel = this.client
             .channel('agents-changes')
             .on('postgres_changes',
@@ -3085,16 +3100,48 @@ class SupabaseClient {
         return v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v).trim());
     }
 
+    /** Fecha YYYY-MM-DD o null; nunca '' (Postgres rechaza ''::date y PostgREST devuelve 400). */
+    _flexiDateOptional(val) {
+        if (val == null) return null;
+        const s = String(val).trim();
+        if (!s) return null;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+        const t = Date.parse(s);
+        if (!Number.isNaN(t)) return new Date(t).toISOString().slice(0, 10);
+        return null;
+    }
+
+    /** flexi_programs.fecha_inicio / fecha_fin son NOT NULL */
+    _flexiProgramDates(p) {
+        const today = new Date().toISOString().slice(0, 10);
+        let fi = this._flexiDateOptional(p.fechaInicio || p.fecha_inicio);
+        let ff = this._flexiDateOptional(p.fechaFin || p.fecha_fin);
+        if (!fi && ff) fi = ff;
+        if (!ff && fi) ff = fi;
+        if (!fi && !ff) {
+            fi = today;
+            ff = today;
+        } else if (!fi) fi = ff;
+        else if (!ff) ff = fi;
+        if (fi > ff) {
+            const x = fi;
+            fi = ff;
+            ff = x;
+        }
+        return { fecha_inicio: fi, fecha_fin: ff };
+    }
+
     _flexiProgramToRow(p) {
         const hid = p.hotelId || p.hotel_id;
+        const d = this._flexiProgramDates(p);
         return {
             id: String(p.id),
             hotel_id: this._isUuid(hid) ? String(hid).trim() : null,
             hotel_name: p.hotelName || p.hotel_name || '',
             cupos_por_voucher: parseInt(p.cuposPorVoucher || p.cupos_por_voucher, 10) || 0,
             precio_usd: parseFloat(p.precioUSD ?? p.precio_usd ?? 0) || 0,
-            fecha_inicio: p.fechaInicio || p.fecha_inicio,
-            fecha_fin: p.fechaFin || p.fecha_fin,
+            fecha_inicio: d.fecha_inicio,
+            fecha_fin: d.fecha_fin,
             descripcion: p.descripcion || null,
             estado: p.estado || 'Activo',
             fecha_creacion: p.fechaCreacion || p.fecha_creacion || new Date().toISOString(),
@@ -3120,6 +3167,8 @@ class SupabaseClient {
 
     _flexiVoucherToRow(v) {
         const hid = v.hotelId || v.hotel_id;
+        let cap = v.capturaPagoUrl != null ? String(v.capturaPagoUrl) : (v.captura_pago_url != null ? String(v.captura_pago_url) : null);
+        if (cap && cap.length > 120000) cap = null;
         return {
             id: String(v.id),
             programa_id: v.programaId || v.programa_id || null,
@@ -3132,11 +3181,12 @@ class SupabaseClient {
             cupos_iniciales: parseInt(v.cuposIniciales ?? v.cupos_iniciales, 10) || 0,
             cupos_disponibles: parseInt(v.cuposDisponibles ?? v.cupos_disponibles, 10) || 0,
             precio_usd: v.precioUSD != null ? parseFloat(v.precioUSD) : (v.precio_usd != null ? parseFloat(v.precio_usd) : null),
-            fecha_venta: v.fechaVenta || v.fecha_venta || null,
-            fecha_inicio_uso: v.fechaInicioUso || v.fecha_inicio_uso || null,
-            fecha_fin_uso: v.fechaFinUso || v.fecha_fin_uso || null,
+            fecha_venta: this._flexiDateOptional(v.fechaVenta || v.fecha_venta),
+            fecha_inicio_uso: this._flexiDateOptional(v.fechaInicioUso || v.fecha_inicio_uso),
+            fecha_fin_uso: this._flexiDateOptional(v.fechaFinUso || v.fecha_fin_uso),
             estado: v.estado || 'Activo',
             notas: v.notas || null,
+            captura_pago_url: cap,
             fecha_creacion: v.fechaCreacion || v.fecha_creacion || new Date().toISOString(),
             updated_at: new Date().toISOString()
         };
@@ -3161,6 +3211,7 @@ class SupabaseClient {
             fechaFinUso: r.fecha_fin_uso,
             estado: r.estado,
             notas: r.notas || '',
+            capturaPagoUrl: r.captura_pago_url || null,
             fechaCreacion: r.fecha_creacion
         };
     }
@@ -3228,23 +3279,48 @@ class SupabaseClient {
         return (data || []).map(r => this._flexiCanjeFromRow(r)).filter(Boolean);
     }
 
+    /** Un mismo upsert no puede incluir dos filas con el mismo id/codigo único (Postgres 21000). */
+    _dedupeFlexiRowsByKey(rows, key) {
+        if (!rows || !rows.length) return [];
+        const map = new Map();
+        for (const row of rows) {
+            const k = row && row[key] != null ? String(row[key]).trim() : '';
+            if (!k) continue;
+            map.set(k, row);
+        }
+        return [...map.values()];
+    }
+
     async syncFlexiData(programs, vouchers, canjes) {
         if (!this.isInitialized()) return;
-        const pRows = (programs || []).map(p => this._flexiProgramToRow(p));
-        const vRows = (vouchers || []).map(v => this._flexiVoucherToRow(v));
-        const cRows = (canjes || []).map(c => this._flexiCanjeToRow(c));
+        let pRows = (programs || []).map(p => this._flexiProgramToRow(p));
+        pRows = this._dedupeFlexiRowsByKey(pRows, 'id');
+        let vRows = (vouchers || []).map(v => this._flexiVoucherToRow(v)).filter(row => row.codigo);
+        vRows = this._dedupeFlexiRowsByKey(vRows, 'id');
+        vRows = this._dedupeFlexiRowsByKey(vRows, 'codigo');
+        let cRows = (canjes || []).map(c => this._flexiCanjeToRow(c));
+        cRows = this._dedupeFlexiRowsByKey(cRows, 'id');
 
         if (pRows.length) {
             const { error } = await this.client.from('flexi_programs').upsert(pRows, { onConflict: 'id' });
-            if (error) throw error;
+            if (error) {
+                console.error('flexi_programs upsert', error.message, error.details, error.hint, error.code);
+                throw error;
+            }
         }
         if (vRows.length) {
             const { error } = await this.client.from('flexi_vouchers').upsert(vRows, { onConflict: 'id' });
-            if (error) throw error;
+            if (error) {
+                console.error('flexi_vouchers upsert', error.message, error.details, error.hint, error.code);
+                throw error;
+            }
         }
         if (cRows.length) {
             const { error } = await this.client.from('flexi_canjes').upsert(cRows, { onConflict: 'id' });
-            if (error) throw error;
+            if (error) {
+                console.error('flexi_canjes upsert', error.message, error.details, error.hint, error.code);
+                throw error;
+            }
         }
     }
 

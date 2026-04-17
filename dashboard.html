@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-04-17T14:23:53Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 150; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-04-17T15:30:51Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 151; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1814,7 +1814,7 @@
     <!-- showSection ya está definido en la línea 6 del head -->
     
     <!-- Supabase: config inline en DASHBOARD_CONFIG (head). Client: -->
-    <script src="/supabase-client.js?v=3.2.0" onerror="console.warn('supabase-client.js no encontrado');"></script>
+    <script src="/supabase-client.js?v=3.2.3" onerror="console.warn('supabase-client.js no encontrado');"></script>
     
     <!-- showSection ya está definido en la línea 6 del head -->
     
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">150</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">151</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -5992,13 +5992,7 @@ Ej:
             }
             
             console.log('✅ Dashboard mostrado correctamente (usuario autenticado)');
-            
-            // Inicializar sincronizacion en tiempo real despues de un pequeño delay
-            setTimeout(function() {
-                if (typeof initRealtimeSubscriptions === 'function') {
-                    initRealtimeSubscriptions();
-                }
-            }, 1000);
+            // Tiempo real: solo initializeDashboard → initRealtimeSubscriptions (evita doble canal).
         }
 
         // Manejar el login - SIMPLIFICADO: siempre mostrar dashboard
@@ -9288,44 +9282,12 @@ Ej:
             // ============================================
             // SUSCRIPCIONES EN TIEMPO REAL
             // ============================================
+            // Una sola inicialización: initRealtimeSubscriptions (evita doble canal con showDashboard).
             if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                 console.log('🔄 Activando suscripciones en tiempo real...');
-                
-                window.supabaseClient.subscribeToAllChanges({
-                    onReservationChange: (payload) => {
-                        console.log('🔔 Cambio en reservas detectado:', payload.eventType);
-                        // Recargar datos de reservas
-                        if (typeof initReservationsDB === 'function') {
-                            initReservationsDB().then(() => {
-                                if (typeof updateStats === 'function') updateStats();
-                                if (typeof loadReservationsTable === 'function') loadReservationsTable();
-                            });
-                        }
-                    },
-                    onHotelChange: (payload) => {
-                        console.log('🔔 Cambio en hoteles detectado:', payload.eventType);
-                        if (typeof loadHotelsTable === 'function') loadHotelsTable();
-                        if (typeof updateHotelsStats === 'function') updateHotelsStats();
-                    },
-                    onAgentChange: (payload) => {
-                        console.log('🔔 Cambio en agentes detectado:', payload.eventType);
-                        if (typeof loadAgentsTable === 'function') loadAgentsTable();
-                    },
-                    onExpenseChange: (payload) => {
-                        console.log('🔔 Cambio en gastos detectado:', payload.eventType);
-                        if (typeof loadExpensesTable === 'function') loadExpensesTable();
-                        if (typeof updateExpensesStats === 'function') updateExpensesStats();
-                    },
-                    onQuoteChange: (payload) => {
-                        console.log('🔔 Cambio en cotizaciones detectado:', payload.eventType);
-                        if (typeof loadQuotesTable === 'function') loadQuotesTable();
-                    },
-                    onUserChange: (payload) => {
-                        console.log('🔔 Cambio en usuarios detectado:', payload.eventType);
-                        if (typeof loadUsersTable === 'function') loadUsersTable();
-                    }
-                });
-                
+                if (typeof window.initRealtimeSubscriptions === 'function') {
+                    window.initRealtimeSubscriptions();
+                }
                 console.log('✅ Suscripciones en tiempo real activas');
             } else {
                 console.warn('⚠️ Supabase no disponible - no hay sincronización en tiempo real');
@@ -16976,7 +16938,11 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 console.warn('⚠️ Supabase no está listo para tiempo real');
                 return;
             }
-            
+            if (window.__checkin24hsDashRealtimeOnce) {
+                return;
+            }
+            window.__checkin24hsDashRealtimeOnce = true;
+
             console.log('🔄 Iniciando sincronización en tiempo real...');
             
             // Variable para evitar recargas múltiples
@@ -17012,15 +16978,23 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 }, 500);
             }
             
-            // Suscribirse a cambios en hoteles
+            // Suscribirse a cambios en hoteles (misma lógica que antes en subscribeToAllChanges + UI)
             window.supabaseClient.subscribeToHotels((payload) => {
+                if (typeof loadHotelsTable === 'function') loadHotelsTable();
+                if (typeof updateHotelsStats === 'function') updateHotelsStats();
                 const action = payload.eventType === 'INSERT' ? 'agregó' : 
                                payload.eventType === 'UPDATE' ? 'actualizó' : 'eliminó';
                 scheduleReload('hotels', `Se ${action} un hotel`);
             });
             
-            // Suscribirse a cambios en reservaciones
+            // Suscribirse a cambios en reservaciones (incluye recarga de DB que hacía subscribeToAllChanges)
             window.supabaseClient.subscribeToReservations((payload) => {
+                if (typeof initReservationsDB === 'function') {
+                    initReservationsDB().then(() => {
+                        if (typeof updateStats === 'function') updateStats();
+                        if (typeof loadReservationsTable === 'function') loadReservationsTable();
+                    }).catch(() => {});
+                }
                 const action = payload.eventType === 'INSERT' ? 'agregó' : 
                                payload.eventType === 'UPDATE' ? 'actualizó' : 'eliminó';
                 scheduleReload('reservations', `Se ${action} una reserva`);
@@ -17069,6 +17043,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             
             // Suscribirse a cambios en usuarios
             window.supabaseClient.subscribeToUsers((payload) => {
+                if (typeof loadUsersData === 'function') loadUsersData();
+                else if (typeof loadUsersTable === 'function') loadUsersTable();
                 const action = payload.eventType === 'INSERT' ? 'agregó' : 
                                payload.eventType === 'UPDATE' ? 'actualizó' : 'eliminó';
                 scheduleReload('users', `Se ${action} un usuario`);
@@ -17076,6 +17052,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             
             // Suscribirse a cambios en gastos
             window.supabaseClient.subscribeToExpenses((payload) => {
+                if (typeof loadExpensesTable === 'function') loadExpensesTable();
+                if (typeof updateExpensesStats === 'function') updateExpensesStats();
                 const action = payload.eventType === 'INSERT' ? 'agregó' : 
                                payload.eventType === 'UPDATE' ? 'actualizó' : 'eliminó';
                 scheduleReload('expenses', `Se ${action} un gasto`);
@@ -17083,9 +17061,9 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             
             // Suscribirse a cambios en agentes
             window.supabaseClient.subscribeToAgents((payload) => {
+                if (typeof loadAgentsTable === 'function') loadAgentsTable();
                 const action = payload.eventType === 'INSERT' ? 'agregó' : 
                                payload.eventType === 'UPDATE' ? 'actualizó' : 'eliminó';
-                // Recargar reservaciones ya que los agentes se usan ahí
                 scheduleReload('reservations', `Se ${action} un agente`);
             });
             
@@ -27893,6 +27871,25 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     flexiPrograms = Array.isArray(p) ? p : [];
                     flexiVouchers = Array.isArray(v) ? v : [];
                     flexiCanjes = Array.isArray(c) ? c : [];
+                    try {
+                        const mergeById = (cloud, localArr, idKey) => {
+                            const ids = new Set((cloud || []).map(x => String(x[idKey])));
+                            const out = [...(cloud || [])];
+                            for (const row of localArr || []) {
+                                if (row && row[idKey] != null && !ids.has(String(row[idKey]))) out.push(row);
+                            }
+                            return out;
+                        };
+                        const lp = localStorage.getItem('flexi_programs');
+                        const lv = localStorage.getItem('flexi_vouchers');
+                        const lc = localStorage.getItem('flexi_canjes');
+                        const localP = lp ? JSON.parse(lp) : [];
+                        const localV = lv ? JSON.parse(lv) : [];
+                        const localC = lc ? JSON.parse(lc) : [];
+                        flexiPrograms = mergeById(flexiPrograms, localP, 'id');
+                        flexiVouchers = mergeById(flexiVouchers, localV, 'id');
+                        flexiCanjes = mergeById(flexiCanjes, localC, 'id');
+                    } catch (e) { /* ignore merge */ }
                     mirrorLocal();
                     console.log(`☁️ Flexi desde Supabase: ${flexiPrograms.length} programas, ${flexiVouchers.length} vouchers, ${flexiCanjes.length} canjes`);
                     return;
