@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-04-17T15:30:51Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 151; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-04-21T12:12:24Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 152; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1814,7 +1814,7 @@
     <!-- showSection ya está definido en la línea 6 del head -->
     
     <!-- Supabase: config inline en DASHBOARD_CONFIG (head). Client: -->
-    <script src="/supabase-client.js?v=3.2.3" onerror="console.warn('supabase-client.js no encontrado');"></script>
+    <script src="/supabase-client.js?v=3.2.4" onerror="console.warn('supabase-client.js no encontrado');"></script>
     
     <!-- showSection ya está definido en la línea 6 del head -->
     
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">151</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">152</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -20819,8 +20819,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     <td>${hotelName}</td>
                     <td style="text-align: center;">
                         <div>
-                            <div><strong>Entrada:</strong> ${formatDate(checkIn)}</div>
-                            <div><strong>Salida:</strong> ${formatDate(checkOut)}</div>
+                            <div><strong>Entrada:</strong> ${formatReservationCheckDate(checkIn)}</div>
+                            <div><strong>Salida:</strong> ${formatReservationCheckDate(checkOut)}</div>
                         </div>
                     </td>
                     <td style="text-align: center;">
@@ -22348,8 +22348,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     <div style="margin-bottom: 20px;">
                         <h3>🏨 Información de la Reserva</h3>
                         <p><strong>Hotel:</strong> ${hotelName}</p>
-                        <p><strong>Entrada:</strong> ${formatDate(checkIn)}</p>
-                        <p><strong>Salida:</strong> ${formatDate(checkOut)}</p>
+                        <p><strong>Entrada:</strong> ${formatReservationCheckDate(checkIn)}</p>
+                        <p><strong>Salida:</strong> ${formatReservationCheckDate(checkOut)}</p>
                         <p><strong>Agente:</strong> ${agentName}</p>
                     </div>
                     
@@ -22702,13 +22702,6 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 const total = reservation.total_amount || reservation.totalAmount || 0;
                 const id = reservation.id || '';
                 
-                // Formatear fechas
-                const formatDate = (dateStr) => {
-                    if (!dateStr) return '';
-                    const date = new Date(dateStr);
-                    return date.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
-                };
-                
                 // Color del estado
                 let statusColor = '#4caf50';
                 let statusBg = '#e8f5e9';
@@ -22730,8 +22723,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     <td style="padding: 12px;">${clientPhone || '—'}</td>
                     <td style="padding: 12px;">${hotelName}</td>
                     <td style="padding: 12px; text-align: center;">
-                        <strong>Entrada:</strong> ${formatDate(checkIn)}<br>
-                        <strong>Salida:</strong> ${formatDate(checkOut)}
+                        <strong>Entrada:</strong> ${formatReservationCheckDate(checkIn)}<br>
+                        <strong>Salida:</strong> ${formatReservationCheckDate(checkOut)}
                     </td>
                     <td style="padding: 12px; text-align: center;">
                         <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; background: ${statusBg}; color: ${statusColor}; font-weight: 500;">
@@ -23456,6 +23449,39 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             } catch (error) {
                 console.error('❌ Error al eliminar reservas:', error);
                 alert('❌ Error al eliminar reservas: ' + error.message);
+            }
+        }
+
+        /**
+         * Fechas de check-in/out de reservas: suelen venir como YYYY-MM-DD o ISO (Postgres/Supabase).
+         * new Date('YYYY-MM-DD') se interpreta como UTC y en Chile puede mostrarse un día antes.
+         */
+        function formatReservationCheckDate(dateString) {
+            if (!dateString) return 'Sin fecha';
+            const s = String(dateString).trim();
+            const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (m) {
+                const y = parseInt(m[1], 10);
+                const mo = parseInt(m[2], 10) - 1;
+                const d = parseInt(m[3], 10);
+                const date = new Date(y, mo, d);
+                return date.toLocaleDateString('es-CL', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                });
+            }
+            try {
+                const date = new Date(s);
+                if (isNaN(date.getTime())) return 'Fecha inválida';
+                return date.toLocaleDateString('es-CL', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                });
+            } catch (e) {
+                console.error('Error formateando fecha de reserva:', dateString, e);
+                return 'Fecha inválida';
             }
         }
 
@@ -28125,7 +28151,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     <td style="padding: 12px; font-weight: 500;">${program.hotelName}</td>
                     <td style="padding: 12px; text-align: center;">${program.cuposPorVoucher} cupos</td>
                     <td style="padding: 12px; text-align: center; font-weight: bold; color: #4caf50;">$${program.precioUSD.toLocaleString()}</td>
-                    <td style="padding: 12px; text-align: center;">${formatDateRange(program.fechaInicio, program.fechaFin)}</td>
+                    <td style="padding: 12px; text-align: center;">${formatFlexiDateRange(program.fechaInicio, program.fechaFin)}</td>
                     <td style="padding: 12px; text-align: center;">${estadoBadge}</td>
                     <td style="padding: 12px; text-align: center;">
                         <button onclick="editFlexiProgram('${program.id}')" class="form-button secondary" style="padding: 6px 12px; font-size: 12px;">
@@ -28217,7 +28243,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             const program = JSON.parse(select.selectedOptions[0].dataset.program);
             document.getElementById('voucherInfoHotel').textContent = program.hotelName;
             document.getElementById('voucherInfoCupos').textContent = program.cuposPorVoucher + ' cupos';
-            document.getElementById('voucherInfoPeriodo').textContent = formatDateRange(program.fechaInicio, program.fechaFin);
+            document.getElementById('voucherInfoPeriodo').textContent = formatFlexiDateRange(program.fechaInicio, program.fechaFin);
             infoDiv.style.display = 'block';
             
             // Regenerar código con prefijo del hotel
@@ -28430,7 +28456,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     </td>
                     <td style="padding: 12px;">${voucher.hotelName}</td>
                     <td style="padding: 12px; text-align: center;">${cuposDisplay}</td>
-                    <td style="padding: 12px; text-align: center; font-size: 12px;">${formatDateRange(voucher.fechaInicioUso, voucher.fechaFinUso)}</td>
+                    <td style="padding: 12px; text-align: center; font-size: 12px;">${formatFlexiDateRange(voucher.fechaInicioUso, voucher.fechaFinUso)}</td>
                     <td style="padding: 12px; text-align: center;">${estadoBadge}</td>
                     <td style="padding: 12px; text-align: center;" title="${voucher.capturaPagoUrl ? 'Tiene comprobante de pago' : 'Sin captura'}">
                         <span class="material-icons" style="font-size: 22px; vertical-align: middle; color: ${voucher.capturaPagoUrl ? '#2e7d32' : '#bdbdbd'};">receipt_long</span>
@@ -28541,7 +28567,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         document.getElementById('canjeInfoCliente').textContent = voucher.clienteNombre;
         document.getElementById('canjeInfoHotel').textContent = voucher.hotelName;
         document.getElementById('canjeInfoCuposDisponibles').textContent = voucher.cuposDisponibles + ' cupos';
-        document.getElementById('canjeInfoPeriodo').textContent = formatDateRange(voucher.fechaInicioUso, voucher.fechaFinUso);
+        document.getElementById('canjeInfoPeriodo').textContent = formatFlexiDateRange(voucher.fechaInicioUso, voucher.fechaFinUso);
         
         // Establecer fechas mínimas y máximas
         document.getElementById('canjeCheckIn').min = voucher.fechaInicioUso;
@@ -28674,7 +28700,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 <tr style="border-bottom: 1px solid #e0e0e0; ${canje.estado === 'Anulado' ? 'opacity: 0.6;' : ''}">
                     <td style="padding: 12px; font-family: monospace; color: #9c27b0;">${canje.voucherCodigo}</td>
                     <td style="padding: 12px;">${canje.clienteNombre}</td>
-                    <td style="padding: 12px; text-align: center;">${formatDateRange(canje.checkIn, canje.checkOut)}</td>
+                    <td style="padding: 12px; text-align: center;">${formatFlexiDateRange(canje.checkIn, canje.checkOut)}</td>
                     <td style="padding: 12px; text-align: center;">${canje.personas}</td>
                     <td style="padding: 12px; text-align: center; font-weight: bold; color: #ff9800;">${canje.cuposUsados}</td>
                     <td style="padding: 12px; text-align: center;">${estadoBadge}</td>
@@ -28703,7 +28729,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         
         document.getElementById('anularCanjeId').value = canjeId;
         document.getElementById('anularCanjeInfo').textContent = 
-            `Voucher: ${canje.voucherCodigo} | Fechas: ${formatDateRange(canje.checkIn, canje.checkOut)} | Cupos: ${canje.cuposUsados}`;
+            `Voucher: ${canje.voucherCodigo} | Fechas: ${formatFlexiDateRange(canje.checkIn, canje.checkOut)} | Cupos: ${canje.cuposUsados}`;
         document.getElementById('anularCanjeMotivo').value = '';
         document.getElementById('anularCanjeReintegrar').checked = true;
         document.getElementById('anularCanjeModal').style.display = 'flex';
@@ -28801,8 +28827,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         <div><strong>Cupos:</strong> <span style="font-weight: bold; color: ${voucher.cuposDisponibles > 0 ? '#4caf50' : '#f44336'};">${voucher.cuposDisponibles}/${voucher.cuposIniciales}</span> <span style="font-size: 12px; color: #666;">(${formatFlexiCuposPackLabel(voucher)})</span></div>
                         ${(voucher.montoPesosSenia != null && voucher.montoPesosSenia > 0) ? `<div><strong>Seña abonada:</strong> $${Number(voucher.montoPesosSenia).toLocaleString('es-AR')} ARS</div>` : ''}
                         ${(voucher.precioUSD != null && Number(voucher.precioUSD) > 0) ? `<div><strong>Precio (USD):</strong> $${Number(voucher.precioUSD).toLocaleString()} USD</div>` : ''}
-                        <div><strong>Periodo de Uso:</strong> ${formatDateRange(voucher.fechaInicioUso, voucher.fechaFinUso)}</div>
-                        <div><strong>Fecha de Venta:</strong> ${formatDate(voucher.fechaVenta)}</div>
+                        <div><strong>Periodo de Uso:</strong> ${formatFlexiDateRange(voucher.fechaInicioUso, voucher.fechaFinUso)}</div>
+                        <div><strong>Fecha de Venta:</strong> ${formatFlexiDate(voucher.fechaVenta)}</div>
                     </div>
                 </div>
                 
@@ -28854,7 +28880,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             <tbody>
                                 ${canjesDelVoucher.map(c => `
                                     <tr style="border-bottom: 1px solid #ffe0b2;">
-                                        <td style="padding: 8px;">${formatDateRange(c.checkIn, c.checkOut)}</td>
+                                        <td style="padding: 8px;">${formatFlexiDateRange(c.checkIn, c.checkOut)}</td>
                                         <td style="padding: 8px; text-align: center;">${c.personas}</td>
                                         <td style="padding: 8px; text-align: center;">${c.cuposUsados}</td>
                                         <td style="padding: 8px; text-align: center;">
@@ -28929,14 +28955,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     // UTILIDADES
     // =====================================================
 
-    function formatDate(dateStr) {
+    function formatFlexiDate(dateStr) {
         if (!dateStr) return '-';
         const date = new Date(dateStr + 'T00:00:00');
         return date.toLocaleDateString('es-CL', { day: '2-digit', month: 'short', year: 'numeric' });
     }
 
-    function formatDateRange(start, end) {
-        return `${formatDate(start)} - ${formatDate(end)}`;
+    function formatFlexiDateRange(start, end) {
+        return `${formatFlexiDate(start)} - ${formatFlexiDate(end)}`;
     }
 
     function showNotification(message, type = 'info') {
