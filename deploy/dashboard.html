@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-04-23T13:03:17Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 156; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-04-23T13:13:23Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 157; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">156</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">157</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -21453,20 +21453,17 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 
                 // Aplicar filtro de rango de meses
                 if (filterFrom) {
-                    const filterFromDate = new Date(filterFrom + '-01');
-                    const currentDate = new Date(year, month - 1, 1);
-                    if (currentDate < filterFromDate) {
+                    const fromKey = String(filterFrom).trim().substring(0, 7);
+                    if (monthKey < fromKey) {
                         skippedOutOfRange++;
-                        return; // Fuera del rango (antes del mes desde)
+                        return;
                     }
                 }
-                
                 if (filterTo) {
-                    const filterToYear = parseInt(filterTo.split('-')[0]);
-                    const filterToMonth = parseInt(filterTo.split('-')[1]);
-                    if (year > filterToYear || (year === filterToYear && month > filterToMonth)) {
+                    const toKey = String(filterTo).trim().substring(0, 7);
+                    if (monthKey > toKey) {
                         skippedOutOfRange++;
-                        return; // Fuera del rango (después del mes hasta)
+                        return;
                     }
                 }
                 
@@ -21827,6 +21824,41 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             return s;
         }
 
+        /** Montos en gastos: soporta números, strings y formato AR (1.234.567,89). */
+        function parseExpenseAmountField(value) {
+            if (value === null || value === undefined || value === '') return 0;
+            if (typeof value === 'number') return isNaN(value) ? 0 : value;
+            if (typeof value === 'string') {
+                let cleanValue = value.replace(/[$€£¥]|\bUSD\b|\bARS\b/gi, '').trim();
+                const hasComma = cleanValue.includes(',');
+                const hasDot = cleanValue.includes('.');
+                if (hasComma && hasDot) {
+                    const commaPos = cleanValue.lastIndexOf(',');
+                    const dotPos = cleanValue.lastIndexOf('.');
+                    if (commaPos > dotPos) {
+                        cleanValue = cleanValue.replace(/\./g, '').replace(',', '.');
+                    } else {
+                        cleanValue = cleanValue.replace(/,/g, '');
+                    }
+                } else if (hasComma && !hasDot) {
+                    const parts = cleanValue.split(',');
+                    if (parts.length === 2 && parts[1].length <= 2) {
+                        cleanValue = cleanValue.replace(',', '.');
+                    } else {
+                        cleanValue = cleanValue.replace(/,/g, '');
+                    }
+                } else if (hasDot && !hasComma) {
+                    const parts = cleanValue.split('.');
+                    if (parts.length > 2) {
+                        cleanValue = cleanValue.replace(/\./g, '');
+                    }
+                }
+                const parsed = parseFloat(cleanValue);
+                return isNaN(parsed) ? 0 : parsed;
+            }
+            return 0;
+        }
+
         // Función para cargar gastos mensuales con filtros (Supabase si está activo, igual que reservas)
         async function loadMonthlyExpenses(filterFrom = null, filterTo = null, filterCategory = 'all', filterType = 'all') {
             console.log('💰 Cargando gastos mensuales...', { filterFrom, filterTo, filterCategory, filterType });
@@ -21845,9 +21877,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     console.log(`☁️ ${supabaseExpenses.length} gastos cargados desde Supabase (panel mensual)`);
                     // Mantener visibles los gastos locales no sincronizados aún.
                     const merged = new Map();
-                    (supabaseExpenses || []).forEach(e => merged.set(String(e.id || `${e.date}|${e.description}|${e.amount}`), e));
+                    (supabaseExpenses || []).forEach(e => merged.set(String(e.id || `${e.date || e.created_at}|${e.description}|${e.amount}`), e));
                     (localExpenses || []).forEach(e => {
-                        const key = String(e.id || `${e.date}|${e.description}|${e.amount}`);
+                        const key = String(e.id || `${e.date || e.created_at}|${e.description}|${e.amount}`);
                         if (!merged.has(key)) merged.set(key, e);
                     });
                     expenses = Array.from(merged.values());
@@ -21886,10 +21918,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             // Procesar cada gasto (campos snake_case de Supabase)
             expenses.forEach(expense => {
-                const expenseDate = expense.date;
-                let totalAmount = parseFloat(expense.amount) || parseFloat(expense.amount_ars) || 0;
-                const expenseExchangeRateEarly = parseFloat(expense.exchangeRate || expense.exchange_rate) || 0;
-                const expenseUSDEarly = parseFloat(expense.usd || expense.usd_amount) || 0;
+                const expenseDate = expense.date ?? expense.expense_date ?? expense.fecha ?? expense.created_at;
+                let totalAmount = parseExpenseAmountField(expense.amount) || parseExpenseAmountField(expense.amount_ars);
+                const expenseExchangeRateEarly = parseExpenseAmountField(expense.exchangeRate || expense.exchange_rate);
+                const expenseUSDEarly = parseExpenseAmountField(expense.usd || expense.usd_amount);
                 if (totalAmount <= 0 && expenseUSDEarly > 0 && expenseExchangeRateEarly > 0) {
                     totalAmount = expenseUSDEarly * expenseExchangeRateEarly;
                 }
@@ -21937,22 +21969,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 // Crear clave única para mes/año (YYYY-MM)
                 const monthKey = `${year}-${String(month).padStart(2, '0')}`;
                 
-                // Aplicar filtro de rango de meses
+                // Filtro por mes (input type="month" => "YYYY-MM"). NO usar new Date("YYYY-MM-DD"):
+                // en zonas UTC- se interpreta como UTC medianoche y getMonth() puede ser el mes anterior.
                 if (filterFrom) {
-                    const filterFromDate = new Date(filterFrom + '-01');
-                    const currentDate = new Date(year, month - 1, 1);
-                    if (currentDate < filterFromDate) {
-                        return; // Fuera del rango (antes del mes desde)
-                    }
+                    const fromKey = String(filterFrom).trim().substring(0, 7);
+                    if (monthKey < fromKey) return;
                 }
-                
                 if (filterTo) {
-                    const filterToDate = new Date(filterTo + '-01');
-                    const filterToYear = filterToDate.getFullYear();
-                    const filterToMonth = filterToDate.getMonth() + 1;
-                    if (year > filterToYear || (year === filterToYear && month > filterToMonth)) {
-                        return; // Fuera del rango (después del mes hasta)
-                    }
+                    const toKey = String(filterTo).trim().substring(0, 7);
+                    if (monthKey > toKey) return;
                 }
                 
                 // Inicializar si no existe
@@ -21971,8 +21996,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 monthlyExpenses[monthKey].count += 1;
                 
                 // Sumar gasto en USD usando el tipo de cambio del momento del gasto
-                const expenseExchangeRate = parseFloat(expense.exchangeRate || expense.exchange_rate) || 0;
-                const expenseUSD = parseFloat(expense.usd || expense.usd_amount) || 0;
+                const expenseExchangeRate = parseExpenseAmountField(expense.exchangeRate || expense.exchange_rate);
+                const expenseUSD = parseExpenseAmountField(expense.usd || expense.usd_amount);
                 
                 if (expenseUSD > 0) {
                     // Si ya tiene USD calculado, usarlo directamente
