@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-04-23T12:14:53Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 153; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-04-23T12:42:29Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 154; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">153</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">154</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -21816,6 +21816,17 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             await loadMonthlySales(null, null, 'all');
         }
         
+        /** Clave interna de categoría (p. ej. sueldos) para filtrar aunque en DB venga label o variante. */
+        function canonicalExpenseCategoryKey(cat) {
+            if (cat == null || cat === '') return '';
+            const s = String(cat).trim().toLowerCase();
+            if (expenseCategories[s]) return s;
+            const byLabel = Object.entries(expenseCategories).find(([, label]) => label.toLowerCase() === s);
+            if (byLabel) return byLabel[0];
+            if (s === 'sueldo') return 'sueldos';
+            return s;
+        }
+
         // Función para cargar gastos mensuales con filtros (Supabase si está activo, igual que reservas)
         async function loadMonthlyExpenses(filterFrom = null, filterTo = null, filterCategory = 'all', filterType = 'all') {
             console.log('💰 Cargando gastos mensuales...', { filterFrom, filterTo, filterCategory, filterType });
@@ -21848,14 +21859,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 return;
             }
             
-            // Aplicar filtros
+            // Aplicar filtros (categoría: misma clave que el <select> o texto/variantes desde Supabase)
             if (filterCategory && filterCategory !== 'all') {
-                expenses = expenses.filter(expense => expense.category === filterCategory);
-                console.log(`📂 Filtrado por categoría ${filterCategory}: ${expenses.length} gastos`);
+                const want = canonicalExpenseCategoryKey(filterCategory);
+                expenses = expenses.filter(expense => canonicalExpenseCategoryKey(expense.category) === want);
+                console.log(`📂 Filtrado por categoría (${want}): ${expenses.length} gastos`);
             }
             
             if (filterType && filterType !== 'all') {
-                expenses = expenses.filter(expense => expense.type === filterType);
+                expenses = expenses.filter(expense => String(expense.type || '').trim() === String(filterType).trim());
                 console.log(`📋 Filtrado por tipo ${filterType}: ${expenses.length} gastos`);
             }
             
@@ -21865,10 +21877,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             // Procesar cada gasto (campos snake_case de Supabase)
             expenses.forEach(expense => {
                 const expenseDate = expense.date;
-                const totalAmount = parseFloat(expense.amount) || parseFloat(expense.amount_ars) || 0;
+                let totalAmount = parseFloat(expense.amount) || parseFloat(expense.amount_ars) || 0;
+                const expenseExchangeRateEarly = parseFloat(expense.exchangeRate || expense.exchange_rate) || 0;
+                const expenseUSDEarly = parseFloat(expense.usd || expense.usd_amount) || 0;
+                if (totalAmount <= 0 && expenseUSDEarly > 0 && expenseExchangeRateEarly > 0) {
+                    totalAmount = expenseUSDEarly * expenseExchangeRateEarly;
+                }
                 
-                if (!expenseDate || totalAmount <= 0) {
-                    return; // Saltar gastos sin fecha o sin monto
+                if (!expenseDate || (totalAmount <= 0 && expenseUSDEarly <= 0)) {
+                    return; // Sin fecha o sin monto útil
                 }
                 
                 // Normalizar fecha (formato YYYY-MM-DD)
@@ -21940,56 +21957,82 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 // Si no tiene tipo de cambio ni USD, no sumar (quedará en 0)
             });
             
-            // Calcular rango de meses: 4 anteriores + mes actual + 4 siguientes
+            // Meses a mostrar: si hay filtro "Mes desde/hasta" (input month = YYYY-MM), usar ese rango; si no, ventana de 9 meses alrededor de hoy
             const now = new Date();
             const currentYear = now.getFullYear();
             const currentMonth = now.getMonth() + 1;
+            let monthsToShow = [];
             
-            // Crear array con los 9 meses (4 anteriores + actual + 4 siguientes)
-            const monthsToShow = [];
+            const parseMonthInput = (v) => {
+                if (!v || typeof v !== 'string') return null;
+                const parts = v.split('-');
+                if (parts.length < 2) return null;
+                const y = parseInt(parts[0], 10);
+                const m = parseInt(parts[1], 10);
+                if (isNaN(y) || isNaN(m) || m < 1 || m > 12) return null;
+                return { year: y, month: m, monthKey: `${y}-${String(m).padStart(2, '0')}` };
+            };
             
-            // Agregar 4 meses anteriores
-            for (let i = 4; i >= 1; i--) {
-                let year = currentYear;
-                let month = currentMonth - i;
-                
-                while (month <= 0) {
-                    month += 12;
-                    year -= 1;
+            if (filterFrom || filterTo) {
+                let start = parseMonthInput(filterFrom);
+                let end = parseMonthInput(filterTo);
+                if (start && !end) end = { ...start };
+                if (!start && end) start = { ...end };
+                if (start && end) {
+                    let y = start.year;
+                    let mo = start.month;
+                    const endY = end.year;
+                    const endM = end.month;
+                    if (y * 100 + mo > endY * 100 + endM) {
+                        const t = start;
+                        start = end;
+                        end = t;
+                        y = start.year;
+                        mo = start.month;
+                    }
+                    while (y < endY || (y === endY && mo <= endM)) {
+                        monthsToShow.push({ year: y, month: mo, monthKey: `${y}-${String(mo).padStart(2, '0')}` });
+                        mo++;
+                        if (mo > 12) {
+                            mo = 1;
+                            y++;
+                        }
+                    }
                 }
-                
-                const monthKey = `${year}-${String(month).padStart(2, '0')}`;
-                monthsToShow.push({
-                    year: year,
-                    month: month,
-                    monthKey: monthKey
-                });
             }
             
-            // Agregar mes actual
-            const currentMonthKey = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
-            monthsToShow.push({
-                year: currentYear,
-                month: currentMonth,
-                monthKey: currentMonthKey
-            });
-            
-            // Agregar 4 meses siguientes
-            for (let i = 1; i <= 4; i++) {
-                let year = currentYear;
-                let month = currentMonth + i;
-                
-                while (month > 12) {
-                    month -= 12;
-                    year += 1;
+            if (monthsToShow.length === 0) {
+                for (let i = 4; i >= 1; i--) {
+                    let year = currentYear;
+                    let month = currentMonth - i;
+                    while (month <= 0) {
+                        month += 12;
+                        year -= 1;
+                    }
+                    monthsToShow.push({
+                        year: year,
+                        month: month,
+                        monthKey: `${year}-${String(month).padStart(2, '0')}`
+                    });
                 }
-                
-                const monthKey = `${year}-${String(month).padStart(2, '0')}`;
                 monthsToShow.push({
-                    year: year,
-                    month: month,
-                    monthKey: monthKey
+                    year: currentYear,
+                    month: currentMonth,
+                    monthKey: `${currentYear}-${String(currentMonth).padStart(2, '0')}`
                 });
+                for (let i = 1; i <= 4; i++) {
+                    let year = currentYear;
+                    let month = currentMonth + i;
+                    while (month > 12) {
+                        month -= 12;
+                        year += 1;
+                    }
+                    monthsToShow.push({
+                        year: year,
+                        month: month,
+                        monthKey: `${year}-${String(month).padStart(2, '0')}`
+                    });
+                }
             }
             
             // Crear array final combinando datos reales con meses sin datos
@@ -22084,8 +22127,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             monthlyExpensesContent.style.background = 'transparent';
             monthlyExpensesContent.innerHTML = html;
             
-            console.log(`✅ Gastos mensuales cargados: ${finalExpensesArray.length} meses (4 anteriores + actual + 4 siguientes)`);
-            console.log(`ℹ️ NOTA: Este total solo incluye los últimos 9 meses. Para ver todos los gastos, ve a la sección "Gastos"`);
+            console.log(`✅ Gastos mensuales cargados: ${finalExpensesArray.length} meses en tabla`);
+            if (!filterFrom && !filterTo) {
+                console.log(`ℹ️ Sin filtro de mes: ventana de 9 meses. Con "Mes desde/hasta" se listan solo esos meses.`);
+            }
         }
         
         // Función para cargar categorías en el filtro de gastos
