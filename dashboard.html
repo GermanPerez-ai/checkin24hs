@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-04-23T12:42:29Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 154; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-04-23T12:54:15Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 155; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">154</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">155</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -21838,16 +21838,26 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }
             
             let expenses = [];
+            const localExpenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
             if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                 try {
-                    expenses = await window.supabaseClient.getExpenses();
-                    console.log(`☁️ ${expenses.length} gastos cargados desde Supabase (panel mensual)`);
+                    const supabaseExpenses = await window.supabaseClient.getExpenses();
+                    console.log(`☁️ ${supabaseExpenses.length} gastos cargados desde Supabase (panel mensual)`);
+                    // Mantener visibles los gastos locales no sincronizados aún.
+                    const merged = new Map();
+                    (supabaseExpenses || []).forEach(e => merged.set(String(e.id || `${e.date}|${e.description}|${e.amount}`), e));
+                    (localExpenses || []).forEach(e => {
+                        const key = String(e.id || `${e.date}|${e.description}|${e.amount}`);
+                        if (!merged.has(key)) merged.set(key, e);
+                    });
+                    expenses = Array.from(merged.values());
+                    console.log(`🔀 Gastos combinados Supabase+local: ${expenses.length}`);
                 } catch (err) {
                     console.warn('⚠️ Error cargando gastos desde Supabase, usando localStorage:', err);
-                    expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+                    expenses = localExpenses;
                 }
             } else {
-                expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+                expenses = localExpenses;
             }
             
             if (!expenses || expenses.length === 0) {
@@ -21888,20 +21898,28 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     return; // Sin fecha o sin monto útil
                 }
                 
-                // Normalizar fecha (formato YYYY-MM-DD)
-                let dateStr = expenseDate;
+                // Normalizar fecha y extraer año/mes (soporta YYYY-MM-DD y DD/MM/YYYY)
+                let dateStr = String(expenseDate).trim();
                 if (dateStr.includes('T')) {
                     dateStr = dateStr.split('T')[0];
                 }
-                
-                // Extraer año y mes
-                const dateParts = dateStr.split('-');
-                if (dateParts.length !== 3) {
-                    return; // Formato de fecha inválido
+                let year = NaN;
+                let month = NaN;
+                if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateStr)) {
+                    const dateParts = dateStr.split('-');
+                    year = parseInt(dateParts[0], 10);
+                    month = parseInt(dateParts[1], 10);
+                } else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateStr)) {
+                    const dateParts = dateStr.split('/');
+                    year = parseInt(dateParts[2], 10);
+                    month = parseInt(dateParts[1], 10);
+                } else {
+                    const parsed = new Date(dateStr);
+                    if (!isNaN(parsed.getTime())) {
+                        year = parsed.getFullYear();
+                        month = parsed.getMonth() + 1;
+                    }
                 }
-                
-                const year = parseInt(dateParts[0]);
-                const month = parseInt(dateParts[1]);
                 
                 if (isNaN(year) || isNaN(month) || month < 1 || month > 12) {
                     return; // Fecha inválida
