@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-04-21T12:12:24Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 152; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-04-23T12:14:53Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 153; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">152</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">153</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -6912,10 +6912,10 @@ Ej:
                         loadExpenseCategoriesForFilter();
                     }
                     if (typeof loadMonthlyExpenses === 'function') {
-                        loadMonthlyExpenses();
+                        await loadMonthlyExpenses();
                     }
                     if (typeof updateStats === 'function') {
-                        updateStats();
+                        await updateStats();
                     }
                 }, 100);
             }
@@ -7101,10 +7101,25 @@ Ej:
             console.log('Actualizando estadisticas del dashboard...');
             const statsReservations = await getReservationsForStats();
             
-            // Actualizar Total Hoteles (solo activos)
+            // Actualizar Total Hoteles (solo activos) — misma fuente que el resto: Supabase si está activo
             const dashboardTotalHotelsElement = document.getElementById('dashboardTotalHotels');
             if (dashboardTotalHotelsElement) {
-                const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                let hotels = [];
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    try {
+                        hotels = await window.supabaseClient.getHotels();
+                        try {
+                            localStorage.setItem('hotelsDB', JSON.stringify(hotels || []));
+                        } catch (e) {
+                            console.warn('No se pudo cachear hotelsDB en localStorage:', e);
+                        }
+                    } catch (e) {
+                        console.warn('⚠️ getHotels falló en updateStats, usando localStorage:', e);
+                        hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                    }
+                } else {
+                    hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                }
                 // Contar solo hoteles activos (considera tanto is_active como status)
                 const activeHotels = hotels.filter(hotel => {
                     // Un hotel está activo si:
@@ -21801,8 +21816,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             await loadMonthlySales(null, null, 'all');
         }
         
-        // Función para cargar gastos mensuales con filtros
-        function loadMonthlyExpenses(filterFrom = null, filterTo = null, filterCategory = 'all', filterType = 'all') {
+        // Función para cargar gastos mensuales con filtros (Supabase si está activo, igual que reservas)
+        async function loadMonthlyExpenses(filterFrom = null, filterTo = null, filterCategory = 'all', filterType = 'all') {
             console.log('💰 Cargando gastos mensuales...', { filterFrom, filterTo, filterCategory, filterType });
             
             const monthlyExpensesContent = document.getElementById('monthlyExpensesContent');
@@ -21811,8 +21826,18 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 return;
             }
             
-            // Obtener todos los gastos
-            let expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+            let expenses = [];
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    expenses = await window.supabaseClient.getExpenses();
+                    console.log(`☁️ ${expenses.length} gastos cargados desde Supabase (panel mensual)`);
+                } catch (err) {
+                    console.warn('⚠️ Error cargando gastos desde Supabase, usando localStorage:', err);
+                    expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+                }
+            } else {
+                expenses = JSON.parse(localStorage.getItem('expensesDB') || '[]');
+            }
             
             if (!expenses || expenses.length === 0) {
                 monthlyExpensesContent.style.display = 'flex';
@@ -21837,10 +21862,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             // Objeto para agrupar gastos por mes/año
             const monthlyExpenses = {};
             
-            // Procesar cada gasto
+            // Procesar cada gasto (campos snake_case de Supabase)
             expenses.forEach(expense => {
                 const expenseDate = expense.date;
-                const totalAmount = parseFloat(expense.amount) || 0;
+                const totalAmount = parseFloat(expense.amount) || parseFloat(expense.amount_ars) || 0;
                 
                 if (!expenseDate || totalAmount <= 0) {
                     return; // Saltar gastos sin fecha o sin monto
@@ -22085,7 +22110,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
         
         // Función para aplicar filtros de gastos mensuales
-        function applyMonthlyExpensesFilters() {
+        async function applyMonthlyExpensesFilters() {
             const monthFrom = document.getElementById('expenseMonthFilterFrom').value;
             const monthTo = document.getElementById('expenseMonthFilterTo').value;
             const category = document.getElementById('expenseCategoryFilter').value;
@@ -22099,16 +22124,16 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 }
             }
             
-            loadMonthlyExpenses(monthFrom || null, monthTo || null, category || 'all', type || 'all');
+            await loadMonthlyExpenses(monthFrom || null, monthTo || null, category || 'all', type || 'all');
         }
         
         // Función para limpiar filtros de gastos mensuales
-        function clearMonthlyExpensesFilters() {
+        async function clearMonthlyExpensesFilters() {
             document.getElementById('expenseMonthFilterFrom').value = '';
             document.getElementById('expenseMonthFilterTo').value = '';
             document.getElementById('expenseCategoryFilter').value = 'all';
             document.getElementById('expenseTypeFilter').value = 'all';
-            loadMonthlyExpenses(null, null, 'all', 'all');
+            await loadMonthlyExpenses(null, null, 'all', 'all');
         }
 
         // Función para agregar nueva reserva
@@ -22952,7 +22977,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     html += '</div></div>';
                 }
             });
-            html += '<p style="grid-column: 1 / -1; font-size: 12px; color: #666; margin-top: 10px;">Asigná <strong>Fecha entrada</strong> a la columna con check-in (ej. <code>fecha_checkir</code>) y <strong>Fecha salida</strong> a check-out (ej. <code>fecha_checko</code>). Las fechas deben estar completas (ej. 14/12/2025 o D/MM/AAAA). Si salen en 1900, revisá que no estés mapeando una columna que solo tiene números.</p>';
+            html += '<p style="grid-column: 1 / -1; font-size: 12px; color: #666; margin-top: 10px;">Asigná <strong>Fecha entrada</strong> a la columna de check-in (ej. <code>fecha_checkin</code>) y <strong>Fecha salida</strong> a check-out (ej. <code>fecha_checkout</code>). Acepta texto tipo <code>26/11/2025</code>, número serial de Excel o celda en formato fecha. Si falla todo, revisá que no estés mapeando <code>noch</code> u otra columna numérica.</p>';
             container.innerHTML = html;
             // Preseleccionar por coincidencia de nombre
             excelHeaders.forEach(col => {
@@ -22965,6 +22990,26 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     }
                 });
             });
+            // Export Puyehue / similar: nombres de columnas fijos si aún no eligió nada
+            (function applyPuyehueImportHints() {
+                const L = (h) => String(h || '').toLowerCase().replace(/\s/g, '');
+                const find = (pred) => excelHeaders.find(h => pred(L(h)));
+                const setIfEmpty = (domId, header) => {
+                    if (!header) return;
+                    const el = document.getElementById(domId);
+                    if (el && !el.value) el.value = header;
+                };
+                setIfEmpty('map_Código', find((l) => l === 'pnr'));
+                setIfEmpty('map_Fecha_Entrada', find((l) => l === 'fecha_checkin'));
+                setIfEmpty('map_Fecha_Salida', find((l) => l === 'fecha_checkout'));
+                setIfEmpty('map_Hotel', find((l) => l === 'codigo_hotel'));
+                setIfEmpty('map_Cliente', find((l) => l === 'nombre_pax'));
+                setIfEmpty('map_Cliente_2', find((l) => l === 'apellido_pax'));
+                setIfEmpty('map_Email', find((l) => l === 'email_pax'));
+                setIfEmpty('map_Total', find((l) => l === 'monto'));
+                setIfEmpty('map_Agente', find((l) => l === 'nombre_agen'));
+                setIfEmpty('map_Agente_2', find((l) => l === 'apellido_agen'));
+            })();
         }
 
         function escapeHtml(s) {
@@ -22994,6 +23039,17 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             return mapping;
         }
 
+        /** Excel con cellDates:true devuelve Date; String(date) rompe normalizeDate (toma "Wed"). */
+        function excelCellToCalendarYmd(v) {
+            if (v instanceof Date && !isNaN(v.getTime())) {
+                const y = v.getFullYear();
+                const m = String(v.getMonth() + 1).padStart(2, '0');
+                const d = String(v.getDate()).padStart(2, '0');
+                return y + '-' + m + '-' + d;
+            }
+            return null;
+        }
+
         function getRowValue(row, fieldKey, mapping) {
             const raw = mapping[fieldKey];
             if (raw == null || raw === '') return '';
@@ -23004,6 +23060,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 const parts = raw.map(col => {
                     const v = row[col];
                     if (v == null) return '';
+                    const ymd = excelCellToCalendarYmd(v);
+                    if (ymd) return ymd;
                     return (typeof v === 'number' ? String(v) : String(v)).trim();
                 }).filter(Boolean);
                 const joinChar = (fieldKey === 'Teléfono') ? '' : ' ';
@@ -23011,6 +23069,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }
             const v = row[raw];
             if (v == null) return '';
+            if (fieldKey === 'Fecha Entrada' || fieldKey === 'Fecha Salida' || fieldKey === 'Fecha Registro') {
+                const ymd = excelCellToCalendarYmd(v);
+                if (ymd) return ymd;
+            }
             if (typeof v === 'number' && (fieldKey === 'Total' || fieldKey === 'Código')) return String(v);
             return String(v).trim();
         }
@@ -23437,13 +23499,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 }
                 
                 // Actualizar ventas mensuales si el dashboard está visible
-                if (currentSection === 'dashboard' && typeof loadMonthlySales === 'function') {
-                    loadMonthlySales();
-                }
-                
-                // Actualizar gastos mensuales si el dashboard está visible
-                if (currentSection === 'dashboard' && typeof loadMonthlyExpenses === 'function') {
-                    loadMonthlyExpenses();
+                if (currentSection === 'dashboard') {
+                    void (async () => {
+                        if (typeof loadMonthlySales === 'function') await loadMonthlySales();
+                        if (typeof loadMonthlyExpenses === 'function') await loadMonthlyExpenses();
+                    })();
                 }
                 
             } catch (error) {
@@ -25961,7 +26021,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             closeMassUpdateTCModal();
             loadExpensesData();
-            loadMonthlyExpenses();
+            await loadMonthlyExpenses();
             
             alert(`✅ ${updated} gastos actualizados con TC: $${exchangeRate}`);
         }
