@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-04-23T12:54:15Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 155; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-04-23T13:03:17Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 156; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">155</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">156</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -21911,8 +21911,17 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     month = parseInt(dateParts[1], 10);
                 } else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dateStr)) {
                     const dateParts = dateStr.split('/');
+                    const p0 = parseInt(dateParts[0], 10);
+                    const p1 = parseInt(dateParts[1], 10);
                     year = parseInt(dateParts[2], 10);
-                    month = parseInt(dateParts[1], 10);
+                    // Soporta DD/MM/YYYY y MM/DD/YYYY
+                    if (p0 > 12) {
+                        month = p1; // DD/MM
+                    } else if (p1 > 12) {
+                        month = p0; // MM/DD
+                    } else {
+                        month = p1; // Ambiguo: priorizar DD/MM
+                    }
                 } else {
                     const parsed = new Date(dateStr);
                     if (!isNaN(parsed.getTime())) {
