@@ -36,12 +36,22 @@ class SupabaseClient {
     
     /**
      * Lista de hoteles. Por defecto usa consulta ligera (sin images ni flor_info) para evitar timeout en Supabase.
-     * @param {Object} [opts] - { light: true } (default) = solo columnas ligeras; { light: false } = fila completa (images, flor_info).
+     * @param {Object} [opts] - { light: true } (default) = solo columnas ligeras; { light: false } = fila completa (images, flor_info); { includeInactive: true } = incluye inactivos (panel admin).
      */
+    /** Solo hoteles visibles: status = 'active', 'activo', 'Activo' o null (excluye 'inactive'/'Inactivo') */
+    _filterActiveHotels(list) {
+        if (!Array.isArray(list)) return [];
+        const active = (s) => s === 'active' || s === 'activo' || s === 'Activo' || s == null || s === '';
+        return list.filter(h => h && active(h.status));
+    }
+
     async getHotels(opts = {}) {
+        const includeInactive = opts.includeInactive === true;
+
         if (!this.isInitialized()) {
             console.warn('⚠️ Supabase no está inicializado, usando localStorage como fallback');
-            return JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            const raw = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            return includeInactive ? raw : this._filterActiveHotels(raw);
         }
 
         const light = opts.light !== false; // por defecto true para evitar statement timeout
@@ -50,27 +60,22 @@ class SupabaseClient {
             : '*';
 
         try {
-            const { data, error } = await this.client
+            let query = this.client
                 .from('hotels')
-                .select(selectColumns)
-                .order('created_at', { ascending: false });
+                .select(selectColumns);
+            if (!includeInactive) {
+                query = query.or('status.eq.active,status.eq.activo,status.eq.Activo,status.is.null');
+            }
+            const { data, error } = await query.order('created_at', { ascending: false });
 
             if (error) throw error;
-
-            // Sincronizar con localStorage solo si es consulta completa y hay espacio
-            if (!light && data && data.length > 0) {
-                try {
-                    localStorage.setItem('hotelsDB', JSON.stringify(data));
-                } catch (e) {
-                    console.warn('⚠️ No se pudo guardar en localStorage (espacio lleno)');
-                }
-            }
 
             return data || [];
         } catch (error) {
             console.error('❌ Error obteniendo hoteles:', error);
             try {
-                return JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                const raw = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                return includeInactive ? raw : this._filterActiveHotels(raw);
             } catch (e) {
                 return [];
             }
@@ -3309,10 +3314,15 @@ class SupabaseClient {
             }
         }
         if (vRows.length) {
-            const { error } = await this.client.from('flexi_vouchers').upsert(vRows, { onConflict: 'id' });
-            if (error) {
-                console.error('flexi_vouchers upsert', error.message, error.details, error.hint, error.code);
-                throw error;
+            let vErr;
+            ({ error: vErr } = await this.client.from('flexi_vouchers').upsert(vRows, { onConflict: 'id' }));
+            if (vErr && String(vErr.code || '') === 'PGRST204' && /captura_pago_url/i.test(String(vErr.message || ''))) {
+                const sinCaptura = vRows.map(({ captura_pago_url: _x, ...rest }) => rest);
+                ({ error: vErr } = await this.client.from('flexi_vouchers').upsert(sinCaptura, { onConflict: 'id' }));
+            }
+            if (vErr) {
+                console.error('flexi_vouchers upsert', vErr.message, vErr.details, vErr.hint, vErr.code);
+                throw vErr;
             }
         }
         if (cRows.length) {

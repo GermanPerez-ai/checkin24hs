@@ -50,10 +50,12 @@ class SupabaseClient {
     }
 
     async getHotels(opts = {}) {
+        const includeInactive = opts.includeInactive === true;
+
         if (!this.isInitialized()) {
             console.warn('⚠️ Supabase no está inicializado, usando localStorage como fallback');
             const raw = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-            return this._filterActiveHotels(raw);
+            return includeInactive ? raw : this._filterActiveHotels(raw);
         }
 
         const light = opts.light !== false; // por defecto true para evitar statement timeout
@@ -62,11 +64,13 @@ class SupabaseClient {
             : '*';
 
         try {
-            const { data, error } = await this.client
+            let query = this.client
                 .from('hotels')
-                .select(selectColumns)
-                .or('status.eq.active,status.eq.activo,status.eq.Activo,status.is.null')
-                .order('created_at', { ascending: false });
+                .select(selectColumns);
+            if (!includeInactive) {
+                query = query.or('status.eq.active,status.eq.activo,status.eq.Activo,status.is.null');
+            }
+            const { data, error } = await query.order('created_at', { ascending: false });
 
             if (error) throw error;
 
@@ -76,7 +80,7 @@ class SupabaseClient {
             console.error('❌ Error obteniendo hoteles:', error);
             try {
                 const raw = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-                return this._filterActiveHotels(raw);
+                return includeInactive ? raw : this._filterActiveHotels(raw);
             } catch (e) {
                 return [];
             }
@@ -3290,10 +3294,15 @@ class SupabaseClient {
             }
         }
         if (vRows.length) {
-            const { error } = await this.client.from('flexi_vouchers').upsert(vRows, { onConflict: 'id' });
-            if (error) {
-                console.error('flexi_vouchers upsert', error.message, error.details, error.hint, error.code);
-                throw error;
+            let vErr;
+            ({ error: vErr } = await this.client.from('flexi_vouchers').upsert(vRows, { onConflict: 'id' }));
+            if (vErr && String(vErr.code || '') === 'PGRST204' && /captura_pago_url/i.test(String(vErr.message || ''))) {
+                const sinCaptura = vRows.map(({ captura_pago_url: _x, ...rest }) => rest);
+                ({ error: vErr } = await this.client.from('flexi_vouchers').upsert(sinCaptura, { onConflict: 'id' }));
+            }
+            if (vErr) {
+                console.error('flexi_vouchers upsert', vErr.message, vErr.details, vErr.hint, vErr.code);
+                throw vErr;
             }
         }
         if (cRows.length) {

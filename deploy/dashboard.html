@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-04-23T13:13:23Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 157; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-06-05T20:20:17Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 158; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1878,7 +1878,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">157</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">158</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -7010,7 +7010,7 @@ Ej:
             if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                 try {
                     console.log('Cargando hoteles desde Supabase...');
-                    hotels = await window.supabaseClient.getHotels();
+                    hotels = await window.supabaseClient.getHotels({ includeInactive: true });
                     console.log(`${hotels.length} hoteles cargados desde Supabase`);
                 } catch (error) {
                     console.warn('Error cargando desde Supabase, usando localStorage:', error);
@@ -15164,7 +15164,7 @@ Ej:
             if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                 try {
                     console.log('Cargando hoteles desde Supabase...');
-                    existingHotels = await window.supabaseClient.getHotels();
+                    existingHotels = await window.supabaseClient.getHotels({ includeInactive: true });
                     console.log(`📊 Estado inicial: ${existingHotels.length} hoteles en Supabase`);
                     console.log('✅ Hoteles cargados desde Supabase - NO guardando en localStorage (versión corregida v2)');
                     
@@ -15613,7 +15613,7 @@ Ej:
             if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                 try {
                     console.log('Cargando hoteles desde Supabase...');
-                    hotels = await window.supabaseClient.getHotels();
+                    hotels = await window.supabaseClient.getHotels({ includeInactive: true });
                     console.log(`${hotels.length} hoteles cargados desde Supabase`);
                 } catch (error) {
                     console.warn('Error cargando desde Supabase, usando localStorage:', error);
