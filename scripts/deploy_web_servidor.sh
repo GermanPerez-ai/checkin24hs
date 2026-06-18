@@ -43,6 +43,17 @@ if ! docker run --rm "easypanel/checkin24hs/web:$WEB_TAG" grep -q "whatsapp-floa
 else
   echo "OK: La imagen incluye el botón WhatsApp en index.html."
 fi
+# Verificar Supabase (anon key JWT) y Google tag
+if ! docker run --rm "easypanel/checkin24hs/web:$WEB_TAG" sh -c "grep -rq 'eyJ' /usr/share/nginx/html/assets/index-*.js" 2>/dev/null; then
+  echo "ERROR: La imagen NO incluye VITE_SUPABASE_ANON_KEY. Revisá .env (sin comillas) y volvé a construir."
+  exit 1
+fi
+echo "OK: La imagen incluye la anon key de Supabase."
+if docker run --rm "easypanel/checkin24hs/web:$WEB_TAG" grep -q "AW-18248233784" /usr/share/nginx/html/index.html 2>/dev/null; then
+  echo "OK: La imagen incluye el Google tag."
+else
+  echo "AVISO: index.html no contiene el Google tag AW-18248233784."
+fi
 # Tambien como latest para quien use ese tag
 docker tag "easypanel/checkin24hs/web:$WEB_TAG" easypanel/checkin24hs/web:latest
 
