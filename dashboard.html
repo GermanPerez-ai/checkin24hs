@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-06-22T15:21:31Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 171; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-06-22T15:46:55Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 172; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1385,12 +1385,37 @@
             }
 
             #chats-section.mobile-chat-open #chats-layout {
-                height: auto !important;
+                height: 100% !important;
                 flex: 1;
                 min-height: 0;
+                display: flex !important;
+                flex-direction: column !important;
             }
 
-            /* Conversación a pantalla completa: solo la flecha atrás sale del chat */
+            #chats-section.mobile-chat-open #chats-conversation-panel {
+                flex: 1 !important;
+                min-height: 0 !important;
+                height: 100% !important;
+            }
+
+            #chats-section.mobile-chat-open #chatHeader {
+                padding: 6px 8px !important;
+            }
+
+            #chats-section.mobile-chat-open #chatMessages {
+                padding: 8px 10px !important;
+            }
+
+            body.chat-conversation-locked #chatInputContainer {
+                padding-bottom: max(8px, env(safe-area-inset-bottom, 8px)) !important;
+                flex-shrink: 0;
+            }
+
+            #chats-conversation-panel .chat-mobile-back {
+                min-width: 36px;
+                min-height: 36px;
+                padding: 2px;
+            }
             #chats-section.mobile-chat-open {
                 position: fixed;
                 inset: 0;
@@ -1496,6 +1521,52 @@
             border-radius: 8px;
             font-size: 0.95rem;
             box-sizing: border-box;
+        }
+
+        /* Encabezado compacto del chat abierto */
+        .chat-header-row {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            min-height: 0;
+        }
+        .chat-header-bar {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+            padding: 4px 8px;
+            background: #f0f0f0;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            line-height: 1.25;
+        }
+        .chat-header-meta {
+            min-width: 0;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            color: #333;
+        }
+        .chat-header-label {
+            color: #666;
+            font-weight: 500;
+        }
+        .chat-header-name {
+            font-weight: 600;
+        }
+        .chat-header-delete {
+            flex-shrink: 0;
+            background: none;
+            border: none;
+            color: #c62828;
+            font-size: 0.72rem;
+            padding: 2px 4px;
+            cursor: pointer;
+            text-decoration: underline;
+            white-space: nowrap;
         }
 
         /* Estilos para el carrusel de fotos */
@@ -2108,7 +2179,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">171</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">172</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -31186,17 +31257,17 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         const nameLooksLikePhoneOnlyH = (s) => { const t = String(s || '').trim(); const d = t.replace(/\D/g, ''); return d.length >= 10 && /^[+\d\s-]+$/.test(t); };
         const contactNameRaw = String(chat.users?.name || chat.name || '').trim();
         const contactName = contactNameRaw && contactNameRaw !== userName && !nameLooksLikePhoneOnlyH(contactNameRaw) ? contactNameRaw : '';
-        const contactNameLine = isWhatsApp ? `<div style="font-size: 0.85rem; color: #333;"><strong>Nombre (CRM / WhatsApp):</strong> ${esc(contactName || '—')}</div>` : '';
+        const contactNameLine = isWhatsApp ? `<div class="chat-header-meta"><span class="chat-header-label">CRM:</span> <span class="chat-header-name">${esc(contactName || '—')}</span></div>` : '';
         const chatIdEsc = String(chatId).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-        const deleteChatLine = isWhatsApp ? `<div style="margin-top: 8px;"><button type="button" onclick="window.deleteDashboardChat('${chatIdEsc}')" style="font-size: 0.8rem; color: #c62828; background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline;">Eliminar conversación</button></div>` : '';
+        const deleteChatLine = isWhatsApp ? `<button type="button" class="chat-header-delete" onclick="window.deleteDashboardChat('${chatIdEsc}')">Eliminar</button>` : '';
         const channelSessionId = !isWhatsApp ? (() => { var ph = String(phoneRaw || '').trim(); if (ph) { var m = ph.match(/^(?:web|instagram|facebook|tiktok)_(.+)$/); if (m && m[1]) return m[1].substring(0, 24); } return (chatId || '').toString().substring(0, 8); })() : '';
         const channelIdBlock = !isWhatsApp && channelSessionId ? `<div style="margin-top: 4px; font-size: 0.8rem; color: #5c6bc0;"><span style="font-weight: 600;">ID sesión:</span> ${esc(channelSessionId)}</div>` : '';
         const contactBlock = isWhatsApp
-            ? `<div style="margin-top: 4px; padding: 8px 12px; background: #f5f5f5; border-radius: 8px; font-size: 0.85rem;">${contactNameLine}${deleteChatLine}</div>`
+            ? `<div class="chat-header-bar">${contactNameLine}${deleteChatLine}</div>`
             : `<div style="margin-top: 8px; padding: 8px 12px; background: #e8eaf6; border-radius: 8px; font-size: 0.85rem;"><span style="font-weight: 600; color: #5c6bc0;">Canal:</span> ${esc(channelLabel)}${channelIdBlock}</div>`;
         const backBtn = '<button type="button" class="chat-mobile-back" onclick="closeMobileChatView()" aria-label="Volver a conversaciones"><span class="material-icons">arrow_back</span></button>';
         const headerTitle = isWhatsApp ? (contactName || 'Cliente') : userName;
-        header.innerHTML = `<div style="display: flex; align-items: flex-start; gap: 4px;">${backBtn}<div style="flex: 1; min-width: 0;">${isWhatsApp ? '' : `<h3 style="margin: 0; font-size: 1.1rem;">${esc(userName)}</h3>`}${contactBlock}</div></div>`;
+        header.innerHTML = `<div class="chat-header-row">${backBtn}<div style="flex: 1; min-width: 0;">${isWhatsApp ? '' : `<h3 style="margin: 0; font-size: 1.1rem;">${esc(userName)}</h3>`}${contactBlock}</div></div>`;
         if (typeof window.openMobileChatView === 'function') {
             window.openMobileChatView(headerTitle);
         }
