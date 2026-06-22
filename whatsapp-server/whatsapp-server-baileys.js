@@ -2633,6 +2633,96 @@ async function guardarFlorInteraction(opts) {
     }
 }
 
+/** Solo dígitos, sin sufijos @lid / @s.whatsapp.net */
+function digitsOnlyPhoneKey(s) {
+    return String(s || '').replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '').replace(/^\+/, '').replace(/\D/g, '');
+}
+
+/** Variantes de phone/real_phone para buscar un chat ya existente (evita duplicados LID vs +E.164). */
+function buildPhoneLookupVariants(numero) {
+    const variants = new Set();
+    const raw = String(numero ?? '').trim();
+    if (!raw) return [];
+    variants.add(raw);
+    const d = digitsOnlyPhoneKey(raw);
+    if (d) {
+        variants.add(d);
+        variants.add('+' + d);
+        variants.add(d + '@s.whatsapp.net');
+    }
+    if (!raw.includes('@') && d) variants.add(raw + '@s.whatsapp.net');
+    if (raw.endsWith('@s.whatsapp.net')) variants.add(raw.replace(/@s\.whatsapp\.net$/i, '').trim());
+    return [...variants].filter(Boolean);
+}
+
+/**
+ * Busca chat en whatsapp_chats por phone, real_phone y variantes normalizadas.
+ * Si hay varios (duplicados históricos), devuelve el id del más completo/reciente.
+ */
+async function buscarChatExistenteEnSupabase(numero) {
+    if (!supabase || !numero) return null;
+    const inst = CONFIG.INSTANCE_NUMBER;
+    const byId = new Map();
+    const addRows = (rows) => {
+        if (!rows) return;
+        for (const row of rows) {
+            if (!row || !row.id) continue;
+            const ch = (row.channel || 'whatsapp').toLowerCase();
+            if (ch !== 'whatsapp') continue;
+            byId.set(row.id, row);
+        }
+    };
+    const selectCols = 'id, phone, real_phone, name, last_message_time, unread_count, channel, created_at';
+
+    for (const v of buildPhoneLookupVariants(numero)) {
+        for (const col of ['phone', 'real_phone']) {
+            const { data, error } = await supabase
+                .from('whatsapp_chats')
+                .select(selectCols)
+                .eq(col, v)
+                .eq('whatsapp_instance', inst)
+                .limit(15);
+            if (!error && data) addRows(data);
+        }
+    }
+
+    const d = digitsOnlyPhoneKey(numero);
+    if (d && isRealPhoneForStorage(numero)) {
+        const { data, error } = await supabase
+            .from('whatsapp_chats')
+            .select(selectCols)
+            .eq('whatsapp_instance', inst)
+            .or(`real_phone.eq.${d},real_phone.eq.+${d},phone.eq.${d},phone.eq.+${d}`)
+            .limit(15);
+        if (!error && data) addRows(data);
+    }
+
+    const rows = [...byId.values()];
+    if (rows.length === 0) return null;
+
+    const scoreRow = (r) => {
+        let s = 0;
+        if (isRealPhoneForStorage(r.real_phone)) s += 4;
+        if (isRealPhoneForStorage(r.phone)) s += 2;
+        const t = new Date(r.last_message_time || r.created_at || 0).getTime();
+        return { s, t };
+    };
+    rows.sort((a, b) => {
+        const sa = scoreRow(a);
+        const sb = scoreRow(b);
+        if (sb.s !== sa.s) return sb.s - sa.s;
+        return sb.t - sa.t;
+    });
+
+    const best = rows[0];
+    if (rows.length > 1) {
+        console.warn(`⚠️ ${rows.length} chats duplicados para ${numero}; reutilizando ${best.id}`);
+    } else {
+        console.log(`✅ Chat existente en whatsapp_chats para ${numero} (id=${best.id})`);
+    }
+    return best.id;
+}
+
 /**
  * Guardar mensaje en Supabase
  */
@@ -2644,27 +2734,8 @@ async function obtenerOcrearChatId(numero, nombre = null) {
     if (!supabase) return null;
 
     try {
-        // PRIMERO: Intentar con whatsapp_chats (estructura principal que usa el dashboard)
-        // Buscar chat existente: probar numero tal cual y con @s.whatsapp.net (formato que guarda WhatsApp)
-        const numerosABuscar = [numero];
-        if (numero && !String(numero).includes('@')) {
-            numerosABuscar.push(String(numero).trim() + '@s.whatsapp.net');
-        }
-        if (numero && String(numero).endsWith('@s.whatsapp.net')) {
-            numerosABuscar.push(String(numero).replace(/@s\.whatsapp\.net$/, '').trim());
-        }
-        for (const num of numerosABuscar) {
-            const { data: chatExistente, error: errorBuscarChat } = await supabase
-                .from('whatsapp_chats')
-                .select('id')
-                .eq('phone', num)
-                .eq('whatsapp_instance', CONFIG.INSTANCE_NUMBER)
-                .maybeSingle();
-            if (chatExistente && !errorBuscarChat) {
-                console.log(`✅ Chat existente encontrado en whatsapp_chats para ${numero} (phone=${num})`);
-                return chatExistente.id;
-            }
-        }
+        const chatIdExistente = await buscarChatExistenteEnSupabase(numero);
+        if (chatIdExistente) return chatIdExistente;
 
         // Si no está en whatsapp_chats, buscar en whatsapp_conversations por external_id (evita duplicado y error unique)
         const { data: convExistente } = await supabase

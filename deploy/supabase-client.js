@@ -1,7 +1,11 @@
 // ============================================
 // CLIENTE DE SUPABASE PARA CHECKIN24HS
 // ============================================
-// Este archivo contiene todas las funciones para interactuar con Supabase
+// Este archivo contiene todas las funciones para interactuar con Supabase.
+// Cuando Supabase está inicializado, es la única fuente de verdad: no se escribe
+// en localStorage al cargar (hoteles, reservas, usuarios, cotizaciones, gastos),
+// para evitar QuotaExceededError. localStorage solo se usa como fallback cuando
+// Supabase no está disponible.
 
 class SupabaseClient {
     constructor() {
@@ -36,7 +40,7 @@ class SupabaseClient {
     
     /**
      * Lista de hoteles. Por defecto usa consulta ligera (sin images ni flor_info) para evitar timeout en Supabase.
-     * @param {Object} [opts] - { light: true } (default) = solo columnas ligeras; { light: false } = fila completa (images, flor_info); { includeInactive: true } = incluye inactivos (panel admin).
+     * @param {Object} [opts] - { light: true } (default) = solo columnas ligeras; { light: false } = fila completa (images, flor_info).
      */
     /** Solo hoteles visibles: status = 'active', 'activo', 'Activo' o null (excluye 'inactive'/'Inactivo') */
     _filterActiveHotels(list) {
@@ -70,6 +74,7 @@ class SupabaseClient {
 
             if (error) throw error;
 
+            // Supabase es la fuente de verdad: no escribir en localStorage para evitar llenar cuota
             return data || [];
         } catch (error) {
             console.error('❌ Error obteniendo hoteles:', error);
@@ -708,16 +713,7 @@ class SupabaseClient {
             if (error) throw error;
             
             console.log(`☁️ Reservas cargadas de Supabase: ${data ? data.length : 0} registros`);
-            
-            // Sincronizar con localStorage solo si hay datos
-            if (data && data.length > 0) {
-                try {
-                    localStorage.setItem('reservationsDB', JSON.stringify(data));
-                } catch (e) {
-                    console.warn('⚠️ No se pudo guardar en localStorage');
-                }
-            }
-            
+            // Supabase es la fuente de verdad: no escribir en localStorage
             return data || [];
         } catch (error) {
             console.error('❌ Error obteniendo reservas:', error);
@@ -949,6 +945,7 @@ class SupabaseClient {
     // Función auxiliar para mapear datos de Supabase al formato del frontend
     mapQuoteFromSupabase(supabaseQuote) {
         if (!supabaseQuote) return null;
+        // Spread primero: si después ponemos `hotel` explícito, no lo pisa un `hotel: null` venido de la fila SQL.
         const row = { ...supabaseQuote };
         return {
             ...row,
@@ -958,6 +955,7 @@ class SupabaseClient {
             clientPhone: supabaseQuote.customer_phone || supabaseQuote.clientPhone || '',
             clientEmail: supabaseQuote.customer_email || supabaseQuote.clientEmail || '',
             hotelId: supabaseQuote.hotel_id || supabaseQuote.hotelId || null,
+            // Priorizar hotel_name (cotizador web); la columna `hotel` a veces viene null y rompía el listado del dashboard
             hotel: supabaseQuote.hotels?.name || supabaseQuote.hotel_name || supabaseQuote.hotelName || supabaseQuote.hotel || '',
             checkIn: supabaseQuote.check_in || supabaseQuote.checkIn || null,
             checkOut: supabaseQuote.check_out || supabaseQuote.checkOut || null,
@@ -1058,36 +1056,17 @@ class SupabaseClient {
             
             // Esperar a que todas las promesas se resuelvan
             const mappedData = await Promise.all(mappedDataPromises);
-            
-            // Sincronizar con localStorage (solo si hay espacio disponible)
-            // IMPORTANTE: Si falla, no afecta la devolución de datos
-            if (mappedData && mappedData.length > 0) {
-                try {
-                    localStorage.setItem('quotesDB', JSON.stringify(mappedData));
-                } catch (storageError) {
-                    // Si localStorage está lleno, no es crítico - los datos vienen de Supabase
-                    // Solo mostrar warning, no propagar el error
-                    if (storageError.name === 'QuotaExceededError') {
-                        console.warn('⚠️ No se pudo guardar cotizaciones en localStorage (espacio lleno), pero los datos se obtuvieron correctamente de Supabase');
-                    } else {
-                        console.warn('⚠️ Error al guardar en localStorage:', storageError.message);
-                    }
-                }
-            }
-            
-            // SIEMPRE devolver las cotizaciones obtenidas de Supabase, incluso si falló el guardado
+            // Supabase es la fuente de verdad: no escribir en localStorage
             return mappedData || [];
         } catch (error) {
-            // Solo loguear errores que NO sean de localStorage (QuotaExceededError)
-            // Los errores de localStorage ya se manejan arriba
-            if (error.name !== 'QuotaExceededError') {
+            if (error.name === 'QuotaExceededError') {
+                console.warn('⚠️ localStorage lleno al guardar cotizaciones. Mostrando datos desde caché si hay.');
+            } else {
                 console.error('❌ Error obteniendo cotizaciones:', error);
             }
-            // Intentar devolver desde localStorage como fallback
             try {
                 return JSON.parse(localStorage.getItem('quotesDB') || '[]');
             } catch (e) {
-                // Si también falla leer localStorage, devolver array vacío
                 return [];
             }
         }
@@ -1127,7 +1106,9 @@ class SupabaseClient {
             const rawHotelId = quote.hotelId || quote.hotel_id || null;
             const isLikelyUuid = rawHotelId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(rawHotelId).trim());
             const hotelIdForDb = (rawHotelId && isLikelyUuid) ? rawHotelId : null;
+            // Nombre del hotel que eligió el cliente (evita mostrar otro hotel por resolución errónea de hotel_id)
             let hotelNameForDb = (quote.hotel || quote.hotel_name || quote.hotelName || '').trim() || null;
+            // Si el front solo mandó UUID y el nombre vino vacío (bug / versión vieja), resolver desde tabla hotels
             if (!hotelNameForDb && hotelIdForDb) {
                 try {
                     const hotelRow = await this.getHotelById(hotelIdForDb);
@@ -1228,7 +1209,7 @@ class SupabaseClient {
                 }
             }
 
-            // Si hay error por columna hotel_name no existente, reintentar sin ella (ejecutar migración 038 después)
+            // Si hay error por columna hotel_name no existente, reintentar sin ella (ejecutar migración 021 después)
             if (error && error.message && (
                 error.message.includes("hotel_name") ||
                 (error.code === 'PGRST204' && quoteData.hotel_name != null)
@@ -1239,7 +1220,7 @@ class SupabaseClient {
                 const retryResult = await this.client.from('quotes').insert([quoteDataWithoutHotelName]).select().single();
                 data = retryResult.data;
                 error = retryResult.error;
-                if (!error) console.log('✅ Cotización insertada sin hotel_name (agregar columna con migración 038 para futuras).');
+                if (!error) console.log('✅ Cotización insertada sin hotel_name (agregar columna con migración 021 para futuras).');
             }
             
             if (error) {
@@ -1509,12 +1490,7 @@ class SupabaseClient {
             if (error) throw error;
             
             console.log(`☁️ Gastos cargados de Supabase: ${data ? data.length : 0} registros`);
-            
-            // Solo sincronizar si hay datos
-            if (data && data.length > 0) {
-                localStorage.setItem('expensesDB', JSON.stringify(data));
-            }
-            
+            // Supabase es la fuente de verdad: no escribir en localStorage
             return data || [];
         } catch (error) {
             console.error('❌ Error obteniendo gastos:', error);
@@ -2345,16 +2321,19 @@ class SupabaseClient {
             if (error) throw error;
             
             console.log(`☁️ Usuarios cargados de Supabase: ${data ? data.length : 0} registros`);
-            
-            // Sincronizar con localStorage
-            if (data && data.length > 0) {
-                localStorage.setItem('checkin24hs_users', JSON.stringify(data));
-            }
-            
+            // Supabase es la fuente de verdad: no escribir en localStorage
             return data || [];
         } catch (error) {
-            console.error('❌ Error obteniendo usuarios:', error);
-            return JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+            if (error.name === 'QuotaExceededError') {
+                console.warn('⚠️ localStorage lleno al obtener usuarios. Usando caché si hay.');
+            } else {
+                console.error('❌ Error obteniendo usuarios:', error);
+            }
+            try {
+                return JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+            } catch (e) {
+                return [];
+            }
         }
     }
 
@@ -2807,6 +2786,26 @@ class SupabaseClient {
             console.error('❌ Error obteniendo mensajes:', error);
             return [];
         }
+    }
+
+    /**
+     * Mensajes de varios chat_id (mismo contacto duplicado en whatsapp_chats). Deduplica por id de mensaje.
+     */
+    async getWhatsAppMessagesForChatIds(chatIds, limit = 200) {
+        const ids = [...new Set((chatIds || []).map(String).filter(Boolean))];
+        if (!ids.length) return [];
+        if (!this.isInitialized()) return [];
+        const perChat = Math.max(50, Math.ceil(limit / Math.max(ids.length, 1)));
+        const byMsgId = new Map();
+        for (const id of ids) {
+            const msgs = await this.getWhatsAppMessages(id, perChat);
+            for (const m of msgs) {
+                if (m && m.id != null) byMsgId.set(String(m.id), m);
+            }
+        }
+        let merged = [...byMsgId.values()].sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+        if (merged.length > limit) merged = merged.slice(-limit);
+        return merged;
     }
 
     /**
@@ -3296,6 +3295,7 @@ class SupabaseClient {
         return [...map.values()];
     }
 
+    /** Upsert masivo (órden: programas → vouchers → canjes por FKs). */
     async syncFlexiData(programs, vouchers, canjes) {
         if (!this.isInitialized()) return;
         let pRows = (programs || []).map(p => this._flexiProgramToRow(p));

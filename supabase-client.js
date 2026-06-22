@@ -2789,6 +2789,26 @@ class SupabaseClient {
     }
 
     /**
+     * Mensajes de varios chat_id (mismo contacto duplicado en whatsapp_chats). Deduplica por id de mensaje.
+     */
+    async getWhatsAppMessagesForChatIds(chatIds, limit = 200) {
+        const ids = [...new Set((chatIds || []).map(String).filter(Boolean))];
+        if (!ids.length) return [];
+        if (!this.isInitialized()) return [];
+        const perChat = Math.max(50, Math.ceil(limit / Math.max(ids.length, 1)));
+        const byMsgId = new Map();
+        for (const id of ids) {
+            const msgs = await this.getWhatsAppMessages(id, perChat);
+            for (const m of msgs) {
+                if (m && m.id != null) byMsgId.set(String(m.id), m);
+            }
+        }
+        let merged = [...byMsgId.values()].sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
+        if (merged.length > limit) merged = merged.slice(-limit);
+        return merged;
+    }
+
+    /**
      * Obtener mensajes por phone (ej. web_abc123). Útil para chats canal cuando chat_id no devuelve resultados.
      */
     async getWhatsAppMessagesByPhone(phone, limit = 100) {

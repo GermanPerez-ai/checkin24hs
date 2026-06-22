@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-06-22T12:01:51Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 163; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-06-22T12:33:31Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 165; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2021,7 +2021,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">163</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">165</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -30692,6 +30692,60 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         return '';
     };
 
+    /** Clave para agrupar chats WhatsApp con el mismo móvil (evita duplicados LID vs +E.164 en la lista). */
+    window.dashboardChatDedupeKey = function (chat) {
+        const ch = (chat && chat.channel || 'whatsapp').toLowerCase();
+        if (ch !== 'whatsapp') return 'id:' + (chat && chat.id);
+        const raw = window.pickBestPhoneRawForDashboard(chat);
+        if (raw && window.isDashboardDisplayPhone(raw)) return 'wa:' + String(raw).replace(/\D/g, '');
+        return 'id:' + (chat && chat.id);
+    };
+
+    /** Fusiona filas duplicadas del mismo número para la lista (conserva el más reciente). */
+    window.dedupeChatsForDisplay = function (chats) {
+        const byKey = new Map();
+        (chats || []).forEach(function (chat) {
+            const key = window.dashboardChatDedupeKey(chat);
+            const prev = byKey.get(key);
+            if (!prev) {
+                const copy = Object.assign({}, chat);
+                copy._mergedChatIds = [String(chat.id)];
+                byKey.set(key, copy);
+                return;
+            }
+            const tPrev = new Date(prev.last_message_time || 0).getTime();
+            const tCur = new Date(chat.last_message_time || 0).getTime();
+            const newer = tCur >= tPrev ? chat : prev;
+            const older = tCur >= tPrev ? prev : chat;
+            const merged = Object.assign({}, newer);
+            merged.unread_count = (Number(newer.unread_count) || 0) + (Number(older.unread_count) || 0);
+            if (!merged.name && older.name) merged.name = older.name;
+            if (!(merged.users && merged.users.name) && older.users && older.users.name) {
+                merged.users = Object.assign({}, merged.users || {}, { name: older.users.name });
+            }
+            const prevIds = prev._mergedChatIds || [String(prev.id)];
+            const curIds = [String(chat.id)];
+            merged._mergedChatIds = prevIds.concat(curIds).filter(function (v, i, a) { return a.indexOf(v) === i; });
+            byKey.set(key, merged);
+        });
+        return Array.from(byKey.values()).sort(function (a, b) {
+            return new Date(b.last_message_time || 0) - new Date(a.last_message_time || 0);
+        });
+    };
+
+    /** IDs de chats relacionados (duplicados del mismo contacto) para cargar todos los mensajes. */
+    window.getRelatedChatIdsForDashboardChat = function (chat) {
+        if (!chat) return [];
+        if (chat._mergedChatIds && chat._mergedChatIds.length) return chat._mergedChatIds.map(String);
+        const key = window.dashboardChatDedupeKey(chat);
+        if (!key.startsWith('wa:')) return [String(chat.id)];
+        const ids = [String(chat.id)];
+        (window._lastLoadedChats || []).forEach(function (c) {
+            if (window.dashboardChatDedupeKey(c) === key) ids.push(String(c.id));
+        });
+        return ids.filter(function (v, i, a) { return a.indexOf(v) === i; });
+    };
+
     // Cargar chats activos. Fuente de verdad: Supabase. No guardamos chats en localStorage.
     window.loadChats = async function() {
         console.log('💬 Cargando chats activos... (siempre desde Supabase)');
@@ -30715,6 +30769,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                 chats = await window.supabaseClient.getWhatsAppChats(50);
                 console.log(`📱 ${chats.length} chats cargados desde Supabase`);
+                if (typeof window.dedupeChatsForDisplay === 'function') {
+                    const before = chats.length;
+                    chats = window.dedupeChatsForDisplay(chats);
+                    if (before !== chats.length) console.log(`📱 Lista deduplicada: ${before} → ${chats.length} conversaciones`);
+                }
             } else {
                 console.warn('⚠️ Supabase no disponible, usando fallback a localStorage solo para esta sesión');
                 const localChats = JSON.parse(localStorage.getItem('flor_active_chats') || '[]');
@@ -30907,7 +30966,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         let msgs = [];
         if (window.supabaseClient && window.supabaseClient.isInitialized()) {
             try {
-                msgs = await window.supabaseClient.getWhatsAppMessages(chatId, 200);
+                const relatedIds = typeof window.getRelatedChatIdsForDashboardChat === 'function'
+                    ? window.getRelatedChatIdsForDashboardChat(chat) : [String(chatId)];
+                if (relatedIds.length > 1 && typeof window.supabaseClient.getWhatsAppMessagesForChatIds === 'function') {
+                    msgs = await window.supabaseClient.getWhatsAppMessagesForChatIds(relatedIds, 200);
+                    console.log('📥 Mensajes fusionados de', relatedIds.length, 'chats duplicados:', msgs.length);
+                } else {
+                    msgs = await window.supabaseClient.getWhatsAppMessages(chatId, 200);
+                }
                 if (!isWhatsApp && msgs.length === 0 && (chat.phone || '').trim()) {
                     msgs = await window.supabaseClient.getWhatsAppMessagesByPhone(String(chat.phone).trim(), 200);
                     if (msgs.length > 0) console.log('📥 Mensajes cargados por phone (canal):', msgs.length);
