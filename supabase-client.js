@@ -2648,63 +2648,79 @@ class SupabaseClient {
     // CHATS DE WHATSAPP (solo lectura desde Supabase; no se usa localStorage)
     // ============================================
     
-    async getWhatsAppChats(limit = 50) {
+    async getWhatsAppChats(limit = null) {
         if (!this.isInitialized()) {
             console.warn('⚠️ Supabase no está inicializado');
             return [];
         }
 
-        try {
-            // Intentar obtener chats con ordenamiento
+        const PAGE_SIZE = 500;
+        const fetchAll = limit == null || limit <= 0;
+
+        const fetchPage = async (from, to) => {
             let query = this.client
                 .from('whatsapp_chats')
                 .select('*')
-                .limit(limit);
-            
-            // Intentar ordenar por last_message_time si existe
-            try {
-                query = query.order('last_message_time', { ascending: false });
-            } catch (e) {
-                // Si falla el ordenamiento, continuar sin ordenar
-                console.log('ℹ️ No se pudo ordenar por last_message_time, continuando sin ordenar');
+                .order('last_message_time', { ascending: false });
+            if (fetchAll) {
+                query = query.range(from, to);
+            } else {
+                query = query.limit(limit);
             }
+            return query;
+        };
 
-            let { data, error } = await query;
+        const fetchPageSimple = async (from, to) => {
+            let query = this.client.from('whatsapp_chats').select('*');
+            if (fetchAll) {
+                query = query.range(from, to);
+            } else {
+                query = query.limit(limit);
+            }
+            return query;
+        };
 
-            // Si hay error 400 o la tabla no existe, intentar sin ordenamiento
-            if (error && (error.code === 'PGRST116' || error.status === 400 || error.message?.includes('does not exist') || error.message?.includes('column'))) {
-                console.log('ℹ️ Error con ordenamiento, intentando sin ordenar...');
-                const simpleQuery = this.client
-                    .from('whatsapp_chats')
-                    .select('*')
-                    .limit(limit);
-                
-                const result = await simpleQuery;
-                if (result.error) {
-                    // Si aún falla, la tabla probablemente no existe
-                    if (result.error.code === 'PGRST116' || result.error.message?.includes('does not exist')) {
-                        console.log('ℹ️ Tabla whatsapp_chats no existe aún en Supabase');
+        try {
+            const all = [];
+            let offset = 0;
+
+            while (true) {
+                const from = offset;
+                const to = offset + PAGE_SIZE - 1;
+                let { data, error } = await fetchPage(from, to);
+
+                if (error && (error.code === 'PGRST116' || error.status === 400 || error.message?.includes('does not exist') || error.message?.includes('column'))) {
+                    console.log('ℹ️ Error con ordenamiento, intentando sin ordenar...');
+                    const result = await fetchPageSimple(from, to);
+                    if (result.error) {
+                        if (result.error.code === 'PGRST116' || result.error.message?.includes('does not exist')) {
+                            console.log('ℹ️ Tabla whatsapp_chats no existe aún en Supabase');
+                            return [];
+                        }
+                        throw result.error;
+                    }
+                    data = result.data;
+                    error = result.error;
+                } else if (error) {
+                    console.error('❌ Error obteniendo chats:', error);
+                    if (error.status === 400) {
+                        console.log('ℹ️ Error 400: La tabla whatsapp_chats puede no existir o tener estructura diferente');
                         return [];
                     }
-                    throw result.error;
+                    throw error;
                 }
-                data = result.data;
-                error = result.error;
-            } else if (error) {
-                console.error('❌ Error obteniendo chats:', error);
-                // Si es un error 400, probablemente la tabla no existe o tiene estructura diferente
-                if (error.status === 400) {
-                    console.log('ℹ️ Error 400: La tabla whatsapp_chats puede no existir o tener estructura diferente');
-                    return [];
-                }
-                throw error;
+
+                const batch = data || [];
+                all.push(...batch);
+
+                if (!fetchAll || batch.length < PAGE_SIZE) break;
+                offset += PAGE_SIZE;
             }
 
-            console.log(`📱 ${data?.length || 0} chats de WhatsApp cargados desde Supabase`);
-            return data || [];
+            console.log(`📱 ${all.length} chats de WhatsApp cargados desde Supabase${fetchAll ? ' (todos)' : ''}`);
+            return all;
         } catch (error) {
             console.error('❌ Error obteniendo chats:', error);
-            // En caso de cualquier error, retornar array vacío para no romper la aplicación
             return [];
         }
     }
