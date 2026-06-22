@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-06-22T15:46:55Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 172; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-06-22T16:22:49Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 173; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -149,9 +149,13 @@
                     if (section === 'chats' || target.id === 'chats-section') {
                         target.style.setProperty('display', 'flex', 'important');
                         target.style.setProperty('flex-direction', 'column', 'important');
-                        target.style.setProperty('max-height', 'calc(100vh - 70px)', 'important');
                         target.style.setProperty('overflow', 'hidden', 'important');
                         target.style.setProperty('min-height', '0', 'important');
+                        if (typeof window.applyChatsSectionLayoutStyles === 'function') {
+                            window.applyChatsSectionLayoutStyles(target);
+                        } else {
+                            target.style.setProperty('max-height', 'calc(100vh - 70px)', 'important');
+                        }
                     }
                     // Forzar visibilidad de hijos directos (igual que el script que funcionó)
                     var firstLevelChildren = Array.from(target.children);
@@ -223,7 +227,11 @@
                             console.error('❌ [PRIMERA showSection] Sección sigue oculta! Forzando de nuevo...');
                             target.removeAttribute('style');
                             if (section === 'chats' || target.id === 'chats-section') {
-                                target.style.cssText = 'display: flex !important; flex-direction: column !important; max-height: calc(100vh - 70px) !important; overflow: hidden !important; visibility: visible !important; opacity: 1 !important; position: relative !important; z-index: 1 !important;';
+                                if (typeof window.applyChatsSectionLayoutStyles === 'function') {
+                                    window.applyChatsSectionLayoutStyles(target);
+                                } else {
+                                    target.style.cssText = 'display: flex !important; flex-direction: column !important; max-height: calc(100vh - 70px) !important; overflow: hidden !important; visibility: visible !important; opacity: 1 !important; position: relative !important; z-index: 1 !important;';
+                                }
                             } else {
                                 target.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; min-height: 500px !important; height: auto !important; position: relative !important; z-index: 1 !important;';
                             }
@@ -1390,12 +1398,17 @@
                 min-height: 0;
                 display: flex !important;
                 flex-direction: column !important;
+                gap: 0 !important;
             }
 
             #chats-section.mobile-chat-open #chats-conversation-panel {
                 flex: 1 !important;
                 min-height: 0 !important;
                 height: 100% !important;
+                padding: 0 !important;
+                border-radius: 0 !important;
+                box-shadow: none !important;
+                margin: 0 !important;
             }
 
             #chats-section.mobile-chat-open #chatHeader {
@@ -1404,11 +1417,13 @@
 
             #chats-section.mobile-chat-open #chatMessages {
                 padding: 8px 10px !important;
+                flex: 1 1 auto !important;
+                min-height: 0 !important;
             }
 
             body.chat-conversation-locked #chatInputContainer {
-                padding-bottom: max(8px, env(safe-area-inset-bottom, 8px)) !important;
-                flex-shrink: 0;
+                padding: 6px 8px max(10px, env(safe-area-inset-bottom, 10px)) 8px !important;
+                flex-shrink: 0 !important;
             }
 
             #chats-conversation-panel .chat-mobile-back {
@@ -1416,26 +1431,33 @@
                 min-height: 36px;
                 padding: 2px;
             }
+
+            /* Chat a pantalla completa: ocultar topbar y padding del contenedor */
+            body.chat-conversation-locked .mobile-topbar {
+                display: none !important;
+            }
+            body.chat-conversation-locked .content {
+                padding: 0 !important;
+                overflow: hidden !important;
+            }
+            body.chat-conversation-locked .main-content {
+                overflow: hidden !important;
+            }
+            body.chat-conversation-locked {
+                overflow: hidden !important;
+                height: 100dvh;
+            }
+
             #chats-section.mobile-chat-open {
                 position: fixed;
                 inset: 0;
-                z-index: 160;
-                max-height: 100vh !important;
-                height: 100vh !important;
+                z-index: 200;
+                max-height: 100dvh !important;
+                height: 100dvh !important;
+                width: 100vw;
                 background: #fff;
                 margin: 0 !important;
                 padding: 0 !important;
-            }
-            body.chat-conversation-locked .mobile-menu-btn {
-                display: none !important;
-            }
-            body.chat-conversation-locked .mobile-topbar {
-                pointer-events: none;
-            }
-            body.chat-conversation-locked #chats-section.mobile-chat-open {
-                top: 52px;
-                height: calc(100vh - 52px) !important;
-                max-height: calc(100vh - 52px) !important;
             }
 
             #chats-conversation-panel .chat-mobile-back {
@@ -2179,7 +2201,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">172</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">173</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -4086,7 +4108,7 @@
             </div>
 
             <!-- Chats Section: altura fija para que solo los paneles internos hagan scroll -->
-            <div id="chats-section" style="display: none; flex-direction: column; max-height: calc(100vh - 70px); overflow: hidden;">
+            <div id="chats-section" style="display: none; flex-direction: column; overflow: hidden;">
                 <h2 class="page-title" style="flex-shrink: 0;">Chats Activos</h2>
                 <div id="chats-layout" style="flex: 1; min-height: 0; height: 0; display: grid; grid-template-columns: 320px 1fr; grid-template-rows: 1fr; gap: 20px; overflow: hidden;">
                     <!-- Lista de Chats: scroll independiente -->
@@ -4107,8 +4129,8 @@
                     </div>
 
                     <!-- Área de Chat: scroll independiente en mensajes -->
-                    <div id="chats-conversation-panel" class="stat-card" style="display: flex; flex-direction: column; min-height: 0; overflow: hidden;">
-                        <div id="chatHeader" style="flex-shrink: 0; padding: 16px; border-bottom: 1px solid #e0e0e0; background: #f5f5f5;">
+                    <div id="chats-conversation-panel" class="stat-card chat-conversation-panel" style="display: flex; flex-direction: column; min-height: 0; overflow: hidden;">
+                        <div id="chatHeader" style="flex-shrink: 0; padding: 10px 12px; border-bottom: 1px solid #e0e0e0; background: #f5f5f5;">
                             <h3 style="margin: 0; font-size: 1.1rem;">Selecciona un chat para ver la conversación</h3>
                         </div>
                         <div id="chatMessages" style="flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 16px; background: #fafafa; -webkit-overflow-scrolling: touch;">
@@ -6962,7 +6984,11 @@ Ej:
                 
                 // CRÍTICO: Usar cssText para asegurar que se muestre correctamente (excepto Chats: flex + sin scroll de página)
                 if (section === 'chats' || targetSection.id === 'chats-section') {
-                    targetSection.style.cssText = 'display: flex !important; flex-direction: column !important; visibility: visible !important; opacity: 1 !important; height: calc(100vh - 70px) !important; max-height: calc(100vh - 70px) !important; min-height: 0 !important; overflow: hidden !important; position: relative !important; z-index: 1 !important;';
+                    if (typeof window.applyChatsSectionLayoutStyles === 'function') {
+                        window.applyChatsSectionLayoutStyles(targetSection);
+                    } else {
+                        targetSection.style.cssText = 'display: flex !important; flex-direction: column !important; visibility: visible !important; opacity: 1 !important; height: calc(100vh - 70px) !important; max-height: calc(100vh - 70px) !important; min-height: 0 !important; overflow: hidden !important; position: relative !important; z-index: 1 !important;';
+                    }
                 } else {
                     targetSection.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; min-height: 500px !important; height: auto !important; position: relative !important; left: auto !important; top: auto !important; z-index: 1 !important; overflow: visible !important;';
                 }
@@ -31140,11 +31166,22 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         return window.innerWidth <= 768;
     };
 
+    window.applyChatsSectionLayoutStyles = function(sectionEl) {
+        if (!sectionEl) return;
+        var mobileChatOpen = sectionEl.classList.contains('mobile-chat-open') && window.isMobileChatLayout();
+        if (mobileChatOpen) {
+            sectionEl.style.cssText = 'display: flex !important; flex-direction: column !important; visibility: visible !important; opacity: 1 !important; min-height: 0 !important; overflow: hidden !important; position: fixed !important; inset: 0 !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; height: 100dvh !important; max-height: 100dvh !important; width: 100vw !important; z-index: 200 !important; margin: 0 !important; padding: 0 !important; background: #fff !important;';
+        } else {
+            sectionEl.style.cssText = 'display: flex !important; flex-direction: column !important; visibility: visible !important; opacity: 1 !important; height: calc(100vh - 70px) !important; max-height: calc(100vh - 70px) !important; min-height: 0 !important; overflow: hidden !important; position: relative !important; z-index: 1 !important;';
+        }
+    };
+
     window.openMobileChatView = function(contactName) {
         var section = document.getElementById('chats-section');
         if (!section || !window.isMobileChatLayout()) return;
         section.classList.add('mobile-chat-open');
         document.body.classList.add('chat-conversation-locked');
+        window.applyChatsSectionLayoutStyles(section);
         var sidebar = document.getElementById('sidebar');
         var overlay = document.getElementById('sidebarOverlay');
         if (sidebar) sidebar.classList.remove('open');
@@ -31155,7 +31192,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
     window.closeMobileChatView = function() {
         var section = document.getElementById('chats-section');
-        if (section) section.classList.remove('mobile-chat-open');
+        if (section) {
+            section.classList.remove('mobile-chat-open');
+            window.applyChatsSectionLayoutStyles(section);
+        }
         document.body.classList.remove('chat-conversation-locked');
         window._currentChatId = null;
         var inputContainer = document.getElementById('chatInputContainer');
