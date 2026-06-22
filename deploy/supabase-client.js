@@ -2922,6 +2922,28 @@ class SupabaseClient {
         }
     }
 
+    /**
+     * Eliminar un chat de whatsapp_chats (los mensajes se borran por CASCADE en chat_id).
+     */
+    async deleteWhatsAppChat(chatId) {
+        if (!this.isInitialized() || !chatId) return false;
+        try {
+            try {
+                await this.client.from('whatsapp_conversations').delete().eq('id', chatId);
+            } catch (e) { /* tabla opcional */ }
+            const { error } = await this.client
+                .from('whatsapp_chats')
+                .delete()
+                .eq('id', chatId);
+            if (error) throw error;
+            console.log('✅ Chat eliminado:', chatId);
+            return true;
+        } catch (e) {
+            console.error('❌ Error eliminando chat:', e?.message || e);
+            return false;
+        }
+    }
+
     // ============================================
     // INTERACCIONES DE FLOR
     // ============================================
