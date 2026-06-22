@@ -17,22 +17,24 @@ Eso borra todos los registros de:
 
 Las tablas siguen existiendo; solo se vacían.
 
-## 2. Vaciar caché del dashboard
+## 2. Refrescar el dashboard
 
 1. Entrá al **dashboard** (HTML) y andá a la sección **Chats**.
-2. Clic en **Vaciar caché de chats** (o en **Actualizar**).
+2. Clic en **Actualizar**.
 3. La lista de conversaciones debería quedar vacía y cargar solo desde Supabase.
 
-Si no ves el botón "Vaciar caché de chats", podés limpiar a mano en el navegador:
+**Actualizar** también borra en silencio la caché local legada (`flor_active_chats`) del navegador.
+
+Si la lista sigue mostrando conversaciones viejas, podés limpiar a mano:
 
 - **F12** → pestaña **Application** (o **Almacenamiento**) → **Local Storage** → borrá la clave `flor_active_chats`.
-- Luego en Chats hacé clic en **Actualizar**.
+- Luego en Chats hacé clic en **Actualizar** de nuevo.
 
 ## Resumen
 
 | Dónde              | Qué hacer |
 |--------------------|-----------|
 | Supabase SQL Editor| Ejecutar `013_vaciar_chats_e_interacciones.sql` |
-| Dashboard → Chats  | Clic en **Vaciar caché de chats** o **Actualizar** |
+| Dashboard → Chats  | Clic en **Actualizar** |
 
 Después de esto, los nuevos chats e interacciones se irán llenando de nuevo cuando el servidor WhatsApp reciba y guarde mensajes.

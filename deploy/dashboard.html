@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-06-18T17:23:25Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 161; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-06-22T12:01:51Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 163; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2021,7 +2021,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">161</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">163</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -3935,13 +3935,9 @@
                     <div id="chats-list-panel" class="stat-card" style="display: flex; flex-direction: column; min-height: 0; overflow: hidden;">
                         <div style="flex-shrink: 0; padding: 16px; border-bottom: 1px solid #e0e0e0;">
                             <h3 style="margin: 0 0 12px 0; font-size: 1.1rem;">Conversaciones</h3>
-                            <button class="form-button secondary" onclick="loadChats(); if (window._currentChatId && typeof window.selectChat === 'function') window.selectChat(window._currentChatId);" style="width: 100%; margin-bottom: 8px;">
+                            <button class="form-button secondary" onclick="loadChats(); if (window._currentChatId && typeof window.selectChat === 'function') window.selectChat(window._currentChatId);" style="width: 100%;">
                                 <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">refresh</span>
                                 Actualizar
-                            </button>
-                            <button class="form-button" type="button" onclick="clearChatsCacheAndReload()" style="width: 100%; background: #f5f5f5; color: #666;" title="Borra la caché local de chats y recarga desde Supabase (útil después de vaciar la base)">
-                                <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">delete_sweep</span>
-                                Vaciar caché de chats
                             </button>
                         </div>
                         <div id="chatsList" style="flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 8px; -webkit-overflow-scrolling: touch;">
@@ -30665,19 +30661,6 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     //     return response;
     // }
 
-    // Vaciar caché local de chats y recargar desde Supabase (para usar después de vaciar la base en Supabase)
-    window.clearChatsCacheAndReload = function() {
-        try {
-            localStorage.removeItem('flor_active_chats');
-            window._lastLoadedChats = [];
-            window._currentChatId = null;
-            if (typeof loadChats === 'function') loadChats();
-            console.log('✅ Caché de chats vaciada, recargando desde Supabase');
-        } catch (e) {
-            console.warn('Error vaciando caché:', e);
-        }
-    };
-
     /** PN/LID interno de WhatsApp (no es móvil). Misma idea que whatsapp-server isLikelyPseudoWhatsappPn. */
     window.isLikelyPseudoWhatsappPnDashboard = function (v) {
         const d = String(v || '').replace(/\D/g, '');
@@ -30712,6 +30695,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     // Cargar chats activos. Fuente de verdad: Supabase. No guardamos chats en localStorage.
     window.loadChats = async function() {
         console.log('💬 Cargando chats activos... (siempre desde Supabase)');
+        try { localStorage.removeItem('flor_active_chats'); } catch (e) {}
         const chatsList = document.getElementById('chatsList');
         if (!chatsList) {
             console.warn('⚠️ chatsList no encontrado, saliendo...');
