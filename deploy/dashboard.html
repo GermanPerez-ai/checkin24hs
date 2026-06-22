@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-06-22T13:08:25Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 167; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-06-22T13:17:27Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 168; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1405,10 +1405,74 @@
                 min-height: 40px;
                 flex-shrink: 0;
             }
+
+            #chatInputContainer {
+                padding: 8px 10px !important;
+            }
+            #chatInputContainer .chat-input-btn {
+                width: 36px;
+                height: 36px;
+                min-width: 36px;
+                max-width: 36px;
+            }
+            #chatInputContainer .chat-input-btn .material-icons {
+                font-size: 18px;
+            }
+            #chatMessageInput {
+                padding: 8px 10px !important;
+                font-size: 16px !important;
+            }
         }
 
         .chat-mobile-back {
             display: none;
+        }
+
+        /* Barra de respuesta en chats */
+        #chatInputContainer {
+            flex-shrink: 0;
+            padding: 10px 12px;
+        }
+        .chat-input-bar {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: nowrap;
+            width: 100%;
+            min-width: 0;
+        }
+        #chatInputContainer .chat-input-btn {
+            flex-shrink: 0;
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            max-width: 40px;
+            padding: 0 !important;
+            margin: 0 !important;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            color: #fff;
+        }
+        #chatInputContainer .chat-input-btn .material-icons {
+            font-size: 20px;
+            line-height: 1;
+        }
+        #chatInputContainer .chat-input-btn--attach { background: #607d8b; }
+        #chatInputContainer .chat-input-btn--mic { background: #5c6bc0; }
+        #chatInputContainer .chat-input-btn--send { background: #1976d2; }
+        #chatMessageInput {
+            flex: 1 1 auto;
+            min-width: 0;
+            width: 0;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            box-sizing: border-box;
         }
 
         /* Estilos para el carrusel de fotos */
@@ -2021,7 +2085,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">167</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">168</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -3959,20 +4023,19 @@
                                 Selecciona un chat de la lista para comenzar
                             </p>
                         </div>
-                        <div id="chatInputContainer" style="padding: 16px; border-top: 1px solid #e0e0e0; display: none;">
+                        <div id="chatInputContainer" style="border-top: 1px solid #e0e0e0; display: none;">
                             <input type="file" id="chatFileInput" accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx" style="display: none;" onchange="handleChatFileSelect(event)">
-                            <div style="display: flex; gap: 8px; align-items: center;">
-                                <button type="button" class="form-button" style="background: #607d8b; color: white; padding: 12px; min-width: 48px;" onclick="document.getElementById('chatFileInput').click()" title="Enviar imagen, video o documento">
-                                    <span class="material-icons" style="vertical-align: middle;">attach_file</span>
+                            <div class="chat-input-bar">
+                                <button type="button" class="chat-input-btn chat-input-btn--attach" onclick="document.getElementById('chatFileInput').click()" title="Enviar imagen, video o documento" aria-label="Adjuntar archivo">
+                                    <span class="material-icons">attach_file</span>
                                 </button>
-                                <input type="text" id="chatMessageInput" placeholder="Escribe tu respuesta..." 
-                                       style="flex: 1; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem;"
+                                <input type="text" id="chatMessageInput" placeholder="Escribe tu respuesta..."
                                        onkeypress="if(event.key === 'Enter') sendChatMessage()">
-                                <button type="button" id="chatAudioBtn" class="form-button" style="background: #5c6bc0; color: white; padding: 12px; min-width: 48px;" onclick="toggleChatAudio()" title="Enviar audio (pausa Flor 20 min)">
-                                    <span class="material-icons" style="vertical-align: middle;">mic</span>
+                                <button type="button" id="chatAudioBtn" class="chat-input-btn chat-input-btn--mic" onclick="toggleChatAudio()" title="Enviar audio (pausa Flor 20 min)" aria-label="Grabar audio">
+                                    <span class="material-icons">mic</span>
                                 </button>
-                                <button class="form-button" style="background: #1976d2; color: white; padding: 12px 24px;" onclick="sendChatMessage()">
-                                    <span class="material-icons" style="vertical-align: middle;">send</span>
+                                <button type="button" class="chat-input-btn chat-input-btn--send" onclick="sendChatMessage()" title="Enviar" aria-label="Enviar mensaje">
+                                    <span class="material-icons">send</span>
                                 </button>
                             </div>
                             <div id="chatAudioRecording" style="display: none; margin-top: 10px; padding: 12px 16px; align-items: center; gap: 14px; background: #ffebee; border: 1px solid #ef5350; border-radius: 10px; flex-wrap: wrap;">
