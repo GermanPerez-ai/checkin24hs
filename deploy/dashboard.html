@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-06-23T13:52:31Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 175; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-06-23T14:33:27Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 176; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -298,9 +298,13 @@
                 url: 'https://lmoeuyasuvoqhtvhkyia.supabase.co',
                 anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxtb2V1eWFzdXZvcWh0dmhreWlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzNjE5NjAsImV4cCI6MjA3OTkzNzk2MH0.28xpqAqAa7rkeT3Ma5fPmbzYnetlq2wOPOgh9XBF3g4'
             },
-            // Servidor WhatsApp (Baileys) - QR, status, envío de mensajes.
-            // Debe ser una URL alcanzable: si el dashboard muestra "No se pudo conectar", revisá que este dominio enrute al servicio en EasyPanel (o usá localStorage whatsappServerURL como override).
+            // Servidor WhatsApp línea 1 (compatibilidad)
             whatsappServerUrl: 'https://whatsapp.checkin24hs.com',
+            // Múltiples líneas WhatsApp (mismo negocio, números distintos)
+            whatsappInstances: [
+                { instance: 1, label: 'Línea 1', url: 'https://whatsapp.checkin24hs.com' },
+                { instance: 2, label: 'Línea 2', url: 'https://whatsapp2.checkin24hs.com' }
+            ],
             // Dashboard - usado al probar Gemini desde file://
             dashboardBaseUrl: 'https://dashboard.checkin24hs.com',
             // Flor IA - valores por defecto (modelo, etc.)
@@ -1574,6 +1578,44 @@
         }
         .chat-msg-bubble--out .chat-msg-link { color: #0d47a1; }
         .chat-msg-bubble a { pointer-events: auto; }
+
+        /* Pestañas Línea 1 / Línea 2 en Chats */
+        .chats-wa-tabs {
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+            margin-bottom: 12px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 8px;
+        }
+        .chats-wa-tab {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px 8px 0 0;
+            background: #f5f5f5;
+            color: #555;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+        .chats-wa-tab:hover { background: #e8f5e9; color: #2e7d32; }
+        .chats-wa-tab.active {
+            background: #25D366;
+            color: #fff;
+        }
+        .chats-wa-tab .chats-wa-tab-badge {
+            display: inline-block;
+            min-width: 18px;
+            padding: 1px 6px;
+            margin-left: 6px;
+            border-radius: 10px;
+            background: rgba(0,0,0,0.15);
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .chats-wa-tab.active .chats-wa-tab-badge { background: rgba(255,255,255,0.3); }
+        #chats-section.mobile-chat-open #chats-wa-tabs { display: none !important; }
         .chat-loading-msgs { text-align: center; padding: 24px; color: #666; }
         .chat-msg-img {
             max-width: 100%;
@@ -2255,7 +2297,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">175</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">176</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -4164,6 +4206,10 @@
             <!-- Chats Section: altura fija para que solo los paneles internos hagan scroll -->
             <div id="chats-section" style="display: none; flex-direction: column; overflow: hidden;">
                 <h2 class="page-title" style="flex-shrink: 0;">Chats Activos</h2>
+                <div id="chats-wa-tabs" class="chats-wa-tabs">
+                    <button type="button" class="chats-wa-tab active" data-instance="1" onclick="setChatsWhatsAppInstanceTab(1)">📱 Línea 1</button>
+                    <button type="button" class="chats-wa-tab" data-instance="2" onclick="setChatsWhatsAppInstanceTab(2)">📱 Línea 2</button>
+                </div>
                 <div id="chats-layout" style="flex: 1; min-height: 0; height: 0; display: grid; grid-template-columns: 320px 1fr; grid-template-rows: 1fr; gap: 20px; overflow: hidden;">
                     <!-- Lista de Chats: scroll independiente -->
                     <div id="chats-list-panel" class="stat-card" style="display: flex; flex-direction: column; min-height: 0; overflow: hidden;">
@@ -4363,42 +4409,46 @@
                     </div>
                 </div>
 
-                <!-- WhatsApp Tab: conectar Flor por WhatsApp -->
+                <!-- WhatsApp Tab: conectar Flor por WhatsApp (una tarjeta por línea) -->
                 <div id="flor-tab-whatsapp" class="flor-tab-content" style="display: none;">
                     <div class="stat-card" style="padding: 24px; margin-bottom: 24px;">
                         <h3 style="margin: 0 0 8px 0;">📱 Conectar WhatsApp para Flor</h3>
-                        <p style="color: #666; margin-bottom: 20px;">Flor recibe y responde mensajes por WhatsApp. Conecta tu teléfono escaneando el código QR.</p>
-                        
-                        <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; margin-bottom: 24px;">
-                            <div id="whatsapp-status-card" style="flex: 1; min-width: 280px; padding: 20px; background: #f5f5f5; border-radius: 12px; border-left: 4px solid #9e9e9e;">
-                                <h4 style="margin: 0 0 12px 0; font-size: 1rem;">Estado</h4>
-                                <div id="whatsapp-status-text" style="font-size: 1.1rem; margin-bottom: 8px;">⏳ Comprobando...</div>
-                                <div id="whatsapp-status-phone" style="font-size: 0.9rem; color: #666;"></div>
-                                <button type="button" class="form-button secondary" style="margin-top: 12px;" onclick="loadWhatsAppStatus()">
-                                    <span class="material-icons" style="vertical-align: middle; margin-right: 6px; font-size: 18px;">refresh</span>
-                                    Actualizar estado
-                                </button>
-                            </div>
-                            <div style="flex: 1; min-width: 200px;">
-                                <a id="whatsapp-open-qr-btn" href="#" target="_blank" rel="noopener noreferrer" class="form-button" style="display: inline-flex; align-items: center; background: #25d366; color: white; text-decoration: none; padding: 14px 24px; border-radius: 8px; font-weight: 500;">
-                                    <span style="font-size: 1.5rem; margin-right: 10px;">📱</span>
-                                    Abrir QR / Conectar WhatsApp
+                        <p style="color: #666; margin-bottom: 20px;">Cada línea usa un <strong>número de teléfono distinto</strong>. Flor responde en ambas con la misma configuración.</p>
+
+                        <div id="whatsapp-instances-grid" style="display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 24px;">
+                            <div style="flex: 1; min-width: 280px; padding: 20px; background: #f5f5f5; border-radius: 12px; border-left: 4px solid #9e9e9e;" id="whatsapp-status-card-1">
+                                <h4 style="margin: 0 0 12px 0; font-size: 1rem;">📱 Línea 1</h4>
+                                <div id="whatsapp-status-text-1" style="font-size: 1.05rem; margin-bottom: 8px;">⏳ Comprobando...</div>
+                                <div id="whatsapp-status-phone-1" style="font-size: 0.9rem; color: #666; margin-bottom: 12px;"></div>
+                                <a id="whatsapp-open-qr-btn-1" href="#" target="_blank" rel="noopener noreferrer" class="form-button" style="display: inline-flex; align-items: center; background: #25d366; color: white; text-decoration: none; padding: 10px 18px; border-radius: 8px; font-size: 0.9rem;">
+                                    Abrir QR Línea 1
                                 </a>
-                                <p style="font-size: 0.85rem; color: #666; margin-top: 10px;">Abre la página del QR, escanéalo con WhatsApp y listo.</p>
+                            </div>
+                            <div style="flex: 1; min-width: 280px; padding: 20px; background: #f5f5f5; border-radius: 12px; border-left: 4px solid #9e9e9e;" id="whatsapp-status-card-2">
+                                <h4 style="margin: 0 0 12px 0; font-size: 1rem;">📱 Línea 2</h4>
+                                <div id="whatsapp-status-text-2" style="font-size: 1.05rem; margin-bottom: 8px;">⏳ Comprobando...</div>
+                                <div id="whatsapp-status-phone-2" style="font-size: 0.9rem; color: #666; margin-bottom: 12px;"></div>
+                                <a id="whatsapp-open-qr-btn-2" href="#" target="_blank" rel="noopener noreferrer" class="form-button" style="display: inline-flex; align-items: center; background: #25d366; color: white; text-decoration: none; padding: 10px 18px; border-radius: 8px; font-size: 0.9rem;">
+                                    Abrir QR Línea 2
+                                </a>
                             </div>
                         </div>
+                        <button type="button" class="form-button secondary" onclick="loadWhatsAppStatus()">
+                            <span class="material-icons" style="vertical-align: middle; margin-right: 6px; font-size: 18px;">refresh</span>
+                            Actualizar estado de ambas líneas
+                        </button>
                         
-                        <div style="padding: 16px; background: #e8f5e9; border-radius: 8px; border: 1px solid #c8e6c9;">
-                            <h4 style="margin: 0 0 10px 0; color: #2e7d32;">✅ Cómo conectar</h4>
+                        <div style="padding: 16px; background: #e8f5e9; border-radius: 8px; border: 1px solid #c8e6c9; margin-top: 20px;">
+                            <h4 style="margin: 0 0 10px 0; color: #2e7d32;">✅ Cómo conectar Línea 2</h4>
                             <ol style="margin: 0; padding-left: 20px; color: #333; line-height: 1.6;">
-                                <li>Haz clic en <strong>Abrir QR / Conectar WhatsApp</strong>.</li>
-                                <li>En tu teléfono: WhatsApp → Dispositivos vinculados → Vincular un dispositivo.</li>
-                                <li>Escanea el código QR que aparece en la página.</li>
-                                <li>Cuando veas <strong>Conectado</strong> aquí, Flor ya puede recibir y responder por WhatsApp.</li>
+                                <li>Creá el DNS <strong>whatsapp2.checkin24hs.com</strong> apuntando al servidor.</li>
+                                <li>En el servidor: <code>bash scripts/deploy_whatsapp2_servidor.sh</code></li>
+                                <li>Abrí <strong>Abrir QR Línea 2</strong> y escaneá con el <strong>segundo teléfono</strong> (no el de Línea 1).</li>
+                                <li>En <strong>Chats Activos</strong> usá la pestaña <strong>Línea 2</strong> para ver esas conversaciones.</li>
                             </ol>
                         </div>
                         
-                        <p style="font-size: 0.85rem; color: #999; margin-top: 16px;">La conexión se mantiene en el servidor. Puedes cerrar la pestaña del QR después de conectar.</p>
+                        <p style="font-size: 0.85rem; color: #999; margin-top: 16px;">La conexión se mantiene en el servidor. Podés cerrar la pestaña del QR después de conectar.</p>
                     </div>
                 </div>
 
@@ -29658,8 +29708,92 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     // MÓDULO FLOR IA - INTERACCIONES Y CHATS
     // =====================================================
 
+    window._chatsWhatsAppInstance = window._chatsWhatsAppInstance || 1;
+
+    window.getWhatsAppInstancesConfig = function() {
+        var c = window.DASHBOARD_CONFIG || {};
+        if (c.whatsappInstances && c.whatsappInstances.length) return c.whatsappInstances;
+        return [{ instance: 1, label: 'Línea 1', url: c.whatsappServerUrl || '' }];
+    };
+
+    window.getWhatsAppServerUrlForInstance = function(instanceNum) {
+        var n = parseInt(instanceNum, 10) || 1;
+        var list = window.getWhatsAppInstancesConfig();
+        for (var i = 0; i < list.length; i++) {
+            if (parseInt(list[i].instance, 10) === n && list[i].url) {
+                return String(list[i].url).replace(/\/$/, '');
+            }
+        }
+        if (n === 1 && window.DASHBOARD_CONFIG && window.DASHBOARD_CONFIG.whatsappServerUrl) {
+            return String(window.DASHBOARD_CONFIG.whatsappServerUrl).replace(/\/$/, '');
+        }
+        return '';
+    };
+
+    window.getCurrentChatsWhatsAppInstance = function() {
+        return parseInt(window._chatsWhatsAppInstance, 10) || 1;
+    };
+
+    window.chatBelongsToInstanceTab = function(chat, instanceTab) {
+        if (!chat) return false;
+        var ch = (chat.channel || 'whatsapp').toLowerCase();
+        var inst = parseInt(chat.whatsapp_instance, 10);
+        if (isNaN(inst) || inst < 1) inst = 1;
+        var tab = parseInt(instanceTab, 10) || 1;
+        if (tab === 1) return inst === 1 || ch !== 'whatsapp';
+        return ch === 'whatsapp' && inst === tab;
+    };
+
+    window.setChatsWhatsAppInstanceTab = function(instanceNum) {
+        var n = parseInt(instanceNum, 10) || 1;
+        window._chatsWhatsAppInstance = n;
+        document.querySelectorAll('.chats-wa-tab').forEach(function(btn) {
+            btn.classList.toggle('active', parseInt(btn.getAttribute('data-instance'), 10) === n);
+        });
+        window._currentChatId = null;
+        window._chatRenderedMessageIds = new Set();
+        var inputContainer = document.getElementById('chatInputContainer');
+        if (inputContainer) inputContainer.style.display = 'none';
+        var messagesEl = document.getElementById('chatMessages');
+        var header = document.getElementById('chatHeader');
+        if (messagesEl) {
+            messagesEl.innerHTML = '<p style="text-align: center; color: #666; margin-top: 60px;"><span class="material-icons" style="font-size: 48px; color: #ccc; display: block; margin-bottom: 16px;">question_answer</span>Selecciona un chat de la lista para comenzar</p>';
+        }
+        if (header) header.innerHTML = '<h3 style="margin: 0; font-size: 1.1rem;">Selecciona un chat para ver la conversación</h3>';
+        if (typeof window.closeMobileChatView === 'function' && window.isMobileChatLayout && window.isMobileChatLayout()) {
+            window.closeMobileChatView();
+        }
+        if (typeof window.loadChats === 'function') window.loadChats({ silent: true });
+    };
+
+    window.updateChatsInstanceTabBadges = function(allChats) {
+        var counts = { 1: 0, 2: 0 };
+        (allChats || []).forEach(function(c) {
+            var unread = parseInt(c.unread_count, 10) || 0;
+            if (!unread) return;
+            if (window.chatBelongsToInstanceTab(c, 1)) counts[1] += unread;
+            if (window.chatBelongsToInstanceTab(c, 2)) counts[2] += unread;
+        });
+        [1, 2].forEach(function(n) {
+            var btn = document.querySelector('.chats-wa-tab[data-instance="' + n + '"]');
+            if (!btn) return;
+            var old = btn.querySelector('.chats-wa-tab-badge');
+            if (old) old.remove();
+            if (counts[n] > 0) {
+                var badge = document.createElement('span');
+                badge.className = 'chats-wa-tab-badge';
+                badge.textContent = counts[n] > 99 ? '99+' : String(counts[n]);
+                btn.appendChild(badge);
+            }
+        });
+    };
+
     // Obtener URL del servidor WhatsApp (compatible con getServerURL o DASHBOARD_CONFIG)
-    function getWhatsAppBaseUrl() {
+    function getWhatsAppBaseUrl(instanceNum) {
+        if (instanceNum != null && typeof window.getWhatsAppServerUrlForInstance === 'function') {
+            var byInst = window.getWhatsAppServerUrlForInstance(instanceNum);
+            if (byInst) return byInst;
+        }
         if (typeof getServerURL === 'function') {
             const u = getServerURL();
             if (u) return u.replace(/\/$/, '');
@@ -29669,16 +29803,17 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         return '';
     }
 
-    window.loadWhatsAppStatus = async function() {
-        const baseUrl = getWhatsAppBaseUrl();
-        const statusEl = document.getElementById('whatsapp-status-text');
-        const phoneEl = document.getElementById('whatsapp-status-phone');
-        const cardEl = document.getElementById('whatsapp-status-card');
-        const qrBtn = document.getElementById('whatsapp-open-qr-btn');
+    window.loadWhatsAppStatusForInstance = async function(instanceNum) {
+        var n = parseInt(instanceNum, 10) || 1;
+        var baseUrl = window.getWhatsAppServerUrlForInstance(n);
+        var statusEl = document.getElementById('whatsapp-status-text-' + n);
+        var phoneEl = document.getElementById('whatsapp-status-phone-' + n);
+        var cardEl = document.getElementById('whatsapp-status-card-' + n);
+        var qrBtn = document.getElementById('whatsapp-open-qr-btn-' + n);
         if (!statusEl) return;
         if (!baseUrl) {
-            statusEl.textContent = '❌ Sin URL de WhatsApp. Revisa DASHBOARD_CONFIG en dashboard.html.';
-            if (phoneEl) phoneEl.textContent = '';
+            statusEl.textContent = '❌ Sin URL configurada';
+            if (phoneEl) phoneEl.textContent = 'Revisá DASHBOARD_CONFIG.whatsappInstances';
             if (cardEl) cardEl.style.borderLeftColor = '#f44336';
             if (qrBtn) qrBtn.href = '#';
             return;
@@ -29697,14 +29832,21 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 if (phoneEl) phoneEl.textContent = phone ? 'Teléfono: ' + phone : '';
                 if (cardEl) cardEl.style.borderLeftColor = '#4caf50';
             } else {
-                statusEl.textContent = data.status ? '🔄 ' + data.status : '❌ Desconectado';
+                statusEl.textContent = data.status ? '🔄 ' + data.status : '❌ Desconectado — abrí el QR';
                 if (phoneEl) phoneEl.textContent = '';
                 if (cardEl) cardEl.style.borderLeftColor = '#ff9800';
             }
         } catch (e) {
-            statusEl.textContent = '❌ No se pudo conectar al servidor WhatsApp';
-            if (phoneEl) phoneEl.textContent = '';
+            statusEl.textContent = '❌ No se pudo conectar (' + baseUrl.replace(/^https?:\/\//, '') + ')';
+            if (phoneEl) phoneEl.textContent = 'Verificá DNS y deploy del servicio';
             if (cardEl) cardEl.style.borderLeftColor = '#f44336';
+        }
+    };
+
+    window.loadWhatsAppStatus = async function() {
+        var list = window.getWhatsAppInstancesConfig();
+        for (var i = 0; i < list.length; i++) {
+            await window.loadWhatsAppStatusForInstance(list[i].instance);
         }
     };
 
@@ -31211,6 +31353,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     chats = window.dedupeChatsForDisplay(chats);
                     if (before !== chats.length) console.log(`📱 Lista deduplicada: ${before} → ${chats.length} conversaciones`);
                 }
+                if (typeof window.updateChatsInstanceTabBadges === 'function') {
+                    window.updateChatsInstanceTabBadges(chats);
+                }
+                var instanceTab = window.getCurrentChatsWhatsAppInstance();
+                chats = chats.filter(function(c) { return window.chatBelongsToInstanceTab(c, instanceTab); });
+                console.log(`📱 Pestaña Línea ${instanceTab}: ${chats.length} conversaciones`);
             } else {
                 console.warn('⚠️ Supabase no disponible, usando fallback a localStorage solo para esta sesión');
                 const localChats = JSON.parse(localStorage.getItem('flor_active_chats') || '[]');
@@ -31277,6 +31425,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     : '';
                 const id = (chat.id != null ? chat.id : '').toString().replace(/'/g, "\\'");
                 const channelBadge = getChannelBadge(chat.channel);
+                const waLineBadge = (function() {
+                    var ch = (chat.channel || 'whatsapp').toLowerCase();
+                    if (ch !== 'whatsapp') return '';
+                    var inst = parseInt(chat.whatsapp_instance, 10) || 1;
+                    if (inst === 2) return '<span style="background:#128C7E;color:white;padding:2px 6px;border-radius:6px;font-size:10px;margin-left:6px;">L2</span>';
+                    return '';
+                })();
                 const showWaName = ch === 'whatsapp' && nameAsBefore && nameAsBefore !== userName && !nameLooksLikePhoneOnly(nameAsBefore);
                 const phoneLine = ch === 'whatsapp'
                     ? (showWaName ? `<div style="margin: 2px 0 0 0; font-size: 0.8rem; color: #666;">👤 ${esc(nameAsBefore)}</div>` : '')
@@ -31285,7 +31440,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 return `
                     <div data-chat-id="${esc(id)}" onclick="selectChat('${id}')" style="padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; ${chat.unread_count > 0 ? 'background: #f0fff4;' : ''}" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='${chat.unread_count > 0 ? '#f0fff4' : 'white'}'">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <strong>${esc(userName)}${channelBadge}${unreadBadge}</strong>
+                            <strong>${esc(userName)}${channelBadge}${waLineBadge}${unreadBadge}</strong>
                             <span style="font-size: 0.75rem; color: #999;">${esc(lastMessageTime)}</span>
                         </div>
                         ${phoneLine}
@@ -31513,10 +31668,22 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
     };
 
-    function getWhatsAppServerUrl() {
+    function getWhatsAppServerUrl(chatOrInstance) {
+        var inst = 1;
+        if (chatOrInstance != null && typeof chatOrInstance === 'object') {
+            inst = parseInt(chatOrInstance.whatsapp_instance, 10) || window.getCurrentChatsWhatsAppInstance();
+        } else if (chatOrInstance != null) {
+            inst = parseInt(chatOrInstance, 10) || 1;
+        } else {
+            inst = window.getCurrentChatsWhatsAppInstance();
+        }
+        if (typeof window.getWhatsAppServerUrlForInstance === 'function') {
+            var u = window.getWhatsAppServerUrlForInstance(inst);
+            if (u) return u;
+        }
         if (typeof getWhatsAppBaseUrl === 'function') {
-            var u = getWhatsAppBaseUrl();
-            if (u) return u.replace(/\/$/, '');
+            var b = getWhatsAppBaseUrl(inst);
+            if (b) return b.replace(/\/$/, '');
         }
         var c = window.DASHBOARD_CONFIG;
         if (c && c.whatsappServerUrl) return (c.whatsappServerUrl || '').replace(/\/$/, '');
@@ -31650,7 +31817,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             var reader = new FileReader();
             reader.onload = async function() {
                 var base64 = (reader.result || '').split(',')[1] || '';
-                var serverUrl = getWhatsAppServerUrl();
+                var serverUrl = getWhatsAppServerUrl(chat);
                 var phone = (chat.real_phone || chat.phone || '').replace(/@.*$/, '').replace(/^\+/, '').trim();
                 if (serverUrl) {
                     try {
@@ -31696,7 +31863,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         var chat = (window._lastLoadedChats || []).find(function(c) { return String(c.id) === String(chatId); });
         var phone = chat ? (chat.real_phone || chat.phone || '').replace(/@.*$/, '').replace(/^\+/, '').trim() : '';
         if (!phone) { alert('⚠️ No se pudo obtener el número del chat'); fileInput.value = ''; return; }
-        var serverUrl = getWhatsAppServerUrl();
+        var serverUrl = getWhatsAppServerUrl(chat);
         if (!serverUrl) { alert('No está configurada la URL del servidor WhatsApp.'); fileInput.value = ''; return; }
         var mt = (file.type || '').toLowerCase();
         var tipo = mt.indexOf('image/') === 0 ? 'image' : (mt.indexOf('video/') === 0 ? 'video' : 'document');
@@ -31762,7 +31929,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         const phone = chat ? (chat.real_phone || chat.phone || '').replace(/@.*$/, '').replace(/^\+/, '').trim() : '';
         const isWeb = channel === 'web';
         if (!isWeb && phone) {
-            const serverUrl = getWhatsAppServerUrl();
+            const serverUrl = getWhatsAppServerUrl(chat);
             if (serverUrl) {
                 try {
                     const r = await fetch(serverUrl + '/api/send', {

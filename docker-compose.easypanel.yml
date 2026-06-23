@@ -60,6 +60,34 @@ services:
     volumes:
       - whatsapp-auth:/app/auth_info_baileys_1
 
+  whatsapp2:
+    build:
+      context: ./whatsapp-server
+      dockerfile: Dockerfile
+    image: easypanel/checkin24hs/whatsapp:latest
+    environment:
+      INSTANCE_NUMBER: "2"
+      PORT: "3002"
+    deploy:
+      replicas: 1
+      update_config:
+        order: stop-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=easypanel"
+        - "traefik.http.routers.whatsapp2.rule=Host(`whatsapp2.checkin24hs.com`)"
+        - "traefik.http.routers.whatsapp2.entrypoints=websecure"
+        - "traefik.http.routers.whatsapp2.service=whatsapp2"
+        - "traefik.http.routers.whatsapp2.tls=true"
+        - "traefik.http.routers.whatsapp2.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.whatsapp2.middlewares=whatsapp-cors,whatsapp-body"
+        - "traefik.http.routers.whatsapp2.priority=100"
+        - "traefik.http.services.whatsapp2.loadbalancer.server.port=3002"
+    networks:
+      - easypanel
+    volumes:
+      - whatsapp2-auth:/app/auth_info_baileys_2
+
   cotizador:
     build:
       context: .
@@ -178,3 +206,4 @@ networks:
 
 volumes:
   whatsapp-auth:
+  whatsapp2-auth:
