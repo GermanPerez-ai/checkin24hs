@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-06-22T16:22:49Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 173; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-06-23T13:52:31Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 175; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -1545,6 +1545,60 @@
             box-sizing: border-box;
         }
 
+        /* Burbujas de mensaje en el panel de chats */
+        .chat-msg-row {
+            margin-bottom: 10px;
+            display: flex;
+        }
+        .chat-msg-row--in { justify-content: flex-start; }
+        .chat-msg-row--out { justify-content: flex-end; }
+        .chat-msg-bubble {
+            max-width: min(85%, 420px);
+            padding: 8px 12px;
+            border-radius: 12px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+            word-break: break-word;
+        }
+        .chat-msg-bubble--in { background: #e3f2fd; color: #333; }
+        .chat-msg-bubble--out { background: #dcf8c6; color: #111; }
+        .chat-msg-text { white-space: pre-wrap; line-height: 1.4; }
+        .chat-msg-time { font-size: 0.68rem; margin-top: 4px; opacity: 0.65; text-align: right; }
+        .chat-msg-link {
+            color: #1565c0;
+            text-decoration: underline;
+            word-break: break-all;
+            cursor: pointer;
+            pointer-events: auto;
+            position: relative;
+            z-index: 2;
+        }
+        .chat-msg-bubble--out .chat-msg-link { color: #0d47a1; }
+        .chat-msg-bubble a { pointer-events: auto; }
+        .chat-loading-msgs { text-align: center; padding: 24px; color: #666; }
+        .chat-msg-img {
+            max-width: 100%;
+            max-height: 280px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: block;
+            margin-bottom: 4px;
+        }
+        .chat-msg-audio { width: 100%; min-width: 220px; max-width: 320px; height: 36px; margin: 2px 0; }
+        .chat-msg-video { max-width: 100%; max-height: 280px; border-radius: 8px; display: block; }
+        .chat-msg-doc {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: rgba(0,0,0,0.06);
+            border-radius: 8px;
+            color: inherit;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .chat-msg-doc:hover { background: rgba(0,0,0,0.1); }
+        .chat-msg-placeholder { font-style: italic; opacity: 0.75; font-size: 0.9rem; }
+
         /* Encabezado compacto del chat abierto */
         .chat-header-row {
             display: flex;
@@ -2201,7 +2255,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">173</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">175</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -30954,39 +31008,147 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             var chatsSection = document.getElementById('chats-section');
             if (!chatsSection || chatsSection.style.display === 'none') return;
             if (typeof window.loadChats === 'function') window.loadChats({ silent: true });
-        }, delayMs == null ? 3000 : delayMs);
+        }, delayMs == null ? 1200 : delayMs);
+    };
+
+    window._chatRenderedMessageIds = new Set();
+
+    window.getChatMessageDomId = function(m) {
+        if (!m) return '';
+        if (m.id) return String(m.id);
+        return String(m.created_at || '') + '_' + String(m.is_from_me) + '_' + String((m.message || m.body || '')).slice(0, 40);
+    };
+
+    window.escapeChatHtml = function(s) {
+        return ('' + (s ?? '')).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    };
+
+    window.linkifyChatText = function(escapedText) {
+        if (!escapedText) return '';
+        var urlPattern = /\b((?:https?:\/\/|www\.)[^\s<]+|(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|net|org|io|app|co|ar|hs|lat|travel|hotel|me|info|shop|online)(?:\/[^\s<]*)?)/gi;
+        return escapedText.replace(urlPattern, function(raw) {
+            if (raw.indexOf('@') !== -1) return raw;
+            var url = raw.replace(/[.,;:!?)>\]]+$/g, '');
+            var trail = raw.slice(url.length);
+            if (!url || url.length < 4) return raw;
+            var href = /^https?:\/\//i.test(url) ? url : 'https://' + url;
+            return '<a href="' + href + '" target="_blank" rel="noopener noreferrer" class="chat-msg-link">' + url + '</a>' + trail;
+        });
+    };
+
+    window.renderChatMessageBody = function(m) {
+        var type = String(m.message_type || 'text').toLowerCase();
+        var rawText = String(m.message || m.body || '').trim();
+        var mediaUrl = (m.media_url || '').trim();
+        var parts = [];
+
+        if (type === 'image' || (rawText.indexOf('[Imagen]') === 0 && mediaUrl)) {
+            if (mediaUrl) {
+                parts.push('<a href="' + window.escapeChatHtml(mediaUrl) + '" target="_blank" rel="noopener noreferrer"><img class="chat-msg-img" src="' + window.escapeChatHtml(mediaUrl) + '" alt="Imagen" loading="lazy"></a>');
+            } else {
+                parts.push('<div class="chat-msg-placeholder">🖼️ Imagen (no disponible en mensajes antiguos)</div>');
+            }
+            var imgCap = rawText.replace(/^\[Imagen\]\s*/i, '').trim();
+            if (imgCap && imgCap !== '[Imagen]') parts.push('<div class="chat-msg-text">' + window.linkifyChatText(window.escapeChatHtml(imgCap)) + '</div>');
+        } else if (type === 'audio' || type === 'voice' || rawText === '[Audio]' || /^\[Audio\]/i.test(rawText)) {
+            if (mediaUrl) {
+                parts.push('<audio class="chat-msg-audio" controls preload="metadata" src="' + window.escapeChatHtml(mediaUrl) + '"></audio>');
+            } else {
+                parts.push('<div class="chat-msg-placeholder">🎤 Audio (no disponible en mensajes antiguos)</div>');
+            }
+        } else if (type === 'video' || rawText.indexOf('[Video]') === 0) {
+            if (mediaUrl) {
+                parts.push('<video class="chat-msg-video" controls preload="metadata" src="' + window.escapeChatHtml(mediaUrl) + '"></video>');
+            } else {
+                parts.push('<div class="chat-msg-placeholder">🎬 Video (no disponible en mensajes antiguos)</div>');
+            }
+            var vidCap = rawText.replace(/^\[Video\]\s*/i, '').trim();
+            if (vidCap && vidCap !== '[Video]') parts.push('<div class="chat-msg-text">' + window.linkifyChatText(window.escapeChatHtml(vidCap)) + '</div>');
+        } else if (type === 'document' || rawText.indexOf('[Documento]') === 0) {
+            var docName = rawText.replace(/^\[Documento\]\s*/i, '').trim() || 'Documento';
+            if (mediaUrl) {
+                parts.push('<a class="chat-msg-doc" href="' + window.escapeChatHtml(mediaUrl) + '" target="_blank" rel="noopener noreferrer"><span class="material-icons" style="font-size:20px;">description</span><span>' + window.escapeChatHtml(docName) + '</span></a>');
+            } else {
+                parts.push('<div class="chat-msg-placeholder">📄 ' + window.escapeChatHtml(docName) + ' (no disponible en mensajes antiguos)</div>');
+            }
+        } else if (rawText) {
+            parts.push('<div class="chat-msg-text">' + window.linkifyChatText(window.escapeChatHtml(rawText).replace(/\n/g, '<br>')) + '</div>');
+        }
+
+        return parts.join('') || '<div class="chat-msg-placeholder">Mensaje vacío</div>';
+    };
+
+    window.renderChatMessageBubble = function(m) {
+        var fromClient = !m.is_from_me;
+        var time = m.created_at ? (typeof formatTimeArgentina === 'function' ? formatTimeArgentina(m.created_at) : new Date(m.created_at).toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit' })) : '';
+        var domId = window.getChatMessageDomId(m);
+        return '<div class="chat-msg-row chat-msg-row--' + (fromClient ? 'in' : 'out') + '" data-msg-id="' + window.escapeChatHtml(domId) + '">' +
+            '<div class="chat-msg-bubble chat-msg-bubble--' + (fromClient ? 'in' : 'out') + '">' +
+            window.renderChatMessageBody(m) +
+            '<div class="chat-msg-time">' + window.escapeChatHtml(time) + '</div>' +
+            '</div></div>';
     };
 
     window.renderChatMessagesHtml = function(msgs) {
-        const msgsOrdenados = (msgs || []).slice().sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
-        return msgsOrdenados.map(m => {
-            const fromClient = !m.is_from_me;
-            const text = (m.message || m.body || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
-            const time = m.created_at ? (typeof formatTimeArgentina === 'function' ? formatTimeArgentina(m.created_at) : new Date(m.created_at).toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit' })) : '';
-            return `<div style="margin-bottom: 12px; display: flex; justify-content: ${fromClient ? 'flex-start' : 'flex-end'};">
-                <div style="max-width: 75%; padding: 10px 14px; border-radius: 12px; background: ${fromClient ? '#e3f2fd' : '#dcf8c6'}; color: ${fromClient ? '#333' : '#111'}; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">
-                    <div style="white-space: pre-wrap; word-break: break-word;">${text}</div>
-                    <div style="font-size: 0.7rem; margin-top: 4px; opacity: 0.7;">${time}</div>
-                </div>
-            </div>`;
-        }).join('');
+        window._chatRenderedMessageIds = new Set();
+        var msgsOrdenados = (msgs || []).slice().sort(function(a, b) { return new Date(a.created_at || 0) - new Date(b.created_at || 0); });
+        msgsOrdenados.forEach(function(m) { window._chatRenderedMessageIds.add(window.getChatMessageDomId(m)); });
+        return msgsOrdenados.map(function(m) { return window.renderChatMessageBubble(m); }).join('');
     };
 
-    window.fetchChatMessagesForDashboard = async function(chat, chatId) {
+    window.appendChatMessagesIfNew = function(msgs) {
+        var container = document.getElementById('chatMessages');
+        if (!container || !msgs || !msgs.length) return false;
+        var sorted = msgs.slice().sort(function(a, b) { return new Date(a.created_at || 0) - new Date(b.created_at || 0); });
+        var added = false;
+        sorted.forEach(function(m) {
+            var domId = window.getChatMessageDomId(m);
+            if (window._chatRenderedMessageIds.has(domId)) return;
+            if (container.querySelector('[data-msg-id="' + domId.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"]')) return;
+            window._chatRenderedMessageIds.add(domId);
+            container.insertAdjacentHTML('beforeend', window.renderChatMessageBubble(m));
+            added = true;
+        });
+        if (added) container.scrollTop = container.scrollHeight;
+        return added;
+    };
+
+    window.patchChatListPreview = function(message) {
+        if (!message) return;
+        var chatId = message.chat_id || message.conversation_id;
+        if (!chatId) return;
+        var item = document.querySelector('#chatsList [data-chat-id="' + String(chatId).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"]');
+        if (!item) return;
+        var preview = item.querySelector('.chat-list-preview');
+        if (preview) {
+            var txt = String(message.message || message.body || '').trim();
+            if (txt.length > 80) txt = txt.slice(0, 80) + '…';
+            preview.textContent = txt || 'Nuevo mensaje';
+        }
+    };
+
+    window._chatMessagesCache = window._chatMessagesCache || {};
+
+    window.fetchChatMessagesForDashboard = async function(chat, chatId, options) {
+        options = options || {};
         if (!chat || !window.supabaseClient || !window.supabaseClient.isInitialized()) return [];
         const ch = (chat.channel || 'whatsapp').toLowerCase();
         const isWhatsApp = ch === 'whatsapp';
+        const fetchOpts = { skipMarkRead: !!options.skipMarkRead };
         let msgs = [];
         try {
             const relatedIds = typeof window.getRelatedChatIdsForDashboardChat === 'function'
                 ? window.getRelatedChatIdsForDashboardChat(chat) : [String(chatId)];
             if (relatedIds.length > 1 && typeof window.supabaseClient.getWhatsAppMessagesForChatIds === 'function') {
-                msgs = await window.supabaseClient.getWhatsAppMessagesForChatIds(relatedIds, 200);
+                msgs = await window.supabaseClient.getWhatsAppMessagesForChatIds(relatedIds, 200, fetchOpts);
             } else {
-                msgs = await window.supabaseClient.getWhatsAppMessages(chatId, 200);
+                msgs = await window.supabaseClient.getWhatsAppMessages(chatId, 200, fetchOpts);
             }
             if (!isWhatsApp && msgs.length === 0 && (chat.phone || '').trim()) {
                 msgs = await window.supabaseClient.getWhatsAppMessagesByPhone(String(chat.phone).trim(), 200);
+            }
+            if (msgs.length) {
+                window._chatMessagesCache[String(chatId)] = { msgs: msgs, ts: Date.now() };
             }
         } catch (e) {
             console.warn('Error cargando mensajes:', e);
@@ -30994,15 +31156,23 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         return msgs || [];
     };
 
-    window.refreshCurrentChatMessages = async function() {
+    window.refreshCurrentChatMessages = async function(opts) {
+        opts = opts || {};
         const chatId = window._currentChatId;
         const messagesEl = document.getElementById('chatMessages');
         if (!chatId || !messagesEl) return;
         const chat = (window._lastLoadedChats || []).find(c => String(c.id) === String(chatId));
         if (!chat) return;
-        const msgs = await window.fetchChatMessagesForDashboard(chat, chatId);
+        const incremental = opts.incremental !== false && window._chatRenderedMessageIds && window._chatRenderedMessageIds.size > 0;
+        const msgs = await window.fetchChatMessagesForDashboard(chat, chatId, { skipMarkRead: incremental });
         if (msgs.length === 0) {
-            messagesEl.innerHTML = '<p style="text-align: center; color: #666; padding: 24px;">No hay mensajes en esta conversación.</p>';
+            if (!incremental) {
+                messagesEl.innerHTML = '<p style="text-align: center; color: #666; padding: 24px;">No hay mensajes en esta conversación.</p>';
+            }
+            return;
+        }
+        if (incremental) {
+            window.appendChatMessagesIfNew(msgs);
         } else {
             messagesEl.innerHTML = window.renderChatMessagesHtml(msgs);
             messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -31113,14 +31283,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     : (phoneDisplay ? `<div style="margin: 2px 0 0 0; font-size: 0.8rem; color: #1976d2;">📱 ${esc(phoneDisplay)}</div>` : '');
                 const channelIdLine = ch !== 'whatsapp' ? (() => { const sid = getChannelSessionId(chat); return sid ? `<div style="margin: 2px 0 0 0; font-size: 0.75rem; color: #5c6bc0;">ID: ${esc(sid)}</div>` : ''; })() : '';
                 return `
-                    <div onclick="selectChat('${id}')" style="padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; ${chat.unread_count > 0 ? 'background: #f0fff4;' : ''}" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='${chat.unread_count > 0 ? '#f0fff4' : 'white'}'">
+                    <div data-chat-id="${esc(id)}" onclick="selectChat('${id}')" style="padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; transition: background 0.2s; ${chat.unread_count > 0 ? 'background: #f0fff4;' : ''}" onmouseover="this.style.background='#f5f5f5'" onmouseout="this.style.background='${chat.unread_count > 0 ? '#f0fff4' : 'white'}'">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <strong>${esc(userName)}${channelBadge}${unreadBadge}</strong>
                             <span style="font-size: 0.75rem; color: #999;">${esc(lastMessageTime)}</span>
                         </div>
                         ${phoneLine}
                         ${channelIdLine}
-                        <p style="margin: 4px 0 0 0; font-size: 0.85rem; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(lastMessage)}</p>
+                        <p class="chat-list-preview" style="margin: 4px 0 0 0; font-size: 0.85rem; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${esc(lastMessage)}</p>
                     </div>
                 `;
             }).join('');
@@ -31135,14 +31305,26 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 });
                 
                 window.whatsappMessagesSubscription = window.supabaseClient.subscribeToWhatsAppMessages((message) => {
-                    if (typeof window.scheduleChatsListRefresh === 'function') window.scheduleChatsListRefresh();
+                    if (typeof window.patchChatListPreview === 'function') {
+                        window.patchChatListPreview(message);
+                    }
+                    if (typeof window.scheduleChatsListRefresh === 'function') {
+                        window.scheduleChatsListRefresh(2500);
+                    }
                     const msgChatId = message && (message.chat_id ?? message.conversation_id);
                     if (!window._currentChatId || !msgChatId) return;
                     const chat = (window._lastLoadedChats || []).find(c => String(c.id) === String(window._currentChatId));
                     const related = chat && typeof window.getRelatedChatIdsForDashboardChat === 'function'
                         ? window.getRelatedChatIdsForDashboardChat(chat) : [String(window._currentChatId)];
                     if (related.some(function(id) { return String(id) === String(msgChatId); })) {
-                        if (typeof window.refreshCurrentChatMessages === 'function') window.refreshCurrentChatMessages();
+                        if (typeof window.appendChatMessagesIfNew === 'function') {
+                            window.appendChatMessagesIfNew([message]);
+                        }
+                        var ckey = String(window._currentChatId);
+                        if (window._chatMessagesCache[ckey] && window._chatMessagesCache[ckey].msgs) {
+                            window._chatMessagesCache[ckey].msgs.push(message);
+                            window._chatMessagesCache[ckey].ts = Date.now();
+                        }
                     }
                 });
                 
@@ -31239,8 +31421,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             ? (chat.display_name || chat.name || chat.phone || 'Visitante')
             : (phoneRaw ? (contactDisplayFromRawHeader(phoneRaw) || formatPhoneForDisplay(phoneRaw)) : 'Cliente (sin número)');
         let displayPhone = phoneRaw ? formatPhoneForDisplay(phoneRaw) : '';
+        window._chatRenderedMessageIds = new Set();
         if (!messagesOnly) {
-            messagesEl.innerHTML = '<div style="text-align: center; padding: 24px; color: #666;">Cargando mensajes…</div>';
+            var cachedEntry = window._chatMessagesCache && window._chatMessagesCache[String(chatId)];
+            if (cachedEntry && cachedEntry.msgs && cachedEntry.msgs.length) {
+                messagesEl.innerHTML = window.renderChatMessagesHtml(cachedEntry.msgs);
+                messagesEl.scrollTop = messagesEl.scrollHeight;
+            } else {
+                messagesEl.innerHTML = '<div class="chat-loading-msgs">Cargando mensajes…</div>';
+            }
         }
         if (inputContainer) {
             var parent = inputContainer.parentNode;
@@ -31260,15 +31449,26 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }
         }
         window._currentChatId = chatId;
+        var hadCache = !!(window._chatMessagesCache && window._chatMessagesCache[String(chatId)] && window._chatMessagesCache[String(chatId)].msgs && window._chatMessagesCache[String(chatId)].msgs.length);
         let msgs = await window.fetchChatMessagesForDashboard(chat, chatId);
         if (messagesOnly) {
             if (msgs.length === 0) {
                 messagesEl.innerHTML = '<p style="text-align: center; color: #666; padding: 24px;">No hay mensajes en esta conversación.</p>';
+            } else if (hadCache) {
+                window.appendChatMessagesIfNew(msgs);
             } else {
                 messagesEl.innerHTML = window.renderChatMessagesHtml(msgs);
                 messagesEl.scrollTop = messagesEl.scrollHeight;
             }
             return;
+        }
+        if (msgs.length === 0) {
+            messagesEl.innerHTML = '<p style="text-align: center; color: #666; padding: 24px;">No hay mensajes en esta conversación.</p>';
+        } else if (hadCache) {
+            window.appendChatMessagesIfNew(msgs);
+        } else {
+            messagesEl.innerHTML = window.renderChatMessagesHtml(msgs);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
         }
         if (msgs.length === 0) console.warn('💡 Si la lista muestra actividad pero aquí 0 mensajes: revisar RLS en whatsapp_messages o hacer hard refresh (Ctrl+Shift+R).');
         var contactIdFromMessages = '';
@@ -31311,13 +31511,6 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         if (typeof window.openMobileChatView === 'function') {
             window.openMobileChatView(headerTitle);
         }
-        if (msgs.length === 0) {
-            messagesEl.innerHTML = '<p style="text-align: center; color: #666; padding: 24px;">No hay mensajes en esta conversación.</p>';
-            messagesEl.scrollTop = 0;
-            return;
-        }
-        messagesEl.innerHTML = window.renderChatMessagesHtml(msgs);
-        messagesEl.scrollTop = messagesEl.scrollHeight;
     };
 
     function getWhatsAppServerUrl() {
@@ -31589,13 +31782,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
         const messagesEl = document.getElementById('chatMessages');
         if (messagesEl) {
-            messagesEl.innerHTML += `<div style="margin-bottom: 12px; display: flex; justify-content: flex-end;">
-                <div style="max-width: 75%; padding: 10px 14px; border-radius: 12px; background: #dcf8c6; color: #111; box-shadow: 0 1px 2px rgba(0,0,0,0.06);">
-                    <div style="white-space: pre-wrap; word-break: break-word;">${(message || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')}</div>
-                    <div style="font-size: 0.7rem; margin-top: 4px; opacity: 0.7;">${typeof formatTimeArgentina === 'function' ? formatTimeArgentina(new Date().toISOString()) : new Date().toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour: '2-digit', minute: '2-digit' })}</div>
-                </div>
-            </div>`;
-            messagesEl.scrollTop = messagesEl.scrollHeight;
+            var optimistic = {
+                id: 'opt_' + Date.now(),
+                message: message,
+                body: message,
+                message_type: 'text',
+                is_from_me: true,
+                created_at: new Date().toISOString()
+            };
+            window.appendChatMessagesIfNew([optimistic]);
         }
         if (window.supabaseClient && window.supabaseClient.isInitialized()) {
             try {

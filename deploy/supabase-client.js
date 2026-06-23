@@ -2725,11 +2725,13 @@ class SupabaseClient {
         }
     }
 
-    async getWhatsAppMessages(chatId, limit = 100) {
+    async getWhatsAppMessages(chatId, limit = 100, options = {}) {
         if (!this.isInitialized()) {
             console.warn('⚠️ Supabase no está inicializado');
             return [];
         }
+
+        const skipMarkRead = !!(options && options.skipMarkRead);
 
         try {
             // Pedir los N más RECIENTES (desc), luego invertir para mostrar cronológico. Así no se cortan los mensajes nuevos.
@@ -2770,6 +2772,7 @@ class SupabaseClient {
             // Devolver en orden cronológico (más antiguo primero) para que el panel los muestre bien
             if (data && data.length > 0) data = data.reverse();
 
+            if (!skipMarkRead) {
             // Marcar como leídos y resetear unread (no bloquear la respuesta si fallan)
             try {
                 await this.client
@@ -2796,6 +2799,7 @@ class SupabaseClient {
             } catch (e) {
                 console.warn('⚠️ No se pudo actualizar unread_count del chat:', e?.message || e);
             }
+            }
 
             return data || [];
         } catch (error) {
@@ -2807,14 +2811,17 @@ class SupabaseClient {
     /**
      * Mensajes de varios chat_id (mismo contacto duplicado en whatsapp_chats). Deduplica por id de mensaje.
      */
-    async getWhatsAppMessagesForChatIds(chatIds, limit = 200) {
+    async getWhatsAppMessagesForChatIds(chatIds, limit = 200, options = {}) {
         const ids = [...new Set((chatIds || []).map(String).filter(Boolean))];
         if (!ids.length) return [];
         if (!this.isInitialized()) return [];
         const perChat = Math.max(50, Math.ceil(limit / Math.max(ids.length, 1)));
         const byMsgId = new Map();
-        for (const id of ids) {
-            const msgs = await this.getWhatsAppMessages(id, perChat);
+        const skipMarkRead = !!(options && options.skipMarkRead);
+        for (let i = 0; i < ids.length; i++) {
+            const id = ids[i];
+            const opts = { skipMarkRead: skipMarkRead || i > 0 };
+            const msgs = await this.getWhatsAppMessages(id, perChat, opts);
             for (const m of msgs) {
                 if (m && m.id != null) byMsgId.set(String(m.id), m);
             }

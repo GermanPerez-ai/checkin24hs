@@ -57,27 +57,10 @@ const server = http.createServer((req, res) => {
   // Normalizar: quitar barra final
   if (urlPath.length > 1 && urlPath.endsWith('/')) urlPath = urlPath.slice(0, -1);
 
-  // Rutas alternativas /v81/, /v82/, ... /v87/ para evitar caché de Chrome (misma app, path distinto)
-  if (urlPath.startsWith('/v81')) {
-    urlPath = urlPath.replace(/^\/v81\/?/, '/') || '/';
-  } else if (urlPath.startsWith('/v82')) {
-    urlPath = urlPath.replace(/^\/v82\/?/, '/') || '/';
-  } else if (urlPath.startsWith('/v83')) {
-    urlPath = urlPath.replace(/^\/v83\/?/, '/') || '/';
-  } else if (urlPath.startsWith('/v84')) {
-    urlPath = urlPath.replace(/^\/v84\/?/, '/') || '/';
-  } else if (urlPath.startsWith('/v85')) {
-    urlPath = urlPath.replace(/^\/v85\/?/, '/') || '/';
-  } else if (urlPath.startsWith('/v86')) {
-    urlPath = urlPath.replace(/^\/v86\/?/, '/') || '/';
-  } else if (urlPath.startsWith('/v87')) {
-    urlPath = urlPath.replace(/^\/v87\/?/, '/') || '/';
-  } else if (urlPath.startsWith('/v88')) {
-    urlPath = urlPath.replace(/^\/v88\/?/, '/') || '/';
-  } else if (urlPath.startsWith('/v89')) {
-    urlPath = urlPath.replace(/^\/v89\/?/, '/') || '/';
-  } else if (urlPath.startsWith('/v90')) {
-    urlPath = urlPath.replace(/^\/v90\/?/, '/') || '/';
+  // Rutas alternativas /v81/, /v174/, etc. para evitar caché del navegador (misma app, path distinto)
+  const versionRoute = urlPath.match(/^\/v(\d+)(\/|$)/);
+  if (versionRoute) {
+    urlPath = urlPath.replace(/^\/v\d+\/?/, '/') || '/';
   }
 
   // Proxy WhatsApp: /whatsapp-send, /api/whatsapp-send (por si Traefik solo reenvía /api/*)
