@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-06-23T14:33:27Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 176; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-06-23T19:38:56Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 179; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2297,7 +2297,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">176</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">179</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -31088,12 +31088,79 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         return '';
     };
 
-    /** Clave para agrupar chats WhatsApp con el mismo móvil (evita duplicados LID vs +E.164 en la lista). */
+    /** Chats cuya fila whatsapp_chats tiene instancia vieja pero mensajes recientes son de otra línea */
+    window.enrichChatsInstanceFromMessages = async function(chats) {
+        if (!chats || !chats.length || !window.supabaseClient || !window.supabaseClient.isInitialized()) return chats || [];
+        try {
+            var ids = chats.map(function(c) { return c.id; }).filter(Boolean);
+            if (!ids.length) return chats;
+            var sb = window.supabaseClient.client;
+            var instByChat = {};
+            var chunkSize = 80;
+            for (var i = 0; i < ids.length; i += chunkSize) {
+                var chunk = ids.slice(i, i + chunkSize);
+                var res = await sb.from('whatsapp_messages')
+                    .select('chat_id, whatsapp_instance, created_at')
+                    .in('chat_id', chunk)
+                    .order('created_at', { ascending: false })
+                    .limit(500);
+                if (res.error) break;
+                (res.data || []).forEach(function(m) {
+                    var cid = m.chat_id;
+                    if (!cid || instByChat[cid] != null) return;
+                    var inst = parseInt(m.whatsapp_instance, 10);
+                    if (inst >= 1) instByChat[cid] = inst;
+                });
+            }
+            return chats.map(function(c) {
+                var mi = instByChat[c.id];
+                if (mi >= 1 && mi !== (parseInt(c.whatsapp_instance, 10) || 1)) {
+                    return Object.assign({}, c, { whatsapp_instance: mi });
+                }
+                return c;
+            });
+        } catch (e) {
+            console.warn('⚠️ enrichChatsInstanceFromMessages:', e?.message || e);
+            return chats;
+        }
+    };
+
+    /** Incluye chats con mensajes de la línea aunque whatsapp_chats tenga instancia incorrecta (legacy) */
+    window.filterChatsForInstanceTab = async function(chats, instanceTab) {
+        var tab = parseInt(instanceTab, 10) || 1;
+        var base = (chats || []).filter(function(c) { return window.chatBelongsToInstanceTab(c, tab); });
+        if (tab !== 2 || !window.supabaseClient || !window.supabaseClient.isInitialized()) return base;
+        try {
+            var sb = window.supabaseClient.client;
+            var res = await sb.from('whatsapp_messages')
+                .select('chat_id')
+                .eq('whatsapp_instance', 2)
+                .order('created_at', { ascending: false })
+                .limit(500);
+            if (res.error || !res.data) return base;
+            var inst2Ids = {};
+            res.data.forEach(function(m) { if (m.chat_id) inst2Ids[m.chat_id] = true; });
+            var seen = {};
+            base.forEach(function(c) { seen[c.id] = true; });
+            (chats || []).forEach(function(c) {
+                if (seen[c.id] || !inst2Ids[c.id]) return;
+                seen[c.id] = true;
+                base.push(Object.assign({}, c, { whatsapp_instance: 2 }));
+            });
+            return base;
+        } catch (e) {
+            console.warn('⚠️ filterChatsForInstanceTab:', e?.message || e);
+            return base;
+        }
+    };
+
+    /** Clave para agrupar chats WhatsApp con el mismo móvil EN LA MISMA LÍNEA (L1/L2 separados). */
     window.dashboardChatDedupeKey = function (chat) {
         const ch = (chat && chat.channel || 'whatsapp').toLowerCase();
         if (ch !== 'whatsapp') return 'id:' + (chat && chat.id);
         const raw = window.pickBestPhoneRawForDashboard(chat);
-        if (raw && window.isDashboardDisplayPhone(raw)) return 'wa:' + String(raw).replace(/\D/g, '');
+        const inst = parseInt(chat && chat.whatsapp_instance, 10) || 1;
+        if (raw && window.isDashboardDisplayPhone(raw)) return 'wa:' + inst + ':' + String(raw).replace(/\D/g, '');
         return 'id:' + (chat && chat.id);
     };
 
@@ -31353,11 +31420,18 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     chats = window.dedupeChatsForDisplay(chats);
                     if (before !== chats.length) console.log(`📱 Lista deduplicada: ${before} → ${chats.length} conversaciones`);
                 }
+                if (typeof window.enrichChatsInstanceFromMessages === 'function') {
+                    chats = await window.enrichChatsInstanceFromMessages(chats);
+                }
                 if (typeof window.updateChatsInstanceTabBadges === 'function') {
                     window.updateChatsInstanceTabBadges(chats);
                 }
                 var instanceTab = window.getCurrentChatsWhatsAppInstance();
-                chats = chats.filter(function(c) { return window.chatBelongsToInstanceTab(c, instanceTab); });
+                if (typeof window.filterChatsForInstanceTab === 'function') {
+                    chats = await window.filterChatsForInstanceTab(chats, instanceTab);
+                } else {
+                    chats = chats.filter(function(c) { return window.chatBelongsToInstanceTab(c, instanceTab); });
+                }
                 console.log(`📱 Pestaña Línea ${instanceTab}: ${chats.length} conversaciones`);
             } else {
                 console.warn('⚠️ Supabase no disponible, usando fallback a localStorage solo para esta sesión');
