@@ -179,7 +179,10 @@ app.use(express.json({ limit: '30mb' }));
 // ===== CLIENTE DE SUPABASE =====
 let supabase = null;
 try {
-    supabase = createClient(CONFIG.SUPABASE.url, CONFIG.SUPABASE.anonKey);
+    const ws = require('ws');
+    supabase = createClient(CONFIG.SUPABASE.url, CONFIG.SUPABASE.anonKey, {
+        realtime: { transport: ws }
+    });
     console.log('✅ Cliente de Supabase inicializado');
 } catch (e) {
     console.error('❌ Error inicializando Supabase:', e.message);
@@ -301,7 +304,7 @@ if (FLOR_SESSION_CRYPTO_SUMMARY) {
     };
 }
 
-const florPendingByUser = new Map(); // key: remoteJid -> { timeoutId, messages, nombre, numero, supabaseChatId, ... }
+const florPendingByUser = new Map(); // key: phone:+E.164 o jid:remoteJid -> { timeoutId, messages, ... }
 /** Silencio Flor: respaldo en RAM si aún no existe fila en whatsapp_chats (clave: solo dígitos, ≥10) */
 const florPauseMemoryUntil = new Map();
 /** JID del chat (remoteJid / variante) → +E.164 real; evita pausar con PN interno (ej. 133397…@s.whatsapp.net) en mensajes salientes del humano */
@@ -653,6 +656,144 @@ function markFromMeHumanSilenceProcessed(msgId) {
     pruneHumanSilenceFromMeDedupe();
 }
 
+/** notify + append, o LID + PN: mismo mensaje entrante no debe encolar Flor dos veces */
+const florRecentInboundByMsgId = new Map();
+const FLOR_INBOUND_MSGID_DEDUPE_MS = Math.max(
+    30_000,
+    Math.min(180_000, parseInt(process.env.FLOR_INBOUND_MSGID_DEDUPE_MS || '90000', 10) || 90000)
+);
+const florRecentInboundByContent = new Map();
+const FLOR_INBOUND_CONTENT_DEDUPE_MS = Math.max(
+    10_000,
+    Math.min(60_000, parseInt(process.env.FLOR_INBOUND_CONTENT_DEDUPE_MS || '20000', 10) || 20000)
+);
+
+function pruneFlorInboundDedupeMaps() {
+    const now = Date.now();
+    for (const [k, exp] of florRecentInboundByMsgId) {
+        if (exp <= now) florRecentInboundByMsgId.delete(k);
+    }
+    for (const [k, exp] of florRecentInboundByContent) {
+        if (exp <= now) florRecentInboundByContent.delete(k);
+    }
+}
+
+function shouldSkipDuplicateFlorInbound(msgId, numero, remoteJid, texto) {
+    pruneFlorInboundDedupeMaps();
+    const now = Date.now();
+    const n = normalizeBaileysMessageId(msgId);
+    if (n) {
+        const exp = florRecentInboundByMsgId.get(n);
+        if (exp && exp > now) return true;
+    }
+    for (const ck of florInboundContentDedupeKeys(numero, remoteJid, texto)) {
+        const exp = florRecentInboundByContent.get(ck);
+        if (exp && exp > now) return true;
+    }
+    return false;
+}
+
+function markFlorInboundProcessed(msgId, numero, remoteJid, texto) {
+    const n = normalizeBaileysMessageId(msgId);
+    if (n) florRecentInboundByMsgId.set(n, Date.now() + FLOR_INBOUND_MSGID_DEDUPE_MS);
+    for (const ck of florInboundContentDedupeKeys(numero, remoteJid, texto)) {
+        florRecentInboundByContent.set(ck, Date.now() + FLOR_INBOUND_CONTENT_DEDUPE_MS);
+    }
+    pruneFlorInboundDedupeMaps();
+}
+
+function tryClaimFlorInbound(msgId, numero, remoteJid, texto) {
+    if (shouldSkipDuplicateFlorInbound(msgId, numero, remoteJid, texto)) return false;
+    markFlorInboundProcessed(msgId, numero, remoteJid, texto);
+    return true;
+}
+
+function resolveCanonicalPhoneDigitsForFlor(numero, remoteJid) {
+    let nd = String(numero || '').replace(/\D/g, '');
+    if (nd.length >= 10 && nd.length <= 15 && !isLikelyPseudoWhatsappPn(nd) && !isOurBotPhoneDigits(nd)) {
+        return nd;
+    }
+    const j = String(remoteJid || '').trim().toLowerCase();
+    if (!j) return nd.length >= 10 ? nd : '';
+    const userPart = j.split('@')[0];
+    const bare = userPart.includes(':') ? userPart.split(':')[0] : userPart;
+    const candidates = [j, bare, `${bare}@lid`, `${bare}@s.whatsapp.net`];
+    for (const k of candidates) {
+        const mapped = florJidToRealPhoneForPause.get(k);
+        if (mapped) {
+            const d = String(mapped).replace(/\D/g, '');
+            if (d.length >= 10 && !isLikelyPseudoWhatsappPn(d) && !isOurBotPhoneDigits(d)) return d;
+        }
+    }
+    return nd.length >= 10 ? nd : '';
+}
+
+function florInboundContentDedupeKeys(numero, remoteJid, texto) {
+    const t = String(texto || '').trim().toLowerCase();
+    if (!t) return [];
+    const keys = [];
+    const canon = resolveCanonicalPhoneDigitsForFlor(numero, remoteJid);
+    if (canon.length >= 10) keys.push('p:' + canon + '|' + t.slice(0, 240));
+    const rj = String(remoteJid || '').trim().toLowerCase();
+    if (rj.includes('@lid')) {
+        const bare = rj.split('@')[0].split(':')[0];
+        if (bare) keys.push('lid:' + bare + '|' + t.slice(0, 240));
+    }
+    return [...new Set(keys)];
+}
+
+/** Cola Flor: unificar LID y PN del mismo contacto (+549…) en una sola respuesta */
+function getFlorPendingQueueKey(remoteJid, numero) {
+    const nd = resolveCanonicalPhoneDigitsForFlor(numero, remoteJid);
+    if (nd.length >= 10 && !isLikelyPseudoWhatsappPn(nd) && !isOurBotPhoneDigits(nd)) {
+        return 'phone:' + nd;
+    }
+    return 'jid:' + String(remoteJid || '');
+}
+
+/** Unificar colas si el mismo contacto llegó por @lid y por @s.whatsapp.net con claves distintas */
+function mergeFlorPendingQueue(canonicalKey, pending) {
+    if (!pending || !canonicalKey.startsWith('phone:')) return pending;
+    const canon = canonicalKey.slice(6);
+    for (const [k, v] of florPendingByUser.entries()) {
+        if (k === canonicalKey || !v) continue;
+        const vCanon = resolveCanonicalPhoneDigitsForFlor(v.numero, v.remoteJid);
+        if (vCanon === canon) {
+            pending.messages.push(...(v.messages || []));
+            if (!pending.timeoutId && v.timeoutId) pending.timeoutId = v.timeoutId;
+            florPendingByUser.delete(k);
+            console.log(`🔗 Flor: cola unificada ${k} → ${canonicalKey} (${pending.messages.length} msg)`);
+        }
+    }
+    return pending;
+}
+
+/** Evitar enviar la misma respuesta Flor dos veces seguidas (LID+PN procesaron por separado) */
+const florRecentOutboundByPhone = new Map();
+const FLOR_OUTBOUND_PHONE_DEDUPE_MS = Math.max(
+    8000,
+    Math.min(45000, parseInt(process.env.FLOR_OUTBOUND_PHONE_DEDUPE_MS || '18000', 10) || 18000)
+);
+
+function shouldSkipDuplicateFlorOutbound(phoneDigits, textPreview) {
+    const d = String(phoneDigits || '').replace(/\D/g, '');
+    if (d.length < 10) return false;
+    const k = d + '|' + String(textPreview || '').trim().toLowerCase().slice(0, 120);
+    const exp = florRecentOutboundByPhone.get(k);
+    return !!(exp && exp > Date.now());
+}
+
+function markFlorOutboundSent(phoneDigits, textPreview) {
+    const d = String(phoneDigits || '').replace(/\D/g, '');
+    if (d.length < 10) return;
+    const k = d + '|' + String(textPreview || '').trim().toLowerCase().slice(0, 120);
+    florRecentOutboundByPhone.set(k, Date.now() + FLOR_OUTBOUND_PHONE_DEDUPE_MS);
+    const now = Date.now();
+    for (const [key, exp] of florRecentOutboundByPhone) {
+        if (exp <= now) florRecentOutboundByPhone.delete(key);
+    }
+}
+
 function florPauseMemoryTouch(phone) {
     florPauseMemoryTouchMany(phone);
 }
@@ -980,7 +1121,9 @@ async function getFlorPromptForGemini() {
                 .select('value')
                 .eq('key', 'flor_general_config')
                 .single();
-            if (!error && data && data.value) {
+            if (error) {
+                console.warn('⚠️ flor_general_config Supabase:', error.message || error.code || error);
+            } else if (data && data.value) {
                 const config = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
                 const p = (config.promptGeneral && String(config.promptGeneral).trim()) ? config.promptGeneral : null;
                 if (p) {
@@ -989,10 +1132,15 @@ async function getFlorPromptForGemini() {
                     console.log('🌸 Flor: usando Prompt General desde Supabase (flor_general_config)');
                     return p;
                 }
+                console.warn('⚠️ flor_general_config en Supabase sin promptGeneral (vacío)');
+            } else {
+                console.warn('⚠️ flor_general_config no encontrado en Supabase (sin fila o value null)');
             }
         } catch (e) {
             console.warn('⚠️ No se pudo cargar flor_general_config desde Supabase:', e?.message || e);
         }
+    } else {
+        console.warn('⚠️ Cliente Supabase no disponible; Flor usará prompt por defecto');
     }
     FLOR_PROMPT_CACHE.prompt = FLOR_PROMPT_DEFAULT;
     FLOR_PROMPT_CACHE.ts = now;
@@ -1137,7 +1285,11 @@ function sanitizarHotelParaGemini(raw) {
 /** Tool para Gemini: consultar catálogo de hoteles por ubicación y/o nombre. El conocimiento vive en el servidor, no en el prompt. Payload sin Base64 para no saturar contexto. */
 async function consultarCatalogoHotelesTool(ubicacion, hotel_especifico) {
     const u = (ubicacion && String(ubicacion).trim()) || '';
-    const h = (hotel_especifico && String(hotel_especifico).trim()) || '';
+    const hRaw = (hotel_especifico && String(hotel_especifico).trim()) || '';
+    const h = hRaw ? normalizeHotelSearchTerm(hRaw) : '';
+    if (hRaw && h !== hRaw.toLowerCase().trim()) {
+        console.log(`🔍 Flor: término normalizado "${hRaw}" → "${h}"`);
+    }
     // Sin filtro ("qué hoteles tienen"): devolver listado limitado para no exceder tamaño de request (evitar 400)
     if (!u && !h) {
         const list = await obtenerTodosLosHotelesParaTool();
@@ -1169,6 +1321,9 @@ async function consultarCatalogoHotelesTool(ubicacion, hotel_especifico) {
     }
 
     if (hoteles.length === 0) {
+        const activos = await obtenerTodosLosHotelesParaTool();
+        const nombres = activos.map(x => x.name).slice(0, 8).join(', ');
+        console.warn(`⚠️ Flor: consultarCatalogoHoteles sin resultados (ubicacion="${u}", hotel="${hRaw}"→"${h}"). Hoteles activos en Supabase: ${activos.length}${nombres ? ` (${nombres}…)` : ''}`);
         return { encontrado: false, mensaje: 'No se encontraron hoteles con esos criterios en nuestra base autorizada.' };
     }
     const varios = hoteles.length > 1;
@@ -1250,8 +1405,53 @@ async function buscarHotelesPorUbicacion(ubicacion) {
     }
 }
 
+/** Errores de tipeo frecuentes → término canónico para buscar en Supabase */
+const HOTEL_SEARCH_ALIASES = {
+    futanque: 'futangue',
+    furangue: 'futangue',
+    furanque: 'futangue',
+    furtangue: 'futangue',
+    guilo: 'huilo',
+    wilo: 'huilo',
+    guilohuilo: 'huilo',
+    termaschillan: 'chillan',
+    corralko: 'corralco'
+};
+
+function normalizeHotelSearchTerm(termino) {
+    const raw = String(termino || '').toLowerCase().trim();
+    if (!raw) return '';
+    const compact = raw.replace(/[^a-záéíóúñ0-9]/gi, '');
+    if (HOTEL_SEARCH_ALIASES[compact]) return HOTEL_SEARCH_ALIASES[compact];
+    if (HOTEL_SEARCH_ALIASES[raw.replace(/\s+/g, '')]) return HOTEL_SEARCH_ALIASES[raw.replace(/\s+/g, '')];
+    for (const [alias, canonical] of Object.entries(HOTEL_SEARCH_ALIASES)) {
+        if (raw === alias || raw.includes(alias)) return canonical;
+    }
+    for (const w of raw.split(/\s+/).filter(Boolean)) {
+        if (HOTEL_SEARCH_ALIASES[w]) return HOTEL_SEARCH_ALIASES[w];
+    }
+    return raw;
+}
+
+function extractHotelKeywordFromMessage(mensajeLower) {
+    const known = ['corralco', 'puyehue', 'futangue', 'futanque', 'furangue', 'furanque', 'huilo', 'guilo', 'wilo', 'chillán', 'chillan', 'llao llao', 'llao', 'bariloche', 'aguas calientes', 'termas'];
+    for (const k of known) {
+        if (mensajeLower.includes(k)) return normalizeHotelSearchTerm(k);
+    }
+    return '';
+}
+
+function buildQuickHotelReply(hotel) {
+    if (!hotel) return '';
+    const lines = [`Con gusto te cuento sobre **${hotel.nombre}**. 🏔️`];
+    if (hotel.descripcion) lines.push(String(hotel.descripcion).slice(0, 900));
+    if (hotel.servicios) lines.push(`**Servicios:** ${String(hotel.servicios).slice(0, 400)}`);
+    if (hotel.ubicacion) lines.push(`**Ubicación:** ${hotel.ubicacion}`);
+    lines.push('¿Te gustaría saber sobre programas, spa, gastronomía o una cotización?');
+    return lines.join('\n\n');
+}
+
 /**
- * Similitud para fuzzy match: permite 1 carácter de diferencia (ej. Guilo ↔ Huilo).
  * Solo para términos cortos (3–12 caracteres) para evitar falsos positivos.
  */
 function similarEnough(a, b) {
@@ -1283,6 +1483,9 @@ function similarEnough(a, b) {
  */
 async function buscarHotelesPorNombreParcial(termino) {
     if (!supabase || !termino || termino.trim().length < 3) return [];
+    const terminoOriginal = termino.trim();
+    const terminoNorm = normalizeHotelSearchTerm(terminoOriginal);
+    const terminos = [...new Set([terminoOriginal, terminoNorm].filter(Boolean))];
     
     try {
         const { data: hotels, error } = await supabase
@@ -1304,10 +1507,11 @@ async function buscarHotelesPorNombreParcial(termino) {
             return s !== 'inactivo' && s !== 'inactive';
         });
         
-        const terminoLower = termino.toLowerCase().trim();
         const hotelNameWordsStop = ['de', 'la', 'el', 'y', 'en', 'a', 'del', 'las', 'los', 'hotel', 'terma', 'termas'];
         
-        const coincidencias = active.filter(h => {
+        const matchTerm = (terminoBuscar) => {
+            const terminoLower = terminoBuscar.toLowerCase().trim();
+            return active.filter(h => {
             const hotelName = (h.name || '').toLowerCase();
             const location = (h.location || '').toLowerCase();
             const fi = h.flor_info || {};
@@ -1341,8 +1545,13 @@ async function buscarHotelesPorNombreParcial(termino) {
             
             return false;
         });
-        
-        return coincidencias;
+        };
+
+        for (const t of terminos) {
+            const coincidencias = matchTerm(t);
+            if (coincidencias.length > 0) return coincidencias;
+        }
+        return [];
     } catch (e) {
         console.warn('⚠️ Error buscando hoteles por nombre parcial:', e?.message || e);
         return [];
@@ -2218,7 +2427,7 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
         : '';
 
     // Detectar consulta de hotel/destino: reforzar que debe llamar consultarCatalogoHoteles (evita bucle "no entiendo")
-    const hotelKeywords = ['huilo', 'guilo', 'wilo', 'hotel', 'carta', 'menú', 'restaurante', 'spa', 'programa', 'info de', 'información de', 'qué hoteles', 'que hoteles', 'destino', 'puyehue', 'corralco', 'futangue', 'bariloche', 'termas'];
+    const hotelKeywords = ['huilo', 'guilo', 'wilo', 'hotel', 'carta', 'menú', 'restaurante', 'spa', 'programa', 'info de', 'información de', 'qué hoteles', 'que hoteles', 'destino', 'puyehue', 'corralco', 'futangue', 'futanque', 'furangue', 'furanque', 'bariloche', 'termas'];
     const pareceConsultaHotel = hotelKeywords.some(kw => mensajeLower.includes(kw));
     // Extraer hotel/destino de la frase (ej: "información de Futangue" → Futangue) para inyectar hotel_especifico sin preguntar de nuevo
     let hotelExtraido = '';
@@ -2261,7 +2470,28 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
             return ` [SEGUIMIENTO AMBIGUO - OBLIGATORIO: El usuario hizo una consulta corta sin nombrar hotel, pero en esta conversación el hotel en contexto es "${lastHotel}". Debés llamar buscarHotel(nombre_hotel="${lastHotel}") o consultarCatalogoHoteles(hotel_especifico="${lastHotel}") ANTES de responder. No pidas destino de nuevo.]`;
         })()
         : '';
+    // Prefetch servidor: consultar Supabase ANTES de Gemini (no depender solo de function calling)
+    let catalogPrefetch = null;
+    if (pareceConsultaHotel) {
+        const searchTerm = hotelExtraido || extractHotelKeywordFromMessage(mensajeLower);
+        if (searchTerm) {
+            catalogPrefetch = await consultarCatalogoHotelesTool('', searchTerm);
+            console.log(`🏨 Flor prefetch("${searchTerm}"): ${catalogPrefetch?.encontrado ? (catalogPrefetch.hoteles?.length || 0) + ' hotel(es)' : 'sin resultados'}`);
+            if (catalogPrefetch?.encontrado && catalogPrefetch.hoteles?.[0]) {
+                florLastHotelByPhone.set(phoneKey, catalogPrefetch.hoteles[0].nombre || searchTerm);
+            }
+        } else {
+            const total = await obtenerTodosLosHotelesParaTool();
+            if (total.length === 0) {
+                console.error('❌ Flor CRÍTICO: Supabase devolvió 0 hoteles activos. Ejecutá supabase-migrations/010_hotels_rls_select.sql');
+            }
+        }
+    }
     let userPart = `${multiConsultasNote}Mensaje del cliente: ${mensaje}${hintCampana}${hintHotel}${hintContextDrift}${hintAmbiguoConContexto}`;
+    if (catalogPrefetch?.encontrado && catalogPrefetch.hoteles?.length) {
+        const payload = JSON.stringify(catalogPrefetch.hoteles.slice(0, 2)).slice(0, 6500);
+        userPart += `\n\n[DATOS OFICIALES DEL SERVIDOR — el hotel SÍ está en nuestra base Checkin24hs. PROHIBIDO decir "no trabajamos con ese hotel". Respondé usando SOLO estos datos:]\n${payload}`;
+    }
     if (imageParts && imageParts.length > 0) {
         userPart += ' [ANUNCIO/PUBLICIDAD: Analizá esta imagen publicitaria. Identificá el hotel (Puyehue, Corralco o Huilo Huilo) y respondé basándote EXCLUSIVAMENTE en ese hotel. IGNORÁ el historial previo; priorizá solo lo que ves en esta imagen. Llamá consultarCatalogoHoteles con el nombre del hotel que identifiques en la imagen.]';
     }
@@ -2532,6 +2762,14 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
             const responseTime = Date.now() - startTime;
             const finalLower = (finalText || '').toLowerCase();
             const pareceNoEntendido = /no he podido entender|no (pude|pudo) entender|no entiendo|no (logro|logr[eé]) (entender|interpretar)/i.test(finalLower);
+            const noTrabajamos = /no trabajamos|no tenemos ese hotel|no manejamos ese hotel/i.test(finalLower);
+            if (noTrabajamos && catalogPrefetch?.encontrado && catalogPrefetch.hoteles?.length) {
+                console.warn('⚠️ Flor: Gemini dijo "no trabajamos" pero el catálogo SÍ tiene el hotel — respuesta corregida');
+                finalText = buildQuickHotelReply(catalogPrefetch.hoteles[0]);
+                toolWasCalled = true;
+            } else if (pareceConsultaHotel && !toolWasCalled && !catalogPrefetch?.encontrado && catalogPrefetch !== null) {
+                console.warn(`⚠️ Flor: consulta de hotel "${hotelExtraido || extractHotelKeywordFromMessage(mensajeLower)}" sin datos en Supabase desde el servidor`);
+            }
             if (pareceConsultaHotel && pareceNoEntendido) {
                 console.warn(`⚠️ Flor: Gemini devolvió texto tipo "no entiendo" en vez de llamar consultarCatalogoHoteles. Revisar flor_general_config en Supabase. Preview: ${finalText.slice(0, 120).replace(/\n/g, ' ')}...`);
             } else {
@@ -2655,6 +2893,14 @@ function buildPhoneLookupVariants(numero) {
     return [...variants].filter(Boolean);
 }
 
+/** external_id en whatsapp_conversations: incluye instancia para no mezclar Línea 1 y Línea 2 del mismo contacto */
+function buildConversationExternalId(numero) {
+    const inst = CONFIG.INSTANCE_NUMBER || 1;
+    const d = digitsOnlyPhoneKey(numero);
+    const base = d || String(numero || '').trim().replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '');
+    return `i${inst}:${base}`;
+}
+
 /**
  * Busca chat en whatsapp_chats por phone, real_phone y variantes normalizadas.
  * Si hay varios (duplicados históricos), devuelve el id del más completo/reciente.
@@ -2737,15 +2983,23 @@ async function obtenerOcrearChatId(numero, nombre = null) {
         const chatIdExistente = await buscarChatExistenteEnSupabase(numero);
         if (chatIdExistente) return chatIdExistente;
 
-        // Si no está en whatsapp_chats, buscar en whatsapp_conversations por external_id (evita duplicado y error unique)
+        // whatsapp_conversations por external_id con instancia (no reutilizar chat de otra línea)
+        const extId = buildConversationExternalId(numero);
         const { data: convExistente } = await supabase
             .from('whatsapp_conversations')
             .select('id')
-            .eq('external_id', String(numero))
+            .eq('external_id', extId)
             .maybeSingle();
         if (convExistente?.id) {
-            console.log(`✅ Conversation existente en whatsapp_conversations para ${numero}, usando id: ${convExistente.id}`);
-            return convExistente.id;
+            const { data: chatRow } = await supabase
+                .from('whatsapp_chats')
+                .select('id, whatsapp_instance')
+                .eq('id', convExistente.id)
+                .maybeSingle();
+            if (chatRow && parseInt(chatRow.whatsapp_instance, 10) === (CONFIG.INSTANCE_NUMBER || 1)) {
+                console.log(`✅ Conversation existente (${extId}) para instancia ${CONFIG.INSTANCE_NUMBER}`);
+                return convExistente.id;
+            }
         }
 
         // Si no existe, crear uno nuevo en whatsapp_chats (nombre y real_phone para mostrar en dashboard)
@@ -2778,14 +3032,14 @@ async function obtenerOcrearChatId(numero, nombre = null) {
                     .from('whatsapp_conversations')
                     .upsert({
                         id: nuevoChat.id, // Usar el mismo ID para mantener sincronización
-                        external_id: numero,
+                        external_id: buildConversationExternalId(numero),
                         status: 'open',
                         metadata: {
                             phone: numero,
                             name: nombre || numero,
                             whatsapp_instance: CONFIG.INSTANCE_NUMBER
                         }
-                    }, { onConflict: 'external_id' }); // AHORA CONFLICTO POR external_id
+                    }, { onConflict: 'id' });
                 if (!errorConv) {
                     console.log(`✅ Chat también creado/actualizado en whatsapp_conversations para ${numero}`);
                 } else {
@@ -3348,7 +3602,7 @@ async function asegurarConversationExiste(chatId, numero, nombre = null) {
             .from('whatsapp_conversations')
             .upsert({
                 id: chatId,
-                external_id: String(numero),
+                external_id: buildConversationExternalId(numero),
                 status: 'open',
                 metadata: { phone: numero, name: nombre || numero, whatsapp_instance: CONFIG.INSTANCE_NUMBER }
             }, { onConflict: 'id' });
@@ -3363,13 +3617,72 @@ async function asegurarConversationExiste(chatId, numero, nombre = null) {
     }
 }
 
+const WHATSAPP_MEDIA_BUCKET = 'whatsapp-media';
+
+/**
+ * Descarga media de un mensaje Baileys y la sube a Supabase Storage (bucket público whatsapp-media).
+ * @returns {Promise<{mediaUrl:string,mimeType:string,fileName:string}|null>}
+ */
+async function persistirMediaMensajeWhatsApp(waMsg, hint) {
+    if (!supabase || !downloadMediaMessage || !waMsg) return null;
+    try {
+        const buffer = await downloadMediaMessage(waMsg, 'buffer', {});
+        if (!buffer || !Buffer.isBuffer(buffer) || buffer.length === 0) return null;
+
+        let m = waMsg.message;
+        if (m?.ephemeralMessage?.message) m = m.ephemeralMessage.message;
+        else if (m?.viewOnceMessage?.message) m = m.viewOnceMessage.message;
+        else if (m?.viewOnceMessageV2?.message) m = m.viewOnceMessageV2.message;
+
+        let mime = 'application/octet-stream';
+        let ext = 'bin';
+        let fileName = 'archivo';
+
+        if (hint === 'image' || m?.imageMessage) {
+            mime = String(m.imageMessage?.mimetype || 'image/jpeg').split(';')[0].trim();
+            ext = mime.includes('png') ? 'png' : (mime.includes('webp') ? 'webp' : 'jpg');
+            fileName = 'imagen.' + ext;
+        } else if (hint === 'audio' || m?.audioMessage || m?.pttMessage) {
+            mime = String(m.audioMessage?.mimetype || m.pttMessage?.mimetype || 'audio/ogg').split(';')[0].trim();
+            ext = mime.includes('mpeg') || mime.includes('mp3') ? 'mp3' : (mime.includes('mp4') ? 'm4a' : 'ogg');
+            fileName = 'audio.' + ext;
+        } else if (hint === 'video' || m?.videoMessage) {
+            mime = String(m.videoMessage?.mimetype || 'video/mp4').split(';')[0].trim();
+            ext = 'mp4';
+            fileName = 'video.mp4';
+        } else if (hint === 'document' || m?.documentMessage) {
+            mime = String(m.documentMessage?.mimetype || 'application/pdf').split(';')[0].trim();
+            fileName = m.documentMessage?.fileName || 'documento.pdf';
+            const dot = fileName.lastIndexOf('.');
+            ext = dot > -1 ? fileName.slice(dot + 1) : (mime.includes('pdf') ? 'pdf' : 'bin');
+        }
+
+        const path = `inst${CONFIG.INSTANCE_NUMBER}/${Date.now()}_${Math.random().toString(36).slice(2, 10)}.${ext}`;
+        const { error } = await supabase.storage.from(WHATSAPP_MEDIA_BUCKET).upload(path, buffer, {
+            contentType: mime,
+            upsert: false
+        });
+        if (error) {
+            console.warn('⚠️ No se pudo subir media a Storage:', error.message);
+            return null;
+        }
+        const { data: urlData } = supabase.storage.from(WHATSAPP_MEDIA_BUCKET).getPublicUrl(path);
+        console.log(`📎 Media guardada en Storage (${hint || 'media'}): ${path}`);
+        return { mediaUrl: urlData.publicUrl, mimeType: mime, fileName };
+    } catch (e) {
+        console.warn('⚠️ persistirMediaMensajeWhatsApp:', e?.message || e);
+        return null;
+    }
+}
+
 /**
  * Guardar mensaje en Supabase
- * Estructura real: chat_id, phone, message, is_from_me, whatsapp_instance, message_type
+ * Estructura real: chat_id, phone, message, is_from_me, whatsapp_instance, message_type, media_url
  * @param {string} [chatIdFromDashboard] - Si viene del dashboard, usar este chat_id para no crear chats duplicados
- * @param {string} [messageType] - 'text' | 'audio' | 'voice' | 'image' para whatsapp_messages.message_type
+ * @param {string} [messageType] - 'text' | 'audio' | 'image' | 'video' | 'document'
+ * @param {{mediaUrl?:string,mimeType?:string,fileName?:string}|null} [mediaOpts]
  */
-async function guardarMensaje(numero, mensaje, esEnviado = false, respuestaFlor = null, nombre = null, chatIdFromDashboard = null, messageType = 'text') {
+async function guardarMensaje(numero, mensaje, esEnviado = false, respuestaFlor = null, nombre = null, chatIdFromDashboard = null, messageType = 'text', mediaOpts = null) {
     if (!supabase || !CONFIG.SAVE_TO_SUPABASE) return null;
 
     try {
@@ -3410,6 +3723,9 @@ async function guardarMensaje(numero, mensaje, esEnviado = false, respuestaFlor 
         };
         let datosMensaje = { ...base };
         let datosConTipo = { ...base, message_type: messageType || 'text' };
+        if (mediaOpts && mediaOpts.mediaUrl) {
+            datosConTipo.media_url = mediaOpts.mediaUrl;
+        }
 
         // Log del objeto antes del insert (para verificar que phone llega en E.164 / valor real)
         console.log('📤 whatsapp_messages insert payload:', JSON.stringify({
@@ -3427,10 +3743,18 @@ async function guardarMensaje(numero, mensaje, esEnviado = false, respuestaFlor 
             .from('whatsapp_messages')
             .insert(datosConTipo);
 
-        if (error && error.message && error.message.includes('message_type')) {
-            console.warn('⚠️ Tabla whatsapp_messages no tiene columna message_type, guardando sin ella');
-            delete datosMensaje.message_type;
-            ({ error } = await supabase.from('whatsapp_messages').insert(datosMensaje));
+        if (error && error.message && (error.message.includes('message_type') || error.message.includes('media_url'))) {
+            if (error.message.includes('message_type')) {
+                console.warn('⚠️ Tabla whatsapp_messages no tiene columna message_type, guardando sin ella');
+                delete datosConTipo.message_type;
+                delete datosMensaje.message_type;
+            }
+            if (error.message.includes('media_url')) {
+                console.warn('⚠️ Tabla whatsapp_messages no tiene columna media_url, guardando sin ella');
+                delete datosConTipo.media_url;
+                delete datosMensaje.media_url;
+            }
+            ({ error } = await supabase.from('whatsapp_messages').insert(datosConTipo.media_url ? datosConTipo : datosMensaje));
         }
         if (error && error.message && error.message.includes('chat_id')) {
             console.warn('⚠️ Tabla solo usa conversation_id, guardando sin chat_id');
@@ -3475,7 +3799,8 @@ async function guardarMensaje(numero, mensaje, esEnviado = false, respuestaFlor 
             last_message: mensajePreview,
             last_message_time: new Date().toISOString(),
             unread_count: unreadCount,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
+            whatsapp_instance: CONFIG.INSTANCE_NUMBER
         };
         if (isLikelyPseudoWhatsappPn(dNum)) {
             if (nombreStr && !nombreEsSoloLid) updatePayload.name = nombreStr;
@@ -4034,16 +4359,35 @@ async function connectToWhatsApp() {
                 texto = message.extendedTextMessage.text;
             } else if (message.imageMessage?.caption) {
                 texto = message.imageMessage.caption;
+            } else if (message.videoMessage?.caption) {
+                texto = message.videoMessage.caption;
+            } else if (message.documentMessage?.caption) {
+                texto = message.documentMessage.caption;
             }
             const tieneImagen = !!(message.imageMessage);
             const tieneAudio = !!(message.audioMessage || message.pttMessage);
+            const tieneVideo = !!(message.videoMessage);
+            const tieneDocumento = !!(message.documentMessage);
 
-            if (!texto && !tieneImagen && !tieneAudio) {
-                console.log(`⚠️ Mensaje sin texto, imagen ni audio`);
+            if (!texto && !tieneImagen && !tieneAudio && !tieneVideo && !tieneDocumento) {
+                console.log(`⚠️ Mensaje sin texto ni media soportada`);
                 continue;
             }
             if (!texto && tieneImagen) texto = '[Imagen]';
             if (!texto && tieneAudio) texto = '[Audio]';
+            if (!texto && tieneVideo) texto = '[Video]';
+            if (!texto && tieneDocumento) texto = '[Documento] ' + (message.documentMessage?.fileName || 'archivo');
+
+            let inboundMessageType = 'text';
+            if (tieneDocumento) inboundMessageType = 'document';
+            else if (tieneVideo) inboundMessageType = 'video';
+            else if (tieneImagen) inboundMessageType = 'image';
+            else if (tieneAudio) inboundMessageType = 'audio';
+
+            let inboundMediaOpts = null;
+            if (tieneImagen || tieneAudio || tieneVideo || tieneDocumento) {
+                inboundMediaOpts = await persistirMediaMensajeWhatsApp(msg, inboundMessageType);
+            }
 
             const remoteJid = msg.key.remoteJid;
             let numero = remoteJid?.replace('@s.whatsapp.net', '')?.replace('@lid', '') || '';
@@ -4245,9 +4589,29 @@ async function connectToWhatsApp() {
                 continue;
             }
 
+            if (!tryClaimFlorInbound(msg.key?.id, numero, remoteJid, texto)) {
+                console.log(`⏭️ Flor: mensaje entrante duplicado omitido (id=${msg.key?.id || 'n/a'}, numero=${numero})`);
+                continue;
+            }
+
             // Acumular mensajes y responder tras FLOR_DELAY_MS. Si llegan más en ese lapso, se agregan y Flor responde a todos.
-            const key = String(remoteJid);
+            const key = getFlorPendingQueueKey(remoteJid, numero);
             let pending = florPendingByUser.get(key);
+            if (!pending) {
+                for (const [k, v] of florPendingByUser.entries()) {
+                    if (k === key || !v) continue;
+                    const samePhone = key.startsWith('phone:') && resolveCanonicalPhoneDigitsForFlor(v.numero, v.remoteJid) === key.slice(6);
+                    const sameJid = k === 'jid:' + remoteJid || v.remoteJid === remoteJid;
+                    if (samePhone || sameJid) {
+                        pending = v;
+                        florPendingByUser.delete(k);
+                        florPendingByUser.set(key, pending);
+                        console.log(`🔗 Flor: cola reasignada ${k} → ${key}`);
+                        break;
+                    }
+                }
+            }
+            if (pending) pending = mergeFlorPendingQueue(key, pending);
 
             if (!pending) {
                 pending = {
@@ -4268,7 +4632,7 @@ async function connectToWhatsApp() {
             pending.messages.push({
                 texto,
                 ts: Date.now(),
-                msg: (String(remoteJid).includes('@lid') || tieneImagen || tieneAudio) ? msg : null
+                msg: (String(remoteJid).includes('@lid') || tieneImagen || tieneAudio || tieneVideo || tieneDocumento) ? msg : null
             });
             pending.nombre = nombre;
             pending.numero = numero;
@@ -4618,6 +4982,12 @@ async function connectToWhatsApp() {
                 }
 
                 if (respuestaFlor && sock) {
+                    const outboundDigits = resolveCanonicalPhoneDigitsForFlor(p.numero, destJid || p.remoteJid);
+                    if (shouldSkipDuplicateFlorOutbound(outboundDigits, respuestaFlor)) {
+                        console.log(`⏭️ Flor: respuesta duplicada omitida para ${p.numero} (ya enviada hace <${FLOR_OUTBOUND_PHONE_DEDUPE_MS}ms)`);
+                        await safeSendPresenceUpdate('paused', destJid);
+                        return;
+                    }
                     // Añadir emoji Flor; si es cotización y hay IMAGEN_COTIZACION_URL, enviar imagen + caption
                     const textoConEmoji = añadirEmojiMensaje(respuestaFlor, 'flor');
                     const mensajeParaEnvio = await prepararMensajeFlorParaEnvio(textoConEmoji);
@@ -4661,6 +5031,7 @@ async function connectToWhatsApp() {
                         : mensajeParaEnvio.sendCotizacionCombo
                             ? mensajeParaEnvio.textFull
                             : (mensajeParaEnvio.caption || mensajeParaEnvio.text || textoConEmoji);
+                    markFlorOutboundSent(outboundDigits, respuestaFlor);
                     await guardarMensaje(p.numero, textoGuardado, true, respuestaFlor, p.nombre);
                     await guardarFlorInteraction({
                         phone: p.numero,
@@ -5708,6 +6079,9 @@ async function start() {
             console.log(`   - GET  ${CONFIG.BASE_URL || `http://0.0.0.0:${CONFIG.PORT}`}/api/status`);
             console.log(`   - GET  ${CONFIG.BASE_URL || `http://0.0.0.0:${CONFIG.PORT}`}/api/qr`);
             console.log(`📤 Slack alertas: ${CONFIG.SLACK_WEBHOOK_URL ? 'webhook configurado' : 'NO configurado (SLACK_WEBHOOK_URL)'}`);
+            obtenerTodosLosHotelesParaTool().then(list => {
+                console.log(`🏨 Flor catálogo al arranque: ${list.length} hotel(es) activo(s)${list.length ? ' — ' + list.map(h => h.nombre).join(', ') : ' — ⚠️ REVISAR RLS (010_hotels_rls_select.sql)'}`);
+            }).catch(e => console.warn('🏨 Flor catálogo al arranque: error', e?.message || e));
         });
 
         // Conectar a WhatsApp (después de iniciar el servidor)
