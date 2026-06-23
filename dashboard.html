@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-06-23T19:38:56Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 179; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-06-23T22:08:08Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 181; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2297,7 +2297,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">179</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">181</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -29806,25 +29806,34 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     window.loadWhatsAppStatusForInstance = async function(instanceNum) {
         var n = parseInt(instanceNum, 10) || 1;
         var baseUrl = window.getWhatsAppServerUrlForInstance(n);
+        var dashBase = (window.DASHBOARD_CONFIG && window.DASHBOARD_CONFIG.dashboardBaseUrl) || window.location.origin || '';
+        dashBase = String(dashBase).replace(/\/$/, '');
         var statusEl = document.getElementById('whatsapp-status-text-' + n);
         var phoneEl = document.getElementById('whatsapp-status-phone-' + n);
         var cardEl = document.getElementById('whatsapp-status-card-' + n);
         var qrBtn = document.getElementById('whatsapp-open-qr-btn-' + n);
         if (!statusEl) return;
-        if (!baseUrl) {
+        if (qrBtn) qrBtn.href = dashBase + '/api/whatsapp-qr/' + n;
+        if (!baseUrl && !dashBase) {
             statusEl.textContent = '❌ Sin URL configurada';
             if (phoneEl) phoneEl.textContent = 'Revisá DASHBOARD_CONFIG.whatsappInstances';
             if (cardEl) cardEl.style.borderLeftColor = '#f44336';
-            if (qrBtn) qrBtn.href = '#';
             return;
         }
-        if (qrBtn) qrBtn.href = baseUrl + '/api/qr';
         statusEl.textContent = '⏳ Comprobando...';
         if (phoneEl) phoneEl.textContent = '';
         if (cardEl) cardEl.style.borderLeftColor = '#9e9e9e';
+        var data = {};
         try {
-            const r = await fetch(baseUrl + '/api/status', { headers: { 'Accept': 'application/json' } });
-            const data = r.ok ? await r.json().catch(() => ({})) : {};
+            var r = await fetch(dashBase + '/api/whatsapp-status/' + n, {
+                headers: { 'Accept': 'application/json' },
+                cache: 'no-store'
+            });
+            if (r.ok) data = await r.json().catch(function() { return {}; });
+            else if (baseUrl) {
+                var r2 = await fetch(baseUrl + '/api/status', { headers: { 'Accept': 'application/json' } });
+                data = r2.ok ? await r2.json().catch(function() { return {}; }) : {};
+            }
             const connected = !!(data.connected || data.whatsapp === 'connected' || (data.status && String(data.status).toLowerCase() === 'connected'));
             const phone = data.phoneNumber || data.phone || data.number || '';
             if (connected) {
@@ -29833,12 +29842,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 if (cardEl) cardEl.style.borderLeftColor = '#4caf50';
             } else {
                 statusEl.textContent = data.status ? '🔄 ' + data.status : '❌ Desconectado — abrí el QR';
-                if (phoneEl) phoneEl.textContent = '';
+                if (phoneEl) phoneEl.textContent = phone ? 'Teléfono: ' + phone : '';
                 if (cardEl) cardEl.style.borderLeftColor = '#ff9800';
             }
         } catch (e) {
-            statusEl.textContent = '❌ No se pudo conectar (' + baseUrl.replace(/^https?:\/\//, '') + ')';
-            if (phoneEl) phoneEl.textContent = 'Verificá DNS y deploy del servicio';
+            statusEl.textContent = '❌ No se pudo conectar (Línea ' + n + ')';
+            if (phoneEl) phoneEl.textContent = 'Probá Actualizar o bash scripts/aplicar_traefik_whatsapp_ambos.sh en servidor';
             if (cardEl) cardEl.style.borderLeftColor = '#f44336';
         }
     };

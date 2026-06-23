@@ -11,6 +11,78 @@ const path = require('path');
 
 const WHATSAPP_PROXY_TARGET = 'https://whatsapp.checkin24hs.com';
 
+/** Proxy estado/QR: red interna Docker primero, luego URL pública (evita 404 Traefik + CORS en dashboard). */
+const WHATSAPP_INSTANCE_TARGETS = {
+  1: {
+    internal: (process.env.WHATSAPP1_INTERNAL_URL || 'http://checkin24hs_whatsapp:3001').replace(/\/$/, ''),
+    public: (process.env.WHATSAPP1_PUBLIC_URL || 'https://whatsapp.checkin24hs.com').replace(/\/$/, ''),
+  },
+  2: {
+    internal: (process.env.WHATSAPP2_INTERNAL_URL || 'http://checkin24hs_whatsapp2:3002').replace(/\/$/, ''),
+    public: (process.env.WHATSAPP2_PUBLIC_URL || 'https://whatsapp2.checkin24hs.com').replace(/\/$/, ''),
+  },
+};
+
+function proxyHttpGet(urlString, extraHeaders, cb) {
+  let u;
+  try {
+    u = new URL(urlString);
+  } catch (e) {
+    cb(e);
+    return;
+  }
+  const mod = u.protocol === 'https:' ? https : http;
+  const opts = {
+    hostname: u.hostname,
+    port: u.port || (u.protocol === 'https:' ? 443 : 80),
+    path: u.pathname + (u.search || ''),
+    method: 'GET',
+    headers: extraHeaders || {},
+    timeout: 15000,
+  };
+  const req = mod.request(opts, (proxyRes) => {
+    const chunks = [];
+    proxyRes.on('data', (c) => chunks.push(c));
+    proxyRes.on('end', () => cb(null, proxyRes.statusCode, Buffer.concat(chunks), proxyRes.headers));
+  });
+  req.on('error', (err) => cb(err));
+  req.on('timeout', () => {
+    req.destroy();
+    cb(new Error('timeout'));
+  });
+  req.end();
+}
+
+function proxyWhatsAppGet(instance, apiPath, reqHeaders, res) {
+  const inst = parseInt(instance, 10);
+  const targets = WHATSAPP_INSTANCE_TARGETS[inst];
+  if (!targets) {
+    res.writeHead(404, { 'Content-Type': 'application/json', ...noCacheHeaders });
+    res.end(JSON.stringify({ error: 'Instancia WhatsApp no configurada: ' + instance }));
+    return;
+  }
+  const urls = [targets.internal, targets.public];
+  const tryAt = (idx) => {
+    if (idx >= urls.length) {
+      res.writeHead(502, { 'Content-Type': 'application/json', ...noCacheHeaders });
+      res.end(JSON.stringify({ error: 'No se pudo contactar WhatsApp Línea ' + inst }));
+      return;
+    }
+    const fullUrl = urls[idx] + apiPath;
+    proxyHttpGet(fullUrl, reqHeaders, (err, code, body, headers) => {
+      if (err || !code || code === 404 || code >= 502) {
+        console.warn('[WhatsApp proxy] L' + inst, fullUrl, err?.message || ('HTTP ' + code));
+        tryAt(idx + 1);
+        return;
+      }
+      const ct = (headers && (headers['content-type'] || headers['Content-Type'])) || 'application/json';
+      res.writeHead(code, { 'Content-Type': ct, ...noCacheHeaders });
+      res.end(body);
+    });
+  };
+  tryAt(0);
+}
+
 const port = 3000;
 const rootDir = __dirname;
 
@@ -106,6 +178,21 @@ const server = http.createServer((req, res) => {
       });
       proxyReq.end(rawBody);
     });
+    return;
+  }
+
+  // Proxy estado / QR WhatsApp por línea (misma origen que dashboard → sin CORS, funciona aunque Traefik público falle)
+  const waStatusMatch = urlPath.match(/^\/api\/whatsapp-status\/(\d+)$/);
+  if (req.method === 'GET' && waStatusMatch) {
+    proxyWhatsAppGet(waStatusMatch[1], '/api/status', { Accept: 'application/json' }, res);
+    return;
+  }
+  const waQrMatch = urlPath.match(/^\/api\/whatsapp-qr\/(\d+)$/);
+  if (req.method === 'GET' && waQrMatch) {
+    proxyWhatsAppGet(waQrMatch[1], '/api/qr', {
+      Accept: 'text/html,application/json',
+      'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0',
+    }, res);
     return;
   }
 
