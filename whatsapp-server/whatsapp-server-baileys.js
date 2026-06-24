@@ -667,6 +667,86 @@ const FLOR_INBOUND_CONTENT_DEDUPE_MS = Math.max(
     10_000,
     Math.min(60_000, parseInt(process.env.FLOR_INBOUND_CONTENT_DEDUPE_MS || '20000', 10) || 20000)
 );
+/** Mensajes notify: máx. antigüedad para auto-respuesta Flor (ms). Default 10 min. */
+const FLOR_INBOUND_MAX_AGE_MS_NOTIFY = Math.max(
+    60_000,
+    parseInt(process.env.FLOR_INBOUND_MAX_AGE_MS_NOTIFY || '600000', 10) || 600_000
+);
+/** Mensajes append (buffer offline al reconectar): máx. antigüedad. Default 3 min — evita spam proactivo. */
+const FLOR_INBOUND_MAX_AGE_MS_APPEND = Math.max(
+    30_000,
+    parseInt(process.env.FLOR_INBOUND_MAX_AGE_MS_APPEND || '180000', 10) || 180_000
+);
+
+function getInboundMessageTimestampMs(msg) {
+    if (!msg) return null;
+    let ts = msg.messageTimestamp;
+    if (ts && typeof ts === 'object' && ts.low != null) ts = ts.low;
+    if (typeof ts !== 'number' || ts <= 0) return null;
+    return ts > 1e12 ? ts : ts * 1000;
+}
+
+function isAllowedFlorInboundJid(remoteJid) {
+    if (!remoteJid) return false;
+    const j = String(remoteJid).toLowerCase();
+    if (j.includes('@g.us')) return false;
+    if (j === 'status@broadcast') return false;
+    if (j.includes('@broadcast')) return false;
+    if (j.includes('newsletter')) return false;
+    return j.includes('@s.whatsapp.net') || j.includes('@lid');
+}
+
+/** Flor solo responde a inbound real y reciente (modelo reactivo). */
+function shouldFlorReplyToInbound(msg, upsertType) {
+    const tsMs = getInboundMessageTimestampMs(msg);
+    if (!tsMs) {
+        if (upsertType === 'append') {
+            console.log('⏭️ Flor: append sin timestamp — no auto-respuesta (anti-spam)');
+            return false;
+        }
+        return true;
+    }
+    const ageMs = Date.now() - tsMs;
+    if (ageMs < -120_000) {
+        console.log(`⏭️ Flor: timestamp futuro (${Math.round(-ageMs / 1000)}s) — no auto-respuesta`);
+        return false;
+    }
+    const maxAge = upsertType === 'append' ? FLOR_INBOUND_MAX_AGE_MS_APPEND : FLOR_INBOUND_MAX_AGE_MS_NOTIFY;
+    if (ageMs > maxAge) {
+        console.log(`⏭️ Flor: mensaje antiguo (${Math.round(ageMs / 60000)} min, type=${upsertType}) — no auto-respuesta`);
+        return false;
+    }
+    return true;
+}
+
+function phoneDigitsRoughlyMatch(a, b) {
+    const da = String(a || '').replace(/\D/g, '');
+    const db = String(b || '').replace(/\D/g, '');
+    if (da.length < 10 || db.length < 10) return false;
+    return da === db || da.endsWith(db) || db.endsWith(da);
+}
+
+/** Evita enviar respuesta de Flor a un JID distinto del remitente del inbound. */
+function validateFlorDestJidForPending(p, destJid) {
+    if (!destJid || !p) return destJid;
+    const expectedCanon = resolveCanonicalPhoneDigitsForFlor(p.numero, p.remoteJid);
+    const destCanon = String(destJid).replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '').split(':')[0].replace(/\D/g, '');
+    if (expectedCanon.length >= 10 && destCanon.length >= 10 && !phoneDigitsRoughlyMatch(expectedCanon, destCanon)) {
+        const fallback = (p.jidDestino && String(p.jidDestino).trim()) || (p.remoteJid && String(p.remoteJid).trim());
+        console.error(`🛑 Flor: destJid ${destJid} no coincide con remitente ${p.numero}/${p.remoteJid} — usando ${fallback}`);
+        return fallback || destJid;
+    }
+    return destJid;
+}
+
+function logFlorOutboundTrigger(p, destJid, upsertType, inboundMsgIds, combinedPreview) {
+    const preview = String(combinedPreview || '').replace(/\s+/g, ' ').slice(0, 120);
+    console.log(
+        `📤 Flor OUT L${CONFIG.INSTANCE_NUMBER} trigger=${upsertType || 'inbound'} ` +
+        `to=${destJid} from=${p?.remoteJid} phone=${p?.numero} ` +
+        `msgIds=${(inboundMsgIds || []).join(',') || 'n/a'} preview="${preview}"`
+    );
+}
 
 function pruneFlorInboundDedupeMaps() {
     const now = Date.now();
@@ -850,6 +930,7 @@ if (FLOR_DELAY_MS > 0) {
     console.log(`⏱️ Flor: delay ${FLOR_DELAY_MS}ms para agrupar mensajes. Usuario puede consultar las veces que quiera; 1 mensaje → 1 respuesta, varios en ${FLOR_DELAY_MS}ms → respuesta a todos.`);
 }
 console.log(`⏸️ Flor: silencio tras intervención humana = ${FLOR_SILENCE_MINUTES} min (env FLOR_SILENCE_MINUTES). Registro de ids salientes ${Math.round(FLOR_OUTBOUND_BAILEYS_ID_TTL_MS / 60000)} min (FLOR_OUTBOUND_ID_TTL_MS). Mín. tokens salida = ${FLOR_MAX_OUTPUT_TOKENS_MIN} (+ flor_ai_config / FLOR_MAX_OUTPUT_TOKENS).`);
+console.log(`🛡️ Flor anti-spam: notify≤${Math.round(FLOR_INBOUND_MAX_AGE_MS_NOTIFY / 60000)}min, append≤${Math.round(FLOR_INBOUND_MAX_AGE_MS_APPEND / 60000)}min (FLOR_INBOUND_MAX_AGE_MS_*).`);
 if (FLOR_SESSION_CRYPTO_SUMMARY) {
     console.log(`🔐 Flor: resumen cripto/sesión cada ~${Math.round(FLOR_SESSION_CRYPTO_WINDOW_MS / 60000)} min en /health (florSessionCryptoIssuesLastWindow). Desactivar: FLOR_SESSION_CRYPTO_SUMMARY=0. Ventana ms: FLOR_SESSION_CRYPTO_WINDOW_MS.`);
 }
@@ -4390,6 +4471,10 @@ async function connectToWhatsApp() {
             }
 
             const remoteJid = msg.key.remoteJid;
+            if (!isAllowedFlorInboundJid(remoteJid)) {
+                console.log(`⏭️ Flor: JID no permitido (${remoteJid}) — solo 1:1`);
+                continue;
+            }
             let numero = remoteJid?.replace('@s.whatsapp.net', '')?.replace('@lid', '') || '';
             if (remoteJid) numero = String(remoteJid).replace(/@s\.whatsapp\.net$/, '').replace(/@lid$/i, '').trim() || numero;
             const esLid = remoteJid && String(remoteJid).includes('@lid');
@@ -4584,6 +4669,8 @@ async function connectToWhatsApp() {
 
             if (!CONFIG.AUTO_REPLY || !CONFIG.FLOR_ENABLED) continue;
 
+            if (!shouldFlorReplyToInbound(msg, type)) continue;
+
             if (await isFlorPausedForChat(numero, CONFIG.INSTANCE_NUMBER)) {
                 console.log(`⏸️ Flor pausada para este chat (asesor tomó la conversación hasta flor_paused_until)`);
                 continue;
@@ -4621,12 +4708,14 @@ async function connectToWhatsApp() {
                     numero,
                     remoteJid,
                     jidDestino,
-                    supabaseChatId: savedChatIdInbound || null
+                    supabaseChatId: savedChatIdInbound || null,
+                    upsertType: type
                 };
                 florPendingByUser.set(key, pending);
             } else if (savedChatIdInbound) {
                 pending.supabaseChatId = savedChatIdInbound;
             }
+            if (!pending.upsertType) pending.upsertType = type;
 
             // Guardar siempre msg si hay LID: sin msg.key en cola resolveFlorSendJid no puede leer senderPn (hidrata tarde) → "Esperando mensaje"
             pending.messages.push({
@@ -4746,6 +4835,7 @@ async function connectToWhatsApp() {
                 if (destJid && !String(destJid).includes('@lid')) {
                     console.log(`📤 Flor: sendMessage usará JID final=${destJid}`);
                 }
+                destJid = validateFlorDestJidForPending(p, destJid);
 
                 let dispatchPushed = false;
                 const ndDispatch = String(p.numero || '').replace(/\D/g, '');
@@ -4767,6 +4857,9 @@ async function connectToWhatsApp() {
                 let combined = textos.length === 1
                     ? textos[0]
                     : textos.map((t, i) => `Consulta ${i + 1}: ${t}`).join('\n\n');
+
+                const inboundMsgIds = (p.messages || []).map(m => m.msg && m.msg.key && m.msg.key.id).filter(Boolean);
+                logFlorOutboundTrigger(p, destJid, p.upsertType, inboundMsgIds, combined);
 
                 console.log(`⏱️ Procesando ${textos.length} mensaje(s) de ${p.nombre} (delay ${FLOR_DELAY_MS}ms)`);
 
