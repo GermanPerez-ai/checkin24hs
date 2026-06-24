@@ -81,6 +81,14 @@ else
 fi
 
 echo ""
+echo "=== Sincronizar variables Flor/Gemini desde Línea 1 ==="
+if [ -f "$REPO_ROOT/scripts/sincronizar_env_whatsapp_lineas_servidor.sh" ]; then
+  bash "$REPO_ROOT/scripts/sincronizar_env_whatsapp_lineas_servidor.sh" "$LINE"
+else
+  echo "⚠️  Corré manualmente: bash scripts/sincronizar_env_whatsapp_lineas_servidor.sh $LINE"
+fi
+
+echo ""
 echo "=== Verificación ==="
 echo "Esperá ~30s y probá:"
 echo "  curl -s https://${HOST}/api/status"
