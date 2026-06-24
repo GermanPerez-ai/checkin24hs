@@ -48,6 +48,10 @@ function proxyHttpGet(urlString, extraHeaders, cb) {
     headers: extraHeaders || {},
     timeout: 15000,
   };
+  // Fallback HTTPS a subdominios propios: no fallar si Let's Encrypt aún no renovó el cert.
+  if (u.protocol === 'https:') {
+    opts.rejectUnauthorized = false;
+  }
   const req = mod.request(opts, (proxyRes) => {
     const chunks = [];
     proxyRes.on('data', (c) => chunks.push(c));
