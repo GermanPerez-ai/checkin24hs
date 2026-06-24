@@ -21,6 +21,14 @@ const WHATSAPP_INSTANCE_TARGETS = {
     internal: (process.env.WHATSAPP2_INTERNAL_URL || 'http://checkin24hs_whatsapp2:3002').replace(/\/$/, ''),
     public: (process.env.WHATSAPP2_PUBLIC_URL || 'https://whatsapp2.checkin24hs.com').replace(/\/$/, ''),
   },
+  3: {
+    internal: (process.env.WHATSAPP3_INTERNAL_URL || 'http://checkin24hs_whatsapp3:3003').replace(/\/$/, ''),
+    public: (process.env.WHATSAPP3_PUBLIC_URL || 'https://whatsapp3.checkin24hs.com').replace(/\/$/, ''),
+  },
+  4: {
+    internal: (process.env.WHATSAPP4_INTERNAL_URL || 'http://checkin24hs_whatsapp4:3004').replace(/\/$/, ''),
+    public: (process.env.WHATSAPP4_PUBLIC_URL || 'https://whatsapp4.checkin24hs.com').replace(/\/$/, ''),
+  },
 };
 
 function proxyHttpGet(urlString, extraHeaders, cb) {

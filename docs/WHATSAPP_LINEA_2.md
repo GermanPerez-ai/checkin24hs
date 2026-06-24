@@ -1,6 +1,8 @@
 # WhatsApp Línea 2 — Segundo número (mismo negocio)
 
-Dos números independientes, misma Flor y mismo Supabase. En el dashboard: pestañas **Línea 1** / **Línea 2** dentro de **Chats Activos**.
+Dos números independientes, misma Flor y mismo Supabase. En el dashboard: pestañas **Línea 1** … **Línea 4** dentro de **Chats Activos**.
+
+Para Líneas 3 y 4 ver también `docs/WHATSAPP_LINEAS_3_4.md`.
 
 ---
 
@@ -53,7 +55,9 @@ Config en `DASHBOARD_CONFIG.whatsappInstances`:
 ```javascript
 whatsappInstances: [
   { instance: 1, label: 'Línea 1', url: 'https://whatsapp.checkin24hs.com' },
-  { instance: 2, label: 'Línea 2', url: 'https://whatsapp2.checkin24hs.com' }
+  { instance: 2, label: 'Línea 2', url: 'https://whatsapp2.checkin24hs.com' },
+  { instance: 3, label: 'Línea 3', url: 'https://whatsapp3.checkin24hs.com' },
+  { instance: 4, label: 'Línea 4', url: 'https://whatsapp4.checkin24hs.com' }
 ]
 ```
 
