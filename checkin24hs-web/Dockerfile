@@ -15,8 +15,8 @@ RUN npm install
 
 COPY . .
 
-# Verificar que el contexto de build incluye el carrusel (detecta contexto vacío o viejo)
-RUN test -f /app/src/components/Novedades.tsx && grep -q "carrusel" /app/src/components/Novedades.tsx || (echo "ERROR: En el build NO esta el codigo del carrusel. Revisar: (1) git pull en el servidor, (2) que el build use context ./checkin24hs-web." && exit 1)
+# Verificar que el contexto de build incluye carruseles (detecta contexto vacío o viejo)
+RUN test -f /app/src/components/AlojamientosCarousel.tsx && test -f /app/src/components/Novedades.tsx && grep -q "carousel" /app/src/components/Novedades.tsx || (echo "ERROR: En el build NO esta el codigo de carruseles. Revisar: (1) git pull en el servidor, (2) que el build use context ./checkin24hs-web." && exit 1)
 
 # Variables de build: se inyectan en tiempo de build vía ARG (EasyPanel o CI)
 ARG VITE_SUPABASE_URL
@@ -34,8 +34,8 @@ ENV VITE_WHATSAPP_NUMBER=$VITE_WHATSAPP_NUMBER
 
 RUN npm run build
 
-# Verificar que el bundle incluye el carrusel de Novedades (evita desplegar código viejo)
-RUN grep -rqE "carousel|carrusel" /app/dist || (echo "ERROR: dist no contiene carrusel; revisar que checkin24hs-web tiene Novedades con carrusel" && exit 1)
+# Verificar que el bundle incluye carruseles (evita desplegar código viejo)
+RUN grep -rqE "carousel|AlojamientosCarousel|alojamientos-layout" /app/dist || (echo "ERROR: dist no contiene carruseles; revisar checkin24hs-web" && exit 1)
 
 # Etapa de producción: nginx sirve los estáticos
 FROM nginx:alpine

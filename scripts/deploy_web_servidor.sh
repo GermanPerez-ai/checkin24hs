@@ -9,7 +9,7 @@ cd /root/checkin24hs
 echo "=== 1. Git pull ==="
 git pull origin main || true
 echo "Último commit: $(git log -1 --oneline)"
-if ! grep -q "carouselTrack\|carrusel" checkin24hs-web/src/components/Novedades.tsx 2>/dev/null; then
+if ! grep -qE "carouselTrack|AlojamientosCarousel" checkin24hs-web/src/components/Novedades.tsx checkin24hs-web/src/components/AlojamientosCarousel.tsx 2>/dev/null; then
   echo "AVISO: En el repo no aparece el código del carrusel. ¿Hiciste push de los cambios?"
 fi
 
@@ -31,12 +31,12 @@ docker build --no-cache -t "easypanel/checkin24hs/web:$WEB_TAG" \
   --build-arg VITE_FLOR_API_URL="${VITE_FLOR_API_URL:-https://flor-api.checkin24hs.com}" \
   -f Dockerfile .
 cd ..
-# Verificar que la imagen nueva incluye el carrusel
-if ! docker run --rm "easypanel/checkin24hs/web:$WEB_TAG" grep -rq "carrusel" /usr/share/nginx/html/ 2>/dev/null; then
-  echo "AVISO: La imagen construida NO contiene 'carrusel'. Revisá si el build falló o usó código viejo."
+# Verificar que la imagen nueva incluye carruseles (novedades + alojamientos)
+if ! docker run --rm "easypanel/checkin24hs/web:$WEB_TAG" grep -rqE "carousel|AlojamientosCarousel|alojamientos-layout" /usr/share/nginx/html/ 2>/dev/null; then
+  echo "AVISO: La imagen construida NO contiene marcadores de carrusel. Revisá si el build falló o usó código viejo."
   exit 1
 fi
-echo "OK: La imagen contiene el código del carrusel."
+echo "OK: La imagen contiene el código de carruseles (novedades/alojamientos)."
 # Verificar que incluye el botón WhatsApp en el HTML
 if ! docker run --rm "easypanel/checkin24hs/web:$WEB_TAG" grep -q "whatsapp-floating-btn" /usr/share/nginx/html/index.html 2>/dev/null; then
   echo "AVISO: index.html en la imagen NO contiene el botón WhatsApp."
