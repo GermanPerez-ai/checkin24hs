@@ -4,13 +4,12 @@ import { supabase } from '../lib/supabase';
 import type { Hotel } from '../types';
 import { Header } from '../components/Header';
 import { SliderOfertas } from '../components/SliderOfertas';
-import { HotelCard } from '../components/HotelCard';
+import { AlojamientosCarousel } from '../components/AlojamientosCarousel';
 import { Destinos } from '../components/Destinos';
 import { Novedades } from '../components/Novedades';
 import { SobreNosotros } from '../components/SobreNosotros';
 import { Footer } from '../components/Footer';
 import { useFlorContext } from '../context/FlorContext';
-import styles from './Home.module.css';
 
 export function Home() {
   const [hotels, setHotels] = useState<Hotel[]>([]);
@@ -101,36 +100,17 @@ export function Home() {
       <main>
         <SliderOfertas />
         <Novedades />
-        <section className={styles.hoteles}>
-          <div className="container">
-            <h2 className={styles.sectionTitle}>Alojamientos</h2>
-            {loading ? (
-              <p className={styles.loading}>Cargando hoteles…</p>
-            ) : configError ? (
-              <p className={styles.empty}>
-                No está configurada la conexión a la base de datos. El administrador debe definir VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY al construir la web.
-              </p>
-            ) : fetchError ? (
-              <p className={styles.empty}>
-                {fetchError.toLowerCase().includes('invalid api key') || fetchError.includes('JWT')
-                  ? 'Error de configuración: la API key de Supabase no es válida o no se definió al construir la web. En EasyPanel, configurá los Build Args VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY y volvé a hacer Deploy.'
-                  : `Error al cargar alojamientos: ${fetchError}. Revisa permisos en Supabase (RLS) o que la tabla hotels exista.`}
-              </p>
-            ) : hotels.length === 0 ? (
-              <p className={styles.empty}>
-                {pais || ciudad
-                  ? 'No hay alojamientos para los filtros seleccionados. Prueba otra ciudad o país.'
-                  : 'No hay alojamientos en la base de datos. Revisa en Supabase que la tabla "hotels" tenga filas y que los roles anon tengan permiso SELECT (RLS).'}
-              </p>
-            ) : (
-              <div className={styles.grid}>
-                {hotels.map((h) => (
-                  <HotelCard key={h.id} hotel={h} />
-                ))}
-              </div>
-            )}
-          </div>
-        </section>
+        <AlojamientosCarousel
+          hotels={hotels}
+          loading={loading}
+          configError={configError}
+          fetchError={fetchError}
+          emptyMessage={
+            pais || ciudad
+              ? 'No hay alojamientos para los filtros seleccionados. Prueba otra ciudad o país.'
+              : undefined
+          }
+        />
         <Destinos />
         <SobreNosotros />
         <Footer />

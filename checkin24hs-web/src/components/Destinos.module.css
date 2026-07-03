@@ -1,5 +1,6 @@
 .section {
   padding: 48px 0;
+  background: var(--bg);
 }
 
 .title {
@@ -7,7 +8,7 @@
   font-weight: 700;
   color: var(--primary);
   margin: 0 0 24px;
-  text-align: center;
+  text-align: left;
 }
 
 .grid {

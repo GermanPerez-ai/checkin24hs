@@ -28,16 +28,17 @@ function getPrecio(h: Hotel): number | null {
   return null;
 }
 
-export function HotelCard({ hotel }: { hotel: Hotel }) {
+export function HotelCard({ hotel, variant = 'default' }: { hotel: Hotel; variant?: 'default' | 'carousel' }) {
   const slug = getSlug(hotel);
   const imgUrl = getImageUrl(hotel);
   const puntuacion = getPuntuacion(hotel);
   const precio = getPrecio(hotel);
   const metodoVenta = hotel.metodo_venta || 'cotizacion';
   const cotizarUrl = buildCotizadorUrl({ hotel_id: hotel.id });
+  const isCarousel = variant === 'carousel';
 
   return (
-    <article className={styles.card}>
+    <article className={`${styles.card} ${isCarousel ? styles.cardCarousel : ''}`}>
       <Link to={`/hotel/${slug}`} className={styles.imageWrap}>
         <img src={imgUrl} alt={hotel.name} className={styles.image} />
         {puntuacion != null && (
@@ -56,9 +57,9 @@ export function HotelCard({ hotel }: { hotel: Hotel }) {
         <div className={styles.amenities}>
           {hotel.wifi && <span className={styles.amenity} title="Wi‑Fi">Wi‑Fi</span>}
           {hotel.desayuno && <span className={styles.amenity} title="Desayuno">Desayuno</span>}
-          {hotel.piscina && <span className={styles.amenity} title="Piscina">Piscina</span>}
+          {!isCarousel && hotel.piscina && <span className={styles.amenity} title="Piscina">Piscina</span>}
           {hotel.estacionamiento && <span className={styles.amenity} title="Estacionamiento">Parking</span>}
-          {hotel.pet_friendly && <span className={styles.amenity} title="Pet friendly">Mascotas</span>}
+          {!isCarousel && hotel.pet_friendly && <span className={styles.amenity} title="Pet friendly">Mascotas</span>}
         </div>
         <div className={styles.footer}>
           {precio != null && (

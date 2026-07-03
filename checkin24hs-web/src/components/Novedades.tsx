@@ -75,16 +75,23 @@ export function Novedades() {
     el.scrollBy({ left: delta, behavior: 'smooth' });
   };
 
-  if (loading) return <section id="novedades" className={styles.section}><div className="container"><p>Cargando novedades…</p></div></section>;
+  if (loading) {
+    return (
+      <section id="novedades" className={styles.section}>
+        <div className="container">
+          <h2 className={styles.title}>Novedades</h2>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section id="novedades" className={styles.section} data-novedades-layout="carousel">
+      {/* carrusel horizontal — layout interno, no visible en UI */}
       <div className="container">
-        <h2 className={styles.title}>Novedades <span className={styles.carouselBadge}>(carrusel)</span></h2>
-        {items.length === 0 ? (
-          <p className={styles.empty}>Próximamente más novedades.</p>
-        ) : (
-          <div className={styles.carouselOuter}>
+        <h2 className={styles.title}>Novedades</h2>
+        {items.length > 0 && (
+        <div className={styles.carouselOuter}>
             <button
               type="button"
               className={`${styles.arrowBtn} ${styles.arrowLeft}`}

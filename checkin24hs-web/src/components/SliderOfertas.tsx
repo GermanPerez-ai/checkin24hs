@@ -33,7 +33,28 @@ export function SliderOfertas() {
     return () => clearInterval(t);
   }, [slides.length]);
 
-  if (loading || slides.length === 0) return null;
+  if (loading) return null;
+
+  const isDevPreview = slides.length === 0 && import.meta.env.DEV;
+  if (slides.length === 0 && !isDevPreview) return null;
+
+  if (isDevPreview) {
+    return (
+      <section className={styles.slider} aria-label="Ofertas destacadas (vista previa local)">
+        <div className={styles.track}>
+          <div className={styles.slide} style={{ opacity: 1, zIndex: 1 }}>
+            <div className={styles.slideContent}>
+              <div className={styles.slidePlaceholder} aria-hidden />
+              <div className={styles.slideCaption}>
+                <span>Vista previa del slider (150px de alto)</span>
+                <span className={styles.slideDevHint}>Configurá .env con Supabase para ver ofertas reales</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   const slide = slides[index];
   const imgUrl = slide?.imagen_url || '';
