@@ -133,30 +133,39 @@
   text-decoration: none;
 }
 
-/* Carrusel: 256×228px (−20% ancho, −35% alto vs grid ~320×350) */
+/* Carrusel: 256×410px — imagen 75%, cuerpo 25% */
 .cardCarousel {
   width: 100%;
   height: 100%;
   border-radius: 10px;
+  display: flex;
+  flex-direction: column;
 }
 
 .cardCarousel .imageWrap {
+  flex: 0 0 75%;
+  height: 75%;
+  min-height: 0;
   aspect-ratio: auto;
-  height: 88px;
-  flex-shrink: 0;
 }
 
 .cardCarousel .badge {
-  bottom: 6px;
-  left: 6px;
-  padding: 2px 6px;
-  font-size: 0.65rem;
+  top: 8px;
+  bottom: auto;
+  left: 8px;
+  padding: 3px 8px;
+  font-size: 0.7rem;
 }
 
 .cardCarousel .body {
-  padding: 8px 10px 10px;
+  flex: 0 0 25%;
+  height: 25%;
+  padding: 8px 10px;
   min-height: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 .cardCarousel .location {
@@ -168,35 +177,27 @@
 }
 
 .cardCarousel .title {
-  font-size: 0.85rem;
-  margin: 0 0 4px;
+  font-size: 0.9rem;
+  margin: 0;
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.cardCarousel .amenities {
-  gap: 4px;
-  margin-bottom: 6px;
-}
-
-.cardCarousel .amenity {
-  font-size: 0.6rem;
-  padding: 1px 5px;
-}
-
 .cardCarousel .footer {
   gap: 6px;
+  margin-top: auto;
 }
 
 .cardCarousel .precio {
-  font-size: 0.7rem;
+  font-size: 0.72rem;
 }
 
 .cardCarousel .btnPrim,
 .cardCarousel .btnSec {
-  padding: 5px 10px;
-  font-size: 0.75rem;
+  padding: 6px 12px;
+  font-size: 0.78rem;
   border-radius: 6px;
+  white-space: nowrap;
 }

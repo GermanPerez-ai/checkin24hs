@@ -99,7 +99,6 @@ export function Home() {
       <Header />
       <main>
         <SliderOfertas />
-        <Novedades />
         <AlojamientosCarousel
           hotels={hotels}
           loading={loading}
@@ -111,6 +110,7 @@ export function Home() {
               : undefined
           }
         />
+        <Novedades />
         <Destinos />
         <SobreNosotros />
         <Footer />

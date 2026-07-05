@@ -54,13 +54,15 @@ export function HotelCard({ hotel, variant = 'default' }: { hotel: Hotel; varian
         <h2 className={styles.title}>
           <Link to={`/hotel/${slug}`}>{hotel.name}</Link>
         </h2>
+        {!isCarousel && (
         <div className={styles.amenities}>
           {hotel.wifi && <span className={styles.amenity} title="Wi‑Fi">Wi‑Fi</span>}
           {hotel.desayuno && <span className={styles.amenity} title="Desayuno">Desayuno</span>}
-          {!isCarousel && hotel.piscina && <span className={styles.amenity} title="Piscina">Piscina</span>}
+          {hotel.piscina && <span className={styles.amenity} title="Piscina">Piscina</span>}
           {hotel.estacionamiento && <span className={styles.amenity} title="Estacionamiento">Parking</span>}
-          {!isCarousel && hotel.pet_friendly && <span className={styles.amenity} title="Pet friendly">Mascotas</span>}
+          {hotel.pet_friendly && <span className={styles.amenity} title="Pet friendly">Mascotas</span>}
         </div>
+        )}
         <div className={styles.footer}>
           {precio != null && (
             <span className={styles.precio}>

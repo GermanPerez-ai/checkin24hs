@@ -5,8 +5,8 @@ import styles from './AlojamientosCarousel.module.css';
 
 /** Ancho base 320px −20% */
 export const HOTEL_CAROUSEL_CARD_WIDTH = 256;
-/** Alto aprox. tarjeta grid ~350px −35% */
-export const HOTEL_CAROUSEL_CARD_HEIGHT = 228;
+/** Alto tarjeta carrusel: 228px +80% ≈ 410px */
+export const HOTEL_CAROUSEL_CARD_HEIGHT = 410;
 const SCROLL_STEP = HOTEL_CAROUSEL_CARD_WIDTH + 16;
 
 const DEV_PREVIEW_IMAGE = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=512&h=320&fit=crop';
@@ -90,7 +90,7 @@ export function AlojamientosCarousel({
   return (
     <section className={styles.section} data-alojamientos-layout="carousel">
       <div className="container">
-        <h2 className={styles.title}>Alojamientos</h2>
+        <h2 className={styles.title}>Alojamientos Destacados</h2>
         {useDevPreview && (
           <p className={styles.devHint}>Vista previa local — configurá Supabase para hoteles reales</p>
         )}
