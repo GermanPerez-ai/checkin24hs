@@ -28,7 +28,7 @@ const FlorKnowledgeBase = {
     loadHotelsFromSupabase: async function(supabaseClient) {
         if (!supabaseClient || typeof supabaseClient.from !== 'function') return;
         try {
-            const { data, error } = await supabaseClient.from('hotels').select('id,name,slug,ciudad,region,pais,location,description,status,puntuacion_num,rating,wifi,desayuno,piscina,estacionamiento,calefaccion,pet_friendly,url_reserva_directa,website,imagen_principal,galeria_fotos,flor_info').order('name');
+            const { data, error } = await supabaseClient.from('hotels').select('id,name,slug,ciudad,region,pais,location,description,status,puntuacion_num,rating,wifi,desayuno,piscina,estacionamiento,calefaccion,pet_friendly,url_reserva_directa,website,imagen_principal,galeria_fotos,flor_info').or('status.eq.active,status.eq.activo,status.eq.Activo,status.is.null').order('name');
             if (error) {
                 console.warn('[Flor Knowledge] No se pudieron cargar hoteles desde Supabase:', error.message);
                 return;
@@ -200,7 +200,11 @@ const FlorKnowledgeBase = {
     // Función para obtener información de hoteles: primero desde Supabase (web), si no desde localStorage (dashboard)
     getHotelsFromDB: function() {
         if (this._hotelsFromSupabase && this._hotelsFromSupabase.length > 0) {
-            return this._hotelsFromSupabase.filter(function(h) { return h.is_active !== false; });
+            return this._hotelsFromSupabase.filter(function(h) {
+                if (!h || h.is_active === false) return false;
+                const s = (h.status || '').toString().toLowerCase();
+                return s !== 'inactivo' && s !== 'inactive' && s !== 'mantenimiento';
+            });
         }
         try {
             const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');

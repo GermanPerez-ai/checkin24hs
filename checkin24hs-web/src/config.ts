@@ -25,3 +25,9 @@ export function buildCotizadorUrl(params: {
   if (params.pax != null) url.searchParams.set('pax', String(params.pax));
   return url.toString();
 }
+
+/** WhatsApp con mensaje prellenado según producto (spec web Checkin24hs). */
+export function buildWhatsAppConsultaUrl(tituloProducto: string): string {
+  const text = `Hola, tengo una consulta desde checkin24hs.com, sobre: ${tituloProducto}`;
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
+}

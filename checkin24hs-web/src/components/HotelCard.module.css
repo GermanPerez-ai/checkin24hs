@@ -177,12 +177,34 @@
 }
 
 .cardCarousel .title {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   margin: 0;
   display: -webkit-box;
   -webkit-line-clamp: 1;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.cardCarousel .descripcionBreve {
+  margin: 2px 0 0;
+  font-size: 0.65rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cardCarousel .footerCarousel {
+  margin-top: auto;
+}
+
+.cardCarousel .carouselActions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
 }
 
 .cardCarousel .footer {
@@ -196,8 +218,31 @@
 
 .cardCarousel .btnPrim,
 .cardCarousel .btnSec {
-  padding: 6px 12px;
-  font-size: 0.78rem;
+  padding: 5px 8px;
+  font-size: 0.68rem;
   border-radius: 6px;
   white-space: nowrap;
+  text-align: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.cardCarousel .btnWa {
+  display: block;
+  padding: 5px 8px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  border-radius: 6px;
+  text-align: center;
+  text-decoration: none;
+  background: #25d366;
+  color: #fff;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.cardCarousel .btnWa:hover {
+  background: #1ebe5d;
+  color: #fff;
+  text-decoration: none;
 }

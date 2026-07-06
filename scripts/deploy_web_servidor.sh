@@ -32,7 +32,7 @@ docker build --no-cache -t "easypanel/checkin24hs/web:$WEB_TAG" \
   -f Dockerfile .
 cd ..
 # Verificar que la imagen nueva incluye carruseles (novedades + alojamientos)
-if ! docker run --rm "easypanel/checkin24hs/web:$WEB_TAG" grep -rqE "carousel|AlojamientosCarousel|alojamientos-layout" /usr/share/nginx/html/ 2>/dev/null; then
+if ! docker run --rm "easypanel/checkin24hs/web:$WEB_TAG" grep -rqE "carousel|AlojamientosCarousel|alojamientos-layout|Nuestros elegidos" /usr/share/nginx/html/ 2>/dev/null; then
   echo "AVISO: La imagen construida NO contiene marcadores de carrusel. Revisá si el build falló o usó código viejo."
   exit 1
 fi

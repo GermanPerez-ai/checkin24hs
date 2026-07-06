@@ -1,17 +1,15 @@
 import { Link, useLocation } from 'react-router-dom';
 import styles from './Header.module.css';
 
-function scrollToSection(hash: string) {
-  const id = hash.replace('#', '');
-  if (!id) return;
-  window.history.replaceState(null, '', `${window.location.pathname || '/'}${window.location.search || ''}#${id}`);
-  const el = document.getElementById(id);
-  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
+const NAV = [
+  { to: '/', label: 'Inicio' },
+  { to: '/chile', label: 'Chile' },
+  { to: '/argentina', label: 'Argentina' },
+  { to: '/internacionales', label: 'Internacionales' },
+] as const;
 
 export function Header() {
   const location = useLocation();
-  const isHome = location.pathname === '/';
 
   return (
     <header className={styles.header}>
@@ -20,21 +18,17 @@ export function Header() {
           <Link to="/" className={styles.logo}>
             Checkin24hs
           </Link>
-          <nav className={styles.nav}>
-            <Link to="/">Inicio</Link>
-            {isHome ? (
-              <>
-                <button type="button" className={styles.navLink} onClick={() => scrollToSection('destinos')}>Destinos</button>
-                <button type="button" className={styles.navLink} onClick={() => scrollToSection('novedades')}>Novedades</button>
-                <button type="button" className={styles.navLink} onClick={() => scrollToSection('sobre-nosotros')}>Nosotros</button>
-              </>
-            ) : (
-              <>
-                <Link to="/#destinos">Destinos</Link>
-                <Link to="/#novedades">Novedades</Link>
-                <Link to="/#sobre-nosotros">Nosotros</Link>
-              </>
-            )}
+          <nav className={styles.nav} aria-label="Principal">
+            {NAV.map(({ to, label }) => (
+              <Link
+                key={to}
+                to={to}
+                className={location.pathname === to ? styles.navActive : undefined}
+                aria-current={location.pathname === to ? 'page' : undefined}
+              >
+                {label}
+              </Link>
+            ))}
           </nav>
         </div>
       </div>

@@ -35,7 +35,7 @@ ENV VITE_WHATSAPP_NUMBER=$VITE_WHATSAPP_NUMBER
 RUN npm run build
 
 # Verificar que el bundle incluye carruseles (evita desplegar código viejo)
-RUN grep -rqE "carousel|AlojamientosCarousel|alojamientos-layout" /app/dist || (echo "ERROR: dist no contiene carruseles; revisar checkin24hs-web" && exit 1)
+RUN grep -rqE "carousel|AlojamientosCarousel|alojamientos-layout|Nuestros elegidos" /app/dist || (echo "ERROR: dist no contiene carruseles; revisar checkin24hs-web" && exit 1)
 
 # Etapa de producción: nginx sirve los estáticos
 FROM nginx:alpine

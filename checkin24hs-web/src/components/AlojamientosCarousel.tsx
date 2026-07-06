@@ -46,6 +46,9 @@ type Props = {
   configError?: boolean;
   fetchError?: string | null;
   emptyMessage?: string;
+  title?: string;
+  sectionId?: string;
+  compact?: boolean;
 };
 
 export function AlojamientosCarousel({
@@ -54,6 +57,9 @@ export function AlojamientosCarousel({
   configError,
   fetchError,
   emptyMessage,
+  title = 'Nuestros elegidos del mes',
+  sectionId = 'elegidos',
+  compact = false,
 }: Props) {
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
@@ -87,10 +93,18 @@ export function AlojamientosCarousel({
     el.scrollBy({ left: direction === 'left' ? -SCROLL_STEP : SCROLL_STEP, behavior: 'smooth' });
   };
 
+  if (!loading && displayHotels.length === 0 && !emptyMessage && compact) {
+    return null;
+  }
+
   return (
-    <section className={styles.section} data-alojamientos-layout="carousel">
+    <section
+      id={compact ? undefined : sectionId}
+      className={`${styles.section} ${compact ? styles.sectionCompact : ''}`}
+      data-alojamientos-layout="carousel"
+    >
       <div className="container">
-        <h2 className={styles.title}>Alojamientos Destacados</h2>
+        <h2 className={styles.title}>{title}</h2>
         {useDevPreview && (
           <p className={styles.devHint}>Vista previa local — configurá Supabase para hoteles reales</p>
         )}

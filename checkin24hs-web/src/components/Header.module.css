@@ -49,6 +49,12 @@
   text-decoration: none;
 }
 
+.navActive {
+  color: white !important;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
 .navLink {
   background: none;
   border: none;

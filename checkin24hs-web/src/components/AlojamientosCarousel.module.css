@@ -3,6 +3,15 @@
   background: var(--bg);
 }
 
+.sectionCompact {
+  padding: 24px 0 32px;
+}
+
+.sectionCompact .title {
+  font-size: 1.35rem;
+  margin-bottom: 16px;
+}
+
 .title {
   font-size: 1.75rem;
   font-weight: 700;
