@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import type { Hotel } from '../types';
 import { Header } from '../components/Header';
 import { HeroHome } from '../components/HeroHome';
 import { SelectorDestinos } from '../components/SelectorDestinos';
 import { AlojamientosCarousel } from '../components/AlojamientosCarousel';
+import { Novedades } from '../components/Novedades';
 import { Institucional } from '../components/Institucional';
 import { WhatsAppCta } from '../components/WhatsAppCta';
 import { Footer } from '../components/Footer';
@@ -13,6 +15,7 @@ import { useFlorContext } from '../context/FlorContext';
 export function Home() {
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [loading, setLoading] = useState(true);
+  const location = useLocation();
   const { setContext } = useFlorContext();
   const [configError, setConfigError] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -20,6 +23,18 @@ export function Home() {
   useEffect(() => {
     setContext(undefined);
   }, [setContext]);
+
+  useEffect(() => {
+    const hash = location.hash?.replace('#', '');
+    if (hash !== 'novedades' && hash !== 'sobre-nosotros') return;
+    const scroll = () => {
+      const el = document.getElementById(hash);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    scroll();
+    const t = setTimeout(scroll, 400);
+    return () => clearTimeout(t);
+  }, [location.hash]);
 
   useEffect(() => {
     if (!supabase) {
@@ -69,6 +84,7 @@ export function Home() {
           title="Nuestros elegidos del mes"
           sectionId="elegidos"
         />
+        <Novedades />
         <Institucional />
         <WhatsAppCta />
         <Footer />
