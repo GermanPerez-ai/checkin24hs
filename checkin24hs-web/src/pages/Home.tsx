@@ -45,26 +45,26 @@ export function Home() {
     setConfigError(false);
     setFetchError(null);
     let cancelled = false;
-    supabase
+    const q = supabase
       .from('hotels')
       .select('*')
       .or('status.eq.active,status.eq.activo,status.eq.Activo,status.is.null')
-      .order('name')
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error) {
-          setFetchError(error.message || 'Error al cargar');
-        } else if (data) {
-          setHotels((data as Hotel[]) || []);
-        }
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        const message = err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : '';
-        setFetchError(message || 'Error al cargar');
-        setLoading(false);
-      });
+      .order('name');
+
+    void Promise.resolve(q).then(({ data, error }) => {
+      if (cancelled) return;
+      if (error) {
+        setFetchError(error.message || 'Error al cargar');
+      } else if (data) {
+        setHotels((data as Hotel[]) || []);
+      }
+      setLoading(false);
+    }).catch((err: unknown) => {
+      if (cancelled) return;
+      const message = err && typeof err === 'object' && 'message' in err ? String((err as { message: unknown }).message) : '';
+      setFetchError(message || 'Error al cargar');
+      setLoading(false);
+    });
     return () => {
       cancelled = true;
     };
