@@ -1,7 +1,7 @@
 import styles from './Institucional.module.css';
 
-const FOTO_GERMAN =
-  'https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&h=400&fit=crop&crop=faces';
+const FOTO_INSTITUCIONAL =
+  'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&h=400&fit=crop';
 
 export function Institucional() {
   return (
@@ -13,8 +13,8 @@ export function Institucional() {
             <p className={styles.subtitle}>Tu viaje, diseñado por quienes conocemos el terreno.</p>
           </div>
           <img
-            src={FOTO_GERMAN}
-            alt="Germán — Checkin24hs"
+            src={FOTO_INSTITUCIONAL}
+            alt="Checkin24hs"
             className={styles.foto}
             width={160}
             height={160}
@@ -23,7 +23,7 @@ export function Institucional() {
 
         <div className={styles.content}>
           <p>
-            Hola, soy <strong>Germán</strong>. Hace más de una década empezamos este camino con un objetivo claro:
+            En <strong>Checkin24hs</strong>, hace más de una década empezamos este camino con un objetivo claro:
             que tus vacaciones no sean solo un viaje, sino una experiencia inolvidable.
           </p>
           <p>
@@ -49,7 +49,7 @@ export function Institucional() {
               eligieron.
             </li>
             <li>
-              <strong>Acompañamiento:</strong> Estar certificado como Agente de Viajes no es solo un título; es mi
+              <strong>Acompañamiento:</strong> Estar certificado como Agente de Viajes no es solo un título; es nuestro
               compromiso con vos para diseñarte el itinerario perfecto, gestionando todo —desde la hotelería en Chile
               hasta tu próximo destino internacional— para que solo te ocupes de disfrutar.
             </li>
