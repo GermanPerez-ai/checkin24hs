@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { buildCotizadorUrl, buildWhatsAppConsultaUrl } from '../config';
+import { getReservaDirectaUrl, isHotelTermasPuyehue, openReservaPopup } from '../lib/hoteles';
 import type { Hotel } from '../types';
 import styles from './HotelCard.module.css';
 
@@ -37,6 +38,8 @@ export function HotelCard({ hotel, variant = 'default' }: { hotel: Hotel; varian
   const cotizarUrl = buildCotizadorUrl({ hotel_id: hotel.id });
   const isCarousel = variant === 'carousel';
   const waUrl = buildWhatsAppConsultaUrl(hotel.name);
+  const reservaUrl = getReservaDirectaUrl(hotel);
+  const showReservarCarousel = isCarousel && isHotelTermasPuyehue(hotel) && !!reservaUrl;
   const descripcionBreve = hotel.description
     ? String(hotel.description).replace(/\s+/g, ' ').trim().slice(0, 120)
     : null;
@@ -80,9 +83,15 @@ export function HotelCard({ hotel, variant = 'default' }: { hotel: Hotel; varian
           )}
           {isCarousel ? (
             <div className={styles.carouselActions}>
-              <a href={cotizarUrl} className={styles.btnPrim}>
-                Cotizar online
-              </a>
+              {showReservarCarousel && (
+                <button
+                  type="button"
+                  className={styles.btnReservar}
+                  onClick={() => openReservaPopup(reservaUrl!)}
+                >
+                  Reservar
+                </button>
+              )}
               <a
                 href={waUrl}
                 target="_blank"

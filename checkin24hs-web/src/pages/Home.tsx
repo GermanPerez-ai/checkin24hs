@@ -11,6 +11,7 @@ import { Institucional } from '../components/Institucional';
 import { WhatsAppCta } from '../components/WhatsAppCta';
 import { Footer } from '../components/Footer';
 import { useFlorContext } from '../context/FlorContext';
+import { sortHotelsPuyehueFirst } from '../lib/hoteles';
 
 export function Home() {
   const [hotels, setHotels] = useState<Hotel[]>([]);
@@ -55,9 +56,9 @@ export function Home() {
       if (cancelled) return;
       if (error) {
         setFetchError(error.message || 'Error al cargar');
-      } else if (data) {
-        setHotels((data as Hotel[]) || []);
-      }
+        } else if (data) {
+          setHotels(sortHotelsPuyehueFirst((data as Hotel[]) || []));
+        }
       setLoading(false);
     }).catch((err: unknown) => {
       if (cancelled) return;

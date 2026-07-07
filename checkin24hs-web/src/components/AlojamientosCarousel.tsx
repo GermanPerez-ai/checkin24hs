@@ -32,8 +32,8 @@ function devPreviewHotels(): Hotel[] {
     cantidad_opiniones: null,
   };
   return [
+    { ...base, id: 'dev-2', name: 'Hotel Termas de Puyehue', ciudad: 'Puyehue', pais: 'Chile', slug: 'puyehue', metodo_venta: 'directa' as const, url_reserva_directa: 'https://reservas.puyehue.cl/cgi-bin/paso1.cgi?RESORT=HTP&AGENCIA=CANOPY&LANGUAGE=ES', imagen_principal: 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=512&h=320&fit=crop' },
     { ...base, id: 'dev-1', name: 'Corralco Resort', ciudad: 'Lonquimay', pais: 'Chile', slug: 'corralco' },
-    { ...base, id: 'dev-2', name: 'Termas de Puyehue', ciudad: 'Puyehue', pais: 'Chile', slug: 'puyehue', imagen_principal: 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=512&h=320&fit=crop' },
     { ...base, id: 'dev-3', name: 'Huilo Huilo Resort', ciudad: 'Neltume', pais: 'Chile', slug: 'huilo-huilo', imagen_principal: 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=512&h=320&fit=crop' },
     { ...base, id: 'dev-4', name: 'Hotel Patagonia', ciudad: 'Bariloche', pais: 'Argentina', slug: 'patagonia', imagen_principal: 'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=512&h=320&fit=crop' },
     { ...base, id: 'dev-5', name: 'Montaña Lodge', ciudad: 'San Martín', pais: 'Argentina', slug: 'montana', imagen_principal: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=512&h=320&fit=crop' },
