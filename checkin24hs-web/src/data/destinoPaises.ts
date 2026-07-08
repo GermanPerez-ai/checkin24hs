@@ -52,6 +52,7 @@ export const DESTINO_PAISES: Record<PaisSlug, PaisDestinoConfig> = {
     nombre: 'Internacionales',
     heroTitulo: 'Caribe, Brasil y el mundo',
     heroImagen: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1600&h=600&fit=crop',
+    /** Incluye pais = Internacional y cualquier país que no sea Chile/Argentina */
     excluirPaises: ['Chile', 'chile', 'Argentina', 'argentina'],
     bloques: [
       { titulo: 'Caribe', match: ['Caribe', 'Punta Cana', 'Cancún', 'Cancun', 'Riviera Maya', 'Aruba', 'Jamaica'] },
@@ -93,6 +94,15 @@ export function hotelMatchesBloque(hotel: { ciudad?: string | null; region?: str
 }
 
 export function filterHotelsPorPais<T extends { pais?: string | null }>(hotels: T[], config: PaisDestinoConfig): T[] {
+  if (config.slug === 'internacionales') {
+    const excl = new Set((config.excluirPaises || ['Chile', 'Argentina']).map(norm));
+    return hotels.filter((h) => {
+      const p = h.pais ? norm(h.pais) : '';
+      if (!p) return false;
+      if (p === 'internacional') return true;
+      return !excl.has(p);
+    });
+  }
   if (config.paisesIncluidos?.length) {
     const set = new Set(config.paisesIncluidos.map(norm));
     return hotels.filter((h) => h.pais && set.has(norm(h.pais)));

@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-06-24T13:41:40Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 184; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-07-08T12:57:37Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 186; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">184</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">186</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -2661,6 +2661,8 @@
                             <thead>
                                 <tr style="background-color: #f5f5f5; border-bottom: 2px solid #e0e0e0;">
                                     <th style="padding: 12px; text-align: left; font-weight: 500;">Hotel</th>
+                                    <th style="padding: 12px; text-align: left; font-weight: 500;">País / región</th>
+                                    <th style="padding: 12px; text-align: left; font-weight: 500;">Tipo</th>
                                     <th style="padding: 12px; text-align: left; font-weight: 500;">Ubicación</th>
                                     <th style="padding: 12px; text-align: center; font-weight: 500;">Calificación</th>
                                     <th style="padding: 12px; text-align: center; font-weight: 500;">Precio</th>
@@ -5190,10 +5192,31 @@
                             <label class="form-label">Nombre del Hotel *</label>
                             <input type="text" class="form-input" id="editHotelName" required>
                         </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Ubicación (país / región) *</label>
+                            <select class="form-input" id="editHotelPais" required>
+                                <option value="">Seleccionar…</option>
+                                <option value="Argentina">Argentina</option>
+                                <option value="Chile">Chile</option>
+                                <option value="Internacional">Internacional</option>
+                            </select>
+                            <div style="margin-top: 5px; font-size: 0.85rem; color: #666;">
+                                Define en qué sección de la web aparece (Chile / Argentina / Internacionales).
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Tipo *</label>
+                            <select class="form-input" id="editHotelTipoProducto" required>
+                                <option value="hotel">Hotel</option>
+                                <option value="paquete">Paquete</option>
+                            </select>
+                        </div>
                         
                         <div class="form-group">
-                            <label class="form-label">Ubicación *</label>
-                            <input type="text" class="form-input" id="editHotelLocation" required>
+                            <label class="form-label">Ubicación (detalle) *</label>
+                            <input type="text" class="form-input" id="editHotelLocation" required placeholder="Ej: Puyehue, Los Lagos">
                         </div>
                         
                         <div class="form-group">
@@ -7499,7 +7522,7 @@ Ej:
                 // Mostrar mensaje si no hay hoteles
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td colspan="6" style="text-align: center; padding: 40px; color: #666;">
+                    <td colspan="8" style="text-align: center; padding: 40px; color: #666;">
                         <div style="margin-bottom: 20px;">
                             <i class="fas fa-hotel" style="font-size: 3rem; color: #ddd;"></i>
                         </div>
@@ -7516,14 +7539,18 @@ Ej:
 
             hotels.forEach(hotel => {
                 const row = document.createElement('tr');
+                const paisLabel = hotel.pais || '—';
+                const tipoLabel = hotel.tipo_producto === 'paquete' ? 'Paquete' : 'Hotel';
                 row.innerHTML = `
                     <td>
                         <div>
                             <div class="hotel-name">${hotel.name}</div>
-                            <div class="hotel-location">${hotel.location}</div>
+                            <div class="hotel-location">${hotel.location || ''}</div>
                         </div>
                     </td>
-                    <td>${hotel.location}</td>
+                    <td>${paisLabel}</td>
+                    <td>${tipoLabel}</td>
+                    <td>${hotel.location || '—'}</td>
                     <td style="text-align: center;">
                         <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
                             ${getStars(hotel.rating)}
@@ -7843,6 +7870,25 @@ Ej:
                 document.getElementById('editHotelModalTitle').textContent = '✏️ Editar Hotel';
                 document.getElementById('editHotelName').value = hotel.name || '';
                 document.getElementById('editHotelLocation').value = hotel.location || '';
+                const paisElEdit = document.getElementById('editHotelPais');
+                if (paisElEdit) {
+                    const p = (hotel.pais || '').trim();
+                    if (p === 'Argentina' || p === 'Chile' || p === 'Internacional') {
+                        paisElEdit.value = p;
+                    } else if (/argentina/i.test(p) || /argentina/i.test(hotel.location || '')) {
+                        paisElEdit.value = 'Argentina';
+                    } else if (/chile/i.test(p) || /chile/i.test(hotel.location || '')) {
+                        paisElEdit.value = 'Chile';
+                    } else if (p) {
+                        paisElEdit.value = 'Internacional';
+                    } else {
+                        paisElEdit.value = '';
+                    }
+                }
+                const tipoElEdit = document.getElementById('editHotelTipoProducto');
+                if (tipoElEdit) {
+                    tipoElEdit.value = (hotel.tipo_producto === 'paquete' ? 'paquete' : 'hotel');
+                }
                 document.getElementById('editHotelGoogleMaps').value = hotel.googleMaps || hotel.google_maps || '';
                 document.getElementById('editHotelWebsite').value = hotel.website || '';
                 document.getElementById('editHotelRating').value = hotel.rating || '';
@@ -15949,8 +15995,12 @@ Ej:
             // Resetear selects
             const ratingSelect = document.getElementById('editHotelRating');
             const statusSelect = document.getElementById('editHotelStatus');
+            const paisSelect = document.getElementById('editHotelPais');
+            const tipoSelect = document.getElementById('editHotelTipoProducto');
             if (ratingSelect) ratingSelect.value = '0';
             if (statusSelect) statusSelect.value = 'Activo';
+            if (paisSelect) paisSelect.value = '';
+            if (tipoSelect) tipoSelect.value = 'hotel';
             
             // Limpiar campos de Flor IA
             const florFields = [
@@ -16099,7 +16149,7 @@ Ej:
             if (hotels.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="6" style="text-align: center; padding: 20px; color: #666;">
+                        <td colspan="8" style="text-align: center; padding: 20px; color: #666;">
                             <div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
                                 <span class="material-icons" style="font-size: 48px; color: #ddd;"></i>
                                 <p>No hay hoteles registrados</p>
@@ -16116,14 +16166,18 @@ Ej:
             
             hotels.forEach(hotel => {
                 const row = document.createElement('tr');
+                const paisLabel = hotel.pais || '—';
+                const tipoLabel = hotel.tipo_producto === 'paquete' ? 'Paquete' : 'Hotel';
                 row.innerHTML = `
                     <td>
                         <div>
                             <div class="hotel-name">${hotel.name}</div>
-                            <div class="hotel-location">${hotel.location}</div>
+                            <div class="hotel-location">${hotel.location || ''}</div>
                         </div>
                     </td>
-                    <td>${hotel.location}</td>
+                    <td>${paisLabel}</td>
+                    <td>${tipoLabel}</td>
+                    <td>${hotel.location || '—'}</td>
                     <td style="text-align: center;">
                         <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
                             ${getStars(hotel.rating)}
@@ -16328,6 +16382,25 @@ Ej:
             
             if (nameInput) nameInput.value = hotel.name || '';
             if (locationInput) locationInput.value = hotel.location || '';
+            const paisSelectFill = document.getElementById('editHotelPais');
+            if (paisSelectFill) {
+                const p = (hotel.pais || '').trim();
+                if (p === 'Argentina' || p === 'Chile' || p === 'Internacional') {
+                    paisSelectFill.value = p;
+                } else if (/argentina/i.test(p) || /argentina/i.test(hotel.location || '')) {
+                    paisSelectFill.value = 'Argentina';
+                } else if (/chile/i.test(p) || /chile/i.test(hotel.location || '')) {
+                    paisSelectFill.value = 'Chile';
+                } else if (p) {
+                    paisSelectFill.value = 'Internacional';
+                } else {
+                    paisSelectFill.value = '';
+                }
+            }
+            const tipoSelectFill = document.getElementById('editHotelTipoProducto');
+            if (tipoSelectFill) {
+                tipoSelectFill.value = (hotel.tipo_producto === 'paquete' ? 'paquete' : 'hotel');
+            }
             if (websiteInput) websiteInput.value = hotel.website || '';
             
             // IMPORTANTE: Supabase usa snake_case (google_maps), localStorage usa camelCase (googleMaps)
@@ -16661,6 +16734,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             // Obtener datos del formulario
             const nameInput = document.getElementById('editHotelName');
             const locationInput = document.getElementById('editHotelLocation');
+            const paisSelect = document.getElementById('editHotelPais');
+            const tipoProductoSelect = document.getElementById('editHotelTipoProducto');
             const googleMapsInput = document.getElementById('editHotelGoogleMaps');
             const websiteInput = document.getElementById('editHotelWebsite');
             const ratingSelect = document.getElementById('editHotelRating');
@@ -16670,6 +16745,16 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             const statusSelect = document.getElementById('editHotelStatus');
             if (!nameInput || !locationInput) {
                 console.error('❌ Campos requeridos no encontrados');
+                return;
+            }
+            if (!paisSelect || !paisSelect.value) {
+                alert('⚠️ Seleccioná la ubicación: Argentina, Chile o Internacional.');
+                if (paisSelect) paisSelect.focus();
+                return;
+            }
+            if (!tipoProductoSelect || !tipoProductoSelect.value) {
+                alert('⚠️ Seleccioná el tipo: Hotel o Paquete.');
+                if (tipoProductoSelect) tipoProductoSelect.focus();
                 return;
             }
             
@@ -16735,6 +16820,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             const hotelData = {
                 name: nameInput.value.trim(),
                 location: locationInput.value.trim(),
+                pais: paisSelect.value.trim(),
+                tipo_producto: tipoProductoSelect.value.trim() === 'paquete' ? 'paquete' : 'hotel',
                 googleMaps: googleMapsInput?.value?.trim() || '',
                 website: websiteInput?.value?.trim() || '', // URL del sitio web del hotel
                 rating: parseInt(ratingSelect?.value || '0'),
@@ -16851,6 +16938,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                     const hotelForSupabase = {
                         name: hotelData.name,
                         location: hotelData.location,
+                        pais: hotelData.pais || null,
+                        tipo_producto: hotelData.tipo_producto || 'hotel',
                         description: hotelData.description || null,
                         rating: hotelData.rating || 0,
                         price: parseFloat(String(hotelData.price).replace(/[^0-9.-]/g, '')) || 0,
@@ -16983,6 +17072,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                     const updatesForSupabase = {
                         name: hotelData.name,
                         location: hotelData.location,
+                        pais: hotelData.pais || null,
+                        tipo_producto: hotelData.tipo_producto || 'hotel',
                         description: hotelData.description || null,
                         rating: hotelData.rating || 0,
                         price: parseFloat(String(hotelData.price).replace(/[^0-9.-]/g, '')) || 0,
@@ -31810,12 +31901,19 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         if (c && c.whatsappServerUrl) return (c.whatsappServerUrl || '').replace(/\/$/, '');
         return '';
     }
+    var FLOR_SILENCE_MINUTES_DASHBOARD = 30;
     async function setFlorPausedForChat(chatId, minutes) {
         if (!chatId || !window.supabaseClient || !window.supabaseClient.isInitialized()) return;
         try {
-            var until = new Date(Date.now() + minutes * 60 * 1000).toISOString();
-            await window.supabaseClient.client.from('whatsapp_chats').update({ flor_paused_until: until }).eq('id', chatId);
-            console.log('⏸️ Flor pausada ' + minutes + ' min para este chat');
+            var mins = minutes || FLOR_SILENCE_MINUTES_DASHBOARD;
+            var nowIso = new Date().toISOString();
+            var until = new Date(Date.now() + mins * 60 * 1000).toISOString();
+            await window.supabaseClient.client.from('whatsapp_chats').update({
+                flor_paused_until: until,
+                last_human_outbound_at: nowIso,
+                updated_at: nowIso
+            }).eq('id', chatId);
+            console.log('⏸️ Flor pausada ' + mins + ' min (protocolo silencio humano, cualquier origen)');
         } catch (e) { console.warn('Error pausando Flor:', e); }
     }
     window.deleteDashboardChat = async function(chatId) {
@@ -31947,7 +32045,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             body: JSON.stringify({ number: phone, audioBase64: base64, mimetype: audioMime, chat_id: chatId })
                         });
                         if (!r.ok) throw new Error((await r.json().catch(function() { return {}; })).error || 'Error enviando audio');
-                        await setFlorPausedForChat(chatId, 20);
+                        await setFlorPausedForChat(chatId);
                         var messagesEl = document.getElementById('chatMessages');
                         if (messagesEl) {
                             messagesEl.innerHTML += '<div style="margin-bottom: 12px; display: flex; justify-content: flex-end;"><div style="max-width: 75%; padding: 10px 14px; border-radius: 12px; background: #dcf8c6;"><span class="material-icons" style="vertical-align: middle;">mic</span> Audio enviado</div></div>';
@@ -32011,7 +32109,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     var err = await r.json().catch(function() { return {}; });
                     throw new Error(err.error || err.message || 'Error al enviar');
                 }
-                await setFlorPausedForChat(chatId, 20);
+                await setFlorPausedForChat(chatId);
                 var msgLabel = tipo === 'image' ? 'Imagen' : (tipo === 'video' ? 'Video' : 'Documento');
                 var messagesEl = document.getElementById('chatMessages');
                 if (messagesEl) {
@@ -32061,7 +32159,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         const err = await r.json().catch(() => ({}));
                         throw new Error(err.error || err.message || 'Error al enviar');
                     }
-                    await setFlorPausedForChat(chatId, 20);
+                    await setFlorPausedForChat(chatId);
                 } catch (e) {
                     alert('Error al enviar por WhatsApp: ' + (e.message || e));
                     return;

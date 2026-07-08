@@ -19,6 +19,8 @@ export interface Hotel {
   precio_desde: number | null;
   metodo_venta: 'cotizacion' | 'directa' | null;
   url_reserva_directa: string | null;
+  /** hotel = alojamiento; paquete = paquete turístico */
+  tipo_producto?: 'hotel' | 'paquete' | null;
   puntuacion_num: number | null;
   puntuacion_texto: string | null;
   cantidad_opiniones: number | null;
