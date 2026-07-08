@@ -1,15 +1,37 @@
+import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import styles from './Institucional.module.css';
 
 const FOTO_INSTITUCIONAL =
   'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&h=400&fit=crop';
 
 export function Institucional() {
+  const [open, setOpen] = useState(false);
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.hash === '#sobre-nosotros') {
+      setOpen(true);
+    }
+  }, [location.hash]);
+
   return (
     <section id="sobre-nosotros" className={styles.section}>
       <div className="container">
         <div className={styles.header}>
-          <div>
-            <h2 className={styles.title}>Somos Checkin24hs: +10 años juntos</h2>
+          <div className={styles.headerText}>
+            <button
+              type="button"
+              className={styles.toggle}
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              aria-controls="institucional-content"
+            >
+              <h2 className={styles.title}>Somos Checkin24hs: +10 años juntos</h2>
+              <span className={`${styles.arrow} ${open ? styles.arrowOpen : ''}`} aria-hidden>
+                ›
+              </span>
+            </button>
             <p className={styles.subtitle}>Tu viaje, diseñado por quienes conocemos el terreno.</p>
           </div>
           <img
@@ -21,7 +43,11 @@ export function Institucional() {
           />
         </div>
 
-        <div className={styles.content}>
+        <div
+          id="institucional-content"
+          className={`${styles.content} ${open ? styles.contentOpen : styles.contentClosed}`}
+          hidden={!open}
+        >
           <p>
             En <strong>Checkin24hs</strong>, hace más de una década empezamos este camino con un objetivo claro:
             que tus vacaciones no sean solo un viaje, sino una experiencia inolvidable.
