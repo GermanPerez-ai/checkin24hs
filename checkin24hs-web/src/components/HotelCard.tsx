@@ -29,6 +29,23 @@ function getPrecio(h: Hotel): number | null {
   return null;
 }
 
+/** País para título del carrusel: Argentina | Chile | Internacional */
+function getPaisLabel(h: Hotel): string | null {
+  const raw = (h.pais || '').trim();
+  if (/^argentina$/i.test(raw)) return 'Argentina';
+  if (/^chile$/i.test(raw)) return 'Chile';
+  if (/^internacional/i.test(raw)) return 'Internacional';
+  const loc = (h.location || '').toLowerCase();
+  if (raw) {
+    if (/argentina/i.test(raw) || /argentina/.test(loc)) return 'Argentina';
+    if (/chile/i.test(raw) || /chile/.test(loc)) return 'Chile';
+    return 'Internacional';
+  }
+  if (/argentina/.test(loc)) return 'Argentina';
+  if (/chile/.test(loc)) return 'Chile';
+  return null;
+}
+
 export function HotelCard({ hotel, variant = 'default' }: { hotel: Hotel; variant?: 'default' | 'carousel' }) {
   const slug = getSlug(hotel);
   const imgUrl = getImageUrl(hotel);
@@ -40,8 +57,10 @@ export function HotelCard({ hotel, variant = 'default' }: { hotel: Hotel; varian
   const waUrl = buildWhatsAppConsultaUrl(hotel.name);
   const reservaUrl = getReservaDirectaUrl(hotel);
   const showReservarCarousel = isCarousel && isHotelTermasPuyehue(hotel) && !!reservaUrl;
+  const paisLabel = getPaisLabel(hotel);
+  const tituloCarrusel = paisLabel ? `${paisLabel} - ${hotel.name}` : hotel.name;
   const descripcionBreve = hotel.description
-    ? String(hotel.description).replace(/\s+/g, ' ').trim().slice(0, 120)
+    ? String(hotel.description).replace(/\s+/g, ' ').trim().slice(0, 90)
     : null;
 
   return (
@@ -61,7 +80,7 @@ export function HotelCard({ hotel, variant = 'default' }: { hotel: Hotel; varian
         </div>
         )}
         <h2 className={styles.title}>
-          <Link to={`/hotel/${slug}`}>{hotel.name}</Link>
+          <Link to={`/hotel/${slug}`}>{isCarousel ? tituloCarrusel : hotel.name}</Link>
         </h2>
         {isCarousel && descripcionBreve && (
           <p className={styles.descripcionBreve}>{descripcionBreve}</p>
