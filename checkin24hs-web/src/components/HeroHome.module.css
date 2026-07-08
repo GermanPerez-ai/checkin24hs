@@ -1,9 +1,9 @@
 .hero {
   position: relative;
   width: 100%;
-  min-height: 280px;
-  max-height: 420px;
-  height: 42vw;
+  min-height: 168px;
+  max-height: 252px;
+  height: 25vw;
   overflow: hidden;
   background: var(--primary);
 }
@@ -53,9 +53,9 @@
 
 @media (max-width: 768px) {
   .hero {
-    min-height: 240px;
-    height: 52vw;
-    max-height: 320px;
+    min-height: 144px;
+    height: 31vw;
+    max-height: 192px;
   }
   .title {
     max-width: none;

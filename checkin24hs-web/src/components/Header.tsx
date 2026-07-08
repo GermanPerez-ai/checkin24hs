@@ -3,8 +3,8 @@ import styles from './Header.module.css';
 
 const NAV = [
   { to: '/', label: 'Inicio' },
-  { to: '/chile', label: 'Chile' },
   { to: '/argentina', label: 'Argentina' },
+  { to: '/chile', label: 'Chile' },
   { to: '/internacionales', label: 'Internacionales' },
 ] as const;
 

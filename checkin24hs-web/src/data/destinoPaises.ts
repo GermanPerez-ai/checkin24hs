@@ -64,16 +64,16 @@ export const DESTINO_PAISES: Record<PaisSlug, PaisDestinoConfig> = {
 
 export const SELECTOR_DESTINOS = [
   {
-    slug: 'chile' as PaisSlug,
-    label: 'CHILE',
-    imagen: DESTINO_PAISES.chile.heroImagen,
-    resumen: 'Patagonia, termas y cordillera',
-  },
-  {
     slug: 'argentina' as PaisSlug,
     label: 'ARGENTINA',
     imagen: DESTINO_PAISES.argentina.heroImagen,
     resumen: 'Bariloche, Mendoza y más',
+  },
+  {
+    slug: 'chile' as PaisSlug,
+    label: 'CHILE',
+    imagen: DESTINO_PAISES.chile.heroImagen,
+    resumen: 'Patagonia, termas y cordillera',
   },
   {
     slug: 'internacionales' as PaisSlug,
