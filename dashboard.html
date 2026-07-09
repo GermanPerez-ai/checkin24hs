@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-07-08T12:57:37Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 186; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-07-09T14:52:46Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 188; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">186</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">188</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -5407,7 +5407,7 @@ Ej:
                             placeholder="Teléfono: +56 9 1234 5678 | Email: reservas@hotel.com | WhatsApp: +56 9 1234 5678"></textarea>
                     </div>
                     
-                    <!-- Ficha Flor (alias, programas, servicios, URLs) - sin duplicar campos existentes -->
+                    <!-- Ficha Flor (alias, gastronomía, tips) -->
                     <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ce93d8;">
                         <div class="form-group">
                             <label class="form-label">🔤 Alias de búsqueda (para Flor)</label>
@@ -5422,111 +5422,6 @@ Ej:
                                 <label class="form-label">💡 Tips agencia (secretos Checkin24hs)</label>
                                 <textarea class="form-input" id="editHotelFlorTips" rows="3" placeholder="Recomendaciones internas"></textarea>
                             </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">📋 Programas (nombre, qué incluye, política niños)</label>
-                            <div id="editHotelProgramasList"></div>
-                            <button type="button" class="form-button" onclick="addProgramaRow()" style="margin-top: 8px;">
-                                <span class="material-icons" style="font-size: 18px; vertical-align: middle;">add</span> Agregar programa
-                            </button>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Servicios (para Flor)</label>
-                            <div style="display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
-                                <label style="display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="editHotelFlorWifi"> WiFi</label>
-                                <label style="display: flex; align-items: center; gap: 6px;"><input type="checkbox" id="editHotelFlorSpa"> Spa</label>
-                                <label style="display: flex; align-items: center; gap: 6px;">Mascotas: <input type="text" id="editHotelFlorMascotas" placeholder="ej. Sí, pequeñas" style="width: 120px; padding: 4px 8px;"></label>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">📄 Archivos por temporada (Verano / Invierno)</label>
-                            <p style="font-size: 0.85rem; color: #666; margin-bottom: 10px;">Podés pegar una URL o usar <strong>Subir</strong> para subir a Supabase (bucket <code>flor-ficha</code>). <strong>Eliminar</strong> borra el valor para poder reemplazarlo cuando el hotel actualice cartas o excursiones.</p>
-                            <div style="overflow-x: auto;">
-                                <table class="flor-season-table" style="width: 100%; border-collapse: collapse; border: 1px solid #ddd;">
-                                    <thead>
-                                        <tr style="background: #f5f5f5;">
-                                            <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Tipo</th>
-                                            <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Verano</th>
-                                            <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Invierno</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td style="padding: 8px; border: 1px solid #ddd; vertical-align: top;">📄 Spa (PDF)</td>
-                                            <td style="padding: 8px; border: 1px solid #ddd;">
-                                                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-                                                    <input type="text" class="form-input" id="editHotelFlorSpaVerano" placeholder="URL o subir PDF" style="flex: 1; min-width: 120px;">
-                                                    <input type="file" id="florFileSpaVerano" accept=".pdf,application/pdf" style="display: none;">
-                                                    <button type="button" class="form-button" onclick="document.getElementById('florFileSpaVerano').click()" title="Subir PDF">Subir</button>
-                                                    <button type="button" class="form-button" style="background: #dc3545;" onclick="document.getElementById('editHotelFlorSpaVerano').value=''" title="Eliminar">Eliminar</button>
-                                                </div>
-                                            </td>
-                                            <td style="padding: 8px; border: 1px solid #ddd;">
-                                                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-                                                    <input type="text" class="form-input" id="editHotelFlorSpaInvierno" placeholder="URL o subir PDF" style="flex: 1; min-width: 120px;">
-                                                    <input type="file" id="florFileSpaInvierno" accept=".pdf,application/pdf" style="display: none;">
-                                                    <button type="button" class="form-button" onclick="document.getElementById('florFileSpaInvierno').click()" title="Subir PDF">Subir</button>
-                                                    <button type="button" class="form-button" style="background: #dc3545;" onclick="document.getElementById('editHotelFlorSpaInvierno').value=''" title="Eliminar">Eliminar</button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td style="padding: 8px; border: 1px solid #ddd; vertical-align: top;">📄 Carta restaurante (PDF)</td>
-                                            <td style="padding: 8px; border: 1px solid #ddd;">
-                                                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-                                                    <input type="text" class="form-input" id="editHotelFlorCartaVerano" placeholder="URL o subir PDF" style="flex: 1; min-width: 120px;">
-                                                    <input type="file" id="florFileCartaVerano" accept=".pdf,application/pdf" style="display: none;">
-                                                    <button type="button" class="form-button" onclick="document.getElementById('florFileCartaVerano').click()" title="Subir PDF">Subir</button>
-                                                    <button type="button" class="form-button" style="background: #dc3545;" onclick="document.getElementById('editHotelFlorCartaVerano').value=''" title="Eliminar">Eliminar</button>
-                                                </div>
-                                            </td>
-                                            <td style="padding: 8px; border: 1px solid #ddd;">
-                                                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-                                                    <input type="text" class="form-input" id="editHotelFlorCartaInvierno" placeholder="URL o subir PDF" style="flex: 1; min-width: 120px;">
-                                                    <input type="file" id="florFileCartaInvierno" accept=".pdf,application/pdf" style="display: none;">
-                                                    <button type="button" class="form-button" onclick="document.getElementById('florFileCartaInvierno').click()" title="Subir PDF">Subir</button>
-                                                    <button type="button" class="form-button" style="background: #dc3545;" onclick="document.getElementById('editHotelFlorCartaInvierno').value=''" title="Eliminar">Eliminar</button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td style="padding: 8px; border: 1px solid #ddd; vertical-align: top;">📄 Excursiones/actividades (PDF)</td>
-                                            <td style="padding: 8px; border: 1px solid #ddd;">
-                                                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-                                                    <input type="text" class="form-input" id="editHotelFlorExcursionesVerano" placeholder="URL o subir PDF" style="flex: 1; min-width: 120px;">
-                                                    <input type="file" id="florFileExcursionesVerano" accept=".pdf,application/pdf" style="display: none;">
-                                                    <button type="button" class="form-button" onclick="document.getElementById('florFileExcursionesVerano').click()" title="Subir PDF">Subir</button>
-                                                    <button type="button" class="form-button" style="background: #dc3545;" onclick="document.getElementById('editHotelFlorExcursionesVerano').value=''" title="Eliminar">Eliminar</button>
-                                                </div>
-                                            </td>
-                                            <td style="padding: 8px; border: 1px solid #ddd;">
-                                                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-                                                    <input type="text" class="form-input" id="editHotelFlorExcursionesInvierno" placeholder="URL o subir PDF" style="flex: 1; min-width: 120px;">
-                                                    <input type="file" id="florFileExcursionesInvierno" accept=".pdf,application/pdf" style="display: none;">
-                                                    <button type="button" class="form-button" onclick="document.getElementById('florFileExcursionesInvierno').click()" title="Subir PDF">Subir</button>
-                                                    <button type="button" class="form-button" style="background: #dc3545;" onclick="document.getElementById('editHotelFlorExcursionesInvierno').value=''" title="Eliminar">Eliminar</button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td style="padding: 8px; border: 1px solid #ddd; vertical-align: top;">🔗 Instagram/imágenes (link)</td>
-                                            <td style="padding: 8px; border: 1px solid #ddd;">
-                                                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-                                                    <input type="text" class="form-input" id="editHotelFlorInstagramVerano" placeholder="URL" style="flex: 1; min-width: 120px;">
-                                                    <button type="button" class="form-button" style="background: #dc3545;" onclick="document.getElementById('editHotelFlorInstagramVerano').value=''" title="Eliminar">Eliminar</button>
-                                                </div>
-                                            </td>
-                                            <td style="padding: 8px; border: 1px solid #ddd;">
-                                                <div style="display: flex; gap: 6px; align-items: center; flex-wrap: wrap;">
-                                                    <input type="text" class="form-input" id="editHotelFlorInstagramInvierno" placeholder="URL" style="flex: 1; min-width: 120px;">
-                                                    <button type="button" class="form-button" style="background: #dc3545;" onclick="document.getElementById('editHotelFlorInstagramInvierno').value=''" title="Eliminar">Eliminar</button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                            <p style="font-size: 0.85rem; color: #666; margin-top: 8px;">Si el bucket <code>flor-ficha</code> no existe, crealo en Supabase → Storage → New bucket, nombre <code>flor-ficha</code>, público.</p>
                         </div>
                     </div>
                 </div>
@@ -7910,21 +7805,6 @@ Ej:
                 document.getElementById('editHotelFlorAlias').value = florInfo.alias_busqueda || '';
                 document.getElementById('editHotelFlorGastronomia').value = florInfo.gastronomia_info || '';
                 document.getElementById('editHotelFlorTips').value = florInfo.tips_agencia || '';
-                // Archivos por temporada (verano/invierno)
-                const setFlorSeason = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-                setFlorSeason('editHotelFlorSpaVerano', florInfo.spa_verano || florInfo.pdf_menu_spa);
-                setFlorSeason('editHotelFlorSpaInvierno', florInfo.spa_invierno);
-                setFlorSeason('editHotelFlorCartaVerano', florInfo.carta_restaurante_verano || florInfo.pdf_menu_resto);
-                setFlorSeason('editHotelFlorCartaInvierno', florInfo.carta_restaurante_invierno);
-                setFlorSeason('editHotelFlorExcursionesVerano', florInfo.excursiones_verano || florInfo.pdf_programas);
-                setFlorSeason('editHotelFlorExcursionesInvierno', florInfo.excursiones_invierno);
-                setFlorSeason('editHotelFlorInstagramVerano', florInfo.instagram_verano);
-                setFlorSeason('editHotelFlorInstagramInvierno', florInfo.instagram_invierno);
-                const serv = florInfo.servicios_json || {};
-                document.getElementById('editHotelFlorWifi').checked = !!serv.wifi;
-                document.getElementById('editHotelFlorSpa').checked = !!serv.spa;
-                document.getElementById('editHotelFlorMascotas').value = serv.mascotas || '';
-                if (typeof renderProgramasList === 'function') renderProgramasList(florInfo.detalles_programas || []);
                 
                 // Cargar conocimiento adicional desde flor_hotel_knowledge
                 const florKnowledge = JSON.parse(localStorage.getItem('flor_hotel_knowledge') || '{}');
@@ -8135,101 +8015,6 @@ Ej:
                     alert('❌ Error inesperado al guardar. Intenta de nuevo.');
                 }
             }
-        }
-
-        // Programas dinámicos (Ficha Flor): agregar programa, renderizar lista, leer del formulario
-        function addProgramaRow(programa) {
-            const list = document.getElementById('editHotelProgramasList');
-            if (!list) return;
-            const idx = list.querySelectorAll('.programa-row').length;
-            const div = document.createElement('div');
-            div.className = 'programa-row';
-            div.style.cssText = 'display: grid; grid-template-columns: 1fr 2fr 1fr auto; gap: 8px; align-items: start; margin-bottom: 8px;';
-            div.innerHTML = `
-                <input type="text" class="form-input programa-nombre" placeholder="Nombre programa" value="${(programa && programa.nombre) || ''}">
-                <textarea class="form-input programa-incluye" rows="2" placeholder="Qué incluye">${(programa && programa.incluye) || ''}</textarea>
-                <input type="text" class="form-input programa-ninos" placeholder="Política niños" value="${(programa && programa.politica_ninos) || ''}">
-                <button type="button" class="form-button" onclick="this.closest('.programa-row').remove()" title="Quitar">×</button>
-            `;
-            list.appendChild(div);
-        }
-        function renderProgramasList(programas) {
-            const list = document.getElementById('editHotelProgramasList');
-            if (!list) return;
-            list.innerHTML = '';
-            (programas && programas.length) ? programas.forEach(p => addProgramaRow(p)) : addProgramaRow();
-        }
-        function getProgramasFromForm() {
-            const rows = document.querySelectorAll('#editHotelProgramasList .programa-row');
-            const out = [];
-            rows.forEach(row => {
-                const nombre = row.querySelector('.programa-nombre')?.value?.trim();
-                const incluye = row.querySelector('.programa-incluye')?.value?.trim();
-                const ninos = row.querySelector('.programa-ninos')?.value?.trim();
-                if (nombre || incluye || ninos) out.push({ nombre: nombre || '', incluye: incluye || '', politica_ninos: ninos || '' });
-            });
-            return out;
-        }
-        window.addProgramaRow = addProgramaRow;
-        window.renderProgramasList = renderProgramasList;
-        window.getProgramasFromForm = getProgramasFromForm;
-
-        // Subir imagen o PDF de Ficha Flor a Supabase Storage (bucket flor-ficha)
-        const FLOR_FICHA_BUCKET = 'flor-ficha';
-        async function uploadFlorFichaFile(file, fieldKey, inputId) {
-            if (!file) return;
-            const form = document.getElementById('editHotelForm');
-            const hotelId = (form && form.dataset.hotelId) ? form.dataset.hotelId.trim() : 'nuevo';
-            const ext = (file.name && file.name.includes('.')) ? file.name.split('.').pop().toLowerCase().replace(/[^a-z0-9]/g, '') : (file.type && file.type.includes('pdf') ? 'pdf' : 'jpg');
-            const safeName = fieldKey + '_' + Date.now() + '.' + ext;
-            const path = hotelId + '/' + safeName;
-
-            if (!window.supabaseClient || !window.supabaseClient.isInitialized()) {
-                alert('Supabase no está configurado. Configurá DASHBOARD_CONFIG.supabase o pegá la URL del archivo manualmente.');
-                return;
-            }
-            try {
-                const { data, error } = await window.supabaseClient.client.storage.from(FLOR_FICHA_BUCKET).upload(path, file, { upsert: true });
-                if (error) throw error;
-                const { data: urlData } = window.supabaseClient.client.storage.from(FLOR_FICHA_BUCKET).getPublicUrl(path);
-                const url = urlData.publicUrl;
-                const input = document.getElementById(inputId);
-                if (input) { input.value = url; input.dispatchEvent(new Event('input', { bubbles: true })); }
-                console.log('✅ Ficha Flor subido:', fieldKey, url);
-            } catch (err) {
-                console.error('❌ Error subiendo Ficha Flor:', err);
-                if (err.message && err.message.includes('Bucket not found')) {
-                    alert('Creá el bucket "flor-ficha" en Supabase → Storage (público). Ver docs/STORAGE_FLOR_FICHA.md');
-                } else {
-                    alert('Error al subir: ' + (err.message || err));
-                }
-            }
-        }
-        function setupFlorFichaUploadListeners() {
-            const pairs = [
-                { inputId: 'florFileSpaVerano', fieldKey: 'spa-verano', targetInputId: 'editHotelFlorSpaVerano' },
-                { inputId: 'florFileSpaInvierno', fieldKey: 'spa-invierno', targetInputId: 'editHotelFlorSpaInvierno' },
-                { inputId: 'florFileCartaVerano', fieldKey: 'carta-verano', targetInputId: 'editHotelFlorCartaVerano' },
-                { inputId: 'florFileCartaInvierno', fieldKey: 'carta-invierno', targetInputId: 'editHotelFlorCartaInvierno' },
-                { inputId: 'florFileExcursionesVerano', fieldKey: 'excursiones-verano', targetInputId: 'editHotelFlorExcursionesVerano' },
-                { inputId: 'florFileExcursionesInvierno', fieldKey: 'excursiones-invierno', targetInputId: 'editHotelFlorExcursionesInvierno' }
-            ];
-            pairs.forEach(function(p) {
-                const fileInput = document.getElementById(p.inputId);
-                if (fileInput && !fileInput.dataset.florListener) {
-                    fileInput.dataset.florListener = '1';
-                    fileInput.addEventListener('change', function() {
-                        const file = this.files && this.files[0];
-                        if (file) uploadFlorFichaFile(file, p.fieldKey, p.targetInputId);
-                        this.value = '';
-                    });
-                }
-            });
-        }
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', setupFlorFichaUploadListeners);
-        } else {
-            setupFlorFichaUploadListeners();
         }
 
         // Función para cerrar modal de edición
@@ -16006,18 +15791,12 @@ Ej:
             const florFields = [
                 'editHotelFlorDescription', 'editHotelFlorServices', 'editHotelFlorExcursions',
                 'editHotelFlorPrices', 'editHotelFlorPolicies', 'editHotelFlorTransport', 'editHotelFlorContact',
-                'editHotelFlorAlias', 'editHotelFlorGastronomia', 'editHotelFlorTips',
-                'editHotelFlorSpaVerano', 'editHotelFlorSpaInvierno', 'editHotelFlorCartaVerano', 'editHotelFlorCartaInvierno',
-                'editHotelFlorExcursionesVerano', 'editHotelFlorExcursionesInvierno', 'editHotelFlorInstagramVerano', 'editHotelFlorInstagramInvierno',
-                'editHotelFlorMascotas'
+                'editHotelFlorAlias', 'editHotelFlorGastronomia', 'editHotelFlorTips'
             ];
             florFields.forEach(id => {
                 const el = document.getElementById(id);
                 if (el) { el.value = ''; if (el.type === 'checkbox') el.checked = false; }
             });
-            const w = document.getElementById('editHotelFlorWifi'); if (w) w.checked = false;
-            const s = document.getElementById('editHotelFlorSpa'); if (s) s.checked = false;
-            if (typeof renderProgramasList === 'function') renderProgramasList([]);
             
             // Limpiar campos de conocimiento adicional
             const knowledgeFields = [
@@ -16435,31 +16214,13 @@ Ej:
             if (florPoliciesInput) florPoliciesInput.value = florInfo.policies || '';
             if (florTransportInput) florTransportInput.value = florInfo.transport || '';
             if (florContactInput) florContactInput.value = florInfo.contact || '';
-            // Campos ficha Flor (alias, gastronomía, tips, URLs, programas, servicios)
+            // Campos ficha Flor (alias, gastronomía, tips)
             const florAliasEl = document.getElementById('editHotelFlorAlias');
             const florGastronomiaEl = document.getElementById('editHotelFlorGastronomia');
             const florTipsEl = document.getElementById('editHotelFlorTips');
-            const florWifiEl = document.getElementById('editHotelFlorWifi');
-            const florSpaEl = document.getElementById('editHotelFlorSpa');
-            const florMascotasEl = document.getElementById('editHotelFlorMascotas');
             if (florAliasEl) florAliasEl.value = florInfo.alias_busqueda || '';
             if (florGastronomiaEl) florGastronomiaEl.value = florInfo.gastronomia_info || '';
             if (florTipsEl) florTipsEl.value = florInfo.tips_agencia || '';
-            // Archivos por temporada (verano/invierno)
-            const setFlorSeasonVal = (el, val) => { if (el) el.value = val || ''; };
-            setFlorSeasonVal(document.getElementById('editHotelFlorSpaVerano'), florInfo.spa_verano || florInfo.pdf_menu_spa);
-            setFlorSeasonVal(document.getElementById('editHotelFlorSpaInvierno'), florInfo.spa_invierno);
-            setFlorSeasonVal(document.getElementById('editHotelFlorCartaVerano'), florInfo.carta_restaurante_verano || florInfo.pdf_menu_resto);
-            setFlorSeasonVal(document.getElementById('editHotelFlorCartaInvierno'), florInfo.carta_restaurante_invierno);
-            setFlorSeasonVal(document.getElementById('editHotelFlorExcursionesVerano'), florInfo.excursiones_verano || florInfo.pdf_programas);
-            setFlorSeasonVal(document.getElementById('editHotelFlorExcursionesInvierno'), florInfo.excursiones_invierno);
-            setFlorSeasonVal(document.getElementById('editHotelFlorInstagramVerano'), florInfo.instagram_verano);
-            setFlorSeasonVal(document.getElementById('editHotelFlorInstagramInvierno'), florInfo.instagram_invierno);
-            const serv = florInfo.servicios_json || {};
-            if (florWifiEl) florWifiEl.checked = !!serv.wifi;
-            if (florSpaEl) florSpaEl.checked = !!serv.spa;
-            if (florMascotasEl) florMascotasEl.value = serv.mascotas || '';
-            if (typeof renderProgramasList === 'function') renderProgramasList(florInfo.detalles_programas || []);
             
             // Cargar imágenes
             const imageInput = document.getElementById('editHotelImage');
@@ -16796,18 +16557,6 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             const florAlias = document.getElementById('editHotelFlorAlias')?.value?.trim() || '';
             const florGastronomia = document.getElementById('editHotelFlorGastronomia')?.value?.trim() || '';
             const florTips = document.getElementById('editHotelFlorTips')?.value?.trim() || '';
-            const florSpaVerano = document.getElementById('editHotelFlorSpaVerano')?.value?.trim() || '';
-            const florSpaInvierno = document.getElementById('editHotelFlorSpaInvierno')?.value?.trim() || '';
-            const florCartaVerano = document.getElementById('editHotelFlorCartaVerano')?.value?.trim() || '';
-            const florCartaInvierno = document.getElementById('editHotelFlorCartaInvierno')?.value?.trim() || '';
-            const florExcursionesVerano = document.getElementById('editHotelFlorExcursionesVerano')?.value?.trim() || '';
-            const florExcursionesInvierno = document.getElementById('editHotelFlorExcursionesInvierno')?.value?.trim() || '';
-            const florInstagramVerano = document.getElementById('editHotelFlorInstagramVerano')?.value?.trim() || '';
-            const florInstagramInvierno = document.getElementById('editHotelFlorInstagramInvierno')?.value?.trim() || '';
-            const florWifi = document.getElementById('editHotelFlorWifi')?.checked || false;
-            const florSpa = document.getElementById('editHotelFlorSpa')?.checked || false;
-            const florMascotas = document.getElementById('editHotelFlorMascotas')?.value?.trim() || '';
-            const florProgramas = typeof getProgramasFromForm === 'function' ? getProgramasFromForm() : [];
             
             // Obtener campos de conocimiento adicional
             const knowledgeDescription = document.getElementById('editHotelKnowledgeDescription')?.value?.trim() || '';
@@ -16832,7 +16581,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 mainImage: mainImage, // Imagen principal (base64 o URL)
                 galleryImages: galleryImages, // Galería de fotos (array de base64 o URLs)
                 images: mainImage ? [mainImage, ...galleryImages] : galleryImages, // Compatibilidad con versiones anteriores
-                // Campos de información para Flor IA (incl. ficha Flor: alias, programas, servicios, URLs)
+                // Campos de información para Flor IA (ficha Flor: alias, gastronomía, tips)
                 florInfo: {
                     description: florDescription,
                     services: florServices,
@@ -16840,20 +16589,6 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                     alias_busqueda: florAlias,
                     gastronomia_info: florGastronomia,
                     tips_agencia: florTips,
-                    detalles_programas: florProgramas,
-                    servicios_json: { wifi: florWifi, spa: florSpa, mascotas: florMascotas },
-                    spa_verano: florSpaVerano,
-                    spa_invierno: florSpaInvierno,
-                    carta_restaurante_verano: florCartaVerano,
-                    carta_restaurante_invierno: florCartaInvierno,
-                    excursiones_verano: florExcursionesVerano,
-                    excursiones_invierno: florExcursionesInvierno,
-                    instagram_verano: florInstagramVerano,
-                    instagram_invierno: florInstagramInvierno,
-                    // Compatibilidad: servidor usa estos si no hay verano/invierno
-                    pdf_menu_spa: florSpaVerano || florSpaInvierno,
-                    pdf_menu_resto: florCartaVerano || florCartaInvierno,
-                    pdf_programas: florExcursionesVerano || florExcursionesInvierno,
                     link_cotizacion: 'https://cotizar.checkin24hs.com/',
                     ubicacion_maps: googleMapsInput?.value?.trim() || '',
                     img_general: mainImage || '', // Imagen principal para previsualización de ubicación en WhatsApp (combo Flor)
