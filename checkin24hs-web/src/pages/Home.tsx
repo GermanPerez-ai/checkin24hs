@@ -54,10 +54,11 @@ export function Home() {
 
     void Promise.resolve(q).then(({ data, error }) => {
       if (cancelled) return;
-      if (error) {
+        if (error) {
         setFetchError(error.message || 'Error al cargar');
         } else if (data) {
-          setHotels(sortHotelsPuyehueFirst((data as Hotel[]) || []));
+          const elegidos = ((data as Hotel[]) || []).filter((h) => !!h.elegido_del_mes);
+          setHotels(sortHotelsPuyehueFirst(elegidos));
         }
       setLoading(false);
     }).catch((err: unknown) => {

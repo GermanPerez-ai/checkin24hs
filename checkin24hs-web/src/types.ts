@@ -67,6 +67,8 @@ export interface Hotel {
   url_reserva_directa: string | null;
   /** hotel = alojamiento; paquete = paquete turístico */
   tipo_producto?: 'hotel' | 'paquete' | null;
+  /** Si true, aparece en Home → Nuestros elegidos del mes */
+  elegido_del_mes?: boolean | null;
   /** Ficha modular para la web pública */
   ficha_web?: FichaWeb | null;
   puntuacion_num: number | null;
