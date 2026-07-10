@@ -12,6 +12,21 @@ function hasText(v: string | null | undefined): v is string {
   return typeof v === 'string' && v.trim().length > 0;
 }
 
+/** Extrae nombre limpio + puntaje desde "Limpieza | 9.4", "Limpieza: 9,4/10", etc. */
+function normalizeOpinion(c: { nombre?: string | null; puntaje?: number | null }) {
+  let nombre = (c.nombre || '').trim();
+  let puntaje = Number(c.puntaje);
+  if (!Number.isFinite(puntaje) || puntaje <= 0) {
+    const fromName = nombre.match(/(\d+[.,]\d+|\d+)\s*(?:\/\s*10)?\s*$/);
+    if (fromName) {
+      puntaje = parseFloat(fromName[1].replace(',', '.'));
+      nombre = nombre.slice(0, fromName.index).replace(/[\s:–—-]+$/, '').trim();
+    }
+  }
+  if (!Number.isFinite(puntaje) || puntaje < 0) puntaje = 0;
+  return { nombre, puntaje };
+}
+
 function isFichaEmpty(f: FichaWeb | null | undefined): boolean {
   if (!f || typeof f !== 'object') return true;
   if (hasText(f.sobre_propiedad) || hasText(f.zona) || hasText(f.como_desplazarse)) return false;
@@ -94,7 +109,9 @@ function PolicyTable({
 function FichaModular({ ficha }: { ficha: FichaWeb }) {
   const servicios = (ficha.servicios || []).map((s) => s.trim()).filter(Boolean);
   const cerca = (ficha.cerca || []).filter((c) => hasText(c?.lugar));
-  const categorias = (ficha.opiniones?.categorias || []).filter((c) => hasText(c?.nombre));
+  const categorias = (ficha.opiniones?.categorias || [])
+    .map(normalizeOpinion)
+    .filter((c) => hasText(c.nombre));
   const maxScore = categorias.some((c) => c.puntaje > 5) ? 10 : 5;
 
   return (
@@ -126,14 +143,14 @@ function FichaModular({ ficha }: { ficha: FichaWeb }) {
           {categorias.length > 0 && (
             <ul className={styles.opinionList}>
               {categorias.map((c) => {
-                const pct = Math.max(0, Math.min(100, (Number(c.puntaje) / maxScore) * 100));
+                const pct = Math.max(0, Math.min(100, (c.puntaje / maxScore) * 100));
                 return (
                   <li key={c.nombre} className={styles.opinionRow}>
                     <span className={styles.opinionLabel}>{c.nombre}</span>
                     <div className={styles.opinionBarTrack} aria-hidden>
                       <div className={styles.opinionBarFill} style={{ width: `${pct}%` }} />
                     </div>
-                    <span className={styles.opinionScore}>{Number(c.puntaje).toFixed(1)}</span>
+                    <span className={styles.opinionScore}>{c.puntaje.toFixed(1)}</span>
                   </li>
                 );
               })}

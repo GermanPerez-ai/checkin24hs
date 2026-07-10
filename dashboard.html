@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-07-10T12:02:59Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 190; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-07-10T13:54:03Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 193; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">190</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">193</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -5195,14 +5195,28 @@
 
                         <div class="form-group">
                             <label class="form-label">Ubicación (país / región) *</label>
-                            <select class="form-input" id="editHotelPais" required>
-                                <option value="">Seleccionar…</option>
-                                <option value="Argentina">Argentina</option>
-                                <option value="Chile">Chile</option>
-                                <option value="Internacional">Internacional</option>
-                            </select>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <div>
+                                    <select class="form-input" id="editHotelPais" required onchange="onHotelPaisChange()">
+                                        <option value="">País…</option>
+                                        <option value="Argentina">Argentina</option>
+                                        <option value="Chile">Chile</option>
+                                        <option value="Internacional">Internacional</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <select class="form-input" id="editHotelRegion">
+                                        <option value="">Región…</option>
+                                        <option value="Bariloche">Bariloche</option>
+                                        <option value="Buenos Aires">Buenos Aires</option>
+                                        <option value="Costa Argentina">Costa Argentina</option>
+                                        <option value="Norte Argentino">Norte Argentino</option>
+                                        <option value="Mendoza">Mendoza</option>
+                                    </select>
+                                </div>
+                            </div>
                             <div style="margin-top: 5px; font-size: 0.85rem; color: #666;">
-                                Define en qué sección de la web aparece (Chile / Argentina / Internacionales).
+                                País: sección de la web (Chile / Argentina / Internacionales). Región: zona dentro de Argentina.
                             </div>
                         </div>
 
@@ -5454,7 +5468,7 @@ Ej:
                             </div>
                             <div>
                                 <label class="form-label">Opiniones — categorías (formato: Categoría | puntaje)</label>
-                                <textarea class="form-input" id="editFichaOpinionesCategorias" rows="4" placeholder="Limpieza | 9.2&#10;Personal | 9.0&#10;Servicios | 8.8"></textarea>
+                                <textarea class="form-input" id="editFichaOpinionesCategorias" rows="4" placeholder="Limpieza | 9.4&#10;Personal | 9.6&#10;o también: Limpieza: 9,4/10"></textarea>
                             </div>
                             <div>
                                 <label class="form-label">Información sobre la zona</label>
@@ -7896,8 +7910,9 @@ Ej:
                         paisElEdit.value = '';
                     }
                 }
-                const tipoElEdit = document.getElementById('editHotelTipoProducto');
-                if (tipoElEdit) {
+                if (typeof setHotelRegionSelect === 'function') setHotelRegionSelect(hotel.region);
+                if (typeof onHotelPaisChange === 'function') onHotelPaisChange();
+                const tipoElEdit = document.getElementById('editHotelTipoProducto');                if (tipoElEdit) {
                     tipoElEdit.value = (hotel.tipo_producto === 'paquete' ? 'paquete' : 'hotel');
                 }
                 document.getElementById('editHotelGoogleMaps').value = hotel.googleMaps || hotel.google_maps || '';
@@ -8160,6 +8175,50 @@ Ej:
         // Hacer la función disponible globalmente
         window.toggleKnowledgeSection = toggleKnowledgeSection;
 
+        const HOTEL_REGIONES_AR = ['Bariloche', 'Buenos Aires', 'Costa Argentina', 'Norte Argentino', 'Mendoza'];
+
+        function setHotelRegionSelect(region) {
+            const el = document.getElementById('editHotelRegion');
+            if (!el) return;
+            const r = (region || '').trim();
+            if (!r) {
+                el.value = '';
+                return;
+            }
+            const match = HOTEL_REGIONES_AR.find(function(opt) {
+                return opt.toLowerCase() === r.toLowerCase();
+            });
+            el.value = match || '';
+            if (!match && r) {
+                // Valor legacy: agregarlo temporalmente para no perderlo al editar
+                const opt = document.createElement('option');
+                opt.value = r;
+                opt.textContent = r;
+                el.appendChild(opt);
+                el.value = r;
+            }
+        }
+
+        function onHotelPaisChange() {
+            const paisEl = document.getElementById('editHotelPais');
+            const regionEl = document.getElementById('editHotelRegion');
+            if (!paisEl || !regionEl) return;
+            const isAR = paisEl.value === 'Argentina';
+            regionEl.disabled = !isAR;
+            if (!isAR) {
+                regionEl.value = '';
+            }
+            regionEl.style.opacity = isAR ? '1' : '0.55';
+        }
+
+        window.setHotelRegionSelect = setHotelRegionSelect;
+        window.onHotelPaisChange = onHotelPaisChange;
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', onHotelPaisChange);
+        } else {
+            onHotelPaisChange();
+        }
+
         function toggleFichaWebSection() {
             const section = document.getElementById('fichaWebSection');
             const icon = document.getElementById('fichaWebToggleIcon');
@@ -8190,12 +8249,46 @@ Ej:
             }).filter(Boolean);
         }
 
+        /** Acepta: "Limpieza | 9.4", "Limpieza | 9,4/10", "Limpieza: 9,4/10" */
+        function _parseOpinionLine(line) {
+            line = (line || '').trim();
+            if (!line) return null;
+            var nombre = '';
+            var puntajeStr = '';
+            if (line.indexOf('|') !== -1) {
+                var parts = line.split('|');
+                nombre = (parts[0] || '').trim();
+                puntajeStr = parts.slice(1).join('|').trim();
+            } else {
+                var m = line.match(/^(.+?)[:\-–—]\s*(\d+[.,]\d+|\d+)\s*(?:\/\s*10)?\s*$/);
+                if (m) {
+                    nombre = m[1].trim();
+                    puntajeStr = m[2];
+                } else {
+                    var m2 = line.match(/^(.+?)\s+(\d+[.,]\d+|\d+)\s*(?:\/\s*10)?\s*$/);
+                    if (m2) {
+                        nombre = m2[1].trim();
+                        puntajeStr = m2[2];
+                    } else {
+                        nombre = line;
+                    }
+                }
+            }
+            if (!nombre) return null;
+            if (!puntajeStr) {
+                var fromName = nombre.match(/(\d+[.,]\d+|\d+)\s*(?:\/\s*10)?\s*$/);
+                if (fromName) {
+                    puntajeStr = fromName[1];
+                    nombre = nombre.slice(0, fromName.index).replace(/[\s:–—-]+$/, '').trim();
+                }
+            }
+            var n = parseFloat(String(puntajeStr).replace(',', '.').replace(/\/.*$/, '').trim());
+            return { nombre: nombre, puntaje: isNaN(n) ? 0 : n };
+        }
+
         function getFichaWebFromForm() {
             var servicios = _fichaVal('editFichaServicios').split(/\r?\n/).map(function(s) { return s.trim(); }).filter(Boolean);
-            var categorias = _parsePipeLines(_fichaVal('editFichaOpinionesCategorias'), 'nombre', 'puntaje').map(function(c) {
-                var n = parseFloat(String(c.puntaje).replace(',', '.'));
-                return { nombre: c.nombre, puntaje: isNaN(n) ? 0 : n };
-            });
+            var categorias = _fichaVal('editFichaOpinionesCategorias').split(/\r?\n/).map(_parseOpinionLine).filter(Boolean);
             var cerca = _parsePipeLines(_fichaVal('editFichaCerca'), 'lugar', 'distancia');
             return {
                 sobre_propiedad: _fichaVal('editFichaSobrePropiedad') || null,
@@ -16036,8 +16129,10 @@ Ej:
             if (ratingSelect) ratingSelect.value = '0';
             if (statusSelect) statusSelect.value = 'Activo';
             if (paisSelect) paisSelect.value = '';
-            if (tipoSelect) tipoSelect.value = 'hotel';
-            
+            const regionSelect = document.getElementById('editHotelRegion');
+            if (regionSelect) regionSelect.value = '';
+            if (typeof onHotelPaisChange === 'function') onHotelPaisChange();
+            if (tipoSelect) tipoSelect.value = 'hotel';            
             // Limpiar campos de Flor IA
             const florFields = [
                 'editHotelFlorDescription', 'editHotelFlorServices', 'editHotelFlorExcursions',
@@ -16429,8 +16524,9 @@ Ej:
                     paisSelectFill.value = '';
                 }
             }
-            const tipoSelectFill = document.getElementById('editHotelTipoProducto');
-            if (tipoSelectFill) {
+            if (typeof setHotelRegionSelect === 'function') setHotelRegionSelect(hotel.region);
+            if (typeof onHotelPaisChange === 'function') onHotelPaisChange();
+            const tipoSelectFill = document.getElementById('editHotelTipoProducto');            if (tipoSelectFill) {
                 tipoSelectFill.value = (hotel.tipo_producto === 'paquete' ? 'paquete' : 'hotel');
             }
             if (websiteInput) websiteInput.value = hotel.website || '';
@@ -16753,6 +16849,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             const nameInput = document.getElementById('editHotelName');
             const locationInput = document.getElementById('editHotelLocation');
             const paisSelect = document.getElementById('editHotelPais');
+            const regionSelect = document.getElementById('editHotelRegion');
             const tipoProductoSelect = document.getElementById('editHotelTipoProducto');
             const googleMapsInput = document.getElementById('editHotelGoogleMaps');
             const websiteInput = document.getElementById('editHotelWebsite');
@@ -16768,6 +16865,11 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             if (!paisSelect || !paisSelect.value) {
                 alert('⚠️ Seleccioná la ubicación: Argentina, Chile o Internacional.');
                 if (paisSelect) paisSelect.focus();
+                return;
+            }
+            if (paisSelect.value === 'Argentina' && regionSelect && !regionSelect.value) {
+                alert('⚠️ Seleccioná la región (Bariloche, Buenos Aires, Costa Argentina, Norte Argentino o Mendoza).');
+                regionSelect.focus();
                 return;
             }
             if (!tipoProductoSelect || !tipoProductoSelect.value) {
@@ -16828,6 +16930,9 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 name: nameInput.value.trim(),
                 location: locationInput.value.trim(),
                 pais: paisSelect.value.trim(),
+                region: (paisSelect.value.trim() === 'Argentina' && regionSelect?.value)
+                    ? regionSelect.value.trim()
+                    : (regionSelect?.value?.trim() || null),
                 tipo_producto: tipoProductoSelect.value.trim() === 'paquete' ? 'paquete' : 'hotel',
                 googleMaps: googleMapsInput?.value?.trim() || '',
                 website: websiteInput?.value?.trim() || '', // URL del sitio web del hotel
@@ -16933,6 +17038,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         name: hotelData.name,
                         location: hotelData.location,
                         pais: hotelData.pais || null,
+                        region: hotelData.region || null,
                         tipo_producto: hotelData.tipo_producto || 'hotel',
                         description: hotelData.description || null,
                         rating: hotelData.rating || 0,
@@ -17068,6 +17174,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         name: hotelData.name,
                         location: hotelData.location,
                         pais: hotelData.pais || null,
+                        region: hotelData.region || null,
                         tipo_producto: hotelData.tipo_producto || 'hotel',
                         description: hotelData.description || null,
                         rating: hotelData.rating || 0,
