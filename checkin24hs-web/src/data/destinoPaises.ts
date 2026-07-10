@@ -39,12 +39,14 @@ export const DESTINO_PAISES: Record<PaisSlug, PaisDestinoConfig> = {
     heroTitulo: 'Patagonia argentina y más allá',
     heroImagen: 'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=1600&h=600&fit=crop',
     paisesIncluidos: ['Argentina', 'argentina', 'ARGENTINA'],
+    /** Una sección/carrusel por región (mismo valor que hotels.region en el dashboard) */
     bloques: [
-      { titulo: 'Bariloche', match: ['Bariloche', 'San Carlos de Bariloche'] },
-      { titulo: 'Villa La Angostura', match: ['Villa La Angostura', 'Angostura'] },
-      { titulo: 'San Martín de los Andes', match: ['San Martín', 'San Martin', 'San Martín de los Andes'] },
-      { titulo: 'Mendoza', match: ['Mendoza'] },
-      { titulo: 'Buenos Aires', match: ['Buenos Aires', 'CABA', 'Capital Federal'] },
+      { titulo: 'Hoteles en Bariloche', match: ['Bariloche'] },
+      { titulo: 'Hoteles en Buenos Aires', match: ['Buenos Aires'] },
+      { titulo: 'Hoteles en Costa Argentina', match: ['Costa Argentina'] },
+      { titulo: 'Hoteles en Norte Argentino', match: ['Norte Argentino'] },
+      { titulo: 'Hoteles en Mendoza', match: ['Mendoza'] },
+      { titulo: 'Otros destinos en Argentina', match: [] },
     ],
   },
   internacionales: {
@@ -89,6 +91,9 @@ function norm(s: string) {
 
 export function hotelMatchesBloque(hotel: { ciudad?: string | null; region?: string | null; pais?: string | null }, bloque: DestinoBloque): boolean {
   if (bloque.match.length === 0) return false;
+  const region = hotel.region ? norm(hotel.region) : '';
+  // Prioridad: región exacta del dashboard (ej. "Bariloche", "Costa Argentina")
+  if (region && bloque.match.some((m) => region === norm(m))) return true;
   const hay = [hotel.ciudad, hotel.region, hotel.pais].filter(Boolean).map((x) => norm(String(x)));
   return bloque.match.some((m) => hay.some((h) => h.includes(norm(m)) || norm(m).includes(h)));
 }
