@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-07-09T14:52:46Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 188; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-07-10T12:02:59Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 190; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">188</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">190</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -5425,6 +5425,122 @@ Ej:
                         </div>
                     </div>
                 </div>
+
+                <!-- Ficha web modular (página pública checkin24hs.com) -->
+                <div style="margin-top: 25px; padding: 20px; background: linear-gradient(135deg, #e8f5e9, #c8e6c9); border-radius: 12px; border: 2px solid #43a047;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; cursor: pointer;" onclick="toggleFichaWebSection()">
+                        <h3 style="margin: 0; color: #2e7d32; display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 24px;">🌐</span> Ficha web (página pública)
+                            <span style="font-size: 12px; background: #43a047; color: white; padding: 3px 8px; border-radius: 10px;">Modular</span>
+                        </h3>
+                        <span id="fichaWebToggleIcon" class="material-icons" style="color: #2e7d32; transition: transform 0.3s;">expand_more</span>
+                    </div>
+                    <div id="fichaWebSection" style="display: none;">
+                        <p style="font-size: 0.9rem; color: #2e7d32; margin-bottom: 16px;">
+                            Esta información se muestra en la ficha del hotel en checkin24hs.com. Las secciones vacías no aparecen en la web.
+                        </p>
+                        <div style="display: grid; gap: 14px;">
+                            <div>
+                                <label class="form-label">Sobre la propiedad</label>
+                                <textarea class="form-input" id="editFichaSobrePropiedad" rows="4" placeholder="Narrativa / descripción de la propiedad"></textarea>
+                            </div>
+                            <div>
+                                <label class="form-label">Servicios principales (uno por línea)</label>
+                                <textarea class="form-input" id="editFichaServicios" rows="4" placeholder="Wi‑Fi gratuito&#10;Spa&#10;Piscina termal"></textarea>
+                            </div>
+                            <div>
+                                <label class="form-label">Opiniones — resumen (opcional)</label>
+                                <input type="text" class="form-input" id="editFichaOpinionesResumen" placeholder="Ej. Excelente según huéspedes recientes">
+                            </div>
+                            <div>
+                                <label class="form-label">Opiniones — categorías (formato: Categoría | puntaje)</label>
+                                <textarea class="form-input" id="editFichaOpinionesCategorias" rows="4" placeholder="Limpieza | 9.2&#10;Personal | 9.0&#10;Servicios | 8.8"></textarea>
+                            </div>
+                            <div>
+                                <label class="form-label">Información sobre la zona</label>
+                                <textarea class="form-input" id="editFichaZona" rows="3" placeholder="Contexto geográfico"></textarea>
+                            </div>
+                            <div>
+                                <label class="form-label">¿Qué hay cerca? (formato: Lugar | distancia)</label>
+                                <textarea class="form-input" id="editFichaCerca" rows="4" placeholder="Centro de ski | 15 km&#10;Aeropuerto | 80 km"></textarea>
+                            </div>
+                            <div>
+                                <label class="form-label">Cómo desplazarse</label>
+                                <textarea class="form-input" id="editFichaComoDesplazarse" rows="3" placeholder="Auto, transfer, etc."></textarea>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <div>
+                                    <label class="form-label">Detalles — Alojamiento / seguridad</label>
+                                    <textarea class="form-input" id="editFichaDtAlojamiento" rows="2"></textarea>
+                                </div>
+                                <div>
+                                    <label class="form-label">Detalles — Habitaciones</label>
+                                    <textarea class="form-input" id="editFichaDtHabitaciones" rows="2"></textarea>
+                                </div>
+                                <div>
+                                    <label class="form-label">Detalles — Piscinas</label>
+                                    <textarea class="form-input" id="editFichaDtPiscinas" rows="2"></textarea>
+                                </div>
+                                <div>
+                                    <label class="form-label">Detalles — Restaurantes</label>
+                                    <textarea class="form-input" id="editFichaDtRestaurantes" rows="2"></textarea>
+                                </div>
+                                <div>
+                                    <label class="form-label">Detalles — Aparcamiento</label>
+                                    <textarea class="form-input" id="editFichaDtAparcamiento" rows="2"></textarea>
+                                </div>
+                                <div>
+                                    <label class="form-label">Detalles — Internet</label>
+                                    <textarea class="form-input" id="editFichaDtInternet" rows="2"></textarea>
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <div>
+                                    <label class="form-label">Política — Check-in</label>
+                                    <input type="text" class="form-input" id="editFichaPolCheckIn" placeholder="Desde 15:00">
+                                </div>
+                                <div>
+                                    <label class="form-label">Política — Check-out</label>
+                                    <input type="text" class="form-input" id="editFichaPolCheckOut" placeholder="Hasta 11:00">
+                                </div>
+                                <div>
+                                    <label class="form-label">Política — Mascotas</label>
+                                    <input type="text" class="form-input" id="editFichaPolMascotas" placeholder="No se admiten / Sí con cargo">
+                                </div>
+                                <div>
+                                    <label class="form-label">Política — Niños</label>
+                                    <input type="text" class="form-input" id="editFichaPolNinos" placeholder="Niños bienvenidos">
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                                <div>
+                                    <label class="form-label">Info — Tasas</label>
+                                    <textarea class="form-input" id="editFichaInfoTasas" rows="2"></textarea>
+                                </div>
+                                <div>
+                                    <label class="form-label">Info — IVA</label>
+                                    <textarea class="form-input" id="editFichaInfoIva" rows="2"></textarea>
+                                </div>
+                                <div>
+                                    <label class="form-label">Info — Extras opcionales</label>
+                                    <textarea class="form-input" id="editFichaInfoExtras" rows="2"></textarea>
+                                </div>
+                                <div>
+                                    <label class="form-label">Info — Seguridad</label>
+                                    <textarea class="form-input" id="editFichaInfoSeguridad" rows="2"></textarea>
+                                </div>
+                                <div>
+                                    <label class="form-label">Info — Servicios especiales</label>
+                                    <textarea class="form-input" id="editFichaInfoServiciosEsp" rows="2"></textarea>
+                                </div>
+                                <div>
+                                    <label class="form-label">Info — Aviso legal</label>
+                                    <textarea class="form-input" id="editFichaInfoAvisoLegal" rows="2"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 
                 <!-- Base de Conocimiento Adicional (Expandible) -->
                 <div style="margin-top: 25px; padding: 20px; background: linear-gradient(135deg, #e3f2fd, #bbdefb); border-radius: 12px; border: 2px solid #2196f3;">
@@ -7806,6 +7922,10 @@ Ej:
                 document.getElementById('editHotelFlorGastronomia').value = florInfo.gastronomia_info || '';
                 document.getElementById('editHotelFlorTips').value = florInfo.tips_agencia || '';
                 
+                if (typeof fillFichaWebForm === 'function') {
+                    fillFichaWebForm(hotel.ficha_web || hotel.fichaWeb || {});
+                }
+                
                 // Cargar conocimiento adicional desde flor_hotel_knowledge
                 const florKnowledge = JSON.parse(localStorage.getItem('flor_hotel_knowledge') || '{}');
                 const extraKnowledge = florKnowledge[hotelId] || {};
@@ -8039,6 +8159,137 @@ Ej:
         
         // Hacer la función disponible globalmente
         window.toggleKnowledgeSection = toggleKnowledgeSection;
+
+        function toggleFichaWebSection() {
+            const section = document.getElementById('fichaWebSection');
+            const icon = document.getElementById('fichaWebToggleIcon');
+            if (section && icon) {
+                const isVisible = section.style.display !== 'none';
+                section.style.display = isVisible ? 'none' : 'block';
+                icon.style.transform = isVisible ? 'rotate(0deg)' : 'rotate(180deg)';
+            }
+        }
+        window.toggleFichaWebSection = toggleFichaWebSection;
+
+        function _fichaVal(id) {
+            return document.getElementById(id)?.value?.trim() || '';
+        }
+
+        function _parsePipeLines(text, leftKey, rightKey) {
+            return (text || '').split(/\r?\n/).map(function(line) {
+                line = line.trim();
+                if (!line) return null;
+                var parts = line.split('|');
+                var left = (parts[0] || '').trim();
+                var right = parts.slice(1).join('|').trim();
+                if (!left) return null;
+                var o = {};
+                o[leftKey] = left;
+                o[rightKey] = right;
+                return o;
+            }).filter(Boolean);
+        }
+
+        function getFichaWebFromForm() {
+            var servicios = _fichaVal('editFichaServicios').split(/\r?\n/).map(function(s) { return s.trim(); }).filter(Boolean);
+            var categorias = _parsePipeLines(_fichaVal('editFichaOpinionesCategorias'), 'nombre', 'puntaje').map(function(c) {
+                var n = parseFloat(String(c.puntaje).replace(',', '.'));
+                return { nombre: c.nombre, puntaje: isNaN(n) ? 0 : n };
+            });
+            var cerca = _parsePipeLines(_fichaVal('editFichaCerca'), 'lugar', 'distancia');
+            return {
+                sobre_propiedad: _fichaVal('editFichaSobrePropiedad') || null,
+                servicios: servicios.length ? servicios : [],
+                opiniones: {
+                    resumen: _fichaVal('editFichaOpinionesResumen') || null,
+                    categorias: categorias
+                },
+                zona: _fichaVal('editFichaZona') || null,
+                cerca: cerca,
+                como_desplazarse: _fichaVal('editFichaComoDesplazarse') || null,
+                detalles_tecnicos: {
+                    alojamiento: _fichaVal('editFichaDtAlojamiento') || null,
+                    habitaciones: _fichaVal('editFichaDtHabitaciones') || null,
+                    piscinas: _fichaVal('editFichaDtPiscinas') || null,
+                    restaurantes: _fichaVal('editFichaDtRestaurantes') || null,
+                    aparcamiento: _fichaVal('editFichaDtAparcamiento') || null,
+                    internet: _fichaVal('editFichaDtInternet') || null
+                },
+                politicas: {
+                    check_in: _fichaVal('editFichaPolCheckIn') || null,
+                    check_out: _fichaVal('editFichaPolCheckOut') || null,
+                    mascotas: _fichaVal('editFichaPolMascotas') || null,
+                    ninos: _fichaVal('editFichaPolNinos') || null
+                },
+                informacion_importante: {
+                    tasas: _fichaVal('editFichaInfoTasas') || null,
+                    iva: _fichaVal('editFichaInfoIva') || null,
+                    extras: _fichaVal('editFichaInfoExtras') || null,
+                    seguridad: _fichaVal('editFichaInfoSeguridad') || null,
+                    servicios_especiales: _fichaVal('editFichaInfoServiciosEsp') || null,
+                    aviso_legal: _fichaVal('editFichaInfoAvisoLegal') || null
+                }
+            };
+        }
+
+        function fillFichaWebForm(ficha) {
+            ficha = ficha && typeof ficha === 'object' ? ficha : {};
+            var set = function(id, v) { var el = document.getElementById(id); if (el) el.value = v || ''; };
+            set('editFichaSobrePropiedad', ficha.sobre_propiedad);
+            set('editFichaServicios', Array.isArray(ficha.servicios) ? ficha.servicios.join('\n') : '');
+            var op = ficha.opiniones || {};
+            set('editFichaOpinionesResumen', op.resumen);
+            set('editFichaOpinionesCategorias', Array.isArray(op.categorias)
+                ? op.categorias.map(function(c) { return (c.nombre || '') + ' | ' + (c.puntaje != null ? c.puntaje : ''); }).join('\n')
+                : '');
+            set('editFichaZona', ficha.zona);
+            set('editFichaCerca', Array.isArray(ficha.cerca)
+                ? ficha.cerca.map(function(c) { return (c.lugar || '') + ' | ' + (c.distancia || ''); }).join('\n')
+                : '');
+            set('editFichaComoDesplazarse', ficha.como_desplazarse);
+            var dt = ficha.detalles_tecnicos || {};
+            set('editFichaDtAlojamiento', dt.alojamiento);
+            set('editFichaDtHabitaciones', dt.habitaciones);
+            set('editFichaDtPiscinas', dt.piscinas);
+            set('editFichaDtRestaurantes', dt.restaurantes);
+            set('editFichaDtAparcamiento', dt.aparcamiento);
+            set('editFichaDtInternet', dt.internet);
+            var pol = ficha.politicas || {};
+            set('editFichaPolCheckIn', pol.check_in);
+            set('editFichaPolCheckOut', pol.check_out);
+            set('editFichaPolMascotas', pol.mascotas);
+            set('editFichaPolNinos', pol.ninos);
+            var info = ficha.informacion_importante || {};
+            set('editFichaInfoTasas', info.tasas);
+            set('editFichaInfoIva', info.iva);
+            set('editFichaInfoExtras', info.extras);
+            set('editFichaInfoSeguridad', info.seguridad);
+            set('editFichaInfoServiciosEsp', info.servicios_especiales);
+            set('editFichaInfoAvisoLegal', info.aviso_legal);
+
+            var hasContent = !!(ficha.sobre_propiedad || ficha.zona || ficha.como_desplazarse
+                || (Array.isArray(ficha.servicios) && ficha.servicios.length)
+                || (Array.isArray(ficha.cerca) && ficha.cerca.length)
+                || (op.categorias && op.categorias.length) || op.resumen);
+            if (hasContent) {
+                var section = document.getElementById('fichaWebSection');
+                var icon = document.getElementById('fichaWebToggleIcon');
+                if (section) section.style.display = 'block';
+                if (icon) icon.style.transform = 'rotate(180deg)';
+            }
+        }
+
+        function clearFichaWebForm() {
+            fillFichaWebForm({});
+            var section = document.getElementById('fichaWebSection');
+            var icon = document.getElementById('fichaWebToggleIcon');
+            if (section) section.style.display = 'none';
+            if (icon) icon.style.transform = 'rotate(0deg)';
+        }
+
+        window.getFichaWebFromForm = getFichaWebFromForm;
+        window.fillFichaWebForm = fillFichaWebForm;
+        window.clearFichaWebForm = clearFichaWebForm;
         
         // Función para guardar conocimiento adicional del hotel
         function saveHotelKnowledgeAdditional(hotelId) {
@@ -15798,6 +16049,8 @@ Ej:
                 if (el) { el.value = ''; if (el.type === 'checkbox') el.checked = false; }
             });
             
+            if (typeof clearFichaWebForm === 'function') clearFichaWebForm();
+            
             // Limpiar campos de conocimiento adicional
             const knowledgeFields = [
                 'editHotelKnowledgeDescription', 'editHotelKnowledgeServicesDetail',
@@ -16222,6 +16475,10 @@ Ej:
             if (florGastronomiaEl) florGastronomiaEl.value = florInfo.gastronomia_info || '';
             if (florTipsEl) florTipsEl.value = florInfo.tips_agencia || '';
             
+            if (typeof fillFichaWebForm === 'function') {
+                fillFichaWebForm(hotel.ficha_web || hotel.fichaWeb || {});
+            }
+            
             // Cargar imágenes
             const imageInput = document.getElementById('editHotelImage');
             const photosInput = document.getElementById('editHotelPhotos');
@@ -16557,6 +16814,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             const florAlias = document.getElementById('editHotelFlorAlias')?.value?.trim() || '';
             const florGastronomia = document.getElementById('editHotelFlorGastronomia')?.value?.trim() || '';
             const florTips = document.getElementById('editHotelFlorTips')?.value?.trim() || '';
+            const fichaWeb = typeof getFichaWebFromForm === 'function' ? getFichaWebFromForm() : {};
             
             // Obtener campos de conocimiento adicional
             const knowledgeDescription = document.getElementById('editHotelKnowledgeDescription')?.value?.trim() || '';
@@ -16596,7 +16854,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                     policies: florPolicies,
                     transport: florTransport,
                     contact: florContact
-                }
+                },
+                fichaWeb: fichaWeb
             };
             
             // Extraer coordenadas de Google Maps si está disponible
@@ -16684,7 +16943,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         coordinates: coordinatesData,
                         google_maps: hotelData.googleMaps || null,
                         website: hotelData.website || null,
-                        flor_info: hotelData.florInfo || null // Información para Flor IA
+                        flor_info: hotelData.florInfo || null, // Información para Flor IA
+                        ficha_web: hotelData.fichaWeb || {}
                     };
                     
                     console.log('📤 Datos preparados para Supabase (nuevo hotel):', {
@@ -16818,7 +17078,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         coordinates: coordinatesData,
                         google_maps: hotelData.googleMaps || null,
                         website: hotelData.website || null,
-                        flor_info: florInfoPayload
+                        flor_info: florInfoPayload,
+                        ficha_web: hotelData.fichaWeb || {}
                     };
                     
                     const tieneImgGeneral = !!(florInfoPayload.img_general);

@@ -48,7 +48,7 @@
 
 .location {
   color: var(--text-muted);
-  margin: 0 0 20px;
+  margin: 0 0 28px;
   font-size: 1rem;
 }
 
@@ -60,6 +60,197 @@
 
 .desc p {
   margin: 0 0 12px;
+}
+
+/* —— Ficha modular —— */
+.ficha {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 28px;
+}
+
+.section {
+  padding: 22px 0;
+  border-top: 1px solid var(--border);
+}
+
+.section:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.sectionTitle {
+  margin: 0 0 14px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: -0.01em;
+}
+
+.prose {
+  line-height: 1.7;
+  color: var(--text);
+  font-size: 0.98rem;
+}
+
+.prose p {
+  margin: 0 0 12px;
+}
+
+.prose p:last-child {
+  margin-bottom: 0;
+}
+
+.serviceList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 16px;
+}
+
+@media (max-width: 560px) {
+  .serviceList {
+    grid-template-columns: 1fr;
+  }
+}
+
+.serviceItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.95rem;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.serviceIcon {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.opinionResumen {
+  margin: 0 0 14px;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.opinionList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.opinionRow {
+  display: grid;
+  grid-template-columns: minmax(100px, 140px) 1fr 40px;
+  gap: 12px;
+  align-items: center;
+}
+
+.opinionLabel {
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.opinionBarTrack {
+  height: 8px;
+  background: var(--bg-alt);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.opinionBarFill {
+  height: 100%;
+  background: var(--accent-green);
+  border-radius: 4px;
+}
+
+.opinionScore {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+  text-align: right;
+}
+
+.cercaList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cercaRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.95rem;
+}
+
+.cercaRow:last-child {
+  border-bottom: none;
+}
+
+.cercaLugar {
+  color: var(--text);
+}
+
+.cercaDist {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.subBlocks {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.subBlock {
+  padding: 0;
+}
+
+.subTitle {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.policyTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.policyTable th,
+.policyTable td {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.policyTable th {
+  width: 28%;
+  background: var(--bg-alt);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.policyTable td {
+  color: var(--text);
 }
 
 .amenities {
@@ -101,6 +292,15 @@
 @media (max-width: 900px) {
   .twoCol {
     grid-template-columns: 1fr;
+  }
+
+  .opinionRow {
+    grid-template-columns: minmax(80px, 110px) 1fr 36px;
+    gap: 8px;
+  }
+
+  .policyTable th {
+    width: 34%;
   }
 }
 

@@ -1,3 +1,48 @@
+/** Ficha modular pública (página detalle hotel). Separada de flor_info. */
+export interface FichaWebOpinionCategoria {
+  nombre: string;
+  puntaje: number;
+}
+
+export interface FichaWebCerca {
+  lugar: string;
+  distancia: string;
+}
+
+export interface FichaWeb {
+  sobre_propiedad?: string | null;
+  servicios?: string[] | null;
+  opiniones?: {
+    categorias?: FichaWebOpinionCategoria[] | null;
+    resumen?: string | null;
+  } | null;
+  zona?: string | null;
+  cerca?: FichaWebCerca[] | null;
+  como_desplazarse?: string | null;
+  detalles_tecnicos?: {
+    alojamiento?: string | null;
+    habitaciones?: string | null;
+    piscinas?: string | null;
+    restaurantes?: string | null;
+    aparcamiento?: string | null;
+    internet?: string | null;
+  } | null;
+  politicas?: {
+    check_in?: string | null;
+    check_out?: string | null;
+    mascotas?: string | null;
+    ninos?: string | null;
+  } | null;
+  informacion_importante?: {
+    tasas?: string | null;
+    iva?: string | null;
+    extras?: string | null;
+    seguridad?: string | null;
+    servicios_especiales?: string | null;
+    aviso_legal?: string | null;
+  } | null;
+}
+
 export interface Hotel {
   id: string;
   name: string;
@@ -21,6 +66,8 @@ export interface Hotel {
   url_reserva_directa: string | null;
   /** hotel = alojamiento; paquete = paquete turístico */
   tipo_producto?: 'hotel' | 'paquete' | null;
+  /** Ficha modular para la web pública */
+  ficha_web?: FichaWeb | null;
   puntuacion_num: number | null;
   puntuacion_texto: string | null;
   cantidad_opiniones: number | null;
