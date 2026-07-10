@@ -1,7 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { buildCotizadorUrl } from '../config';
 import type { FichaWeb, Hotel } from '../types';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
@@ -223,9 +222,6 @@ export function HotelDetail() {
   const { slug } = useParams<{ slug: string }>();
   const [hotel, setHotel] = useState<Hotel | null>(null);
   const [loading, setLoading] = useState(true);
-  const [checkin, setCheckin] = useState('');
-  const [checkout, setCheckout] = useState('');
-  const [pax, setPax] = useState(2);
   const { setContext } = useFlorContext();
 
   useEffect(() => {
@@ -264,14 +260,6 @@ export function HotelDetail() {
 
   const galeria = (hotel?.galeria_fotos && Array.isArray(hotel.galeria_fotos) ? hotel.galeria_fotos : hotel?.images) || [];
   const puntuacion = hotel?.puntuacion_num ?? hotel?.rating ?? null;
-  const precio = hotel?.precio_desde ?? hotel?.price ?? null;
-  const metodoVenta = hotel?.metodo_venta || 'cotizacion';
-  const cotizarUrl = hotel ? buildCotizadorUrl({
-    hotel_id: hotel.id,
-    checkin: checkin || undefined,
-    checkout: checkout || undefined,
-    pax,
-  }) : '#';
 
   if (loading) {
     return (
@@ -320,74 +308,35 @@ export function HotelDetail() {
               </span>
             )}
           </div>
-          <div className={styles.twoCol}>
-            <div>
-              <h1 className={styles.title}>{hotel.name}</h1>
-              <p className={styles.location}>
-                {[hotel.ciudad, hotel.region, hotel.pais].filter(Boolean).join(' · ') || hotel.location || '—'}
-              </p>
+          <div className={styles.content}>
+            <h1 className={styles.title}>{hotel.name}</h1>
+            <p className={styles.location}>
+              {[hotel.ciudad, hotel.region, hotel.pais].filter(Boolean).join(' · ') || hotel.location || '—'}
+            </p>
 
-              {useFicha ? (
-                <FichaModular ficha={ficha!} />
-              ) : (
-                hotel.description && (
-                  <div className={styles.desc} dangerouslySetInnerHTML={{ __html: hotel.description }} />
-                )
-              )}
+            {useFicha ? (
+              <FichaModular ficha={ficha!} />
+            ) : (
+              hotel.description && (
+                <div className={styles.desc} dangerouslySetInnerHTML={{ __html: hotel.description }} />
+              )
+            )}
 
-              <div className={styles.amenities}>
-                {hotel.wifi && <span className={styles.amenity}>Wi‑Fi</span>}
-                {hotel.desayuno && <span className={styles.amenity}>Desayuno</span>}
-                {hotel.piscina && <span className={styles.amenity}>Piscina</span>}
-                {hotel.estacionamiento && <span className={styles.amenity}>Estacionamiento</span>}
-                {hotel.calefaccion && <span className={styles.amenity}>Calefacción</span>}
-                {hotel.pet_friendly && <span className={styles.amenity}>Pet friendly</span>}
-              </div>
-              {galeria.length > 0 && (
-                <div className={styles.galeria}>
-                  {galeria.slice(0, 6).map((url, i) => (
-                    <img key={i} src={url} alt="" className={styles.galeriaImg} />
-                  ))}
-                </div>
-              )}
+            <div className={styles.amenities}>
+              {hotel.wifi && <span className={styles.amenity}>Wi‑Fi</span>}
+              {hotel.desayuno && <span className={styles.amenity}>Desayuno</span>}
+              {hotel.piscina && <span className={styles.amenity}>Piscina</span>}
+              {hotel.estacionamiento && <span className={styles.amenity}>Estacionamiento</span>}
+              {hotel.calefaccion && <span className={styles.amenity}>Calefacción</span>}
+              {hotel.pet_friendly && <span className={styles.amenity}>Pet friendly</span>}
             </div>
-            <aside className={styles.aside}>
-              <div className={styles.card}>
-                {precio != null && (
-                  <p className={styles.precio}>
-                    Desde <strong>${precio.toLocaleString('es-AR')}</strong>
-                  </p>
-                )}
-                <div className={styles.form}>
-                  <label>
-                    <span>Check-in</span>
-                    <input type="date" value={checkin} onChange={(e) => setCheckin(e.target.value)} />
-                  </label>
-                  <label>
-                    <span>Check-out</span>
-                    <input type="date" value={checkout} onChange={(e) => setCheckout(e.target.value)} />
-                  </label>
-                  <label>
-                    <span>Huéspedes</span>
-                    <input type="number" min={1} max={20} value={pax} onChange={(e) => setPax(Number(e.target.value) || 1)} />
-                  </label>
-                </div>
-                {metodoVenta === 'directa' && hotel.url_reserva_directa ? (
-                  <a
-                    href={hotel.url_reserva_directa}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={styles.btnSec}
-                  >
-                    Reservar
-                  </a>
-                ) : (
-                  <a href={cotizarUrl} className={styles.btnPrim}>
-                    Cotizar
-                  </a>
-                )}
+            {galeria.length > 0 && (
+              <div className={styles.galeria}>
+                {galeria.slice(0, 6).map((url, i) => (
+                  <img key={i} src={url} alt="" className={styles.galeriaImg} />
+                ))}
               </div>
-            </aside>
+            )}
           </div>
         </div>
       </main>
