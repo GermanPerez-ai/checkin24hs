@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import type { FichaWeb, Hotel } from '../types';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
+import { HotelGallery } from '../components/HotelGallery';
 import { useFlorContext } from '../context/FlorContext';
 import styles from './HotelDetail.module.css';
 
@@ -258,8 +259,17 @@ export function HotelDetail() {
     || (Array.isArray(hotel?.images) && hotel?.images?.length ? hotel.images[0] : null)
     || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=800';
 
-  const galeria = (hotel?.galeria_fotos && Array.isArray(hotel.galeria_fotos) ? hotel.galeria_fotos : hotel?.images) || [];
+  const galeriaRaw = (hotel?.galeria_fotos && Array.isArray(hotel.galeria_fotos) ? hotel.galeria_fotos : hotel?.images) || [];
+  const allPhotos = [
+    hotel?.imagen_principal,
+    ...galeriaRaw,
+    ...(Array.isArray(hotel?.images) ? hotel.images : []),
+    imagenPrincipal,
+  ].filter(Boolean) as string[];
   const puntuacion = hotel?.puntuacion_num ?? hotel?.rating ?? null;
+  const locationLabel = hotel
+    ? ([hotel.ciudad, hotel.region, hotel.pais].filter(Boolean).join(', ') || hotel.location || hotel.name)
+    : '';
 
   if (loading) {
     return (
@@ -297,17 +307,23 @@ export function HotelDetail() {
             <span>/</span>
             <span>{hotel.name}</span>
           </nav>
-          <div className={styles.hero}>
-            <img src={imagenPrincipal} alt={hotel.name} className={styles.heroImg} />
-            {puntuacion != null && (
-              <span className={styles.badge}>
-                {puntuacion.toFixed(1)} {hotel.puntuacion_texto || ''}
-                {hotel.cantidad_opiniones != null && hotel.cantidad_opiniones > 0 && (
-                  <> · {hotel.cantidad_opiniones} opiniones</>
-                )}
-              </span>
-            )}
-          </div>
+          <HotelGallery
+            images={allPhotos}
+            hotelName={hotel.name}
+            coordinates={hotel.coordinates}
+            googleMapsUrl={hotel.google_maps}
+            locationLabel={locationLabel}
+            badge={
+              puntuacion != null ? (
+                <span className={styles.badge}>
+                  {puntuacion.toFixed(1)} {hotel.puntuacion_texto || ''}
+                  {hotel.cantidad_opiniones != null && hotel.cantidad_opiniones > 0 && (
+                    <> · {hotel.cantidad_opiniones} opiniones</>
+                  )}
+                </span>
+              ) : undefined
+            }
+          />
           <div className={styles.content}>
             <h1 className={styles.title}>{hotel.name}</h1>
             <p className={styles.location}>
@@ -330,13 +346,6 @@ export function HotelDetail() {
               {hotel.calefaccion && <span className={styles.amenity}>Calefacción</span>}
               {hotel.pet_friendly && <span className={styles.amenity}>Pet friendly</span>}
             </div>
-            {galeria.length > 0 && (
-              <div className={styles.galeria}>
-                {galeria.slice(0, 6).map((url, i) => (
-                  <img key={i} src={url} alt="" className={styles.galeriaImg} />
-                ))}
-              </div>
-            )}
           </div>
         </div>
       </main>

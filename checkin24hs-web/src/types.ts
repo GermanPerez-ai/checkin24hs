@@ -53,6 +53,7 @@ export interface Hotel {
   ciudad: string | null;
   location?: string | null;
   coordinates?: unknown;
+  google_maps?: string | null;
   imagen_principal: string | null;
   galeria_fotos: string[] | null;
   wifi: boolean;
