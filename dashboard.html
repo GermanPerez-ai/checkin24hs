@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-07-10T14:54:27Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 195; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-07-14T15:13:04Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 197; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">195</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">197</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -5207,16 +5207,11 @@
                                 <div>
                                     <select class="form-input" id="editHotelRegion">
                                         <option value="">Región…</option>
-                                        <option value="Bariloche">Bariloche</option>
-                                        <option value="Buenos Aires">Buenos Aires</option>
-                                        <option value="Costa Argentina">Costa Argentina</option>
-                                        <option value="Norte Argentino">Norte Argentino</option>
-                                        <option value="Mendoza">Mendoza</option>
                                     </select>
                                 </div>
                             </div>
                             <div style="margin-top: 5px; font-size: 0.85rem; color: #666;">
-                                País: sección de la web (Chile / Argentina / Internacionales). Región: zona dentro de Argentina.
+                                País: sección de la web. Región: zona del país (Argentina o Chile).
                             </div>
                         </div>
 
@@ -7921,7 +7916,6 @@ Ej:
                     }
                 }
                 if (typeof setHotelRegionSelect === 'function') setHotelRegionSelect(hotel.region);
-                if (typeof onHotelPaisChange === 'function') onHotelPaisChange();
                 const tipoElEdit = document.getElementById('editHotelTipoProducto');
                 if (tipoElEdit) {
                     tipoElEdit.value = (hotel.tipo_producto === 'paquete' ? 'paquete' : 'hotel');
@@ -8190,48 +8184,68 @@ Ej:
         // Hacer la función disponible globalmente
         window.toggleKnowledgeSection = toggleKnowledgeSection;
 
-        const HOTEL_REGIONES_AR = ['Bariloche', 'Buenos Aires', 'Costa Argentina', 'Norte Argentino', 'Mendoza'];
+        const HOTEL_REGIONES_POR_PAIS = {
+            Argentina: ['Bariloche', 'Buenos Aires', 'Costa Argentina', 'Norte Argentino', 'Mendoza'],
+            Chile: ['Puerto Varas', 'Pucón', 'Villarica', 'Valdivia']
+        };
 
-        function setHotelRegionSelect(region) {
+        function fillHotelRegionOptions(pais, selectedRegion) {
             const el = document.getElementById('editHotelRegion');
             if (!el) return;
-            const r = (region || '').trim();
-            if (!r) {
-                el.value = '';
-                return;
-            }
-            const match = HOTEL_REGIONES_AR.find(function(opt) {
-                return opt.toLowerCase() === r.toLowerCase();
-            });
-            el.value = match || '';
-            if (!match && r) {
-                // Valor legacy: agregarlo temporalmente para no perderlo al editar
+            const regiones = HOTEL_REGIONES_POR_PAIS[pais] || [];
+            const keep = (selectedRegion || '').trim();
+            el.innerHTML = '<option value="">Región…</option>';
+            regiones.forEach(function(r) {
                 const opt = document.createElement('option');
                 opt.value = r;
                 opt.textContent = r;
                 el.appendChild(opt);
-                el.value = r;
+            });
+            if (keep) {
+                const match = regiones.find(function(opt) {
+                    return opt.toLowerCase() === keep.toLowerCase();
+                });
+                if (match) {
+                    el.value = match;
+                } else {
+                    const opt = document.createElement('option');
+                    opt.value = keep;
+                    opt.textContent = keep;
+                    el.appendChild(opt);
+                    el.value = keep;
+                }
             }
         }
 
-        function onHotelPaisChange() {
+        function setHotelRegionSelect(region) {
+            const paisEl = document.getElementById('editHotelPais');
+            const pais = paisEl ? paisEl.value : '';
+            fillHotelRegionOptions(pais, region);
+            onHotelPaisChange(true);
+        }
+
+        function onHotelPaisChange(keepSelection) {
             const paisEl = document.getElementById('editHotelPais');
             const regionEl = document.getElementById('editHotelRegion');
             if (!paisEl || !regionEl) return;
-            const isAR = paisEl.value === 'Argentina';
-            regionEl.disabled = !isAR;
-            if (!isAR) {
+            const pais = paisEl.value;
+            const hasRegiones = !!(HOTEL_REGIONES_POR_PAIS[pais] && HOTEL_REGIONES_POR_PAIS[pais].length);
+            const current = keepSelection ? regionEl.value : '';
+            fillHotelRegionOptions(pais, current);
+            regionEl.disabled = !hasRegiones;
+            if (!hasRegiones) {
                 regionEl.value = '';
             }
-            regionEl.style.opacity = isAR ? '1' : '0.55';
+            regionEl.style.opacity = hasRegiones ? '1' : '0.55';
         }
 
         window.setHotelRegionSelect = setHotelRegionSelect;
         window.onHotelPaisChange = onHotelPaisChange;
+        window.fillHotelRegionOptions = fillHotelRegionOptions;
         if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', onHotelPaisChange);
+            document.addEventListener('DOMContentLoaded', function() { onHotelPaisChange(false); });
         } else {
-            onHotelPaisChange();
+            onHotelPaisChange(false);
         }
 
         function toggleFichaWebSection() {
@@ -16542,7 +16556,6 @@ Ej:
                 }
             }
             if (typeof setHotelRegionSelect === 'function') setHotelRegionSelect(hotel.region);
-            if (typeof onHotelPaisChange === 'function') onHotelPaisChange();
             const tipoSelectFill = document.getElementById('editHotelTipoProducto');
             if (tipoSelectFill) {
                 tipoSelectFill.value = (hotel.tipo_producto === 'paquete' ? 'paquete' : 'hotel');
@@ -16889,8 +16902,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 if (paisSelect) paisSelect.focus();
                 return;
             }
-            if (paisSelect.value === 'Argentina' && regionSelect && !regionSelect.value) {
-                alert('⚠️ Seleccioná la región (Bariloche, Buenos Aires, Costa Argentina, Norte Argentino o Mendoza).');
+            if ((paisSelect.value === 'Argentina' || paisSelect.value === 'Chile') && regionSelect && !regionSelect.value) {
+                alert('⚠️ Seleccioná la región del hotel.');
                 regionSelect.focus();
                 return;
             }
@@ -16952,7 +16965,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 name: nameInput.value.trim(),
                 location: locationInput.value.trim(),
                 pais: paisSelect.value.trim(),
-                region: (paisSelect.value.trim() === 'Argentina' && regionSelect?.value)
+                region: ((paisSelect.value.trim() === 'Argentina' || paisSelect.value.trim() === 'Chile') && regionSelect?.value)
                     ? regionSelect.value.trim()
                     : (regionSelect?.value?.trim() || null),
                 tipo_producto: tipoProductoSelect.value.trim() === 'paquete' ? 'paquete' : 'hotel',

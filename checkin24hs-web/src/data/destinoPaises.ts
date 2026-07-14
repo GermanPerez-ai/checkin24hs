@@ -26,11 +26,13 @@ export const DESTINO_PAISES: Record<PaisSlug, PaisDestinoConfig> = {
     heroTitulo: 'Patagonia y cordillera chilena',
     heroImagen: 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=1600&h=600&fit=crop',
     paisesIncluidos: ['Chile', 'chile', 'CHILE'],
+    /** Una sección/carrusel por región (mismo valor que hotels.region en el dashboard) */
     bloques: [
-      { titulo: 'Puyehue y Los Lagos', match: ['Puyehue', 'Osorno', 'Puerto Varas'] },
-      { titulo: 'Corralco y Lonquimay', match: ['Lonquimay', 'Corralco'] },
-      { titulo: 'Huilo Huilo', match: ['Neltume', 'Huilo', 'Huilo-Huilo'] },
-      { titulo: 'Santiago y centro', match: ['Santiago', 'Valparaíso', 'Valparaiso'] },
+      { titulo: 'Hoteles en Puerto Varas', match: ['Puerto Varas'] },
+      { titulo: 'Hoteles en Pucón', match: ['Pucón', 'Pucon'] },
+      { titulo: 'Hoteles en Villarica', match: ['Villarica', 'Villarrica'] },
+      { titulo: 'Hoteles en Valdivia', match: ['Valdivia'] },
+      { titulo: 'Otros destinos en Chile', match: [] },
     ],
   },
   argentina: {
