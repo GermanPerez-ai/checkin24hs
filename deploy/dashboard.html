@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-07-14T15:13:04Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 197; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-07-16T13:42:06Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 200; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">197</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">200</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -2454,6 +2454,25 @@
                     </div>
                 </div>
 
+                <!-- Ventas por Día -->
+                <div style="margin-top: 24px; margin-bottom: 24px; padding: 16px; background: #f0f8ff; border-radius: 8px; border: 1px solid #1976d2;">
+                    <h4 style="margin-bottom: 12px; color: #1976d2; display: flex; align-items: center; gap: 8px;">
+                        <span class="material-icons" style="font-size: 1.25rem;">calendar_today</span>
+                        Ventas por Día
+                    </h4>
+                    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
+                        <div style="flex: 1; min-width: 180px;">
+                            <label for="dailySalesDate" style="display: block; margin-bottom: 6px; font-weight: 500; color: #333; font-size: 0.9rem;">Fecha:</label>
+                            <input type="date" id="dailySalesDate" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.95rem;">
+                        </div>
+                        <button type="button" class="form-button" style="background: #1976d2; color: white; padding: 8px 24px;" onclick="verVentasPorDia()">
+                            <span class="material-icons" style="vertical-align: middle; margin-right: 6px; font-size: 1.1rem;">visibility</span>
+                            Ver
+                        </button>
+                    </div>
+                    <div id="dailySalesResults" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid #bbdefb;"></div>
+                </div>
+
                 <!-- Activity and Chart Grid -->
                 <div class="dashboard-grid">
                     <div class="chart-card">
@@ -2542,33 +2561,6 @@
                         <div id="monthlyExpensesContent" class="chart-placeholder">
                             Sin datos disponibles
                         </div>
-                    </div>
-                </div>
-
-                <!-- Test Buttons for Debugging -->
-                <div style="margin-top: 24px; margin-bottom: 24px; padding: 16px; background: #f0f8ff; border-radius: 8px; border: 1px solid #1976d2;">
-                    <h4 style="margin-bottom: 12px; color: #1976d2;">🔧 Botones de Prueba</h4>
-                    <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-                        <button class="form-button" style="background: #ff9800; color: white;" onclick="crearUsuariosPrueba()">
-                            <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">add_circle</span>
-                            Crear Usuarios Prueba
-                        </button>
-                                                    <button class="form-button" style="background: #2196f3; color: white;" onclick="window.showSection('users', event)">
-                            <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">people</span>
-                            Ir a Usuarios
-                        </button>
-                        <button class="form-button" style="background: #4caf50; color: white;" onclick="loadUsersData()">
-                            <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">refresh</span>
-                            Cargar Datos
-                        </button>
-                        <button class="form-button" style="background: #ff9800; color: white;" onclick="updateUsersFromReservations()">
-                            <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">sync</span>
-                            Actualizar Usuarios desde Reservas
-                        </button>
-                        <button class="form-button" style="background: #f44336; color: white;" onclick="deleteAllUsers()">
-                            <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">delete_forever</span>
-                            Eliminar Todos los Usuarios
-                        </button>
                     </div>
                 </div>
             </div>
@@ -7623,9 +7615,157 @@ Ej:
             return JSON.parse(localStorage.getItem('reservationsDB') || '[]');
         }
 
+        function normalizeReservationDateLocal(dateValue) {
+            if (!dateValue) return null;
+            let date;
+            if (dateValue instanceof Date) {
+                date = dateValue;
+            } else if (typeof dateValue === 'string') {
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return dateValue;
+                date = new Date(dateValue);
+            } else {
+                return null;
+            }
+            if (!date || isNaN(date.getTime())) return null;
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function getReservationAmount(res) {
+            return parseFloat(res.totalAmount) ||
+                parseFloat(res.total_amount) ||
+                parseFloat(res.amount) ||
+                parseFloat(res.price) || 0;
+        }
+
+        function formatCurrencyARS(amount) {
+            return '$' + Number(amount || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function initDailySalesDatePicker() {
+            const dateInput = document.getElementById('dailySalesDate');
+            if (!dateInput || dateInput.value) return;
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            dateInput.value = `${year}-${month}-${day}`;
+        }
+
+        async function verVentasPorDia() {
+            const dateInput = document.getElementById('dailySalesDate');
+            const resultsEl = document.getElementById('dailySalesResults');
+            if (!dateInput || !resultsEl) return;
+
+            const selectedDate = dateInput.value;
+            if (!selectedDate) {
+                alert('Seleccioná una fecha para ver las ventas del día.');
+                return;
+            }
+
+            resultsEl.style.display = 'block';
+            resultsEl.innerHTML = '<p style="color: #666; margin: 0;">Consultando ventas...</p>';
+
+            try {
+                const reservations = await getReservationsForStats();
+
+                let hotels = [];
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    try {
+                        hotels = await window.supabaseClient.getHotels();
+                    } catch (e) {
+                        hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                    }
+                } else {
+                    hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                }
+                const hotelNameById = {};
+                hotels.forEach(h => {
+                    const id = String(h.id || h.hotel_id || '').trim();
+                    if (id) hotelNameById[id] = h.name || h.hotel_name || 'Sin nombre';
+                });
+
+                const dayReservations = reservations.filter(reservation => {
+                    const status = reservation.status || '';
+                    if (status === 'Cancelada' || status === 'cancelada') return false;
+                    const rawCheckIn = reservation.checkIn || reservation.check_in;
+                    const checkIn = normalizeReservationDateLocal(rawCheckIn);
+                    return checkIn === selectedDate;
+                });
+
+                const byHotel = {};
+                let total = 0;
+                dayReservations.forEach(res => {
+                    const amount = getReservationAmount(res);
+                    total += amount;
+                    const hotelId = String(res.hotelId || res.hotel_id || '').trim();
+                    const hotelName = res.hotelName || res.hotel_name || res.hotel ||
+                        (hotelId && hotelNameById[hotelId]) || 'Sin hotel';
+                    if (!byHotel[hotelName]) {
+                        byHotel[hotelName] = { amount: 0, count: 0 };
+                    }
+                    byHotel[hotelName].amount += amount;
+                    byHotel[hotelName].count += 1;
+                });
+
+                const hotelRows = Object.entries(byHotel)
+                    .sort((a, b) => b[1].amount - a[1].amount)
+                    .map(([name, data]) => `
+                        <tr>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #e3f2fd;">${name}</td>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #e3f2fd; text-align: center;">${data.count}</td>
+                            <td style="padding: 8px 12px; border-bottom: 1px solid #e3f2fd; text-align: right; font-weight: 500;">${formatCurrencyARS(data.amount)}</td>
+                        </tr>
+                    `).join('');
+
+                const [y, m, d] = selectedDate.split('-');
+                const dateLabel = `${d}/${m}/${y}`;
+
+                if (dayReservations.length === 0) {
+                    resultsEl.innerHTML = `
+                        <p style="margin: 0 0 8px; color: #555;">
+                            <strong>Fecha:</strong> ${dateLabel}
+                        </p>
+                        <p style="margin: 0; color: #666;">No hay ventas concretadas en esta fecha.</p>
+                    `;
+                    return;
+                }
+
+                resultsEl.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+                        <p style="margin: 0; color: #555;"><strong>Fecha:</strong> ${dateLabel} · ${dayReservations.length} reserva(s)</p>
+                        <p style="margin: 0; font-size: 1.15rem; color: #1565c0; font-weight: 700;">Total: ${formatCurrencyARS(total)}</p>
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 6px; overflow: hidden;">
+                            <thead>
+                                <tr style="background: #e3f2fd;">
+                                    <th style="padding: 8px 12px; text-align: left; color: #1565c0;">Hotel</th>
+                                    <th style="padding: 8px 12px; text-align: center; color: #1565c0;">Reservas</th>
+                                    <th style="padding: 8px 12px; text-align: right; color: #1565c0;">Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${hotelRows}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error consultando ventas por día:', error);
+                resultsEl.innerHTML = '<p style="margin: 0; color: #c62828;">Error al consultar las ventas. Intentá de nuevo.</p>';
+            }
+        }
+
+        window.verVentasPorDia = verVentasPorDia;
+        window.initDailySalesDatePicker = initDailySalesDatePicker;
+
         // Función para actualizar estadísticas del dashboard
         async function updateStats() {
             console.log('Actualizando estadisticas del dashboard...');
+            if (typeof initDailySalesDatePicker === 'function') initDailySalesDatePicker();
             const statsReservations = await getReservationsForStats();
             
             // Actualizar Total Hoteles (solo activos) — misma fuente que el resto: Supabase si está activo
@@ -8186,7 +8326,7 @@ Ej:
 
         const HOTEL_REGIONES_POR_PAIS = {
             Argentina: ['Bariloche', 'Buenos Aires', 'Costa Argentina', 'Norte Argentino', 'Mendoza'],
-            Chile: ['Puerto Varas', 'Pucón', 'Villarica', 'Valdivia']
+            Chile: ['Puerto Varas', 'Pucón', 'Villarica', 'Valdivia', 'Puyehue', 'Viña del Mar', 'Santiago']
         };
 
         function fillHotelRegionOptions(pais, selectedRegion) {
