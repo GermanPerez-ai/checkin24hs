@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-07-16T13:42:06Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 200; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-07-16T13:49:43Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 201; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">200</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">201</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -2460,9 +2460,10 @@
                         <span class="material-icons" style="font-size: 1.25rem;">calendar_today</span>
                         Ventas por Día
                     </h4>
+                    <p style="margin: 0 0 12px; color: #666; font-size: 0.85rem;">Según la fecha en que se ingresó la reserva (no el check-in del hotel).</p>
                     <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;">
                         <div style="flex: 1; min-width: 180px;">
-                            <label for="dailySalesDate" style="display: block; margin-bottom: 6px; font-weight: 500; color: #333; font-size: 0.9rem;">Fecha:</label>
+                            <label for="dailySalesDate" style="display: block; margin-bottom: 6px; font-weight: 500; color: #333; font-size: 0.9rem;">Fecha de ingreso:</label>
                             <input type="date" id="dailySalesDate" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.95rem;">
                         </div>
                         <button type="button" class="form-button" style="background: #1976d2; color: white; padding: 8px 24px;" onclick="verVentasPorDia()">
@@ -7690,9 +7691,12 @@ Ej:
                 const dayReservations = reservations.filter(reservation => {
                     const status = reservation.status || '';
                     if (status === 'Cancelada' || status === 'cancelada') return false;
-                    const rawCheckIn = reservation.checkIn || reservation.check_in;
-                    const checkIn = normalizeReservationDateLocal(rawCheckIn);
-                    return checkIn === selectedDate;
+                    // Fecha en que se ingresó/creó la reserva (no check-in del hotel)
+                    const rawCreated = reservation.created_at || reservation.createdAt ||
+                        reservation.reservationDate || reservation.reservation_date ||
+                        reservation.timestamp;
+                    const createdDate = normalizeReservationDateLocal(rawCreated);
+                    return createdDate === selectedDate;
                 });
 
                 const byHotel = {};
