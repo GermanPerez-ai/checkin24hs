@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-07-16T13:49:43Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 201; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-07-18T17:18:32Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 203; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">201</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">203</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -5194,6 +5194,12 @@
                                         <option value="">País…</option>
                                         <option value="Argentina">Argentina</option>
                                         <option value="Chile">Chile</option>
+                                        <option value="Caribe">Caribe</option>
+                                        <option value="México">México</option>
+                                        <option value="Brasil">Brasil</option>
+                                        <option value="Costa Rica">Costa Rica</option>
+                                        <option value="Panamá">Panamá</option>
+                                        <option value="Estados Unidos">Estados Unidos</option>
                                         <option value="Internacional">Internacional</option>
                                     </select>
                                 </div>
@@ -5204,7 +5210,7 @@
                                 </div>
                             </div>
                             <div style="margin-top: 5px; font-size: 0.85rem; color: #666;">
-                                País: sección de la web. Región: zona del país (Argentina o Chile).
+                                País: sección de la web. Región: destino o zona dentro del país.
                             </div>
                         </div>
 
@@ -8047,8 +8053,11 @@ Ej:
                 const paisElEdit = document.getElementById('editHotelPais');
                 if (paisElEdit) {
                     const p = (hotel.pais || '').trim();
-                    if (p === 'Argentina' || p === 'Chile' || p === 'Internacional') {
-                        paisElEdit.value = p;
+                    const paisConocido = typeof HOTEL_PAISES !== 'undefined'
+                        ? HOTEL_PAISES.find(function(nombre) { return nombre.toLowerCase() === p.toLowerCase(); })
+                        : null;
+                    if (paisConocido) {
+                        paisElEdit.value = paisConocido;
                     } else if (/argentina/i.test(p) || /argentina/i.test(hotel.location || '')) {
                         paisElEdit.value = 'Argentina';
                     } else if (/chile/i.test(p) || /chile/i.test(hotel.location || '')) {
@@ -8328,9 +8337,21 @@ Ej:
         // Hacer la función disponible globalmente
         window.toggleKnowledgeSection = toggleKnowledgeSection;
 
+        const HOTEL_PAISES = [
+            'Argentina', 'Chile', 'Caribe', 'México', 'Brasil',
+            'Costa Rica', 'Panamá', 'Estados Unidos', 'Internacional'
+        ];
+
         const HOTEL_REGIONES_POR_PAIS = {
             Argentina: ['Bariloche', 'Buenos Aires', 'Costa Argentina', 'Norte Argentino', 'Mendoza'],
-            Chile: ['Puerto Varas', 'Pucón', 'Villarica', 'Valdivia', 'Puyehue', 'Viña del Mar', 'Santiago']
+            Chile: ['Puerto Varas', 'Pucón', 'Villarica', 'Valdivia', 'Puyehue', 'Viña del Mar', 'Santiago'],
+            Caribe: ['Aruba', 'República Dominicana', 'Cuba', 'Puerto Rico'],
+            México: ['Cancún', 'Playa del Carmen', 'Tulum', 'Isla de Cozumel', 'Los Cabos', 'Puerto Vallarta', 'Riviera Nayarit'],
+            Brasil: ['Río de Janeiro (Región Sudeste)', 'Recife (Región Nordeste)', 'Florianópolis (Región Sur)', 'Fortaleza (Región Nordeste)'],
+            'Costa Rica': [],
+            Panamá: [],
+            'Estados Unidos': ['Hawái', 'Florida'],
+            Internacional: []
         };
 
         function fillHotelRegionOptions(pais, selectedRegion) {
@@ -16687,8 +16708,11 @@ Ej:
             const paisSelectFill = document.getElementById('editHotelPais');
             if (paisSelectFill) {
                 const p = (hotel.pais || '').trim();
-                if (p === 'Argentina' || p === 'Chile' || p === 'Internacional') {
-                    paisSelectFill.value = p;
+                const paisConocido = typeof HOTEL_PAISES !== 'undefined'
+                    ? HOTEL_PAISES.find(function(nombre) { return nombre.toLowerCase() === p.toLowerCase(); })
+                    : null;
+                if (paisConocido) {
+                    paisSelectFill.value = paisConocido;
                 } else if (/argentina/i.test(p) || /argentina/i.test(hotel.location || '')) {
                     paisSelectFill.value = 'Argentina';
                 } else if (/chile/i.test(p) || /chile/i.test(hotel.location || '')) {
@@ -17042,11 +17066,12 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 return;
             }
             if (!paisSelect || !paisSelect.value) {
-                alert('⚠️ Seleccioná la ubicación: Argentina, Chile o Internacional.');
+                alert('⚠️ Seleccioná el país o grupo de destino.');
                 if (paisSelect) paisSelect.focus();
                 return;
             }
-            if ((paisSelect.value === 'Argentina' || paisSelect.value === 'Chile') && regionSelect && !regionSelect.value) {
+            const regionesDelPais = HOTEL_REGIONES_POR_PAIS[paisSelect.value] || [];
+            if (regionesDelPais.length > 0 && regionSelect && !regionSelect.value) {
                 alert('⚠️ Seleccioná la región del hotel.');
                 regionSelect.focus();
                 return;
@@ -17109,9 +17134,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 name: nameInput.value.trim(),
                 location: locationInput.value.trim(),
                 pais: paisSelect.value.trim(),
-                region: ((paisSelect.value.trim() === 'Argentina' || paisSelect.value.trim() === 'Chile') && regionSelect?.value)
-                    ? regionSelect.value.trim()
-                    : (regionSelect?.value?.trim() || null),
+                region: regionSelect?.value?.trim() || null,
                 tipo_producto: tipoProductoSelect.value.trim() === 'paquete' ? 'paquete' : 'hotel',
                 elegido_del_mes: !!(document.getElementById('editHotelElegidoDelMes')?.checked),
                 googleMaps: googleMapsInput?.value?.trim() || '',
