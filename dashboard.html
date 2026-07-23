@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-07-18T17:18:32Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 203; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-07-23T14:08:46Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 205; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">203</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">205</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -5337,108 +5337,113 @@
                     </div>
                 </div>
                 
-                <!-- Sección de Información para Flor IA -->
+                <!-- Sección de Información para Flor IA (colapsable) -->
                 <div style="margin-top: 25px; padding: 20px; background: linear-gradient(135deg, #e8f5e9, #f3e5f5); border-radius: 12px; border: 2px solid #9c27b0;">
-                    <h3 style="margin: 0 0 15px 0; color: #7b1fa2; display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 24px;">🤖</span> Información para Flor IA
-                        <span style="font-size: 12px; background: #9c27b0; color: white; padding: 3px 8px; border-radius: 10px;">Flor usará estos datos</span>
-                    </h3>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                        <!-- Columna Izquierda -->
-                        <div>
-                            <div class="form-group">
-                                <label class="form-label">📝 Descripción Detallada</label>
-                                <textarea class="form-input" id="editHotelFlorDescription" rows="4" 
-                                    placeholder="Descripción completa del hotel para que Flor pueda contarle a los clientes...
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; cursor: pointer;" onclick="toggleFlorInfoSection()">
+                        <h3 style="margin: 0; color: #7b1fa2; display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 24px;">🤖</span> Información para Flor IA
+                            <span style="font-size: 12px; background: #9c27b0; color: white; padding: 3px 8px; border-radius: 10px;">Flor usará estos datos</span>
+                        </h3>
+                        <span id="florInfoToggleIcon" class="material-icons" style="color: #7b1fa2; transition: transform 0.3s;">expand_more</span>
+                    </div>
+
+                    <div id="florInfoSection" style="display: none;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <!-- Columna Izquierda -->
+                            <div>
+                                <div class="form-group">
+                                    <label class="form-label">📝 Descripción Detallada</label>
+                                    <textarea class="form-input" id="editHotelFlorDescription" rows="4" 
+                                        placeholder="Descripción completa del hotel para que Flor pueda contarle a los clientes...
 Ej: Hotel boutique de lujo con vistas al lago. Ideal para parejas y familias que buscan una experiencia única en la Patagonia."></textarea>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label">🏊 Servicios e Instalaciones</label>
-                                <textarea class="form-input" id="editHotelFlorServices" rows="4" 
-                                    placeholder="Lista detallada de servicios...
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">🏊 Servicios e Instalaciones</label>
+                                    <textarea class="form-input" id="editHotelFlorServices" rows="4" 
+                                        placeholder="Lista detallada de servicios...
 Ej:
 • Spa con piscina climatizada y jacuzzi
 • Restaurante gourmet con cocina local
 • Bar con vista panorámica
 • WiFi gratuito en todas las áreas
 • Estacionamiento privado"></textarea>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label">🎿 Excursiones y Actividades</label>
-                                <textarea class="form-input" id="editHotelFlorExcursions" rows="4" 
-                                    placeholder="Actividades disponibles...
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">🎿 Excursiones y Actividades</label>
+                                    <textarea class="form-input" id="editHotelFlorExcursions" rows="4" 
+                                        placeholder="Actividades disponibles...
 Ej:
 • Trekking por el bosque nativo ($45 USD)
 • Paseo en kayak por el lago ($60 USD)
 • Avistamiento de aves (incluido)
 • Esquí en temporada (traslado incluido)
 • Canopy y tirolesa ($80 USD)"></textarea>
+                                </div>
                             </div>
-                        </div>
-                        
-                        <!-- Columna Derecha -->
-                        <div>
-                            <div class="form-group">
-                                <label class="form-label">💰 Información de Precios</label>
-                                <textarea class="form-input" id="editHotelFlorPrices" rows="4" 
-                                    placeholder="Tarifas y precios...
+                            
+                            <!-- Columna Derecha -->
+                            <div>
+                                <div class="form-group">
+                                    <label class="form-label">💰 Información de Precios</label>
+                                    <textarea class="form-input" id="editHotelFlorPrices" rows="4" 
+                                        placeholder="Tarifas y precios...
 Ej:
 • Habitación Doble: $180-$250 USD/noche
 • Suite Familiar: $320-$400 USD/noche
 • Todo Incluido disponible: +$80 USD/persona
 • Niños menores de 5 años: Gratis
 • Temporada alta: +30%"></textarea>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label">📋 Políticas del Hotel</label>
-                                <textarea class="form-input" id="editHotelFlorPolicies" rows="4" 
-                                    placeholder="Políticas importantes...
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">📋 Políticas del Hotel</label>
+                                    <textarea class="form-input" id="editHotelFlorPolicies" rows="4" 
+                                        placeholder="Políticas importantes...
 Ej:
 • Check-in: 15:00 hrs / Check-out: 11:00 hrs
 • Cancelación gratuita hasta 48 hrs antes
 • Se aceptan mascotas pequeñas (+$30 USD)
 • Depósito de garantía: $100 USD
 • All-inclusive: desayuno, almuerzo y cena"></textarea>
-                            </div>
-                            
-                            <div class="form-group">
-                                <label class="form-label">🚗 Cómo Llegar</label>
-                                <textarea class="form-input" id="editHotelFlorTransport" rows="4" 
-                                    placeholder="Información de transporte...
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label class="form-label">🚗 Cómo Llegar</label>
+                                    <textarea class="form-input" id="editHotelFlorTransport" rows="4" 
+                                        placeholder="Información de transporte...
 Ej:
 • A 2 horas del aeropuerto de Temuco
 • Transfer desde aeropuerto: $80 USD (ida y vuelta)
 • Bus desde Santiago: 12 horas, terminal Panguipulli
 • Coordenadas GPS: -39.8500, -71.9000
 • Ruta pavimentada hasta el hotel"></textarea>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    
-                    <div class="form-group" style="margin-top: 15px;">
-                        <label class="form-label">📞 Información de Contacto</label>
-                        <textarea class="form-input" id="editHotelFlorContact" rows="2" 
-                            placeholder="Teléfono: +56 9 1234 5678 | Email: reservas@hotel.com | WhatsApp: +56 9 1234 5678"></textarea>
-                    </div>
-                    
-                    <!-- Ficha Flor (alias, gastronomía, tips) -->
-                    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ce93d8;">
-                        <div class="form-group">
-                            <label class="form-label">🔤 Alias de búsqueda (para Flor)</label>
-                            <input type="text" class="form-input" id="editHotelFlorAlias" placeholder="Puyehue, Guilo, Wilo (sinónimos y errores de tipeo)">
+                        
+                        <div class="form-group" style="margin-top: 15px;">
+                            <label class="form-label">📞 Información de Contacto</label>
+                            <textarea class="form-input" id="editHotelFlorContact" rows="2" 
+                                placeholder="Teléfono: +56 9 1234 5678 | Email: reservas@hotel.com | WhatsApp: +56 9 1234 5678"></textarea>
                         </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        
+                        <!-- Ficha Flor (alias, gastronomía, tips) -->
+                        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ce93d8;">
                             <div class="form-group">
-                                <label class="form-label">🍽️ Gastronomía (Chef, tipo de cocina)</label>
-                                <textarea class="form-input" id="editHotelFlorGastronomia" rows="3" placeholder="Chef y tipo de cocina"></textarea>
+                                <label class="form-label">🔤 Alias de búsqueda (para Flor)</label>
+                                <input type="text" class="form-input" id="editHotelFlorAlias" placeholder="Puyehue, Guilo, Wilo (sinónimos y errores de tipeo)">
                             </div>
-                            <div class="form-group">
-                                <label class="form-label">💡 Tips agencia (secretos Checkin24hs)</label>
-                                <textarea class="form-input" id="editHotelFlorTips" rows="3" placeholder="Recomendaciones internas"></textarea>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div class="form-group">
+                                    <label class="form-label">🍽️ Gastronomía (Chef, tipo de cocina)</label>
+                                    <textarea class="form-input" id="editHotelFlorGastronomia" rows="3" placeholder="Chef y tipo de cocina"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">💡 Tips agencia (secretos Checkin24hs)</label>
+                                    <textarea class="form-input" id="editHotelFlorTips" rows="3" placeholder="Recomendaciones internas"></textarea>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -8336,6 +8341,17 @@ Ej:
         
         // Hacer la función disponible globalmente
         window.toggleKnowledgeSection = toggleKnowledgeSection;
+
+        function toggleFlorInfoSection() {
+            const section = document.getElementById('florInfoSection');
+            const icon = document.getElementById('florInfoToggleIcon');
+            if (section && icon) {
+                const isVisible = section.style.display !== 'none';
+                section.style.display = isVisible ? 'none' : 'block';
+                icon.style.transform = isVisible ? 'rotate(0deg)' : 'rotate(180deg)';
+            }
+        }
+        window.toggleFlorInfoSection = toggleFlorInfoSection;
 
         const HOTEL_PAISES = [
             'Argentina', 'Chile', 'Caribe', 'México', 'Brasil',
@@ -16339,6 +16355,12 @@ Ej:
                 const el = document.getElementById(id);
                 if (el) { el.value = ''; if (el.type === 'checkbox') el.checked = false; }
             });
+
+            // Colapsar sección Flor IA
+            const florSection = document.getElementById('florInfoSection');
+            const florIcon = document.getElementById('florInfoToggleIcon');
+            if (florSection) florSection.style.display = 'none';
+            if (florIcon) florIcon.style.transform = 'rotate(0deg)';
             
             if (typeof clearFichaWebForm === 'function') clearFichaWebForm();
             
