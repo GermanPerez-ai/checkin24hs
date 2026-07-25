@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-07-23T14:08:46Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 205; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-07-25T19:36:12Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 206; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">205</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">206</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -5259,25 +5259,6 @@
                         </div>
                         
                         <div class="form-group">
-                            <label class="form-label">Calificación (1-5)</label>
-                            <input type="number" class="form-input" id="editHotelRating" min="1" max="5" step="0.1">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Rango de Precio</label>
-                            <input type="text" class="form-input" id="editHotelPrice" placeholder="$150-$300 USD">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Categoría de Precio</label>
-                            <select class="form-input" id="editHotelPriceRange">
-                                <option value="low">Bajo</option>
-                                <option value="medium">Medio</option>
-                                <option value="high">Alto</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
                             <label class="form-label">Estado</label>
                             <select class="form-input" id="editHotelStatus">
                                 <option value="Activo">Activo</option>
@@ -8084,8 +8065,6 @@ Ej:
                 }
                 document.getElementById('editHotelGoogleMaps').value = hotel.googleMaps || hotel.google_maps || '';
                 document.getElementById('editHotelWebsite').value = hotel.website || '';
-                document.getElementById('editHotelRating').value = hotel.rating || '';
-                document.getElementById('editHotelPrice').value = hotel.price || '';
                 document.getElementById('editHotelDescription').value = hotel.description || '';
                 document.getElementById('editHotelAmenities').value = Array.isArray(hotel.amenities) ? hotel.amenities.join(', ') : (hotel.amenities || '');
                 document.getElementById('editHotelStatus').value = hotel.status || 'Activo';
@@ -8145,6 +8124,12 @@ Ej:
                 const form = document.getElementById('editHotelForm');
                 form.dataset.mode = 'edit';
                 form.dataset.hotelId = hotelId;
+                window._editingHotel = {
+                    id: hotel.id != null ? hotel.id : hotelId,
+                    name: hotel.name || '',
+                    rating: hotel.rating != null ? hotel.rating : 0,
+                    price: hotel.price != null ? hotel.price : 0
+                };
                 
                 // Actualizar vista previa de imagen
                 const previewContainer = document.getElementById('editImagePreview');
@@ -8186,14 +8171,6 @@ Ej:
                             <input type="text" id="editHotelLocationDynamic" value="${hotelLocation}" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
                         </div>
                         <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Precio Base (USD)</label>
-                            <input type="number" id="editHotelPriceDynamic" value="${hotelPrice}" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
-                        </div>
-                        <div style="margin-bottom: 15px;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Calificación (1-5)</label>
-                            <input type="number" id="editHotelRatingDynamic" value="${hotelRating}" min="0" max="5" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
-                        </div>
-                        <div style="margin-bottom: 15px;">
                             <label style="display: block; margin-bottom: 5px; font-weight: 500;">Estado</label>
                             <select id="editHotelStatusDynamic" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px;">
                                 <option value="Activo" ${hotelStatus === 'Activo' ? 'selected' : ''}>Activo</option>
@@ -8220,8 +8197,6 @@ Ej:
                 const updates = {
                     name: document.getElementById('editHotelNameDynamic')?.value || '',
                     location: document.getElementById('editHotelLocationDynamic')?.value || '',
-                    price: parseFloat(document.getElementById('editHotelPriceDynamic')?.value) || 0,
-                    rating: parseInt(document.getElementById('editHotelRatingDynamic')?.value) || 0,
                     status: document.getElementById('editHotelStatusDynamic')?.value || 'Activo',
                     updated_at: new Date().toISOString()
                 };
@@ -16322,8 +16297,8 @@ Ej:
             
             // Limpiar TODOS los campos de texto
             const fieldsToClean = [
-                'editHotelName', 'editHotelLocation', 'editHotelGoogleMaps', 
-                'editHotelWebsite', 'editHotelPrice', 'editHotelDescription', 
+                'editHotelName', 'editHotelLocation', 'editHotelGoogleMaps',
+                'editHotelWebsite', 'editHotelDescription',
                 'editHotelAmenities'
             ];
             fieldsToClean.forEach(id => {
@@ -16332,11 +16307,9 @@ Ej:
             });
             
             // Resetear selects
-            const ratingSelect = document.getElementById('editHotelRating');
             const statusSelect = document.getElementById('editHotelStatus');
             const paisSelect = document.getElementById('editHotelPais');
             const tipoSelect = document.getElementById('editHotelTipoProducto');
-            if (ratingSelect) ratingSelect.value = '0';
             if (statusSelect) statusSelect.value = 'Activo';
             if (paisSelect) paisSelect.value = '';
             const regionSelect = document.getElementById('editHotelRegion');
@@ -16719,8 +16692,6 @@ Ej:
             const locationInput = document.getElementById('editHotelLocation');
             const googleMapsInput = document.getElementById('editHotelGoogleMaps');
             const websiteInput = document.getElementById('editHotelWebsite');
-            const ratingSelect = document.getElementById('editHotelRating');
-            const priceInput = document.getElementById('editHotelPrice');
             const descriptionTextarea = document.getElementById('editHotelDescription');
             const amenitiesInput = document.getElementById('editHotelAmenities');
             const statusSelect = document.getElementById('editHotelStatus');
@@ -16763,8 +16734,6 @@ Ej:
                 console.log('🗺️ Google Maps URL cargada:', googleMapsUrl);
             }
             
-            if (ratingSelect) ratingSelect.value = hotel.rating || '0';
-            if (priceInput) priceInput.value = hotel.price || '';
             if (descriptionTextarea) descriptionTextarea.value = hotel.description || '';
             if (amenitiesInput) amenitiesInput.value = Array.isArray(hotel.amenities) ? hotel.amenities.join(', ') : '';
             if (statusSelect) statusSelect.value = hotel.status || 'Activo';
@@ -16860,7 +16829,12 @@ Ej:
                     const idVal = hotel.id != null ? hotel.id : hotelId;
                     form.dataset.mode = 'edit';
                     form.dataset.hotelId = String(idVal);
-                    window._editingHotel = { id: idVal, name: hotel.name || '' };
+                    window._editingHotel = {
+                        id: idVal,
+                        name: hotel.name || '',
+                        rating: hotel.rating != null ? hotel.rating : 0,
+                        price: hotel.price != null ? hotel.price : 0
+                    };
                     console.log('✅ Formulario configurado - modo: edit, hotelId:', idVal);
                     console.log('✅ Dataset del formulario:', {
                         mode: form.dataset.mode,
@@ -17078,8 +17052,6 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             const tipoProductoSelect = document.getElementById('editHotelTipoProducto');
             const googleMapsInput = document.getElementById('editHotelGoogleMaps');
             const websiteInput = document.getElementById('editHotelWebsite');
-            const ratingSelect = document.getElementById('editHotelRating');
-            const priceInput = document.getElementById('editHotelPrice');
             const descriptionTextarea = document.getElementById('editHotelDescription');
             const amenitiesInput = document.getElementById('editHotelAmenities');
             const statusSelect = document.getElementById('editHotelStatus');
@@ -17152,6 +17124,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             const knowledgeNotes = document.getElementById('editHotelKnowledgeNotes')?.value?.trim() || '';
             const knowledgeWebsiteInfo = document.getElementById('editHotelKnowledgeWebsiteInfo')?.value?.trim() || '';
             
+            // Conservar rating/price existentes al editar (campos quitados del formulario)
+            const existingHotel = window._editingHotel || {};
             const hotelData = {
                 name: nameInput.value.trim(),
                 location: locationInput.value.trim(),
@@ -17161,8 +17135,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 elegido_del_mes: !!(document.getElementById('editHotelElegidoDelMes')?.checked),
                 googleMaps: googleMapsInput?.value?.trim() || '',
                 website: websiteInput?.value?.trim() || '', // URL del sitio web del hotel
-                rating: parseInt(ratingSelect?.value || '0'),
-                price: priceInput?.value ? parseInt(priceInput.value) : 0,
+                rating: existingHotel.rating != null ? existingHotel.rating : 0,
+                price: existingHotel.price != null ? existingHotel.price : 0,
                 description: descriptionTextarea?.value || '',
                 amenities: amenitiesInput?.value ? amenitiesInput.value.split(',').map(a => a.trim()) : [],
                 status: statusSelect?.value || 'Activo',
