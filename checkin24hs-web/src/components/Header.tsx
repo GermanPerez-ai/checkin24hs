@@ -6,6 +6,7 @@ const NAV = [
   { to: '/argentina', label: 'Argentina' },
   { to: '/chile', label: 'Chile' },
   { to: '/internacionales', label: 'Internacionales' },
+  { to: '/packs', label: 'Packs' },
 ] as const;
 
 export function Header() {
