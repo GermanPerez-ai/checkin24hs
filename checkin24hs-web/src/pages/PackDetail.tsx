@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { buildWhatsAppConsultaUrl } from '../config';
-import { getReservaDirectaUrl, openReservaPopup } from '../lib/hoteles';
 import {
   formatPackPrice,
   getFichaPack,
@@ -108,8 +107,6 @@ export function PackDetail() {
   const alojamientosPrev = linesFromText(fp.alojamientos_previstos);
   const itinerario = linesFromText(fp.itinerario);
   const waUrl = buildWhatsAppConsultaUrl(hotel.name);
-  const personalizaUrl = buildWhatsAppConsultaUrl(`${hotel.name} — quiero personalizarlo`);
-  const reservaUrl = getReservaDirectaUrl(hotel);
   const currentImg = images[Math.min(imgIndex, images.length - 1)];
 
   return (
@@ -125,24 +122,12 @@ export function PackDetail() {
             </div>
 
             <div className={styles.actions}>
-              <a href={personalizaUrl} target="_blank" rel="noopener noreferrer" className={styles.btn}>
-                ¡Personalízalo!
-              </a>
-              {reservaUrl ? (
-                <button type="button" className={styles.btn} onClick={() => openReservaPopup(reservaUrl)}>
-                  Reserva directamente sin cambios
-                </button>
-              ) : (
-                <a href={waUrl} target="_blank" rel="noopener noreferrer" className={styles.btn}>
-                  Reserva directamente sin cambios
-                </a>
-              )}
               <a href={waUrl} target="_blank" rel="noopener noreferrer" className={styles.btn}>
                 Contactanos
               </a>
             </div>
 
-            <h2 className={styles.sideTitle}>Resumen del viaje</h2>
+            <h2 className={styles.sideTitle}>Esta cotizacion incluye:</h2>
             <div className={styles.box}>
               <span className={styles.boxIcon} aria-hidden>
                 👥
@@ -157,7 +142,6 @@ export function PackDetail() {
               <strong className={styles.boxRight}>{noches != null ? noches : '—'}</strong>
             </div>
 
-            <h2 className={styles.sideTitle}>Esta cotización incluye</h2>
             <div className={styles.box}>
               <span className={styles.boxIcon} aria-hidden>
                 📍
@@ -181,7 +165,7 @@ export function PackDetail() {
             </div>
 
             <div className={styles.tourCard}>
-              <h3 className={styles.tourTitle}>Resumen del tour</h3>
+              <h3 className={styles.tourTitle}>Resumen de itinerario</h3>
               {fp.punto_encuentro?.trim() && (
                 <p className={styles.tourLine}>
                   <strong>Punto de encuentro:</strong> {fp.punto_encuentro.trim()}
