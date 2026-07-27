@@ -43,6 +43,32 @@ export interface FichaWeb {
   } | null;
 }
 
+/** Ficha de paquete/pack (tarjeta overlay + detalle con sidebar). */
+export interface FichaPack {
+  noches?: number | null;
+  destinos_count?: number | null;
+  alojamientos_count?: number | null;
+  circuitos_count?: number | null;
+  precio_por_persona?: number | null;
+  moneda?: string | null;
+  /** Ej. "En base a 2 adultos y 2 niños" */
+  precio_nota?: string | null;
+  adultos?: number | null;
+  ninos?: number | null;
+  /** Pill de ubicación en la tarjeta, ej. "Brasil - Palladium Imbassai" */
+  etiqueta_ubicacion?: string | null;
+  /** Ej. "Temas Brasil | Circuitos regulares sin aéreo" */
+  temas?: string | null;
+  /** Texto con viñetas (una por línea) */
+  descripcion?: string | null;
+  incluye?: string | null;
+  excluye?: string | null;
+  alojamientos_previstos?: string | null;
+  punto_encuentro?: string | null;
+  itinerario?: string | null;
+  observaciones?: string | null;
+}
+
 export interface Hotel {
   id: string;
   name: string;
@@ -71,6 +97,8 @@ export interface Hotel {
   elegido_del_mes?: boolean | null;
   /** Ficha modular para la web pública */
   ficha_web?: FichaWeb | null;
+  /** Datos específicos de pack/paquete */
+  ficha_pack?: FichaPack | null;
   puntuacion_num: number | null;
   puntuacion_texto: string | null;
   cantidad_opiniones: number | null;

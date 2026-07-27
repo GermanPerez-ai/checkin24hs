@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-07-25T19:36:12Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 206; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-07-27T13:27:03Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 207; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">206</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">207</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -5216,7 +5216,7 @@
 
                         <div class="form-group">
                             <label class="form-label">Tipo *</label>
-                            <select class="form-input" id="editHotelTipoProducto" required>
+                            <select class="form-input" id="editHotelTipoProducto" required onchange="onHotelTipoProductoChange()">
                                 <option value="hotel">Hotel</option>
                                 <option value="paquete">Paquete</option>
                             </select>
@@ -5541,6 +5541,101 @@ Ej:
                                     <label class="form-label">Info — Aviso legal</label>
                                     <textarea class="form-input" id="editFichaInfoAvisoLegal" rows="2"></textarea>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ficha Pack (web packs) — visible si Tipo = Paquete -->
+                <div id="fichaPackOuter" style="margin-top: 25px; padding: 20px; background: linear-gradient(135deg, #fff3e0, #ffe0b2); border-radius: 12px; border: 2px solid #ef6c00; display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; cursor: pointer;" onclick="toggleFichaPackSection()">
+                        <h3 style="margin: 0; color: #e65100; display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 24px;">🎒</span> Ficha Pack (tarjeta + detalle web)
+                            <span style="font-size: 12px; background: #ef6c00; color: white; padding: 3px 8px; border-radius: 10px;">Packs</span>
+                        </h3>
+                        <span id="fichaPackToggleIcon" class="material-icons" style="color: #e65100; transition: transform 0.3s;">expand_more</span>
+                    </div>
+                    <div id="fichaPackSection" style="display: none;">
+                        <p style="font-size: 0.9rem; color: #e65100; margin-bottom: 16px;">
+                            Estos datos se usan en la tarjeta de Packs y en la ficha al abrir el pack en nueva pestaña.
+                        </p>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+                            <div>
+                                <label class="form-label">Noches</label>
+                                <input type="number" class="form-input" id="editPackNoches" min="1" placeholder="7">
+                            </div>
+                            <div>
+                                <label class="form-label">Cantidad de destinos</label>
+                                <input type="number" class="form-input" id="editPackDestinos" min="1" placeholder="1">
+                            </div>
+                            <div>
+                                <label class="form-label">Alojamientos (cantidad)</label>
+                                <input type="number" class="form-input" id="editPackAlojamientos" min="1" placeholder="1">
+                            </div>
+                            <div>
+                                <label class="form-label">Circuitos (cantidad)</label>
+                                <input type="number" class="form-input" id="editPackCircuitos" min="0" placeholder="1">
+                            </div>
+                            <div>
+                                <label class="form-label">Precio por persona</label>
+                                <input type="number" class="form-input" id="editPackPrecio" min="0" step="1" placeholder="1431">
+                            </div>
+                            <div>
+                                <label class="form-label">Moneda</label>
+                                <select class="form-input" id="editPackMoneda">
+                                    <option value="USD">USD (US$)</option>
+                                    <option value="ARS">ARS ($)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="form-label">Adultos (base cotización)</label>
+                                <input type="number" class="form-input" id="editPackAdultos" min="1" placeholder="2">
+                            </div>
+                            <div>
+                                <label class="form-label">Niños (base cotización)</label>
+                                <input type="number" class="form-input" id="editPackNinos" min="0" placeholder="2">
+                            </div>
+                        </div>
+                        <div style="display: grid; gap: 14px; margin-top: 14px;">
+                            <div>
+                                <label class="form-label">Nota bajo el precio</label>
+                                <input type="text" class="form-input" id="editPackPrecioNota" placeholder="En base a 2 adultos y 2 niños">
+                            </div>
+                            <div>
+                                <label class="form-label">Etiqueta ubicación (pill de la tarjeta)</label>
+                                <input type="text" class="form-input" id="editPackEtiqueta" placeholder="Brasil - Palladium Imbassai Family Selection">
+                            </div>
+                            <div>
+                                <label class="form-label">Temas / categoría</label>
+                                <input type="text" class="form-input" id="editPackTemas" placeholder="Temas Brasil | Circuitos regulares sin aéreo">
+                            </div>
+                            <div>
+                                <label class="form-label">Punto de encuentro</label>
+                                <input type="text" class="form-input" id="editPackPuntoEncuentro" placeholder="Aeropuerto">
+                            </div>
+                            <div>
+                                <label class="form-label">Descripción (una viñeta por línea)</label>
+                                <textarea class="form-input" id="editPackDescripcion" rows="4" placeholder="08 Días / 07 Noches&#10;Alojamiento All Inclusive&#10;Traslado In/Out"></textarea>
+                            </div>
+                            <div>
+                                <label class="form-label">Incluido (una por línea)</label>
+                                <textarea class="form-input" id="editPackIncluye" rows="4" placeholder="7 noches con All Inclusive&#10;Traslado Aeropuerto..."></textarea>
+                            </div>
+                            <div>
+                                <label class="form-label">Excluido / Notas (una por línea)</label>
+                                <textarea class="form-input" id="editPackExcluye" rows="3" placeholder="Ningún servicio no especificado&#10;No aplica para grupos"></textarea>
+                            </div>
+                            <div>
+                                <label class="form-label">Alojamientos previstos (una por línea)</label>
+                                <textarea class="form-input" id="editPackAlojamientosPrev" rows="3" placeholder="Hotel Gran Palladium Imbassai..."></textarea>
+                            </div>
+                            <div>
+                                <label class="form-label">Itinerario (una viñeta por línea)</label>
+                                <textarea class="form-input" id="editPackItinerario" rows="5" placeholder="Día 1: ...&#10;Día 2: ..."></textarea>
+                            </div>
+                            <div>
+                                <label class="form-label">Observaciones</label>
+                                <textarea class="form-input" id="editPackObservaciones" rows="2" placeholder="Prov: 07 + 122"></textarea>
                             </div>
                         </div>
                     </div>
@@ -8059,6 +8154,7 @@ Ej:
                 if (tipoElEdit) {
                     tipoElEdit.value = (hotel.tipo_producto === 'paquete' ? 'paquete' : 'hotel');
                 }
+                if (typeof onHotelTipoProductoChange === 'function') onHotelTipoProductoChange();
                 const elegidoElEdit = document.getElementById('editHotelElegidoDelMes');
                 if (elegidoElEdit) {
                     elegidoElEdit.checked = !!(hotel.elegido_del_mes);
@@ -8085,6 +8181,9 @@ Ej:
                 
                 if (typeof fillFichaWebForm === 'function') {
                     fillFichaWebForm(hotel.ficha_web || hotel.fichaWeb || {});
+                }
+                if (typeof fillFichaPackForm === 'function') {
+                    fillFichaPackForm(hotel.ficha_pack || hotel.fichaPack || {});
                 }
                 
                 // Cargar conocimiento adicional desde flor_hotel_knowledge
@@ -8568,6 +8667,112 @@ Ej:
         window.getFichaWebFromForm = getFichaWebFromForm;
         window.fillFichaWebForm = fillFichaWebForm;
         window.clearFichaWebForm = clearFichaWebForm;
+
+        function _packVal(id) {
+            var el = document.getElementById(id);
+            return el ? String(el.value || '').trim() : '';
+        }
+        function _packNum(id) {
+            var v = _packVal(id);
+            if (!v) return null;
+            var n = parseFloat(v.replace(',', '.'));
+            return isNaN(n) ? null : n;
+        }
+        function toggleFichaPackSection() {
+            var section = document.getElementById('fichaPackSection');
+            var icon = document.getElementById('fichaPackToggleIcon');
+            if (section && icon) {
+                var isVisible = section.style.display !== 'none';
+                section.style.display = isVisible ? 'none' : 'block';
+                icon.style.transform = isVisible ? 'rotate(0deg)' : 'rotate(180deg)';
+            }
+        }
+        window.toggleFichaPackSection = toggleFichaPackSection;
+
+        function onHotelTipoProductoChange() {
+            var tipo = document.getElementById('editHotelTipoProducto');
+            var outer = document.getElementById('fichaPackOuter');
+            if (!outer) return;
+            var isPack = tipo && tipo.value === 'paquete';
+            outer.style.display = isPack ? 'block' : 'none';
+            if (!isPack) {
+                var section = document.getElementById('fichaPackSection');
+                var icon = document.getElementById('fichaPackToggleIcon');
+                if (section) section.style.display = 'none';
+                if (icon) icon.style.transform = 'rotate(0deg)';
+            }
+        }
+        window.onHotelTipoProductoChange = onHotelTipoProductoChange;
+
+        function getFichaPackFromForm() {
+            return {
+                noches: _packNum('editPackNoches'),
+                destinos_count: _packNum('editPackDestinos'),
+                alojamientos_count: _packNum('editPackAlojamientos'),
+                circuitos_count: _packNum('editPackCircuitos'),
+                precio_por_persona: _packNum('editPackPrecio'),
+                moneda: _packVal('editPackMoneda') || 'USD',
+                precio_nota: _packVal('editPackPrecioNota') || null,
+                adultos: _packNum('editPackAdultos'),
+                ninos: _packNum('editPackNinos'),
+                etiqueta_ubicacion: _packVal('editPackEtiqueta') || null,
+                temas: _packVal('editPackTemas') || null,
+                punto_encuentro: _packVal('editPackPuntoEncuentro') || null,
+                descripcion: _packVal('editPackDescripcion') || null,
+                incluye: _packVal('editPackIncluye') || null,
+                excluye: _packVal('editPackExcluye') || null,
+                alojamientos_previstos: _packVal('editPackAlojamientosPrev') || null,
+                itinerario: _packVal('editPackItinerario') || null,
+                observaciones: _packVal('editPackObservaciones') || null
+            };
+        }
+
+        function fillFichaPackForm(ficha) {
+            ficha = ficha && typeof ficha === 'object' ? ficha : {};
+            var set = function(id, v) {
+                var el = document.getElementById(id);
+                if (el) el.value = (v != null && v !== '') ? String(v) : '';
+            };
+            set('editPackNoches', ficha.noches);
+            set('editPackDestinos', ficha.destinos_count);
+            set('editPackAlojamientos', ficha.alojamientos_count);
+            set('editPackCircuitos', ficha.circuitos_count);
+            set('editPackPrecio', ficha.precio_por_persona);
+            set('editPackMoneda', ficha.moneda || 'USD');
+            set('editPackPrecioNota', ficha.precio_nota);
+            set('editPackAdultos', ficha.adultos);
+            set('editPackNinos', ficha.ninos);
+            set('editPackEtiqueta', ficha.etiqueta_ubicacion);
+            set('editPackTemas', ficha.temas);
+            set('editPackPuntoEncuentro', ficha.punto_encuentro);
+            set('editPackDescripcion', ficha.descripcion);
+            set('editPackIncluye', ficha.incluye);
+            set('editPackExcluye', ficha.excluye);
+            set('editPackAlojamientosPrev', ficha.alojamientos_previstos);
+            set('editPackItinerario', ficha.itinerario);
+            set('editPackObservaciones', ficha.observaciones);
+
+            var hasContent = !!(ficha.noches || ficha.precio_por_persona || ficha.descripcion || ficha.incluye || ficha.itinerario || ficha.etiqueta_ubicacion);
+            if (hasContent) {
+                var section = document.getElementById('fichaPackSection');
+                var icon = document.getElementById('fichaPackToggleIcon');
+                if (section) section.style.display = 'block';
+                if (icon) icon.style.transform = 'rotate(180deg)';
+            }
+            if (typeof onHotelTipoProductoChange === 'function') onHotelTipoProductoChange();
+        }
+
+        function clearFichaPackForm() {
+            fillFichaPackForm({});
+            var section = document.getElementById('fichaPackSection');
+            var icon = document.getElementById('fichaPackToggleIcon');
+            if (section) section.style.display = 'none';
+            if (icon) icon.style.transform = 'rotate(0deg)';
+            if (typeof onHotelTipoProductoChange === 'function') onHotelTipoProductoChange();
+        }
+        window.getFichaPackFromForm = getFichaPackFromForm;
+        window.fillFichaPackForm = fillFichaPackForm;
+        window.clearFichaPackForm = clearFichaPackForm;
         
         // Función para guardar conocimiento adicional del hotel
         function saveHotelKnowledgeAdditional(hotelId) {
@@ -16336,6 +16541,7 @@ Ej:
             if (florIcon) florIcon.style.transform = 'rotate(0deg)';
             
             if (typeof clearFichaWebForm === 'function') clearFichaWebForm();
+            if (typeof clearFichaPackForm === 'function') clearFichaPackForm();
             
             // Limpiar campos de conocimiento adicional
             const knowledgeFields = [
@@ -16721,6 +16927,7 @@ Ej:
             if (tipoSelectFill) {
                 tipoSelectFill.value = (hotel.tipo_producto === 'paquete' ? 'paquete' : 'hotel');
             }
+            if (typeof onHotelTipoProductoChange === 'function') onHotelTipoProductoChange();
             const elegidoFill = document.getElementById('editHotelElegidoDelMes');
             if (elegidoFill) {
                 elegidoFill.checked = !!(hotel.elegido_del_mes);
@@ -16767,6 +16974,9 @@ Ej:
             
             if (typeof fillFichaWebForm === 'function') {
                 fillFichaWebForm(hotel.ficha_web || hotel.fichaWeb || {});
+            }
+            if (typeof fillFichaPackForm === 'function') {
+                fillFichaPackForm(hotel.ficha_pack || hotel.fichaPack || {});
             }
             
             // Cargar imágenes
@@ -17115,6 +17325,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             const florGastronomia = document.getElementById('editHotelFlorGastronomia')?.value?.trim() || '';
             const florTips = document.getElementById('editHotelFlorTips')?.value?.trim() || '';
             const fichaWeb = typeof getFichaWebFromForm === 'function' ? getFichaWebFromForm() : {};
+            const fichaPack = typeof getFichaPackFromForm === 'function' ? getFichaPackFromForm() : {};
             
             // Obtener campos de conocimiento adicional
             const knowledgeDescription = document.getElementById('editHotelKnowledgeDescription')?.value?.trim() || '';
@@ -17159,8 +17370,15 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                     transport: florTransport,
                     contact: florContact
                 },
-                fichaWeb: fichaWeb
+                fichaWeb: fichaWeb,
+                fichaPack: fichaPack
             };
+
+            // Si es pack, sincronizar precio_desde con precio por persona
+            if (hotelData.tipo_producto === 'paquete' && fichaPack && fichaPack.precio_por_persona != null) {
+                hotelData.price = fichaPack.precio_por_persona;
+                hotelData.precio_desde = fichaPack.precio_por_persona;
+            }
             
             // Extraer coordenadas de Google Maps si está disponible
             if (hotelData.googleMaps) {
@@ -17250,7 +17468,9 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         google_maps: hotelData.googleMaps || null,
                         website: hotelData.website || null,
                         flor_info: hotelData.florInfo || null, // Información para Flor IA
-                        ficha_web: hotelData.fichaWeb || {}
+                        ficha_web: hotelData.fichaWeb || {},
+                        ficha_pack: hotelData.fichaPack || {},
+                        precio_desde: hotelData.precio_desde != null ? hotelData.precio_desde : (hotelData.price || null)
                     };
                     
                     console.log('📤 Datos preparados para Supabase (nuevo hotel):', {
@@ -17387,7 +17607,9 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         google_maps: hotelData.googleMaps || null,
                         website: hotelData.website || null,
                         flor_info: florInfoPayload,
-                        ficha_web: hotelData.fichaWeb || {}
+                        ficha_web: hotelData.fichaWeb || {},
+                        ficha_pack: hotelData.fichaPack || {},
+                        precio_desde: hotelData.precio_desde != null ? hotelData.precio_desde : (hotelData.price || null)
                     };
                     
                     const tieneImgGeneral = !!(florInfoPayload.img_general);

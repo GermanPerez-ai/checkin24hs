@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { HotelCard } from './HotelCard';
+import { PackCard } from './PackCard';
 import type { Hotel } from '../types';
 import styles from './AlojamientosCarousel.module.css';
 
@@ -49,6 +50,8 @@ type Props = {
   title?: string;
   sectionId?: string;
   compact?: boolean;
+  /** pack = tarjeta overlay estilo pack (abre detalle en nueva pestaña) */
+  cardVariant?: 'hotel' | 'pack';
 };
 
 export function AlojamientosCarousel({
@@ -60,12 +63,13 @@ export function AlojamientosCarousel({
   title = 'Nuestros elegidos del mes',
   sectionId = 'elegidos',
   compact = false,
+  cardVariant = 'hotel',
 }: Props) {
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
 
-  const useDevPreview = import.meta.env.DEV && !loading && !fetchError && hotels.length === 0;
+  const useDevPreview = import.meta.env.DEV && !loading && !fetchError && hotels.length === 0 && cardVariant !== 'pack';
   const displayHotels = useDevPreview ? devPreviewHotels() : hotels;
 
   const updateArrows = () => {
@@ -137,7 +141,11 @@ export function AlojamientosCarousel({
               <div ref={trackRef} className={styles.carouselTrack} role="list">
                 {displayHotels.map((h) => (
                   <div key={h.id} className={styles.cardSlot} role="listitem">
-                    <HotelCard hotel={h} variant="carousel" />
+                    {cardVariant === 'pack' ? (
+                      <PackCard hotel={h} />
+                    ) : (
+                      <HotelCard hotel={h} variant="carousel" />
+                    )}
                   </div>
                 ))}
               </div>

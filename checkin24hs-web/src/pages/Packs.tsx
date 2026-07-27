@@ -74,6 +74,7 @@ export function Packs() {
               hotels={items}
               loading={false}
               compact
+              cardVariant="pack"
             />
           ))
         )}
