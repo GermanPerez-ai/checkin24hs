@@ -4,10 +4,11 @@
   color: white;
   position: relative;
   z-index: 100;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .inner {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -26,25 +27,25 @@
 }
 
 .logo:hover {
-  color: rgba(255,255,255,0.9);
+  color: rgba(255, 255, 255, 0.9);
   text-decoration: none;
 }
 
-.nav {
+.navDesktop {
   display: flex;
   gap: 1.5rem;
   flex-shrink: 0;
 }
 
-.nav a {
-  color: rgba(255,255,255,0.9);
+.navDesktop a {
+  color: rgba(255, 255, 255, 0.9);
   text-decoration: none;
   font-size: 0.9rem;
   font-weight: 500;
   white-space: nowrap;
 }
 
-.nav a:hover {
+.navDesktop a:hover {
   color: white;
   text-decoration: none;
 }
@@ -55,51 +56,90 @@
   text-underline-offset: 4px;
 }
 
-.navLink {
-  background: none;
+.burger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 44px;
+  height: 44px;
+  padding: 10px;
   border: none;
-  padding: 0;
+  border-radius: 8px;
+  background: transparent;
   cursor: pointer;
-  color: rgba(255,255,255,0.9);
-  font-size: 0.9rem;
-  font-weight: 500;
-  white-space: nowrap;
-  font-family: inherit;
+  flex-shrink: 0;
 }
 
-.navLink:hover {
-  color: white;
+.burger:hover,
+.burger:focus-visible {
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
 }
 
-/* Móvil: evitar que "Inicio" se pegue al logo */
-@media (max-width: 600px) {
-  .inner {
-    flex-wrap: wrap;
-    gap: 8px 12px;
-  }
-  .logo {
-    font-size: 1.1rem;
-  }
-  .nav {
-    gap: 0.75rem;
-    width: 100%;
-    justify-content: flex-end;
-  }
-  .nav a,
-  .nav .navLink {
-    font-size: 0.8rem;
-  }
+.burgerLine {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: 1px;
+  background: #fff;
 }
 
-/* Pantallas muy chicas: nav en segunda línea con espacio claro */
-@media (max-width: 380px) {
-  .inner {
+.navMobile {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .navDesktop {
+    display: none;
+  }
+
+  .burger {
+    display: inline-flex;
+  }
+
+  .navMobile {
+    display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
+    gap: 0;
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    left: auto;
+    min-width: min(260px, calc(100vw - 32px));
+    padding: 8px 0;
+    background: var(--primary);
+    border-radius: 10px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    z-index: 120;
   }
-  .nav {
-    width: 100%;
-    justify-content: flex-start;
+
+  .navMobile[hidden] {
+    display: none !important;
+  }
+
+  .navMobileOpen {
+    display: flex;
+  }
+
+  .navMobile a {
+    display: block;
+    padding: 12px 18px;
+    color: rgba(255, 255, 255, 0.92);
+    text-decoration: none;
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .navMobile a:hover,
+  .navMobile a:focus-visible {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    outline: none;
+  }
+
+  .logo {
+    font-size: 1.15rem;
   }
 }
