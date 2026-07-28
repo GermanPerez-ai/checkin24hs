@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import {
   formatPackPrice,
   getFichaPack,
@@ -21,10 +22,8 @@ export function PackCard({ hotel }: { hotel: Hotel }) {
   const href = `/pack/${encodeURIComponent(slug)}`;
 
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
+    <Link
+      to={href}
       className={styles.card}
       aria-label={`Ver pack ${hotel.name}`}
     >
@@ -60,8 +59,8 @@ export function PackCard({ hotel }: { hotel: Hotel }) {
             </>
           )}
         </div>
-        <span className={styles.cta}>me interesa</span>
+        <span className={styles.cta}>¡Quiero ir!</span>
       </div>
-    </a>
+    </Link>
   );
 }
