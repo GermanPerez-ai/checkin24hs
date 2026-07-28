@@ -12,45 +12,98 @@ function hasText(v: string | null | undefined): v is string {
   return typeof v === 'string' && v.trim().length > 0;
 }
 
+function parsePuntajeNum(raw: string | number | null | undefined): number {
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : 0;
+  if (raw == null) return 0;
+  const m = String(raw).replace(',', '.').match(/(\d+(?:\.\d+)?)/);
+  if (!m) return 0;
+  const n = parseFloat(m[1]);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function shortenOpinionLabel(nombre: string): string {
+  let n = nombre.trim();
+  n = n.replace(/\([^)]*\/\s*10[^)]*\)/gi, '').trim();
+  n = n.replace(/^(destacado|opiniones de los clientes|puntuaci[oó]n general)\s*:?\s*/i, '').trim();
+  n = n.replace(/^valoraci[oó]n sobresaliente en\s+/i, '').trim();
+  if (n.length > 48) {
+    const parts = n.split(/,\s*/);
+    n = (parts[parts.length - 1] || n).trim();
+  }
+  if (n.length > 48) n = `${n.slice(0, 45).trim()}…`;
+  return n || 'Puntuación';
+}
+
 /** Extrae nombre limpio + puntaje desde "Limpieza | 9.4", "Limpieza: 9,4/10", etc. */
 function normalizeOpinion(c: { nombre?: string | null; puntaje?: number | string | null } | string) {
   if (typeof c === 'string') {
     return normalizeOpinion({ nombre: c, puntaje: null });
   }
   let nombre = (c.nombre || '').trim();
-  let puntaje = typeof c.puntaje === 'string'
-    ? parseFloat(c.puntaje.replace(',', '.').replace(/\/.*$/, '').trim())
-    : Number(c.puntaje);
-  if (!Number.isFinite(puntaje) || puntaje <= 0) {
-    const fromName = nombre.match(/(\d+[.,]\d+|\d+)\s*(?:\/\s*10)?\s*$/);
-    if (fromName) {
-      puntaje = parseFloat(fromName[1].replace(',', '.'));
-      nombre = nombre.slice(0, fromName.index).replace(/[\s:|–—\-]+$/, '').trim();
+  let puntaje = parsePuntajeNum(c.puntaje);
+  if (puntaje <= 0) {
+    // "… (9,0/10 Excelente)" o "… 9,0/10" en cualquier parte del texto
+    const inText = nombre.match(/(\d+[.,]\d+|\d+)\s*\/\s*10/);
+    if (inText) {
+      puntaje = parsePuntajeNum(inText[1]);
+    } else {
+      const atEnd = nombre.match(/(\d+[.,]\d+|\d+)\s*$/);
+      if (atEnd) {
+        puntaje = parsePuntajeNum(atEnd[1]);
+        nombre = nombre.slice(0, atEnd.index).replace(/[\s:|–—\-]+$/, '').trim();
+      }
     }
   }
-  if (!Number.isFinite(puntaje) || puntaje < 0) puntaje = 0;
-  return { nombre, puntaje };
+  return { nombre: shortenOpinionLabel(nombre), puntaje: puntaje > 0 ? puntaje : 0 };
 }
 
-/** Si el puntaje llegó en 0, intenta sacarlo del resumen ("Limpieza (9.8/10)"). */
-function enrichPuntajeFromResumen(
-  categorias: { nombre: string; puntaje: number }[],
-  resumen: string | null | undefined
-): { nombre: string; puntaje: number }[] {
-  if (!hasText(resumen)) return categorias;
-  const text = resumen;
-  return categorias.map((c) => {
-    if (c.puntaje > 0) return c;
-    const escaped = c.nombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const re = new RegExp(
-      `${escaped}[^\\d]{0,40}(\\d+[.,]\\d+|\\d+)\\s*(?:/\\s*10)?`,
-      'i'
-    );
-    const m = text.match(re);
-    if (!m) return c;
-    const n = parseFloat(m[1].replace(',', '.'));
-    return Number.isFinite(n) && n > 0 ? { ...c, puntaje: n } : c;
-  });
+/** Saca categorías reales tipo "Limpieza (9,8/10)" desde párrafos mal cargados. */
+function extractCategoriasFromText(text: string): { nombre: string; puntaje: number }[] {
+  if (!hasText(text)) return [];
+  const out: { nombre: string; puntaje: number }[] = [];
+  const seen = new Set<string>();
+
+  const reParen = /([A-Za-zÁÉÍÓÚÜáéíóúüñÑ][^()\n]{1,70}?)\s*\((\d+[.,]\d+|\d+)\s*\/\s*10\)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = reParen.exec(text)) !== null) {
+    const puntaje = parsePuntajeNum(m[2]);
+    let nombre = shortenOpinionLabel(m[1]);
+    // Evitar títulos genéricos sin categoría útil
+    if (/^opiniones de los clientes$/i.test(nombre)) nombre = 'Puntuación general';
+    const key = nombre.toLowerCase();
+    if (puntaje <= 0 || seen.has(key)) continue;
+    seen.add(key);
+    out.push({ nombre, puntaje });
+  }
+
+  if (!out.some((c) => /general/i.test(c.nombre))) {
+    const g =
+      text.match(/puntuaci[oó]n\s+general\s*:?\s*(\d+[.,]\d+|\d+)\s*\/\s*10/i) ||
+      text.match(/\((\d+[.,]\d+|\d+)\s*\/\s*10\s*excelente\)/i) ||
+      text.match(/booking\s*:?\s*(\d+[.,]\d+|\d+)\s*\/\s*10/i);
+    if (g) {
+      const puntaje = parsePuntajeNum(g[1]);
+      if (puntaje > 0 && !seen.has('puntuación general')) {
+        out.unshift({ nombre: 'Puntuación general', puntaje });
+      }
+    }
+  }
+
+  return out;
+}
+
+/** Arma categorías usables para barras verdes (tolera datos mal cargados del dashboard). */
+function buildOpinionCategorias(ficha: FichaWeb): { nombre: string; puntaje: number }[] {
+  const raw = (ficha.opiniones?.categorias || [])
+    .map((c) => normalizeOpinion(c as { nombre?: string | null; puntaje?: number | string | null } | string))
+    .filter((c) => hasText(c.nombre));
+
+  const blob = [ficha.opiniones?.resumen || '', ...raw.map((c) => c.nombre)].join('\n');
+  const fromText = extractCategoriasFromText(blob);
+  if (fromText.length > 0) return fromText;
+
+  // Fallback: solo filas con puntaje > 0
+  return raw.filter((c) => c.puntaje > 0);
 }
 
 function isFichaEmpty(f: FichaWeb | null | undefined): boolean {
@@ -135,13 +188,13 @@ function PolicyTable({
 function FichaModular({ ficha }: { ficha: FichaWeb }) {
   const servicios = (ficha.servicios || []).map((s) => s.trim()).filter(Boolean);
   const cerca = (ficha.cerca || []).filter((c) => hasText(c?.lugar));
-  const categorias = enrichPuntajeFromResumen(
-    (ficha.opiniones?.categorias || [])
-      .map((c) => normalizeOpinion(c as { nombre?: string | null; puntaje?: number | string | null } | string))
-      .filter((c) => hasText(c.nombre)),
-    ficha.opiniones?.resumen
-  );
+  const categorias = buildOpinionCategorias(ficha);
   const maxScore = categorias.some((c) => c.puntaje > 5) ? 10 : 5;
+  // Si las "categorías" eran párrafos enteros, el resumen útil ya está en esas barras; no repetir prosa rota
+  const resumenLimpio =
+    hasText(ficha.opiniones?.resumen) && ficha.opiniones!.resumen!.trim().length < 280
+      ? ficha.opiniones!.resumen!.trim()
+      : null;
 
   return (
     <div className={styles.ficha}>
@@ -164,10 +217,10 @@ function FichaModular({ ficha }: { ficha: FichaWeb }) {
         </Section>
       )}
 
-      {(categorias.length > 0 || hasText(ficha.opiniones?.resumen)) && (
+      {(categorias.length > 0 || !!resumenLimpio) && (
         <Section title="Opiniones de los clientes">
-          {hasText(ficha.opiniones?.resumen) && (
-            <p className={styles.opinionResumen}>{ficha.opiniones!.resumen}</p>
+          {resumenLimpio && (
+            <p className={styles.opinionResumen}>{resumenLimpio}</p>
           )}
           {categorias.length > 0 && (
             <ul className={styles.opinionList}>
@@ -175,7 +228,7 @@ function FichaModular({ ficha }: { ficha: FichaWeb }) {
                 const scoreBase = c.puntaje > 5 || maxScore === 10 ? 10 : maxScore;
                 const pct = Math.max(0, Math.min(100, (c.puntaje / scoreBase) * 100));
                 return (
-                  <li key={c.nombre} className={styles.opinionRow}>
+                  <li key={`${c.nombre}-${c.puntaje}`} className={styles.opinionRow}>
                     <span className={styles.opinionLabel}>{c.nombre}</span>
                     <div className={styles.opinionBarTrack} aria-hidden>
                       <div className={styles.opinionBarFill} style={{ width: `${pct}%` }} />
