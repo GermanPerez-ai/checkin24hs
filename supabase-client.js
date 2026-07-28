@@ -60,7 +60,7 @@ class SupabaseClient {
 
         const light = opts.light !== false; // por defecto true para evitar statement timeout
         const selectColumns = light
-            ? 'id,name,location,status,google_maps,website,rating,price,description,amenities,coordinates,created_at,updated_at'
+            ? 'id,name,location,status,google_maps,website,rating,price,description,amenities,coordinates,created_at,updated_at,pais,region,tipo_producto,elegido_del_mes,precio_desde'
             : '*';
 
         try {

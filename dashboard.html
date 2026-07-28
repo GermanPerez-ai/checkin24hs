@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-07-27T13:27:03Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 207; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-07-28T13:50:27Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 208; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">207</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">208</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -7650,7 +7650,11 @@ Ej:
             hotels.forEach(hotel => {
                 const row = document.createElement('tr');
                 const paisLabel = hotel.pais || '—';
-                const tipoLabel = hotel.tipo_producto === 'paquete' ? 'Paquete' : 'Hotel';
+                const tipoRaw = String(hotel.tipo_producto || hotel.tipoProducto || 'hotel').toLowerCase();
+                const tipoLabel = tipoRaw === 'paquete' ? 'Paquete' : 'Hotel';
+                const tipoStyle = tipoRaw === 'paquete'
+                    ? 'display:inline-block;padding:4px 10px;border-radius:999px;background:#fff3e0;color:#e65100;font-weight:600;font-size:0.85rem;'
+                    : 'display:inline-block;padding:4px 10px;border-radius:999px;background:#e3f2fd;color:#1565c0;font-weight:600;font-size:0.85rem;';
                 row.innerHTML = `
                     <td>
                         <div>
@@ -7658,8 +7662,8 @@ Ej:
                             <div class="hotel-location">${hotel.location || ''}</div>
                         </div>
                     </td>
-                    <td>${paisLabel}</td>
-                    <td>${tipoLabel}</td>
+                    <td>${paisLabel}${hotel.region ? `<div style="font-size:0.8rem;color:#888;">${hotel.region}</div>` : ''}</td>
+                    <td><span style="${tipoStyle}">${tipoLabel}</span></td>
                     <td>${hotel.location || '—'}</td>
                     <td style="text-align: center;">
                         <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
@@ -16691,7 +16695,11 @@ Ej:
             hotels.forEach(hotel => {
                 const row = document.createElement('tr');
                 const paisLabel = hotel.pais || '—';
-                const tipoLabel = hotel.tipo_producto === 'paquete' ? 'Paquete' : 'Hotel';
+                const tipoRaw = String(hotel.tipo_producto || hotel.tipoProducto || 'hotel').toLowerCase();
+                const tipoLabel = tipoRaw === 'paquete' ? 'Paquete' : 'Hotel';
+                const tipoStyle = tipoRaw === 'paquete'
+                    ? 'display:inline-block;padding:4px 10px;border-radius:999px;background:#fff3e0;color:#e65100;font-weight:600;font-size:0.85rem;'
+                    : 'display:inline-block;padding:4px 10px;border-radius:999px;background:#e3f2fd;color:#1565c0;font-weight:600;font-size:0.85rem;';
                 row.innerHTML = `
                     <td>
                         <div>
@@ -16699,8 +16707,8 @@ Ej:
                             <div class="hotel-location">${hotel.location || ''}</div>
                         </div>
                     </td>
-                    <td>${paisLabel}</td>
-                    <td>${tipoLabel}</td>
+                    <td>${paisLabel}${hotel.region ? `<div style="font-size:0.8rem;color:#888;">${hotel.region}</div>` : ''}</td>
+                    <td><span style="${tipoStyle}">${tipoLabel}</span></td>
                     <td>${hotel.location || '—'}</td>
                     <td style="text-align: center;">
                         <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">

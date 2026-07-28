@@ -48,15 +48,20 @@ export function PackCard({ hotel }: { hotel: Hotel }) {
             </span>
           )}
         </div>
-        {ubicacion && <span className={styles.pill}>{ubicacion}</span>}
       </div>
-      {precioLabel && (
-        <div className={styles.price}>
-          <span className={styles.desde}>Desde</span>
-          <span className={styles.amount}>{precioLabel}</span>
-          <span className={styles.por}>Por persona</span>
+      <div className={styles.bottom}>
+        <div className={styles.priceBlock}>
+          {ubicacion && <span className={styles.ubicacion}>{ubicacion}</span>}
+          {precioLabel && (
+            <>
+              <span className={styles.desde}>Desde</span>
+              <span className={styles.amount}>{precioLabel}</span>
+              <span className={styles.por}>Por persona</span>
+            </>
+          )}
         </div>
-      )}
+        <span className={styles.cta}>me interesa</span>
+      </div>
     </a>
   );
 }
