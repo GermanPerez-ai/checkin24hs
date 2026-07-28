@@ -8,10 +8,12 @@ import {
   getPackPrecio,
   linesFromText,
 } from '../lib/packs';
+import { sharePackUrl } from '../lib/share';
 import { supabase } from '../lib/supabase';
 import type { Hotel } from '../types';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
+import { ShareButton } from '../components/ShareButton';
 import styles from './PackDetail.module.css';
 
 function isUuid(s: string) {
@@ -109,6 +111,18 @@ export function PackDetail() {
   const waUrl = buildWhatsAppConsultaUrl(hotel.name);
   const currentImg = images[Math.min(imgIndex, images.length - 1)];
 
+  const onShare = async () => {
+    const url = typeof window !== 'undefined' ? window.location.href : '';
+    const result = await sharePackUrl({
+      url,
+      title: hotel.name,
+      text: `Mirá este pack: ${hotel.name}`,
+    });
+    if (result === 'copied') {
+      window.alert('Link copiado al portapapeles');
+    }
+  };
+
   return (
     <>
       <Header />
@@ -117,7 +131,10 @@ export function PackDetail() {
           <aside className={styles.sidebar}>
             <div className={styles.priceBlock}>
               <p className={styles.priceLabel}>Precio por persona Desde</p>
-              {precioLabel ? <p className={styles.priceValue}>{precioLabel}</p> : <p className={styles.priceValue}>Consultar</p>}
+              <div className={styles.priceRow}>
+                {precioLabel ? <p className={styles.priceValue}>{precioLabel}</p> : <p className={styles.priceValue}>Consultar</p>}
+                <ShareButton className={styles.shareBtn} onClick={onShare} />
+              </div>
               <p className={styles.priceNote}>{precioNota}</p>
             </div>
 

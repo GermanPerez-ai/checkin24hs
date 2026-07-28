@@ -29,12 +29,39 @@
   color: #333;
 }
 
-.priceValue {
+.priceRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   margin: 6px 0 4px;
+}
+
+.priceValue {
+  margin: 0;
   font-size: 2rem;
   font-weight: 800;
   color: #2c3e50;
   letter-spacing: -0.02em;
+}
+
+.shareBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid #d1d5db;
+  border-radius: 50%;
+  background: #f3f4f6;
+  color: #374151;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.shareBtn:hover {
+  background: #e5e7eb;
+  color: #111;
 }
 
 .priceNote {

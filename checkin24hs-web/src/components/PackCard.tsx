@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom';
+import type { MouseEvent } from 'react';
+import { ShareButton } from './ShareButton';
 import {
   formatPackPrice,
   getFichaPack,
@@ -7,6 +9,7 @@ import {
   getPackEtiquetaUbicacion,
   getPackPrecio,
 } from '../lib/packs';
+import { absolutePackUrl, sharePackUrl } from '../lib/share';
 import type { Hotel } from '../types';
 import styles from './PackCard.module.css';
 
@@ -20,6 +23,20 @@ export function PackCard({ hotel }: { hotel: Hotel }) {
   const precioLabel = formatPackPrice(precio, fp.moneda);
   const ubicacion = getPackEtiquetaUbicacion(hotel);
   const href = `/pack/${encodeURIComponent(slug)}`;
+
+  const onShare = async (e: MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const url = absolutePackUrl(href);
+    const result = await sharePackUrl({
+      url,
+      title: hotel.name,
+      text: `Mirá este pack: ${hotel.name}`,
+    });
+    if (result === 'copied') {
+      window.alert('Link copiado al portapapeles');
+    }
+  };
 
   return (
     <Link
@@ -59,7 +76,10 @@ export function PackCard({ hotel }: { hotel: Hotel }) {
             </>
           )}
         </div>
-        <span className={styles.cta}>¡Quiero ir!</span>
+        <div className={styles.ctaCol}>
+          <ShareButton className={styles.shareBtn} onClick={onShare} />
+          <span className={styles.cta}>¡Quiero ir!</span>
+        </div>
       </div>
     </Link>
   );
