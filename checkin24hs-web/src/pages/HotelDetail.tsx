@@ -13,18 +13,44 @@ function hasText(v: string | null | undefined): v is string {
 }
 
 /** Extrae nombre limpio + puntaje desde "Limpieza | 9.4", "Limpieza: 9,4/10", etc. */
-function normalizeOpinion(c: { nombre?: string | null; puntaje?: number | null }) {
+function normalizeOpinion(c: { nombre?: string | null; puntaje?: number | string | null } | string) {
+  if (typeof c === 'string') {
+    return normalizeOpinion({ nombre: c, puntaje: null });
+  }
   let nombre = (c.nombre || '').trim();
-  let puntaje = Number(c.puntaje);
+  let puntaje = typeof c.puntaje === 'string'
+    ? parseFloat(c.puntaje.replace(',', '.').replace(/\/.*$/, '').trim())
+    : Number(c.puntaje);
   if (!Number.isFinite(puntaje) || puntaje <= 0) {
     const fromName = nombre.match(/(\d+[.,]\d+|\d+)\s*(?:\/\s*10)?\s*$/);
     if (fromName) {
       puntaje = parseFloat(fromName[1].replace(',', '.'));
-      nombre = nombre.slice(0, fromName.index).replace(/[\s:–—-]+$/, '').trim();
+      nombre = nombre.slice(0, fromName.index).replace(/[\s:|–—\-]+$/, '').trim();
     }
   }
   if (!Number.isFinite(puntaje) || puntaje < 0) puntaje = 0;
   return { nombre, puntaje };
+}
+
+/** Si el puntaje llegó en 0, intenta sacarlo del resumen ("Limpieza (9.8/10)"). */
+function enrichPuntajeFromResumen(
+  categorias: { nombre: string; puntaje: number }[],
+  resumen: string | null | undefined
+): { nombre: string; puntaje: number }[] {
+  if (!hasText(resumen)) return categorias;
+  const text = resumen;
+  return categorias.map((c) => {
+    if (c.puntaje > 0) return c;
+    const escaped = c.nombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(
+      `${escaped}[^\\d]{0,40}(\\d+[.,]\\d+|\\d+)\\s*(?:/\\s*10)?`,
+      'i'
+    );
+    const m = text.match(re);
+    if (!m) return c;
+    const n = parseFloat(m[1].replace(',', '.'));
+    return Number.isFinite(n) && n > 0 ? { ...c, puntaje: n } : c;
+  });
 }
 
 function isFichaEmpty(f: FichaWeb | null | undefined): boolean {
@@ -109,9 +135,12 @@ function PolicyTable({
 function FichaModular({ ficha }: { ficha: FichaWeb }) {
   const servicios = (ficha.servicios || []).map((s) => s.trim()).filter(Boolean);
   const cerca = (ficha.cerca || []).filter((c) => hasText(c?.lugar));
-  const categorias = (ficha.opiniones?.categorias || [])
-    .map(normalizeOpinion)
-    .filter((c) => hasText(c.nombre));
+  const categorias = enrichPuntajeFromResumen(
+    (ficha.opiniones?.categorias || [])
+      .map((c) => normalizeOpinion(c as { nombre?: string | null; puntaje?: number | string | null } | string))
+      .filter((c) => hasText(c.nombre)),
+    ficha.opiniones?.resumen
+  );
   const maxScore = categorias.some((c) => c.puntaje > 5) ? 10 : 5;
 
   return (
@@ -143,7 +172,8 @@ function FichaModular({ ficha }: { ficha: FichaWeb }) {
           {categorias.length > 0 && (
             <ul className={styles.opinionList}>
               {categorias.map((c) => {
-                const pct = Math.max(0, Math.min(100, (c.puntaje / maxScore) * 100));
+                const scoreBase = c.puntaje > 5 || maxScore === 10 ? 10 : maxScore;
+                const pct = Math.max(0, Math.min(100, (c.puntaje / scoreBase) * 100));
                 return (
                   <li key={c.nombre} className={styles.opinionRow}>
                     <span className={styles.opinionLabel}>{c.nombre}</span>

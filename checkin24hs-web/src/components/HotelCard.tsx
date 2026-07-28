@@ -17,12 +17,6 @@ function getSlug(h: Hotel): string {
   return h.id;
 }
 
-function getPuntuacion(h: Hotel): number | null {
-  if (h.puntuacion_num != null) return Number(h.puntuacion_num);
-  if (h.rating != null) return Number(h.rating);
-  return null;
-}
-
 function getPrecio(h: Hotel): number | null {
   if (h.precio_desde != null) return Number(h.precio_desde);
   if (h.price != null) return Number(h.price);
@@ -49,7 +43,6 @@ function getPaisLabel(h: Hotel): string | null {
 export function HotelCard({ hotel, variant = 'default' }: { hotel: Hotel; variant?: 'default' | 'carousel' }) {
   const slug = getSlug(hotel);
   const imgUrl = getImageUrl(hotel);
-  const puntuacion = getPuntuacion(hotel);
   const precio = getPrecio(hotel);
   const metodoVenta = hotel.metodo_venta || 'cotizacion';
   const cotizarUrl = buildCotizadorUrl({ hotel_id: hotel.id });
@@ -67,11 +60,6 @@ export function HotelCard({ hotel, variant = 'default' }: { hotel: Hotel; varian
     <article className={`${styles.card} ${isCarousel ? styles.cardCarousel : ''}`}>
       <Link to={`/hotel/${slug}`} className={styles.imageWrap}>
         <img src={imgUrl} alt={hotel.name} className={styles.image} />
-        {puntuacion != null && (
-          <span className={styles.badge}>
-            {puntuacion.toFixed(1)} {hotel.puntuacion_texto || ''}
-          </span>
-        )}
       </Link>
       <div className={styles.body}>
         {!isCarousel && (

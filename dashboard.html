@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-07-28T13:50:27Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 208; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-07-28T17:47:56Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 209; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">208</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">209</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -2648,7 +2648,17 @@
 
                 <!-- Hotels Table -->
                 <div class="activity-card">
-                    <h3 class="card-title">Hoteles Vigentes</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 4px;">
+                        <h3 class="card-title" style="margin: 0;">Hoteles Vigentes</h3>
+                        <div style="display: flex; gap: 8px; align-items: center; flex: 1; max-width: 420px; justify-content: flex-end;">
+                            <input type="search" id="hotelsSearchInput" class="form-input" placeholder="Buscar hotel por nombre, país o ubicación…"
+                                oninput="filterHotelsTable()"
+                                style="margin: 0; flex: 1; min-width: 180px;">
+                            <button type="button" class="form-button" onclick="filterHotelsTable()" title="Buscar">
+                                <span class="material-icons" style="vertical-align: middle; font-size: 20px;">search</span>
+                            </button>
+                        </div>
+                    </div>
                     <div style="overflow-x: auto;">
                         <table style="width: 100%; border-collapse: collapse; margin-top: 16px;">
                             <thead>
@@ -7598,6 +7608,23 @@ Ej:
             return stars;
         }
 
+        function filterHotelsTable() {
+            const input = document.getElementById('hotelsSearchInput');
+            const q = (input && input.value ? String(input.value) : '').toLowerCase().trim();
+            const tbody = document.getElementById('hotelsTableBody');
+            if (!tbody) return;
+            const rows = tbody.querySelectorAll('tr');
+            let visible = 0;
+            rows.forEach(function(tr) {
+                const text = (tr.textContent || '').toLowerCase();
+                const show = !q || text.indexOf(q) !== -1;
+                tr.style.display = show ? '' : 'none';
+                if (show) visible++;
+            });
+            return visible;
+        }
+        window.filterHotelsTable = filterHotelsTable;
+
         // Función para cargar hoteles en la tabla
         async function loadHotelsTable() {
             console.log('Cargando tabla de hoteles...');
@@ -7665,12 +7692,7 @@ Ej:
                     <td>${paisLabel}${hotel.region ? `<div style="font-size:0.8rem;color:#888;">${hotel.region}</div>` : ''}</td>
                     <td><span style="${tipoStyle}">${tipoLabel}</span></td>
                     <td>${hotel.location || '—'}</td>
-                    <td style="text-align: center;">
-                        <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
-                            ${getStars(hotel.rating)}
-                            <span style="margin-left: 4px;">${hotel.rating}</span>
-                        </div>
-                    </td>
+                    <td style="text-align: center;">0</td>
                     <td style="text-align: center;">${hotel.price || 'No especificado'}</td>
                     <td style="text-align: center;">
                         <span class="status-${hotel.status?.toLowerCase() || 'activo'}">${hotel.status || 'Activo'}</span>
@@ -7691,6 +7713,7 @@ Ej:
             });
             
             console.log(`Tabla de hoteles cargada con ${hotels.length} hoteles`);
+            if (typeof filterHotelsTable === 'function') filterHotelsTable();
         }
 
         // Obtener reservas para estadísticas: desde Supabase si está activo, sino localStorage. No depende de escribir en localStorage.
@@ -16710,12 +16733,7 @@ Ej:
                     <td>${paisLabel}${hotel.region ? `<div style="font-size:0.8rem;color:#888;">${hotel.region}</div>` : ''}</td>
                     <td><span style="${tipoStyle}">${tipoLabel}</span></td>
                     <td>${hotel.location || '—'}</td>
-                    <td style="text-align: center;">
-                        <div style="display: flex; align-items: center; justify-content: center; gap: 4px;">
-                            ${getStars(hotel.rating)}
-                            <span style="margin-left: 4px;">${hotel.rating}</span>
-                        </div>
-                    </td>
+                    <td style="text-align: center;">0</td>
                     <td style="text-align: center;">${hotel.price ? `$${hotel.price.toLocaleString()}` : 'No especificado'}</td>
                     <td style="text-align: center;">
                         <span class="status-${(hotel.status || 'Activo').toString().toLowerCase().replace(/\s+/g, '-')}">${hotel.status || 'Activo'}</span>
@@ -16736,6 +16754,7 @@ Ej:
             });
             
             console.log(`✅ Tabla actualizada con ${hotels.length} hoteles`);
+            if (typeof filterHotelsTable === 'function') filterHotelsTable();
         }
 
         // Función para actualizar estadísticas de hoteles
