@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-07-28T17:47:56Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 209; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-07-29T16:18:07Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 211; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">209</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">211</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -5225,11 +5225,20 @@
                         </div>
 
                         <div class="form-group">
-                            <label class="form-label">Tipo *</label>
-                            <select class="form-input" id="editHotelTipoProducto" required onchange="onHotelTipoProductoChange()">
-                                <option value="hotel">Hotel</option>
-                                <option value="paquete">Paquete</option>
-                            </select>
+                            <label class="form-label">Publicar en la web *</label>
+                            <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 6px;">
+                                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 500;">
+                                    <input type="checkbox" id="editHotelMostrarComoHotel" checked style="width: 18px; height: 18px;" onchange="onHotelMostrarTipoChange()">
+                                    <span>🏨 Mostrar como Hotel</span>
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 500;">
+                                    <input type="checkbox" id="editHotelMostrarComoPaquete" style="width: 18px; height: 18px;" onchange="onHotelMostrarTipoChange()">
+                                    <span>🎒 Mostrar como Pack</span>
+                                </label>
+                            </div>
+                            <div style="margin-top: 5px; font-size: 0.85rem; color: #666;">
+                                Podés marcar uno o ambos. Hotel → destinos (Argentina/Chile/Internacionales). Pack → sección Packs.
+                            </div>
                         </div>
 
                         <div class="form-group">
@@ -7677,11 +7686,16 @@ Ej:
             hotels.forEach(hotel => {
                 const row = document.createElement('tr');
                 const paisLabel = hotel.pais || '—';
-                const tipoRaw = String(hotel.tipo_producto || hotel.tipoProducto || 'hotel').toLowerCase();
-                const tipoLabel = tipoRaw === 'paquete' ? 'Paquete' : 'Hotel';
-                const tipoStyle = tipoRaw === 'paquete'
-                    ? 'display:inline-block;padding:4px 10px;border-radius:999px;background:#fff3e0;color:#e65100;font-weight:600;font-size:0.85rem;'
-                    : 'display:inline-block;padding:4px 10px;border-radius:999px;background:#e3f2fd;color:#1565c0;font-weight:600;font-size:0.85rem;';
+                const tipoBadges = typeof hotelTipoBadgesHtml === 'function'
+                    ? hotelTipoBadgesHtml(hotel)
+                    : (() => {
+                        const tipoRaw = String(hotel.tipo_producto || hotel.tipoProducto || 'hotel').toLowerCase();
+                        const tipoLabel = tipoRaw === 'paquete' ? 'Paquete' : 'Hotel';
+                        const tipoStyle = tipoRaw === 'paquete'
+                            ? 'display:inline-block;padding:4px 10px;border-radius:999px;background:#fff3e0;color:#e65100;font-weight:600;font-size:0.85rem;'
+                            : 'display:inline-block;padding:4px 10px;border-radius:999px;background:#e3f2fd;color:#1565c0;font-weight:600;font-size:0.85rem;';
+                        return `<span style="${tipoStyle}">${tipoLabel}</span>`;
+                    })();
                 row.innerHTML = `
                     <td>
                         <div>
@@ -7690,7 +7704,7 @@ Ej:
                         </div>
                     </td>
                     <td>${paisLabel}${hotel.region ? `<div style="font-size:0.8rem;color:#888;">${hotel.region}</div>` : ''}</td>
-                    <td><span style="${tipoStyle}">${tipoLabel}</span></td>
+                    <td>${tipoBadges}</td>
                     <td>${hotel.location || '—'}</td>
                     <td style="text-align: center;">0</td>
                     <td style="text-align: center;">${hotel.price || 'No especificado'}</td>
@@ -8177,11 +8191,11 @@ Ej:
                     }
                 }
                 if (typeof setHotelRegionSelect === 'function') setHotelRegionSelect(hotel.region);
-                const tipoElEdit = document.getElementById('editHotelTipoProducto');
-                if (tipoElEdit) {
-                    tipoElEdit.value = (hotel.tipo_producto === 'paquete' ? 'paquete' : 'hotel');
+                if (typeof setHotelMostrarFlagsInForm === 'function') {
+                    setHotelMostrarFlagsInForm(hotel);
+                } else {
+                    if (typeof onHotelMostrarTipoChange === 'function') onHotelMostrarTipoChange();
                 }
-                if (typeof onHotelTipoProductoChange === 'function') onHotelTipoProductoChange();
                 const elegidoElEdit = document.getElementById('editHotelElegidoDelMes');
                 if (elegidoElEdit) {
                     elegidoElEdit.checked = !!(hotel.elegido_del_mes);
@@ -8716,11 +8730,43 @@ Ej:
         }
         window.toggleFichaPackSection = toggleFichaPackSection;
 
-        function onHotelTipoProductoChange() {
-            var tipo = document.getElementById('editHotelTipoProducto');
+        function getHotelMostrarFlags(hotel) {
+            hotel = hotel || {};
+            if (hotel.mostrar_como_hotel != null || hotel.mostrar_como_paquete != null) {
+                return {
+                    comoHotel: !!hotel.mostrar_como_hotel,
+                    comoPaquete: !!hotel.mostrar_como_paquete
+                };
+            }
+            var isPack = String(hotel.tipo_producto || hotel.tipoProducto || 'hotel').toLowerCase() === 'paquete';
+            return { comoHotel: !isPack, comoPaquete: isPack };
+        }
+
+        function hotelTipoBadgesHtml(hotel) {
+            var f = getHotelMostrarFlags(hotel);
+            var styleHotel = 'display:inline-block;padding:4px 10px;border-radius:999px;background:#e3f2fd;color:#1565c0;font-weight:600;font-size:0.85rem;margin:2px;';
+            var stylePack = 'display:inline-block;padding:4px 10px;border-radius:999px;background:#fff3e0;color:#e65100;font-weight:600;font-size:0.85rem;margin:2px;';
+            var parts = [];
+            if (f.comoHotel) parts.push('<span style="' + styleHotel + '">Hotel</span>');
+            if (f.comoPaquete) parts.push('<span style="' + stylePack + '">Paquete</span>');
+            if (!parts.length) parts.push('<span style="' + styleHotel + '">—</span>');
+            return parts.join(' ');
+        }
+
+        function setHotelMostrarFlagsInForm(hotel) {
+            var f = getHotelMostrarFlags(hotel);
+            var hotelCb = document.getElementById('editHotelMostrarComoHotel');
+            var packCb = document.getElementById('editHotelMostrarComoPaquete');
+            if (hotelCb) hotelCb.checked = !!f.comoHotel;
+            if (packCb) packCb.checked = !!f.comoPaquete;
+            if (typeof onHotelMostrarTipoChange === 'function') onHotelMostrarTipoChange();
+        }
+
+        function onHotelMostrarTipoChange() {
+            var packCb = document.getElementById('editHotelMostrarComoPaquete');
             var outer = document.getElementById('fichaPackOuter');
             if (!outer) return;
-            var isPack = tipo && tipo.value === 'paquete';
+            var isPack = !!(packCb && packCb.checked);
             outer.style.display = isPack ? 'block' : 'none';
             if (!isPack) {
                 var section = document.getElementById('fichaPackSection');
@@ -8729,6 +8775,12 @@ Ej:
                 if (icon) icon.style.transform = 'rotate(0deg)';
             }
         }
+        // Compat: alias por si quedó alguna referencia vieja
+        function onHotelTipoProductoChange() { onHotelMostrarTipoChange(); }
+        window.getHotelMostrarFlags = getHotelMostrarFlags;
+        window.hotelTipoBadgesHtml = hotelTipoBadgesHtml;
+        window.setHotelMostrarFlagsInForm = setHotelMostrarFlagsInForm;
+        window.onHotelMostrarTipoChange = onHotelMostrarTipoChange;
         window.onHotelTipoProductoChange = onHotelTipoProductoChange;
 
         function getFichaPackFromForm() {
@@ -8786,7 +8838,7 @@ Ej:
                 if (section) section.style.display = 'block';
                 if (icon) icon.style.transform = 'rotate(180deg)';
             }
-            if (typeof onHotelTipoProductoChange === 'function') onHotelTipoProductoChange();
+            if (typeof onHotelMostrarTipoChange === 'function') onHotelMostrarTipoChange();
         }
 
         function clearFichaPackForm() {
@@ -8795,7 +8847,7 @@ Ej:
             var icon = document.getElementById('fichaPackToggleIcon');
             if (section) section.style.display = 'none';
             if (icon) icon.style.transform = 'rotate(0deg)';
-            if (typeof onHotelTipoProductoChange === 'function') onHotelTipoProductoChange();
+            if (typeof onHotelMostrarTipoChange === 'function') onHotelMostrarTipoChange();
         }
         window.getFichaPackFromForm = getFichaPackFromForm;
         window.fillFichaPackForm = fillFichaPackForm;
@@ -16541,13 +16593,16 @@ Ej:
             // Resetear selects
             const statusSelect = document.getElementById('editHotelStatus');
             const paisSelect = document.getElementById('editHotelPais');
-            const tipoSelect = document.getElementById('editHotelTipoProducto');
             if (statusSelect) statusSelect.value = 'Activo';
             if (paisSelect) paisSelect.value = '';
             const regionSelect = document.getElementById('editHotelRegion');
             if (regionSelect) regionSelect.value = '';
             if (typeof onHotelPaisChange === 'function') onHotelPaisChange();
-            if (tipoSelect) tipoSelect.value = 'hotel';
+            const mostrarHotelClear = document.getElementById('editHotelMostrarComoHotel');
+            const mostrarPackClear = document.getElementById('editHotelMostrarComoPaquete');
+            if (mostrarHotelClear) mostrarHotelClear.checked = true;
+            if (mostrarPackClear) mostrarPackClear.checked = false;
+            if (typeof onHotelMostrarTipoChange === 'function') onHotelMostrarTipoChange();
             const elegidoClear = document.getElementById('editHotelElegidoDelMes');
             if (elegidoClear) elegidoClear.checked = false;
             // Limpiar campos de Flor IA
@@ -16718,11 +16773,16 @@ Ej:
             hotels.forEach(hotel => {
                 const row = document.createElement('tr');
                 const paisLabel = hotel.pais || '—';
-                const tipoRaw = String(hotel.tipo_producto || hotel.tipoProducto || 'hotel').toLowerCase();
-                const tipoLabel = tipoRaw === 'paquete' ? 'Paquete' : 'Hotel';
-                const tipoStyle = tipoRaw === 'paquete'
-                    ? 'display:inline-block;padding:4px 10px;border-radius:999px;background:#fff3e0;color:#e65100;font-weight:600;font-size:0.85rem;'
-                    : 'display:inline-block;padding:4px 10px;border-radius:999px;background:#e3f2fd;color:#1565c0;font-weight:600;font-size:0.85rem;';
+                const tipoBadges = typeof hotelTipoBadgesHtml === 'function'
+                    ? hotelTipoBadgesHtml(hotel)
+                    : (() => {
+                        const tipoRaw = String(hotel.tipo_producto || hotel.tipoProducto || 'hotel').toLowerCase();
+                        const tipoLabel = tipoRaw === 'paquete' ? 'Paquete' : 'Hotel';
+                        const tipoStyle = tipoRaw === 'paquete'
+                            ? 'display:inline-block;padding:4px 10px;border-radius:999px;background:#fff3e0;color:#e65100;font-weight:600;font-size:0.85rem;'
+                            : 'display:inline-block;padding:4px 10px;border-radius:999px;background:#e3f2fd;color:#1565c0;font-weight:600;font-size:0.85rem;';
+                        return `<span style="${tipoStyle}">${tipoLabel}</span>`;
+                    })();
                 row.innerHTML = `
                     <td>
                         <div>
@@ -16731,7 +16791,7 @@ Ej:
                         </div>
                     </td>
                     <td>${paisLabel}${hotel.region ? `<div style="font-size:0.8rem;color:#888;">${hotel.region}</div>` : ''}</td>
-                    <td><span style="${tipoStyle}">${tipoLabel}</span></td>
+                    <td>${tipoBadges}</td>
                     <td>${hotel.location || '—'}</td>
                     <td style="text-align: center;">0</td>
                     <td style="text-align: center;">${hotel.price ? `$${hotel.price.toLocaleString()}` : 'No especificado'}</td>
@@ -16950,11 +17010,11 @@ Ej:
                 }
             }
             if (typeof setHotelRegionSelect === 'function') setHotelRegionSelect(hotel.region);
-            const tipoSelectFill = document.getElementById('editHotelTipoProducto');
-            if (tipoSelectFill) {
-                tipoSelectFill.value = (hotel.tipo_producto === 'paquete' ? 'paquete' : 'hotel');
+            if (typeof setHotelMostrarFlagsInForm === 'function') {
+                setHotelMostrarFlagsInForm(hotel);
+            } else if (typeof onHotelMostrarTipoChange === 'function') {
+                onHotelMostrarTipoChange();
             }
-            if (typeof onHotelTipoProductoChange === 'function') onHotelTipoProductoChange();
             const elegidoFill = document.getElementById('editHotelElegidoDelMes');
             if (elegidoFill) {
                 elegidoFill.checked = !!(hotel.elegido_del_mes);
@@ -17286,7 +17346,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             const locationInput = document.getElementById('editHotelLocation');
             const paisSelect = document.getElementById('editHotelPais');
             const regionSelect = document.getElementById('editHotelRegion');
-            const tipoProductoSelect = document.getElementById('editHotelTipoProducto');
+            const mostrarComoHotelCb = document.getElementById('editHotelMostrarComoHotel');
+            const mostrarComoPaqueteCb = document.getElementById('editHotelMostrarComoPaquete');
             const googleMapsInput = document.getElementById('editHotelGoogleMaps');
             const websiteInput = document.getElementById('editHotelWebsite');
             const descriptionTextarea = document.getElementById('editHotelDescription');
@@ -17307,9 +17368,11 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 regionSelect.focus();
                 return;
             }
-            if (!tipoProductoSelect || !tipoProductoSelect.value) {
-                alert('⚠️ Seleccioná el tipo: Hotel o Paquete.');
-                if (tipoProductoSelect) tipoProductoSelect.focus();
+            const mostrarComoHotel = !!(mostrarComoHotelCb && mostrarComoHotelCb.checked);
+            const mostrarComoPaquete = !!(mostrarComoPaqueteCb && mostrarComoPaqueteCb.checked);
+            if (!mostrarComoHotel && !mostrarComoPaquete) {
+                alert('⚠️ Marcá al menos una opción: Mostrar como Hotel y/o Mostrar como Pack.');
+                if (mostrarComoHotelCb) mostrarComoHotelCb.focus();
                 return;
             }
             
@@ -17369,7 +17432,10 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 location: locationInput.value.trim(),
                 pais: paisSelect.value.trim(),
                 region: regionSelect?.value?.trim() || null,
-                tipo_producto: tipoProductoSelect.value.trim() === 'paquete' ? 'paquete' : 'hotel',
+                mostrar_como_hotel: mostrarComoHotel,
+                mostrar_como_paquete: mostrarComoPaquete,
+                // Legado: solo-pack → paquete; si también es hotel (o solo hotel) → hotel
+                tipo_producto: (mostrarComoPaquete && !mostrarComoHotel) ? 'paquete' : 'hotel',
                 elegido_del_mes: !!(document.getElementById('editHotelElegidoDelMes')?.checked),
                 googleMaps: googleMapsInput?.value?.trim() || '',
                 website: websiteInput?.value?.trim() || '', // URL del sitio web del hotel
@@ -17401,8 +17467,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 fichaPack: fichaPack
             };
 
-            // Si es pack, sincronizar precio_desde con precio por persona
-            if (hotelData.tipo_producto === 'paquete' && fichaPack && fichaPack.precio_por_persona != null) {
+            // Si se publica como pack, sincronizar precio_desde con precio por persona
+            if (hotelData.mostrar_como_paquete && fichaPack && fichaPack.precio_por_persona != null) {
                 hotelData.price = fichaPack.precio_por_persona;
                 hotelData.precio_desde = fichaPack.precio_por_persona;
             }
@@ -17484,6 +17550,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         pais: hotelData.pais || null,
                         region: hotelData.region || null,
                         tipo_producto: hotelData.tipo_producto || 'hotel',
+                        mostrar_como_hotel: hotelData.mostrar_como_hotel !== false,
+                        mostrar_como_paquete: !!hotelData.mostrar_como_paquete,
                         elegido_del_mes: !!hotelData.elegido_del_mes,
                         description: hotelData.description || null,
                         rating: hotelData.rating || 0,
@@ -17623,6 +17691,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         pais: hotelData.pais || null,
                         region: hotelData.region || null,
                         tipo_producto: hotelData.tipo_producto || 'hotel',
+                        mostrar_como_hotel: hotelData.mostrar_como_hotel !== false,
+                        mostrar_como_paquete: !!hotelData.mostrar_como_paquete,
                         elegido_del_mes: !!hotelData.elegido_del_mes,
                         description: hotelData.description || null,
                         rating: hotelData.rating || 0,

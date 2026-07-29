@@ -91,8 +91,12 @@ export interface Hotel {
   precio_desde: number | null;
   metodo_venta: 'cotizacion' | 'directa' | null;
   url_reserva_directa: string | null;
-  /** hotel = alojamiento; paquete = paquete turístico */
+  /** hotel = alojamiento; paquete = paquete turístico (legado; preferir los flags) */
   tipo_producto?: 'hotel' | 'paquete' | null;
+  /** Si true, aparece en destinos como alojamiento */
+  mostrar_como_hotel?: boolean | null;
+  /** Si true, aparece en /packs */
+  mostrar_como_paquete?: boolean | null;
   /** Si true, aparece en Home → Nuestros elegidos del mes */
   elegido_del_mes?: boolean | null;
   /** Ficha modular para la web pública */

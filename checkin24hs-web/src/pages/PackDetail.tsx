@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { buildWhatsAppConsultaUrl } from '../config';
+import { esPaquete } from '../data/destinoPaises';
 import {
   formatPackPrice,
   getFichaPack,
@@ -78,7 +79,7 @@ export function PackDetail() {
     );
   }
 
-  if (!hotel || hotel.tipo_producto !== 'paquete') {
+  if (!hotel || !esPaquete(hotel)) {
     return (
       <>
         <Header />

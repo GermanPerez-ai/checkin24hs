@@ -120,12 +120,22 @@ export const PACKS_DESTINO = {
   heroImagen: 'https://images.unsplash.com/photo-1488646953014-85cb44e25828?w=1600&h=600&fit=crop',
 };
 
-/** Solo alojamientos (excluye paquetes) en páginas de país */
-export function esAlojamiento<T extends { tipo_producto?: string | null }>(h: T): boolean {
+/** Solo alojamientos (excluye packs puros) en páginas de país */
+export function esAlojamiento<T extends {
+  tipo_producto?: string | null;
+  mostrar_como_hotel?: boolean | null;
+}>(h: T): boolean {
+  if (h.mostrar_como_hotel === true) return true;
+  if (h.mostrar_como_hotel === false) return false;
   return (h.tipo_producto || 'hotel') !== 'paquete';
 }
 
-export function esPaquete<T extends { tipo_producto?: string | null }>(h: T): boolean {
+export function esPaquete<T extends {
+  tipo_producto?: string | null;
+  mostrar_como_paquete?: boolean | null;
+}>(h: T): boolean {
+  if (h.mostrar_como_paquete === true) return true;
+  if (h.mostrar_como_paquete === false) return false;
   return h.tipo_producto === 'paquete';
 }
 
@@ -142,11 +152,15 @@ export function hotelMatchesBloque(hotel: { ciudad?: string | null; region?: str
   return bloque.match.some((m) => hay.some((h) => h.includes(norm(m)) || norm(m).includes(h)));
 }
 
-export function filterHotelsPorPais<T extends { pais?: string | null; tipo_producto?: string | null }>(
+export function filterHotelsPorPais<T extends {
+  pais?: string | null;
+  tipo_producto?: string | null;
+  mostrar_como_hotel?: boolean | null;
+}>(
   hotels: T[],
   config: PaisDestinoConfig
 ): T[] {
-  // En páginas de país solo se muestran alojamientos (no packs)
+  // En páginas de país solo se muestran alojamientos (no packs puros)
   const base = hotels.filter(esAlojamiento);
   if (config.slug === 'internacionales') {
     const excl = new Set((config.excluirPaises || ['Chile', 'Argentina']).map(norm));
