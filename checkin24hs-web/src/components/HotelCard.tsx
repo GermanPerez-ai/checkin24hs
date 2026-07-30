@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { buildCotizadorUrl, buildWhatsAppConsultaUrl } from '../config';
-import { getReservaDirectaUrl, isHotelTermasPuyehue, openReservaPopup } from '../lib/hoteles';
+import { getReservaDirectaUrl, hasReservarCarousel, openReservaPopup } from '../lib/hoteles';
 import type { Hotel } from '../types';
 import styles from './HotelCard.module.css';
 
@@ -49,7 +49,7 @@ export function HotelCard({ hotel, variant = 'default' }: { hotel: Hotel; varian
   const isCarousel = variant === 'carousel';
   const waUrl = buildWhatsAppConsultaUrl(hotel.name);
   const reservaUrl = getReservaDirectaUrl(hotel);
-  const showReservarCarousel = isCarousel && isHotelTermasPuyehue(hotel) && !!reservaUrl;
+  const showReservarCarousel = isCarousel && hasReservarCarousel(hotel) && !!reservaUrl;
   const paisLabel = getPaisLabel(hotel);
   const tituloCarrusel = paisLabel ? `${paisLabel} - ${hotel.name}` : hotel.name;
   const descripcionBreve = hotel.description

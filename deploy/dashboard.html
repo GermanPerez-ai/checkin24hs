@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-07-29T16:18:07Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 211; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-07-30T16:47:24Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 213; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">211</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">213</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -5244,10 +5244,20 @@
                         <div class="form-group">
                             <label class="form-label" style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
                                 <input type="checkbox" id="editHotelElegidoDelMes" style="width: 18px; height: 18px;">
-                                <span>⭐ Elegido del mes</span>
+                                <span>⭐ Hotel elegido del mes</span>
                             </label>
                             <div style="margin-top: 5px; font-size: 0.85rem; color: #666;">
-                                Si está marcado, aparece en la página principal (Nuestros elegidos del mes) y también en su destino/región.
+                                Aparece en la Home → «Nuestros elegidos del mes» (carrusel de hoteles). Requiere «Mostrar como Hotel».
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                <input type="checkbox" id="editHotelPackElegidoDelMes" style="width: 18px; height: 18px;">
+                                <span>🎒 Pack elegido del mes</span>
+                            </label>
+                            <div style="margin-top: 5px; font-size: 0.85rem; color: #666;">
+                                Aparece en la Home → «Nuestros Pack elegidos del mes». Requiere «Mostrar como Pack».
                             </div>
                         </div>
                         
@@ -8199,6 +8209,10 @@ Ej:
                 const elegidoElEdit = document.getElementById('editHotelElegidoDelMes');
                 if (elegidoElEdit) {
                     elegidoElEdit.checked = !!(hotel.elegido_del_mes);
+                }
+                const packElegidoElEdit = document.getElementById('editHotelPackElegidoDelMes');
+                if (packElegidoElEdit) {
+                    packElegidoElEdit.checked = !!(hotel.pack_elegido_del_mes);
                 }
                 document.getElementById('editHotelGoogleMaps').value = hotel.googleMaps || hotel.google_maps || '';
                 document.getElementById('editHotelWebsite').value = hotel.website || '';
@@ -16605,6 +16619,8 @@ Ej:
             if (typeof onHotelMostrarTipoChange === 'function') onHotelMostrarTipoChange();
             const elegidoClear = document.getElementById('editHotelElegidoDelMes');
             if (elegidoClear) elegidoClear.checked = false;
+            const packElegidoClear = document.getElementById('editHotelPackElegidoDelMes');
+            if (packElegidoClear) packElegidoClear.checked = false;
             // Limpiar campos de Flor IA
             const florFields = [
                 'editHotelFlorDescription', 'editHotelFlorServices', 'editHotelFlorExcursions',
@@ -17018,6 +17034,10 @@ Ej:
             const elegidoFill = document.getElementById('editHotelElegidoDelMes');
             if (elegidoFill) {
                 elegidoFill.checked = !!(hotel.elegido_del_mes);
+            }
+            const packElegidoFill = document.getElementById('editHotelPackElegidoDelMes');
+            if (packElegidoFill) {
+                packElegidoFill.checked = !!(hotel.pack_elegido_del_mes);
             }
             if (websiteInput) websiteInput.value = hotel.website || '';
             
@@ -17437,6 +17457,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 // Legado: solo-pack → paquete; si también es hotel (o solo hotel) → hotel
                 tipo_producto: (mostrarComoPaquete && !mostrarComoHotel) ? 'paquete' : 'hotel',
                 elegido_del_mes: !!(document.getElementById('editHotelElegidoDelMes')?.checked),
+                pack_elegido_del_mes: !!(document.getElementById('editHotelPackElegidoDelMes')?.checked),
                 googleMaps: googleMapsInput?.value?.trim() || '',
                 website: websiteInput?.value?.trim() || '', // URL del sitio web del hotel
                 rating: existingHotel.rating != null ? existingHotel.rating : 0,
@@ -17553,6 +17574,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         mostrar_como_hotel: hotelData.mostrar_como_hotel !== false,
                         mostrar_como_paquete: !!hotelData.mostrar_como_paquete,
                         elegido_del_mes: !!hotelData.elegido_del_mes,
+                        pack_elegido_del_mes: !!hotelData.pack_elegido_del_mes,
                         description: hotelData.description || null,
                         rating: hotelData.rating || 0,
                         price: parseFloat(String(hotelData.price).replace(/[^0-9.-]/g, '')) || 0,
@@ -17694,6 +17716,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         mostrar_como_hotel: hotelData.mostrar_como_hotel !== false,
                         mostrar_como_paquete: !!hotelData.mostrar_como_paquete,
                         elegido_del_mes: !!hotelData.elegido_del_mes,
+                        pack_elegido_del_mes: !!hotelData.pack_elegido_del_mes,
                         description: hotelData.description || null,
                         rating: hotelData.rating || 0,
                         price: parseFloat(String(hotelData.price).replace(/[^0-9.-]/g, '')) || 0,

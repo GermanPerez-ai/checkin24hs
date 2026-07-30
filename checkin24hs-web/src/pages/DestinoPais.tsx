@@ -12,6 +12,7 @@ import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import { AlojamientosCarousel } from '../components/AlojamientosCarousel';
 import { WhatsAppCta } from '../components/WhatsAppCta';
+import { sortHotelsPuyehueFirst } from '../lib/hoteles';
 import styles from './DestinoPais.module.css';
 
 export function DestinoPais() {
@@ -38,7 +39,7 @@ export function DestinoPais() {
         if (cancelled) return;
         if (!error && data) {
           const filtrados = filterHotelsPorPais(data as Hotel[], config);
-          setHotels(filtrados);
+          setHotels(sortHotelsPuyehueFirst(filtrados));
         }
         setLoading(false);
       });

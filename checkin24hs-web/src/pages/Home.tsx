@@ -11,10 +11,12 @@ import { Institucional } from '../components/Institucional';
 import { WhatsAppCta } from '../components/WhatsAppCta';
 import { Footer } from '../components/Footer';
 import { useFlorContext } from '../context/FlorContext';
+import { esAlojamiento, esPaquete } from '../data/destinoPaises';
 import { sortHotelsPuyehueFirst } from '../lib/hoteles';
 
 export function Home() {
   const [hotels, setHotels] = useState<Hotel[]>([]);
+  const [packs, setPacks] = useState<Hotel[]>([]);
   const [loading, setLoading] = useState(true);
   const location = useLocation();
   const { setContext } = useFlorContext();
@@ -57,8 +59,11 @@ export function Home() {
         if (error) {
         setFetchError(error.message || 'Error al cargar');
         } else if (data) {
-          const elegidos = ((data as Hotel[]) || []).filter((h) => !!h.elegido_del_mes);
-          setHotels(sortHotelsPuyehueFirst(elegidos));
+          const all = (data as Hotel[]) || [];
+          const elegidosHotel = all.filter((h) => !!h.elegido_del_mes && esAlojamiento(h));
+          const elegidosPack = all.filter((h) => !!h.pack_elegido_del_mes && esPaquete(h));
+          setHotels(sortHotelsPuyehueFirst(elegidosHotel));
+          setPacks(elegidosPack);
         }
       setLoading(false);
     }).catch((err: unknown) => {
@@ -86,6 +91,17 @@ export function Home() {
           title="Nuestros elegidos del mes"
           sectionId="elegidos"
         />
+        {(loading || packs.length > 0) && (
+          <AlojamientosCarousel
+            hotels={packs}
+            loading={loading}
+            configError={configError}
+            fetchError={fetchError}
+            title="Nuestros Pack elegidos del mes"
+            sectionId="packs-elegidos"
+            cardVariant="pack"
+          />
+        )}
         <Novedades />
         <Institucional />
         <WhatsAppCta />

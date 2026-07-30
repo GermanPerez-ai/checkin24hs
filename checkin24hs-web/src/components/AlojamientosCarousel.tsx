@@ -34,6 +34,7 @@ function devPreviewHotels(): Hotel[] {
   };
   return [
     { ...base, id: 'dev-2', name: 'Hotel Termas de Puyehue', ciudad: 'Puyehue', pais: 'Chile', slug: 'puyehue', metodo_venta: 'directa' as const, url_reserva_directa: 'https://reservas.puyehue.cl/cgi-bin/paso1.cgi?RESORT=HTP&AGENCIA=CANOPY&LANGUAGE=ES', imagen_principal: 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=512&h=320&fit=crop' },
+    { ...base, id: 'dev-6', name: 'Termas de Aguas Calientes', ciudad: 'Puyehue', pais: 'Chile', slug: 'aguas-calientes', metodo_venta: 'directa' as const, url_reserva_directa: 'https://reservas.puyehue.cl/cgi-bin/paso1.cgi?RESORT=TAC&AGENCIA=CANOPY&LANGUAGE=ES', imagen_principal: 'https://images.unsplash.com/photo-1540555700478-4be289fbecef?w=512&h=320&fit=crop' },
     { ...base, id: 'dev-1', name: 'Corralco Resort', ciudad: 'Lonquimay', pais: 'Chile', slug: 'corralco' },
     { ...base, id: 'dev-3', name: 'Huilo Huilo Resort', ciudad: 'Neltume', pais: 'Chile', slug: 'huilo-huilo', imagen_principal: 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=512&h=320&fit=crop' },
     { ...base, id: 'dev-4', name: 'Hotel Patagonia', ciudad: 'Bariloche', pais: 'Argentina', slug: 'patagonia', imagen_principal: 'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=512&h=320&fit=crop' },
@@ -113,7 +114,7 @@ export function AlojamientosCarousel({
           <p className={styles.devHint}>Vista previa local — configurá Supabase para hoteles reales</p>
         )}
         {loading ? (
-          <p className={styles.status}>Cargando hoteles…</p>
+          <p className={styles.status}>{cardVariant === 'pack' ? 'Cargando packs…' : 'Cargando hoteles…'}</p>
         ) : configError && !useDevPreview ? (
           <p className={styles.status}>
             No está configurada la conexión a la base de datos. El administrador debe definir VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY al construir la web.

@@ -97,8 +97,10 @@ export interface Hotel {
   mostrar_como_hotel?: boolean | null;
   /** Si true, aparece en /packs */
   mostrar_como_paquete?: boolean | null;
-  /** Si true, aparece en Home → Nuestros elegidos del mes */
+  /** Si true, aparece en Home → Nuestros elegidos del mes (hoteles) */
   elegido_del_mes?: boolean | null;
+  /** Si true, aparece en Home → Nuestros Pack elegidos del mes */
+  pack_elegido_del_mes?: boolean | null;
   /** Ficha modular para la web pública */
   ficha_web?: FichaWeb | null;
   /** Datos específicos de pack/paquete */
