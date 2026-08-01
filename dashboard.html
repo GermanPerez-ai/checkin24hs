@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-07-30T16:47:24Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 213; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-01T19:32:58Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 215; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">213</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">215</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -7773,6 +7773,9 @@ Ej:
         }
 
         function getReservationAmount(res) {
+            if (typeof getReservationTotalAmount === 'function') {
+                return getReservationTotalAmount(res);
+            }
             return parseFloat(res.totalAmount) ||
                 parseFloat(res.total_amount) ||
                 parseFloat(res.amount) ||
@@ -22261,6 +22264,149 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             });
         }
 
+        // --- Helpers filtro hotel / montos (Ventas mensuales + Reservas) ---
+        const HOTEL_FILTER_ALIASES = {
+            'htp': 'termas de puyehue',
+            'puyehue': 'termas de puyehue',
+            'hotel puyehue': 'termas de puyehue',
+            'terma de puyehue': 'termas de puyehue',
+            'hotel termas puyehue': 'termas de puyehue',
+            'termas de puyehue': 'termas de puyehue',
+            'hotel termas de puyehue': 'termas de puyehue',
+            'acc': 'termas aguas calientes',
+            'aguas calientes': 'termas aguas calientes',
+            'hotel aguas calientes': 'termas aguas calientes',
+            'termas aguas calientes': 'termas aguas calientes',
+            'termas de aguas calientes': 'termas aguas calientes',
+            'cabanas termas de aguas calientes': 'termas aguas calientes',
+            'cabañas termas de aguas calientes': 'termas aguas calientes'
+        };
+
+        function normalizeHotelKey(name) {
+            return String(name || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/^hotel\s+/, '')
+                .replace(/^cabanas?\s+/, '')
+                .replace(/[^a-z0-9\s]/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function canonicalHotelKey(name) {
+            const n = normalizeHotelKey(name);
+            if (!n) return '';
+            if (HOTEL_FILTER_ALIASES[n]) return HOTEL_FILTER_ALIASES[n];
+            if (n.includes('puyehue')) return 'termas de puyehue';
+            if (n.includes('aguas calientes')) return 'termas aguas calientes';
+            if (n.includes('huilo')) return 'huilo huilo';
+            if (n.includes('corralco')) return 'corralco';
+            return n;
+        }
+
+        function buildHotelMatchSet(hotelInfo) {
+            const set = new Set();
+            if (!hotelInfo) return set;
+            const raw = hotelInfo.name || hotelInfo.hotel_name || '';
+            const canon = canonicalHotelKey(raw);
+            const norm = normalizeHotelKey(raw);
+            [raw, norm, canon].forEach(function (v) {
+                if (v) set.add(String(v).toLowerCase().trim());
+            });
+            Object.keys(HOTEL_FILTER_ALIASES).forEach(function (alias) {
+                if (HOTEL_FILTER_ALIASES[alias] === canon) set.add(alias);
+            });
+            return set;
+        }
+
+        function reservationMatchesHotelFilter(reservation, filterHotelId, hotelNamesToMatch) {
+            const hotelId = reservation.hotelId || reservation.hotel_id;
+            const rawName = (reservation.hotel_name || reservation.hotelName || reservation.hotel || '').trim();
+            const reservationCanon = canonicalHotelKey(rawName);
+
+            if (filterHotelId && hotelId != null && String(hotelId).trim() !== '') {
+                if (String(hotelId).trim() === String(filterHotelId).trim()) return true;
+            }
+            if (!rawName || !hotelNamesToMatch || hotelNamesToMatch.size === 0) return false;
+            if (hotelNamesToMatch.has(rawName.toLowerCase()) || hotelNamesToMatch.has(reservationCanon)) return true;
+            const norm = normalizeHotelKey(rawName);
+            if (hotelNamesToMatch.has(norm)) return true;
+            for (const m of hotelNamesToMatch) {
+                const mc = canonicalHotelKey(m);
+                if (mc && reservationCanon && mc === reservationCanon) return true;
+                if (norm && m && (norm.includes(m) || m.includes(norm))) return true;
+            }
+            return false;
+        }
+
+        function parseReservationAmount(value) {
+            if (value === null || value === undefined || value === '') return 0;
+            if (typeof value === 'number') return isNaN(value) ? 0 : value;
+            if (typeof value !== 'string') return 0;
+            let cleanValue = value.replace(/[$€£¥]|\bUSD\b|\bEUR\b|\bCLP\b|\bARS\b/gi, '').trim();
+            const hasComma = cleanValue.includes(',');
+            const hasDot = cleanValue.includes('.');
+            if (hasComma && hasDot) {
+                const commaPos = cleanValue.lastIndexOf(',');
+                const dotPos = cleanValue.lastIndexOf('.');
+                if (commaPos > dotPos) {
+                    cleanValue = cleanValue.replace(/\./g, '').replace(',', '.');
+                } else {
+                    cleanValue = cleanValue.replace(/,/g, '');
+                }
+            } else if (hasComma && !hasDot) {
+                const parts = cleanValue.split(',');
+                if (parts.length === 2 && parts[1].length <= 2) {
+                    cleanValue = cleanValue.replace(',', '.');
+                } else {
+                    cleanValue = cleanValue.replace(/,/g, '');
+                }
+            } else if (hasDot && !hasComma) {
+                const parts = cleanValue.split('.');
+                // 150.000 o 1.150.000 → separador de miles (CL/AR)
+                if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+                    cleanValue = cleanValue.replace(/\./g, '');
+                }
+            }
+            const parsed = parseFloat(cleanValue);
+            return isNaN(parsed) ? 0 : parsed;
+        }
+
+        function getReservationTotalAmount(reservation) {
+            const fields = ['totalAmount', 'total_amount', 'amount', 'price'];
+            for (let i = 0; i < fields.length; i++) {
+                const v = reservation[fields[i]];
+                if (v !== null && v !== undefined && v !== '') {
+                    const n = parseReservationAmount(v);
+                    if (n > 0) return n;
+                }
+            }
+            return 0;
+        }
+
+        function addMonthsToKey(yyyyMm, delta) {
+            const parts = String(yyyyMm).substring(0, 7).split('-');
+            let y = parseInt(parts[0], 10);
+            let m = parseInt(parts[1], 10) + delta;
+            while (m > 12) { m -= 12; y += 1; }
+            while (m < 1) { m += 12; y -= 1; }
+            return y + '-' + String(m).padStart(2, '0');
+        }
+
+        function buildMonthKeysRange(fromKey, toKey) {
+            const keys = [];
+            if (!fromKey || !toKey || fromKey > toKey) return keys;
+            let cur = fromKey;
+            let guard = 0;
+            while (cur <= toKey && guard < 240) {
+                keys.push(cur);
+                cur = addMonthsToKey(cur, 1);
+                guard++;
+            }
+            return keys;
+        }
+
         // Función para cargar ventas mensuales con filtros
         async function loadMonthlySales(filterFrom = null, filterTo = null, filterHotelId = 'all') {
             console.log('📊 Cargando ventas mensuales...', { filterFrom, filterTo, filterHotelId });
@@ -22324,207 +22470,48 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 return;
             }
             
-            // Mapeo de aliases de hoteles (alias -> nombre completo). Cualquier reserva con estos nombres/códigos matchea el hotel indicado.
-            const hotelAliases = {
-                'HTP': 'Termas de Puyehue',
-                'htp': 'Termas de Puyehue',
-                'PUYEHUE': 'Termas de Puyehue',
-                'puyehue': 'Termas de Puyehue',
-                'Hotel Puyehue': 'Termas de Puyehue',
-                'hotel puyehue': 'Termas de Puyehue',
-                'Terma de Puyehue': 'Termas de Puyehue',
-                'Hotel Termas Puyehue': 'Termas de Puyehue',
-                'ACC': 'Termas Aguas calientes',
-                'acc': 'Termas Aguas calientes',
-                'Aguas Calientes': 'Termas Aguas calientes',
-                'aguas calientes': 'Termas Aguas calientes',
-                'Hotel Aguas Calientes': 'Termas Aguas calientes',
-                'Termas Aguas Calientes': 'Termas Aguas calientes',
-                'Termas Aguas calientes': 'Termas Aguas calientes',
-                'Termas de Puyehue': 'Termas de Puyehue',
-                'Termas de Aguas Calientes': 'Termas Aguas calientes',
-                'termas de puyehue': 'Termas de Puyehue',
-                'termas de aguas calientes': 'Termas Aguas calientes',
-                'termas aguas calientes': 'Termas Aguas calientes'
-            };
-            
-            // Obtener información del hotel seleccionado para comparar también por nombre
+            // Obtener información del hotel seleccionado para comparar también por nombre/alias
             let selectedHotelInfo = null;
+            let hotelNamesToMatch = new Set();
             if (filterHotelId && filterHotelId !== 'all') {
-                // Obtener hoteles para encontrar el nombre del hotel seleccionado
                 let allHotels = [];
                 if (window.supabaseClient && window.supabaseClient.isInitialized()) {
                     try {
                         allHotels = await window.supabaseClient.getHotels();
                     } catch (e) {
-                        try {
-                            allHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-                        } catch (err) {
-                            allHotels = [];
-                        }
+                        try { allHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]'); } catch (err) { allHotels = []; }
                     }
                 } else {
-                    try {
-                        allHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
-                    } catch (e) {
-                        allHotels = [];
-                    }
+                    try { allHotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]'); } catch (e) { allHotels = []; }
                 }
-                
-                // Buscar el hotel seleccionado (puede ser null si el hotel está inactivo y no viene en getHotels())
-                selectedHotelInfo = allHotels.find(h => 
+
+                selectedHotelInfo = allHotels.find(h =>
                     String(h.id || h.hotel_id).trim() === String(filterHotelId).trim()
                 );
-                // Si no está en la lista, obtener el nombre desde el <option> por valor (más fiable que selectedIndex)
                 if (!selectedHotelInfo) {
                     const hotelFilterEl = document.getElementById('hotelFilter');
                     const optByValue = hotelFilterEl && Array.from(hotelFilterEl.options).find(o => String(o.value) === String(filterHotelId));
-                    const optionText = (optByValue && (optByValue.textContent || optByValue.text || '').trim()) || (hotelFilterEl && hotelFilterEl.options[hotelFilterEl.selectedIndex] && hotelFilterEl.options[hotelFilterEl.selectedIndex].value === String(filterHotelId) ? (hotelFilterEl.options[hotelFilterEl.selectedIndex].textContent || hotelFilterEl.options[hotelFilterEl.selectedIndex].text || '').trim() : '');
+                    const optionText = (optByValue && (optByValue.textContent || optByValue.text || '').trim()) || '';
                     if (optionText) {
                         selectedHotelInfo = { id: filterHotelId, name: optionText, hotel_name: optionText };
-                        console.log('🔍 Hotel no encontrado en lista activa, usando nombre del selector:', optionText);
                     }
                 }
+                hotelNamesToMatch = buildHotelMatchSet(selectedHotelInfo || { id: filterHotelId, name: '' });
+                console.log(`🔍 Match hotel "${selectedHotelInfo?.name || filterHotelId}":`, Array.from(hotelNamesToMatch));
             }
-            
-            // Aplicar filtro de hotel (buscar en camelCase y snake_case, y también por nombre/alias)
+
             if (filterHotelId && filterHotelId !== 'all') {
                 const initialCount = reservations.length;
-                // Normalizar el filterHotelId a string para comparar correctamente UUIDs
-                const normalizedFilterId = String(filterHotelId);
-                
-                // Obtener nombres posibles del hotel (nombre completo, alias, variaciones, etc.)
-                const hotelNamesToMatch = new Set();
-                if (selectedHotelInfo) {
-                    const hotelName = (selectedHotelInfo.name || selectedHotelInfo.hotel_name || '').toLowerCase().trim();
-                    
-                    // Agregar el nombre completo
-                    hotelNamesToMatch.add(hotelName);
-                    
-                    // Agregar variaciones del nombre (sin "Hotel" al inicio, con/sin guiones, etc.)
-                    // Ejemplo: "Hotel Huilo-Huilo" -> "huilo-huilo", "huilo huilo", "hotel huilo-huilo"
-                    const nameWithoutHotel = hotelName.replace(/^hotel\s+/i, '').trim();
-                    hotelNamesToMatch.add(nameWithoutHotel);
-                    
-                    // Variación con guión convertido a espacio
-                    const nameWithSpace = nameWithoutHotel.replace(/-/g, ' ').trim();
-                    hotelNamesToMatch.add(nameWithSpace);
-                    
-                    // Variación con espacio convertido a guión
-                    const nameWithDash = nameWithoutHotel.replace(/\s+/g, '-').trim();
-                    hotelNamesToMatch.add(nameWithDash);
-                    
-                    // Agregar alias si el nombre coincide con alguno conocido
-                    Object.entries(hotelAliases).forEach(([alias, fullName]) => {
-                        if (fullName.toLowerCase() === hotelName || fullName.toLowerCase() === nameWithoutHotel) {
-                            hotelNamesToMatch.add(alias.toLowerCase());
-                        }
-                    });
-                    
-                    console.log(`🔍 Nombres a buscar para "${selectedHotelInfo.name}":`, Array.from(hotelNamesToMatch));
-                }
-                
-                // Resolver nombre del hotel de la reserva por alias (case-insensitive)
-                function resolveHotelName(name) {
-                    if (!name || !name.trim()) return '';
-                    const n = name.trim().toLowerCase();
-                    const exact = hotelAliases[n] || hotelAliases[name.trim()];
-                    if (exact) return exact.toLowerCase();
-                    const byAlias = Object.entries(hotelAliases).find(([alias]) => alias.toLowerCase() === n);
-                    if (byAlias) return byAlias[1].toLowerCase();
-                    return n;
-                }
-                
-                reservations = reservations.filter(reservation => {
-                    const hotelId = reservation.hotelId || reservation.hotel_id;
-                    const rawName = (reservation.hotel_name || reservation.hotelName || '').trim();
-                    const hotelName = rawName ? resolveHotelName(rawName) : (rawName || '').toLowerCase();
-                    
-                    let matchesById = false;
-                    if (hotelId) {
-                        const normalizedReservationId = String(hotelId);
-                        matchesById = normalizedReservationId === normalizedFilterId;
-                        if (!matchesById) {
-                            const reservationNum = parseInt(hotelId);
-                            const filterNum = parseInt(filterHotelId);
-                            if (!isNaN(reservationNum) && !isNaN(filterNum)) {
-                                matchesById = reservationNum === filterNum;
-                            }
-                        }
-                    }
-                    
-                    let matchesByName = false;
-                    if (hotelName && hotelNamesToMatch.size > 0) {
-                        matchesByName = hotelNamesToMatch.has(hotelName);
-                        if (!matchesByName) {
-                            const reservationNameNormalized = hotelName.replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
-                            const reservationNameWithDash = hotelName.replace(/\s+/g, '-').trim();
-                            const reservationNameWithoutHotel = hotelName.replace(/^hotel\s+/i, '').trim();
-                            matchesByName = hotelNamesToMatch.has(reservationNameNormalized) ||
-                                          hotelNamesToMatch.has(reservationNameWithDash) ||
-                                          hotelNamesToMatch.has(reservationNameWithoutHotel) ||
-                                          Array.from(hotelNamesToMatch).some(matchName => {
-                                              return hotelName.includes(matchName) || matchName.includes(hotelName);
-                                          });
-                        }
-                        if (!matchesByName) {
-                            const mapped = resolveHotelName(rawName);
-                            if (mapped) matchesByName = hotelNamesToMatch.has(mapped);
-                        }
-                    }
-                    
-                    return matchesById || matchesByName;
-                });
-                console.log(`🏨 Filtrado por hotel ${filterHotelId} (${selectedHotelInfo?.name || 'ID desconocido'}): ${reservations.length} de ${initialCount} reservas`);
-                
-                // Mostrar muestra de reservas filtradas para debug
-                if (reservations.length > 0) {
-                    console.log(`🔍 Muestra de reservas filtradas (primeras 5):`);
-                    reservations.slice(0, 5).forEach((r, idx) => {
-                        console.log(`   Reserva ${idx + 1}:`, {
-                            code: r.reservation_code || r.reservationCode || r.code,
-                            hotelId: r.hotelId || r.hotel_id,
-                            hotelName: r.hotel_name || r.hotelName,
-                            checkIn: r.check_in || r.checkIn,
-                            total_amount: r.total_amount || r.totalAmount,
-                            status: r.status
-                        });
-                    });
-                }
-                
+                reservations = reservations.filter(r =>
+                    reservationMatchesHotelFilter(r, filterHotelId, hotelNamesToMatch)
+                );
+                console.log(`🏨 Filtrado por hotel ${filterHotelId} (${selectedHotelInfo?.name || 'ID'}): ${reservations.length} de ${initialCount}`);
                 if (reservations.length === 0 && initialCount > 0) {
-                    // Si no se encontraron reservas, mostrar muestra de reservas para debug
-                    console.warn(`⚠️ No se encontraron reservas para el hotel seleccionado. Mostrando muestra de reservas para debug:`);
-                    const sampleReservations = allReservationsForDebug.slice(0, 5);
-                    sampleReservations.forEach((r, idx) => {
-                        console.log(`   Reserva ${idx + 1}:`, {
-                            code: r.reservation_code || r.reservationCode || r.code,
-                            hotelId: r.hotelId || r.hotel_id,
-                            hotelName: r.hotel_name || r.hotelName,
-                            hotelIdType: typeof (r.hotelId || r.hotel_id),
-                            filterHotelId: filterHotelId,
-                            filterHotelIdType: typeof filterHotelId
-                        });
-                    });
-                    
-                    // Mostrar todos los nombres únicos de hoteles en las reservas
-                    const allHotelNames = [...new Set(allReservationsForDebug.map(r => (r.hotel_name || r.hotelName || '').toLowerCase()).filter(n => n))];
-                    const allHotelIds = [...new Set(allReservationsForDebug.map(r => String(r.hotelId || r.hotel_id)).filter(id => id && id !== 'null' && id !== 'undefined'))];
-                    console.log(`🔍 Todos los nombres de hoteles en las reservas:`, allHotelNames);
-                    console.log(`🔍 Todos los IDs de hoteles en las reservas:`, allHotelIds);
+                    const allHotelNames = [...new Set(allReservationsForDebug.map(r => (r.hotel_name || r.hotelName || '').toLowerCase()).filter(Boolean))];
+                    console.warn('⚠️ Sin match. Nombres en reservas:', allHotelNames);
                 }
-                
-                console.log(`🔍 IDs de hoteles en reservas filtradas:`, [...new Set(reservations.map(r => r.hotelId || r.hotel_id).filter(id => id))]);
-                console.log(`🔍 Nombres de hoteles en reservas filtradas:`, [...new Set(reservations.map(r => (r.hotel_name || r.hotelName || '').toLowerCase()).filter(n => n))]);
             } else {
-                // Mostrar que se están procesando TODOS los hoteles
-                const reservationsWithHotel = reservations.filter(r => r.hotelId || r.hotel_id);
-                const reservationsWithoutHotel = reservations.filter(r => !r.hotelId && !r.hotel_id);
-                console.log(`🏨 Procesando TODOS los hoteles: ${reservations.length} reservas totales`);
-                console.log(`   - ${reservationsWithHotel.length} reservas con hotel asignado`);
-                console.log(`   - ${reservationsWithoutHotel.length} reservas sin hotel asignado`);
-                console.log(`🔍 IDs únicos de hoteles en todas las reservas:`, 
-                    [...new Set(reservations.map(r => r.hotelId || r.hotel_id).filter(id => id))]);
+                console.log(`🏨 Procesando TODOS los hoteles: ${reservations.length} reservas`);
             }
             
             // Objeto para agrupar ventas por mes/año
@@ -22538,91 +22525,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             let skippedOutOfRange = 0;
             let totalAmountProcessed = 0;
             
-            // Función auxiliar para parsear montos correctamente
-            function parseAmount(value) {
-                if (value === null || value === undefined || value === '') {
-                    return 0;
-                }
-                
-                // Si ya es un número, devolverlo
-                if (typeof value === 'number') {
-                    return isNaN(value) ? 0 : value;
-                }
-                
-                // Si es string, limpiarlo
-                if (typeof value === 'string') {
-                    // Remover símbolos de moneda ($, USD, etc.)
-                    let cleanValue = value.replace(/[$€£¥]|\bUSD\b|\bEUR\b/gi, '');
-                    
-                    // Remover espacios
-                    cleanValue = cleanValue.trim();
-                    
-                    // Manejar separadores: si tiene punto como separador de miles (1.000) vs decimal (1.000,50)
-                    // Detectar formato europeo (punto para miles, coma para decimales)
-                    const hasComma = cleanValue.includes(',');
-                    const hasDot = cleanValue.includes('.');
-                    
-                    if (hasComma && hasDot) {
-                        // Formato mixto: determinar cuál es decimal
-                        const commaPos = cleanValue.lastIndexOf(',');
-                        const dotPos = cleanValue.lastIndexOf('.');
-                        if (commaPos > dotPos) {
-                            // Formato europeo: 1.000,50
-                            cleanValue = cleanValue.replace(/\./g, '').replace(',', '.');
-                        } else {
-                            // Formato americano: 1,000.50
-                            cleanValue = cleanValue.replace(/,/g, '');
-                        }
-                    } else if (hasComma && !hasDot) {
-                        // Solo coma: podría ser decimal europeo (1,50) o separador de miles (1,000)
-                        // Si hay más de 3 dígitos después de la coma, probablemente sea separador de miles
-                        const parts = cleanValue.split(',');
-                        if (parts.length === 2 && parts[1].length <= 2) {
-                            // Formato decimal europeo
-                            cleanValue = cleanValue.replace(',', '.');
-                        } else {
-                            // Separador de miles, remover
-                            cleanValue = cleanValue.replace(/,/g, '');
-                        }
-                    } else if (hasDot && !hasComma) {
-                        // Solo punto: podría ser decimal (1.50) o separador de miles (1.000)
-                        const parts = cleanValue.split('.');
-                        if (parts.length === 2 && parts[1].length <= 2) {
-                            // Formato decimal, mantener
-                        } else if (parts.length > 2) {
-                            // Múltiples puntos, probablemente separador de miles
-                            cleanValue = cleanValue.replace(/\./g, '');
-                        }
-                    }
-                    
-                    // Parsear el valor limpio
-                    const parsed = parseFloat(cleanValue);
-                    return isNaN(parsed) ? 0 : parsed;
-                }
-                
-                return 0;
-            }
-            
             // Procesar cada reserva
             reservations.forEach((reservation, index) => {
                 // Obtener fecha de check-in (buscar en camelCase y snake_case)
                 const checkInDate = reservation.checkIn || reservation.check_in;
-                // Buscar monto en diferentes campos posibles (camelCase y snake_case)
-                // Usar la función parseAmount mejorada
-                // Nota: no usar || porque 0 es un valor válido, usar coalescencia nula o verificación explícita
-                let totalAmount = 0;
-                if (reservation.totalAmount !== null && reservation.totalAmount !== undefined && reservation.totalAmount !== '') {
-                    totalAmount = parseAmount(reservation.totalAmount);
-                }
-                if (totalAmount === 0 && reservation.total_amount !== null && reservation.total_amount !== undefined && reservation.total_amount !== '') {
-                    totalAmount = parseAmount(reservation.total_amount);
-                }
-                if (totalAmount === 0 && reservation.amount !== null && reservation.amount !== undefined && reservation.amount !== '') {
-                    totalAmount = parseAmount(reservation.amount);
-                }
-                if (totalAmount === 0 && reservation.price !== null && reservation.price !== undefined && reservation.price !== '') {
-                    totalAmount = parseAmount(reservation.price);
-                }
+                const totalAmount = getReservationTotalAmount(reservation);
                 
                 // Obtener ID del hotel para debug
                 const reservationHotelId = reservation.hotelId || reservation.hotel_id;
@@ -22755,110 +22662,68 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 console.log(`   🔍 Muestra de fechas de check-in en reservas:`, sampleDates);
             }
             
-            // Mostrar ejemplo de montos encontrados (primera reserva con monto)
-            if (reservations.length > 0) {
-                const firstResWithAmount = reservations.find(r => {
-                    const amt = parseAmount(r.totalAmount) || parseAmount(r.total_amount) || parseAmount(r.amount) || parseAmount(r.price) || 0;
-                    return amt > 0;
+            // Meses a mostrar: si hay filtro de fechas, usar ese rango; si no, ventana ±5 + cualquier mes con datos
+            const dataMonthKeys = Object.keys(monthlySales).sort();
+            const fromKey = filterFrom ? String(filterFrom).trim().substring(0, 7) : null;
+            const toKey = filterTo ? String(filterTo).trim().substring(0, 7) : null;
+            let monthKeysToShow = [];
+
+            if (fromKey || toKey) {
+                const start = fromKey || (dataMonthKeys[0] || toKey);
+                const end = toKey || (dataMonthKeys[dataMonthKeys.length - 1] || fromKey);
+                monthKeysToShow = buildMonthKeysRange(start, end);
+                // Incluir también meses con datos dentro del filtro (por si parseo generó claves extra)
+                dataMonthKeys.forEach(function (k) {
+                    if ((!fromKey || k >= fromKey) && (!toKey || k <= toKey) && monthKeysToShow.indexOf(k) === -1) {
+                        monthKeysToShow.push(k);
+                    }
                 });
-                if (firstResWithAmount) {
-                    console.log(`🔍 Ejemplo de monto parseado:`, {
-                        original: firstResWithAmount.totalAmount || firstResWithAmount.total_amount || firstResWithAmount.amount || firstResWithAmount.price,
-                        parsed: parseAmount(firstResWithAmount.totalAmount) || parseAmount(firstResWithAmount.total_amount) || parseAmount(firstResWithAmount.amount) || parseAmount(firstResWithAmount.price),
-                        hotel: firstResWithAmount.hotel_name || firstResWithAmount.hotelName || firstResWithAmount.hotelId || firstResWithAmount.hotel_id
-                    });
-                }
+                monthKeysToShow.sort();
+            } else {
+                const now = new Date();
+                const currentKey = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+                const windowKeys = [];
+                for (let i = -5; i <= 5; i++) windowKeys.push(addMonthsToKey(currentKey, i));
+                const keySet = new Set(windowKeys.concat(dataMonthKeys));
+                monthKeysToShow = Array.from(keySet).sort();
             }
-            
-            // Calcular rango de meses: 5 meses anteriores + mes actual + 5 meses siguientes = 11 meses totales
-            const now = new Date();
-            const currentYear = now.getFullYear();
-            const currentMonth = now.getMonth() + 1; // getMonth() devuelve 0-11
-            
-            // Crear array con los 11 meses (5 anteriores + actual + 5 siguientes)
-            const monthsToShow = [];
-            
-            // Agregar 5 meses anteriores
-            for (let i = 5; i >= 1; i--) {
-                let year = currentYear;
-                let month = currentMonth - i;
-                
-                // Ajustar si el mes es negativo (año anterior)
-                while (month <= 0) {
-                    month += 12;
-                    year -= 1;
-                }
-                
-                const monthKey = `${year}-${String(month).padStart(2, '0')}`;
-                monthsToShow.push({
-                    year: year,
-                    month: month,
-                    monthKey: monthKey
-                });
-            }
-            
-            // Agregar mes actual
-            const currentMonthKey = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
-            monthsToShow.push({
-                year: currentYear,
-                month: currentMonth,
-                monthKey: currentMonthKey
+
+            const monthsToShow = monthKeysToShow.map(function (monthKey) {
+                const parts = monthKey.split('-');
+                return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10), monthKey: monthKey };
             });
-            
-            // Agregar 5 meses siguientes
-            for (let i = 1; i <= 5; i++) {
-                let year = currentYear;
-                let month = currentMonth + i;
-                
-                // Ajustar si el mes es mayor a 12 (año siguiente)
-                while (month > 12) {
-                    month -= 12;
-                    year += 1;
-                }
-                
-                const monthKey = `${year}-${String(month).padStart(2, '0')}`;
-                monthsToShow.push({
-                    year: year,
-                    month: month,
-                    monthKey: monthKey
-                });
-            }
-            
-            console.log(`📅 Mostrando 11 meses: 5 anteriores + actual + 5 siguientes (${monthsToShow.length} meses totales)`);
-            
-            // Crear array final combinando datos reales con meses sin datos
-            const finalSalesArray = monthsToShow.map(monthInfo => {
-                const monthKey = monthInfo.monthKey;
-                if (monthlySales[monthKey]) {
-                    // Si hay datos para este mes, usar los datos reales
-                    return monthlySales[monthKey];
-                } else {
-                    // Si no hay datos, crear entrada con valores en 0
-                    return {
-                        year: monthInfo.year,
-                        month: monthInfo.month,
-                        total: 0,
-                        count: 0
-                    };
-                }
+
+            console.log(`📅 Meses a mostrar (${monthsToShow.length}):`, monthKeysToShow);
+
+            const finalSalesArray = monthsToShow.map(function (monthInfo) {
+                if (monthlySales[monthInfo.monthKey]) return monthlySales[monthInfo.monthKey];
+                return { year: monthInfo.year, month: monthInfo.month, total: 0, count: 0 };
             });
-            
-            // Ordenar por año y mes (más reciente primero para mostrar: futuro -> presente -> pasado)
-            finalSalesArray.sort((a, b) => {
-                if (a.year !== b.year) {
-                    return b.year - a.year; // Año más reciente primero
-                }
-                return b.month - a.month; // Mes más reciente primero
+
+            // Más reciente primero
+            finalSalesArray.sort(function (a, b) {
+                if (a.year !== b.year) return b.year - a.year;
+                return b.month - a.month;
             });
-            
-            // Nombres de meses en español
+
             const monthNames = [
                 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
                 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
             ];
-            
-            // Crear tabla HTML
+
+            const tableTotalAmount = finalSalesArray.reduce(function (s, m) { return s + (m.total || 0); }, 0);
+            const tableTotalCount = finalSalesArray.reduce(function (s, m) { return s + (m.count || 0); }, 0);
+            const hotelLabel = (filterHotelId && filterHotelId !== 'all')
+                ? (selectedHotelInfo?.name || 'Hotel filtrado')
+                : 'Todos los hoteles';
+
             let html = `
+                <div style="margin-bottom: 10px; font-size: 0.9rem; color: #555;">
+                    <strong>${hotelLabel}</strong>
+                    ${fromKey || toKey ? ` · ${fromKey || '…'} → ${toKey || '…'}` : ''}
+                    · Total período: <strong style="color:#1976d2;">$${tableTotalAmount.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                    (${tableTotalCount} reservas)
+                </div>
                 <div style="overflow-x: auto; background-color: transparent;">
                     <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
                         <thead>
@@ -22870,32 +22735,38 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         </thead>
                         <tbody>
             `;
-            
-            finalSalesArray.forEach(sale => {
+
+            finalSalesArray.forEach(function (sale) {
                 const monthName = monthNames[sale.month - 1];
                 html += `
                     <tr style="border-bottom: 1px solid #eee;">
                         <td style="padding: 10px; color: #333; font-weight: 500;">${monthName} ${sale.year}</td>
                         <td style="padding: 10px; text-align: right; color: #666;">${sale.count}</td>
-                        <td style="padding: 10px; text-align: right; color: #1976d2; font-weight: 600;">$${sale.total.toLocaleString('es-AR')}</td>
+                        <td style="padding: 10px; text-align: right; color: #1976d2; font-weight: 600;">$${Number(sale.total || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     </tr>
                 `;
             });
-            
+
             html += `
                         </tbody>
+                        <tfoot>
+                            <tr style="background:#e3f2fd; border-top: 2px solid #1976d2;">
+                                <td style="padding: 10px; font-weight: 700; color: #1565c0;">TOTAL</td>
+                                <td style="padding: 10px; text-align: right; font-weight: 700; color: #1565c0;">${tableTotalCount}</td>
+                                <td style="padding: 10px; text-align: right; font-weight: 700; color: #1565c0;">$${tableTotalAmount.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                            </tr>
+                        </tfoot>
                     </table>
                 </div>
             `;
-            
-            // Aplicar estilos al contenedor para que no use flex cuando hay tabla
+
             monthlySalesContent.style.display = 'block';
             monthlySalesContent.style.alignItems = 'stretch';
             monthlySalesContent.style.justifyContent = 'flex-start';
             monthlySalesContent.style.background = 'transparent';
             monthlySalesContent.innerHTML = html;
-            
-            console.log(`✅ Ventas mensuales cargadas: ${finalSalesArray.length} meses (5 anteriores + actual + 5 siguientes)`);
+
+            console.log(`✅ Ventas mensuales: ${finalSalesArray.length} meses, total $${tableTotalAmount}`);
         }
         
         // Variable para prevenir cargas duplicadas
@@ -23803,35 +23674,16 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 const status = (r.status || '').toUpperCase();
                 if (statusFilter && !status.includes(statusFilter.toUpperCase())) return false;
                 
-                // Filtro por hotel (con soporte para aliases)
+                // Filtro por hotel (id + nombre + aliases HTP/ACC/etc.)
                 if (hotelFilter) {
-                    const hotelName = (r.hotel_name || r.hotelName || '').toLowerCase().trim();
-                    const filterValue = hotelFilter.toLowerCase().trim();
-                    
-                    // Mapeo de aliases
-                    const hotelAliases = {
-                        'htp': 'termas de puyehue',
-                        'acc': 'termas de aguas calientes',
-                        'termas de puyehue': 'termas de puyehue',
-                        'termas de aguas calientes': 'termas de aguas calientes'
-                    };
-                    
-                    // Buscar coincidencia directa
-                    let matches = hotelName.includes(filterValue);
-                    
-                    // Si no coincide, verificar aliases
-                    if (!matches) {
-                        // Si el filtro es un alias, buscar el nombre completo
-                        if (hotelAliases[filterValue]) {
-                            matches = hotelName.includes(hotelAliases[filterValue]);
-                        }
-                        // Si el nombre en la reserva es un alias, verificar contra el filtro
-                        if (!matches && hotelAliases[hotelName]) {
-                            matches = filterValue.includes(hotelAliases[hotelName]) || hotelAliases[hotelName].includes(filterValue);
-                        }
-                    }
-                    
-                    if (!matches) return false;
+                    const filterHotelEl = document.getElementById('filterHotel');
+                    const opt = filterHotelEl && Array.from(filterHotelEl.options).find(o => String(o.value) === String(hotelFilter));
+                    const filterName = (opt && (opt.getAttribute('data-name') || opt.textContent || opt.text)) || hotelFilter;
+                    const namesToMatch = buildHotelMatchSet({ id: hotelFilter, name: filterName });
+                    // Compat: si value es nombre (filtros viejos), también match por ese string
+                    namesToMatch.add(normalizeHotelKey(hotelFilter));
+                    namesToMatch.add(canonicalHotelKey(hotelFilter));
+                    if (!reservationMatchesHotelFilter(r, hotelFilter, namesToMatch)) return false;
                 }
                 
                 return true;
@@ -24002,21 +23854,21 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 }
             }
             
-            // Eliminar duplicados
+            // Eliminar duplicados; value = id (UUID) para match fiable + data-name
             const uniqueHotelsMap = new Map();
             hotels.forEach(hotel => {
-                const hotelId = String(hotel.id || hotel.hotel_id || '');
-                const hotelName = hotel.name || hotel.hotel_name || `Hotel ${hotelId}`;
-                
+                const hotelId = String(hotel.id || hotel.hotel_id || '').trim();
+                if (!hotelId) return;
+                const hotelName = (hotel.name || hotel.hotel_name || `Hotel ${hotelId}`).trim();
                 if (!uniqueHotelsMap.has(hotelId)) {
                     uniqueHotelsMap.set(hotelId, hotelName);
                 }
             });
             
-            // Agregar hoteles al selector
             uniqueHotelsMap.forEach((hotelName, hotelId) => {
                 const option = document.createElement('option');
-                option.value = hotelName; // Usar nombre para que funcione con el filtro por nombre
+                option.value = hotelId;
+                option.setAttribute('data-name', hotelName);
                 option.textContent = hotelName;
                 filterHotel.appendChild(option);
             });
