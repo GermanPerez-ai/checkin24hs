@@ -202,8 +202,8 @@ let isSyncingAppState = false; // Flag para indicar si se está sincronizando el
 // Si en esos 5s llega 1 solo mensaje → Flor responde esa consulta y queda atenta a la siguiente.
 // Si llegan varios en ese lapso → se acumulan y Flor responde a todos juntos. Sin límite de consultas por usuario.
 const FLOR_DELAY_MS = Math.max(0, parseInt(process.env.FLOR_DELAY_MS, 10) || 5000);
-/** Tras intervención humana (móvil, dashboard, /api/send), Flor calla este tiempo (RAM + DB). Default 30 min. */
-const FLOR_SILENCE_MINUTES = Math.max(1, parseInt(process.env.FLOR_SILENCE_MINUTES || '30', 10) || 30);
+/** Tras intervención humana (móvil, dashboard, /api/send), Flor calla este tiempo (RAM + DB). Default 45 min. */
+const FLOR_SILENCE_MINUTES = Math.max(1, parseInt(process.env.FLOR_SILENCE_MINUTES || '45', 10) || 45);
 const FLOR_SILENCE_MS = FLOR_SILENCE_MINUTES * 60 * 1000;
 
 /** Pausa mínima entre burbujas salientes (cola de salida). Default 3s — evita "Esperando mensaje". */
@@ -1197,7 +1197,7 @@ Responder dudas sobre hoteles y servicios. PROHIBIDO dar precios por noche o cot
 Si preguntan por precios de un hotel específico: NO des precios manuales ni envíes enlaces de cotizadores. Pedí fechas aproximadas, noches, huéspedes y edades de niños. Si el cliente está indeciso o no sabe qué hotel elegir, compartile https://www.checkin24hs.com/ para explorar hoteles y paquetes. Cuando ya tengan datos de viaje o pidan asesor, confirmá el traspaso a un asesor.
 
 **7. Protocolo de cierre y silencio:**
-Después de un mensaje manual del asesor, Flor debe guardar **30 minutos de silencio** en ese chat antes de volver a intervenir. No repetir bloques informativos que ya se enviaron.
+Después de un mensaje manual del asesor, Flor debe guardar **45 minutos de silencio** en ese chat antes de volver a intervenir. No repetir bloques informativos que ya se enviaron.
 
 **8. Escalación a humano:**
 Si piden "humano", "agente" o "asesor"; si no entendés la consulta tras un intento; si es una integración compleja → transferir de inmediato.
@@ -2041,21 +2041,25 @@ function normalizarCandidatosTelefono(phone) {
 
 function florSilenceReasonFromRows(rows) {
     if (!rows || !rows.length) return null;
-    const row = rows[0];
     const now = Date.now();
-    const untilRaw = row.flor_paused_until;
-    if (untilRaw) {
-        const untilMs = new Date(untilRaw).getTime();
-        if (untilMs > now) {
-            return { source: 'flor_paused_until', at: untilRaw };
+    for (const row of rows) {
+        if (!row) continue;
+        const untilRaw = row.flor_paused_until;
+        if (untilRaw) {
+            const untilMs = new Date(untilRaw).getTime();
+            if (!isNaN(untilMs) && untilMs > now) {
+                return { source: 'flor_paused_until', at: untilRaw, chatId: row.id || null };
+            }
         }
-    }
-    const lastHuman = row.last_human_outbound_at;
-    if (lastHuman) {
-        const lastMs = new Date(lastHuman).getTime();
-        const elapsed = now - lastMs;
-        if (elapsed >= 0 && elapsed < FLOR_SILENCE_MS) {
-            return { source: 'last_human_outbound_at', at: lastHuman };
+        const lastHuman = row.last_human_outbound_at;
+        if (lastHuman) {
+            const lastMs = new Date(lastHuman).getTime();
+            if (isNaN(lastMs)) continue;
+            const elapsed = now - lastMs;
+            // Inclusivo: silencio activo durante los FLOR_SILENCE_MINUTES completos
+            if (elapsed >= 0 && elapsed <= FLOR_SILENCE_MS) {
+                return { source: 'last_human_outbound_at', at: lastHuman, chatId: row.id || null };
+            }
         }
     }
     return null;
@@ -2064,58 +2068,91 @@ function florSilenceReasonFromRows(rows) {
 /**
  * Protocolo de Silencio — validación hard-coded SOLO contra Supabase (sin RAM).
  * Debe ejecutarse antes de Gemini, historial o cualquier token.
+ * IMPORTANTE: un mismo cliente puede tener varias filas (phone LID vs real_phone E.164).
+ * Se revisan TODAS las filas relacionadas; si alguna está en silencio, Flor aborta.
  */
 async function assertFlorSilenceProtocolDbOnly(phone, instanceNumber, chatIdOptional = null) {
     if (!supabase) return { blocked: false };
     const inst = instanceNumber || CONFIG.INSTANCE_NUMBER || 1;
     try {
-        const evaluateRow = async (row) => {
-            if (!row) return null;
-            const reason = florSilenceReasonFromRows([row]);
-            if (reason) return reason;
-            if (row.id && await isFlorPausedByRecentHumanMessage(row.id)) {
-                return { source: 'whatsapp_messages_human_outbound', at: 'recent' };
+        const rowsToCheck = [];
+        const seenIds = new Set();
+        const addRows = (rows) => {
+            for (const r of rows || []) {
+                if (!r || !r.id || seenIds.has(r.id)) continue;
+                seenIds.add(r.id);
+                rowsToCheck.push(r);
             }
-            return null;
         };
 
         if (chatIdOptional && String(chatIdOptional).trim()) {
             const { data, error } = await supabase
                 .from('whatsapp_chats')
-                .select('id, flor_paused_until, last_human_outbound_at')
+                .select('id, phone, real_phone, flor_paused_until, last_human_outbound_at')
                 .eq('id', String(chatIdOptional).trim())
                 .eq('whatsapp_instance', inst)
                 .maybeSingle();
-            if (!error && data) {
-                const reason = await evaluateRow(data);
-                if (reason) {
-                    console.log(`🛑 Flor ABORT silencio DB (${reason.source}=${reason.at}) chatId=${chatIdOptional}`);
-                    return { blocked: true, reason };
-                }
-            }
+            if (!error && data) addRows([data]);
         }
 
-        if (phone) {
-            const candidatos = normalizarCandidatosTelefono(phone);
+        const candidatos = new Set(normalizarCandidatosTelefono(phone));
+        for (const r of rowsToCheck) {
+            for (const c of normalizarCandidatosTelefono(r.phone)) candidatos.add(c);
+            for (const c of normalizarCandidatosTelefono(r.real_phone)) candidatos.add(c);
+        }
+        const candArr = [...candidatos].filter(Boolean);
+
+        if (candArr.length) {
             for (const col of ['phone', 'real_phone']) {
                 const { data: rows, error } = await supabase
                     .from('whatsapp_chats')
-                    .select('id, flor_paused_until, last_human_outbound_at')
+                    .select('id, phone, real_phone, flor_paused_until, last_human_outbound_at')
                     .eq('whatsapp_instance', inst)
-                    .in(col, candidatos)
-                    .order('updated_at', { ascending: false })
-                    .limit(1);
-                if (error) continue;
-                const reason = await evaluateRow(rows?.[0]);
-                if (reason) {
-                    console.log(`🛑 Flor ABORT silencio DB (${reason.source}=${reason.at}) phone=${phone}`);
-                    return { blocked: true, reason };
+                    .in(col, candArr)
+                    .limit(40);
+                if (error) {
+                    if (String(error.message || '').includes('last_human_outbound_at')) {
+                        const { data: rowsLegacy } = await supabase
+                            .from('whatsapp_chats')
+                            .select('id, phone, real_phone, flor_paused_until')
+                            .eq('whatsapp_instance', inst)
+                            .in(col, candArr)
+                            .limit(40);
+                        addRows(rowsLegacy);
+                    }
+                    continue;
                 }
+                addRows(rows);
             }
         }
+
+        const reason = florSilenceReasonFromRows(rowsToCheck);
+        if (reason) {
+            console.log(`🛑 Flor ABORT silencio DB (${reason.source}=${reason.at}) chats=${rowsToCheck.length} phone=${phone || '—'} chatId=${chatIdOptional || reason.chatId || '—'}`);
+            return { blocked: true, reason };
+        }
+
+        for (const row of rowsToCheck) {
+            if (row.id && await isFlorPausedByRecentHumanMessage(row.id)) {
+                const msgReason = { source: 'whatsapp_messages_human_outbound', at: 'recent', chatId: row.id };
+                console.log(`🛑 Flor ABORT silencio DB (${msgReason.source}) chat=${row.id} phone=${phone || '—'}`);
+                return { blocked: true, reason: msgReason };
+            }
+        }
+
+        // Si no encontramos filas por phone pero hay chatId, igual revisar mensajes de ese chat
+        if (!rowsToCheck.length && chatIdOptional && await isFlorPausedByRecentHumanMessage(String(chatIdOptional).trim())) {
+            return { blocked: true, reason: { source: 'whatsapp_messages_human_outbound', at: 'recent', chatId: String(chatIdOptional).trim() } };
+        }
+
         return { blocked: false };
     } catch (e) {
         console.warn('⚠️ assertFlorSilenceProtocolDbOnly:', e?.message || e);
+        // Fail-closed suave: si hay RAM activa, bloquear igual
+        if (phone && typeof florPauseMemoryIsActive === 'function' && florPauseMemoryIsActive(phone)) {
+            console.log(`🛑 Flor ABORT silencio (fallback RAM tras error DB) phone=${phone}`);
+            return { blocked: true, reason: { source: 'ram_fallback', at: 'error' } };
+        }
         return { blocked: false };
     }
 }
@@ -2173,53 +2210,8 @@ async function isFlorPausedForChat(phone, instanceNumber) {
         console.log(`⏸️ Flor pausa: memoria RAM (silencio reciente, cualquier origen humano)`);
         return true;
     }
-    if (!supabase) return false;
-    try {
-        const candidatos = normalizarCandidatosTelefono(phone);
-        const inst = instanceNumber || 1;
-        // La fila puede tener el cliente en `phone` (a veces LID) o en `real_phone` mientras `phone` ya es +E.164
-        for (const col of ['phone', 'real_phone']) {
-            const { data: rows, error } = await supabase
-                .from('whatsapp_chats')
-                .select('id, flor_paused_until, last_human_outbound_at')
-                .eq('whatsapp_instance', inst)
-                .in(col, candidatos)
-                .order('updated_at', { ascending: false })
-                .limit(1);
-            if (error) {
-                if (String(error.message || '').includes('last_human_outbound_at')) {
-                    const { data: rowsLegacy, error: errLegacy } = await supabase
-                        .from('whatsapp_chats')
-                        .select('id, flor_paused_until')
-                        .eq('whatsapp_instance', inst)
-                        .in(col, candidatos)
-                        .order('updated_at', { ascending: false })
-                        .limit(1);
-                    if (!errLegacy && rowsLegacy?.length) {
-                        const legacyReason = florSilenceReasonFromRows(rowsLegacy);
-                        if (legacyReason) {
-                            console.log(`⏸️ Flor pausa: DB ${legacyReason.source}=${legacyReason.at} (columna ${col})`);
-                            return true;
-                        }
-                    }
-                }
-                continue;
-            }
-            const reason = florSilenceReasonFromRows(rows);
-            if (reason) {
-                console.log(`⏸️ Flor pausa: DB ${reason.source}=${reason.at} (columna ${col}, silencio ${FLOR_SILENCE_MINUTES} min)`);
-                return true;
-            }
-            const chatId = rows?.[0]?.id;
-            if (chatId) {
-                const msgPaused = await isFlorPausedByRecentHumanMessage(chatId);
-                if (msgPaused) return true;
-            }
-        }
-        return false;
-    } catch (e) {
-        return false;
-    }
+    const db = await assertFlorSilenceProtocolDbOnly(phone, instanceNumber, null);
+    return !!db.blocked;
 }
 
 /** Fallback: último mensaje saliente no-Flor en whatsapp_messages (por si falta last_human_outbound_at). */
@@ -2246,7 +2238,7 @@ async function isFlorPausedByRecentHumanMessage(chatId) {
         const humanRow = res.data.find((r) => r.is_from_flor !== true);
         if (!humanRow?.sent_at) return false;
         const elapsed = Date.now() - new Date(humanRow.sent_at).getTime();
-        if (elapsed >= 0 && elapsed < FLOR_SILENCE_MS) {
+        if (elapsed >= 0 && elapsed <= FLOR_SILENCE_MS) {
             console.log(`⏸️ Flor pausa: mensaje humano reciente en whatsapp_messages sent_at=${humanRow.sent_at}`);
             return true;
         }
@@ -2442,14 +2434,33 @@ async function setFlorPausedUntil(phone, minutes, chatIdOptional = null, lidDigi
             }
             return !!(updatedRows && updatedRows.length);
         };
+
+        // 1) Por chat_id (dashboard) + 2) por TODOS los candidatos phone/real_phone/LID
+        // (mismo cliente puede tener 2 filas: LID y E.164; hay que pausar ambas)
         if (chatIdOptional && String(chatIdOptional).trim()) {
-            anyUpdated = await applyChatSilenceUpdate((u) =>
-                supabase.from('whatsapp_chats').update(u).eq('whatsapp_instance', instance).eq('id', String(chatIdOptional).trim()).select('id')
-            );
-        } else if (keys.length) {
+            const chatId = String(chatIdOptional).trim();
+            if (await applyChatSilenceUpdate((u) =>
+                supabase.from('whatsapp_chats').update(u).eq('whatsapp_instance', instance).eq('id', chatId).select('id, phone, real_phone')
+            )) {
+                anyUpdated = true;
+                try {
+                    const { data: row } = await supabase
+                        .from('whatsapp_chats')
+                        .select('phone, real_phone')
+                        .eq('id', chatId)
+                        .maybeSingle();
+                    if (row) {
+                        for (const c of normalizarCandidatosTelefono(row.phone)) keys.push(c);
+                        for (const c of normalizarCandidatosTelefono(row.real_phone)) keys.push(c);
+                    }
+                } catch (_) { /* ignore */ }
+            }
+        }
+        const uniqueKeys = [...new Set(keys.map((k) => String(k).trim()).filter(Boolean))];
+        if (uniqueKeys.length) {
             for (const col of ['phone', 'real_phone']) {
                 if (await applyChatSilenceUpdate((u) =>
-                    supabase.from('whatsapp_chats').update(u).eq('whatsapp_instance', instance).in(col, keys).select('id')
+                    supabase.from('whatsapp_chats').update(u).eq('whatsapp_instance', instance).in(col, uniqueKeys).select('id')
                 )) anyUpdated = true;
             }
         }
@@ -3015,7 +3026,7 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
     // Detectar si el mensaje requiere una respuesta predefinida
     const mensajeLower = (mensaje || '').toLowerCase().trim();
     
-    // Detectar solicitud de transferencia a humano → respuesta predefinida y pausar Flor (por defecto 30 min)
+    // Detectar solicitud de transferencia a humano → respuesta predefinida y pausar Flor (por defecto 45 min)
     const transferKeywords = ['hablar con humano', 'hablar con agente', 'hablar con asesor', 'transferir', 'agente humano', 'asesor humano', 'quiero hablar con alguien', 'asesor'];
     if (transferKeywords.some(kw => mensajeLower.includes(kw))) {
         console.log(`🔄 Usando respuesta predefinida: transferir (Flor se pausará ${FLOR_SILENCE_MINUTES} min para este chat)`);
