@@ -2,40 +2,30 @@
 /**
  * Monitor Checkin24hs → avisos por WhatsApp
  *
- * Chequea web, dashboard, cotizador y API WhatsApp. Si hay fallos (o con --digest),
- * envía un resumen a tu número vía POST /api/send del servicio whatsapp.
+ * Chequea web, dashboard, cotizador y API WhatsApp.
+ * Con --digest incluye visitas del día (tabla site_pageviews / RPC site_visit_stats).
  *
  * Uso:
  *   node scripts/site-monitor/monitor.js
  *   node scripts/site-monitor/monitor.js --digest
  *   node scripts/site-monitor/monitor.js --dry-run
  *
- * Variables de entorno:
- *   MONITOR_ALERT_PHONE   Teléfono E.164 sin + (ej. 54911XXXXXXXX)  ← obligatorio para enviar
- *   WHATSAPP_API_URL      Default https://whatsapp.checkin24hs.com
- *                         En EasyPanel/Docker: http://checkin24hs_whatsapp:3001
- *   MONITOR_WEB_URL       Default https://www.checkin24hs.com
- *   MONITOR_DASHBOARD_URL Default https://dashboard.checkin24hs.com
- *   MONITOR_COTIZADOR_URL Default https://cotizar.checkin24hs.com
- *   MONITOR_ONLY_FAILURES Default 1 (solo avisa si hay errores; --digest siempre avisa)
- *   MONITOR_TIMEOUT_MS    Default 15000
+ * Variables:
+ *   MONITOR_ALERT_PHONE, WHATSAPP_API_URL, MONITOR_WEB_URL, ...
+ *   SUPABASE_URL / SUPABASE_ANON_KEY  (para stats de visitas; defaults del proyecto)
  *
- * Cron ejemplo (cada 6 h en el servidor):
- *   0 star-slash-6 * * *  →  usar cron: minuto 0, cada 6 horas
- *   MONITOR_ALERT_PHONE=54911XXXXXXXX
- *   WHATSAPP_API_URL=http://checkin24hs_whatsapp:3001
- *   node scripts/site-monitor/monitor.js
- *
- * Digest diario (ideas aunque todo esté OK):
- *   node scripts/site-monitor/monitor.js --digest
- *
- * Nota: /api/send pausa Flor 45 min en el chat del destinatario (tu número). Es esperado.
+ * Nota: /api/send pausa Flor 45 min en el chat del destinatario.
  */
 
 const WEB_URL = (process.env.MONITOR_WEB_URL || 'https://www.checkin24hs.com').replace(/\/$/, '');
 const DASHBOARD_URL = (process.env.MONITOR_DASHBOARD_URL || 'https://dashboard.checkin24hs.com').replace(/\/$/, '');
 const COTIZADOR_URL = (process.env.MONITOR_COTIZADOR_URL || 'https://cotizar.checkin24hs.com').replace(/\/$/, '');
 const WA_API = (process.env.WHATSAPP_API_URL || 'https://whatsapp.checkin24hs.com').replace(/\/$/, '');
+const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://lmoeuyasuvoqhtvhkyia.supabase.co').replace(/\/$/, '');
+const SUPABASE_ANON_KEY =
+  process.env.SUPABASE_ANON_KEY ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxtb2V1eWFzdXZvcWh0dmhreWlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzNjE5NjAsImV4cCI6MjA3OTkzNzk2MH0.28xpqAqAa7rkeT3Ma5fPmbzYnetlq2wOPOgh9XBF3g4';
+
 const ALERT_PHONE = String(process.env.MONITOR_ALERT_PHONE || '')
   .replace(/^\+/, '')
   .replace(/\D/g, '')
@@ -46,6 +36,72 @@ const ONLY_FAILURES = process.env.MONITOR_ONLY_FAILURES !== '0' && process.env.M
 const args = new Set(process.argv.slice(2));
 const DRY_RUN = args.has('--dry-run');
 const DIGEST = args.has('--digest');
+
+/** YYYY-MM-DD en zona Argentina */
+function arYmd(date = new Date()) {
+  return date.toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
+}
+
+function addYmd(ymd, deltaDays) {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const utc = new Date(Date.UTC(y, m - 1, d + deltaDays));
+  return utc.toISOString().slice(0, 10);
+}
+
+/** Medianoche Argentina → ISO */
+function arDayBounds(ymd) {
+  const from = new Date(`${ymd}T00:00:00.000-03:00`);
+  const to = new Date(`${addYmd(ymd, 1)}T00:00:00.000-03:00`);
+  return { from: from.toISOString(), to: to.toISOString(), ymd };
+}
+
+async function fetchVisitStats() {
+  const today = arYmd();
+  const yesterday = addYmd(today, -1);
+  const ranges = [
+    { label: 'hoy', ...arDayBounds(today) },
+    { label: 'ayer', ...arDayBounds(yesterday) },
+  ];
+  const out = { today: null, yesterday: null, error: null };
+
+  try {
+    for (const r of ranges) {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/site_visit_stats`, {
+        method: 'POST',
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ p_from: r.from, p_to: r.to }),
+      });
+      const text = await res.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        data = null;
+      }
+      if (!res.ok) {
+        out.error =
+          res.status === 404
+            ? 'Falta migración 064 (site_pageviews / site_visit_stats) en Supabase'
+            : `Supabase ${res.status}: ${typeof data === 'string' ? data : JSON.stringify(data)}`;
+        return out;
+      }
+      const stats = {
+        ymd: r.ymd,
+        visitors: Number(data?.visitors ?? 0),
+        pageviews: Number(data?.pageviews ?? 0),
+      };
+      if (r.label === 'hoy') out.today = stats;
+      else out.yesterday = stats;
+    }
+  } catch (e) {
+    out.error = e.message || String(e);
+  }
+  return out;
+}
 
 async function fetchCheck(name, url, opts = {}) {
   const started = Date.now();
@@ -131,7 +187,7 @@ async function fetchCheck(name, url, opts = {}) {
   }
 }
 
-function ideasFromResults(results) {
+function ideasFromResults(results, visitStats) {
   const ideas = [];
   const failed = results.filter((r) => !r.ok);
   const slow = results.filter((r) => r.ok && r.ms > 4000);
@@ -148,19 +204,19 @@ function ideasFromResults(results) {
   if (failed.some((r) => r.name.startsWith('Cotizador'))) {
     ideas.push('Revisar servicio cotizador en EasyPanel (tráfico de conversión).');
   }
-  if (slow.length) {
-    ideas.push(`Rendimiento: ${slow.map((r) => `${r.name} ${r.ms}ms`).join(', ')} — revisar TTFB/CDN/imágenes.`);
+  if (visitStats?.error) {
+    ideas.push('Visitas: correr migración 064 en Supabase SQL Editor y redeploy web.');
   }
-  if (!failed.length) {
-    ideas.push('Todo verde en checks HTTP. Próximo upgrade: Playwright (login dashboard + flujo Reservar).');
-    ideas.push('Sumar Sentry en web/dashboard para errores JS reales de usuarios.');
-  } else if (!ideas.length) {
-    ideas.push('Ver logs EasyPanel del servicio que falló y repetir con --dry-run.');
+  if (slow.length) {
+    ideas.push(`Rendimiento: ${slow.map((r) => `${r.name} ${r.ms}ms`).join(', ')}.`);
+  }
+  if (!failed.length && !visitStats?.error) {
+    ideas.push('Todo verde. Si las visitas están en 0, confirmá que la web nueva ya está desplegada.');
   }
   return ideas.slice(0, 5);
 }
 
-function formatWhatsApp(results) {
+function formatWhatsApp(results, visitStats) {
   const failed = results.filter((r) => !r.ok);
   const okCount = results.length - failed.length;
   const when = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
@@ -175,6 +231,23 @@ function formatWhatsApp(results) {
   lines.push(`Checks: ${okCount}/${results.length} OK`);
   lines.push('');
 
+  if (DIGEST || visitStats) {
+    lines.push('*Visitas web (www)*');
+    if (visitStats?.error) {
+      lines.push(`⚠️ Sin datos: ${visitStats.error}`);
+    } else {
+      const t = visitStats.today;
+      const y = visitStats.yesterday;
+      if (t) {
+        lines.push(`📅 Hoy (${t.ymd}): *${t.visitors}* personas · ${t.pageviews} páginas vistas`);
+      }
+      if (y) {
+        lines.push(`📅 Ayer (${y.ymd}): *${y.visitors}* personas · ${y.pageviews} páginas vistas`);
+      }
+    }
+    lines.push('');
+  }
+
   for (const r of results) {
     const icon = r.ok ? '✅' : '❌';
     lines.push(`${icon} *${r.name}* — ${r.status || '—'} (${r.ms}ms)`);
@@ -184,7 +257,7 @@ function formatWhatsApp(results) {
     }
   }
 
-  const ideas = ideasFromResults(results);
+  const ideas = ideasFromResults(results, visitStats);
   if (ideas.length) {
     lines.push('');
     lines.push('*Ideas / siguientes pasos*');
@@ -255,8 +328,22 @@ async function main() {
     );
   }
 
+  let visitStats = null;
+  if (DIGEST || failed.length > 0 || !ONLY_FAILURES) {
+    visitStats = await fetchVisitStats();
+    if (visitStats.error) console.warn('⚠️ Visitas:', visitStats.error);
+    else {
+      console.log(
+        `👥 Hoy: ${visitStats.today?.visitors ?? 0} personas / ${visitStats.today?.pageviews ?? 0} vistas`
+      );
+      console.log(
+        `👥 Ayer: ${visitStats.yesterday?.visitors ?? 0} personas / ${visitStats.yesterday?.pageviews ?? 0} vistas`
+      );
+    }
+  }
+
   const shouldNotify = DIGEST || failed.length > 0 || !ONLY_FAILURES;
-  const text = formatWhatsApp(results);
+  const text = formatWhatsApp(results, visitStats);
 
   if (!shouldNotify) {
     console.log('ℹ️ Sin fallos y ONLY_FAILURES=1 — no se envía WhatsApp.');

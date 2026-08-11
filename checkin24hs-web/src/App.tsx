@@ -6,11 +6,13 @@ import { NovedadDetail } from './pages/NovedadDetail';
 import { DestinoPais } from './pages/DestinoPais';
 import { Packs } from './pages/Packs';
 import { PackDetail } from './pages/PackDetail';
+import { TrackPageview } from './components/TrackPageview';
 import './index.css';
 
 function App() {
   return (
     <FlorProvider>
+      <TrackPageview />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/chile" element={<DestinoPais />} />
