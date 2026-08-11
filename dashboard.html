@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-01T19:32:58Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 215; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-11T22:16:27Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 217; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">215</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">217</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -4007,6 +4007,7 @@
                                     <th style="padding: 12px; text-align: left; font-weight: 500;">Usuario</th>
                                     <th style="padding: 12px; text-align: left; font-weight: 500;">Email</th>
                                     <th style="padding: 12px; text-align: center; font-weight: 500;">Teléfono</th>
+                                    <th style="padding: 12px; text-align: left; font-weight: 500;">Hoteles interés</th>
                                     <th style="padding: 12px; text-align: center; font-weight: 500;">Cotizaciones</th>
                                     <th style="padding: 12px; text-align: center; font-weight: 500;">Última Actividad</th>
                                     <th style="padding: 12px; text-align: center; font-weight: 500;">Estado</th>
@@ -4734,7 +4735,7 @@
                                     </div>
                                     <div>
                                         <label style="display: block; font-weight: 500; margin-bottom: 8px;">Max Tokens</label>
-                                        <input type="number" id="ai-max-tokens" value="500" min="100" max="4000" step="50" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+                                        <input type="number" id="ai-max-tokens" value="2048" min="100" max="8192" step="50" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
                                         <p style="font-size: 0.8rem; color: #666; margin-top: 4px;">Longitud máxima de respuesta</p>
                                     </div>
                                 </div>
@@ -18812,7 +18813,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                             document.getElementById('ai-temperature').value = cloudConfig.temperature || 0.7;
                         }
                         if (document.getElementById('ai-max-tokens')) {
-                            document.getElementById('ai-max-tokens').value = cloudConfig.maxTokens || 500;
+                            document.getElementById('ai-max-tokens').value = cloudConfig.maxTokens || 2048;
                         }
                         if (document.getElementById('ai-imagen-cotizador-url')) {
                             document.getElementById('ai-imagen-cotizador-url').value = cloudConfig.imagen_cotizacion_url || '';
@@ -20914,8 +20915,48 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                 tipoCuenta: u.tipo_cuenta || u.tipoCuenta || 'registrado',
                                 birthDay: u.birth_day || u.birthDay,
                                 birthMonth: u.birth_month || u.birthMonth,
-                                totalQuotes: u.total_quotes || u.totalQuotes || 0
+                                totalQuotes: u.total_quotes || u.totalQuotes || 0,
+                                last_hotel_id: u.last_hotel_id || null,
+                                hotelInterests: []
                             }));
+
+                            // Perfil de preferencias: hoteles consultados por WhatsApp (varios en el tiempo)
+                            try {
+                                let prefRows = null;
+                                const prefRes = await window.supabaseClient.client
+                                    .from('user_hotel_preferences_view')
+                                    .select('user_id, hotel_id, hotel_name, interest_count, last_interest_at, first_interest_at')
+                                    .order('last_interest_at', { ascending: false });
+                                if (!prefRes.error) prefRows = prefRes.data;
+                                else {
+                                    const fallback = await window.supabaseClient.client
+                                        .from('user_hotel_interests')
+                                        .select('user_id, hotel_id, interest_count, last_interest_at, first_interest_at, hotels(name)')
+                                        .order('last_interest_at', { ascending: false });
+                                    if (!fallback.error) {
+                                        prefRows = (fallback.data || []).map(r => ({
+                                            user_id: r.user_id,
+                                            hotel_id: r.hotel_id,
+                                            hotel_name: r.hotels?.name || 'Hotel',
+                                            interest_count: r.interest_count,
+                                            last_interest_at: r.last_interest_at,
+                                            first_interest_at: r.first_interest_at
+                                        }));
+                                    }
+                                }
+                                if (prefRows && prefRows.length) {
+                                    const byUser = {};
+                                    prefRows.forEach(p => {
+                                        if (!byUser[p.user_id]) byUser[p.user_id] = [];
+                                        byUser[p.user_id].push(p);
+                                    });
+                                    allUsers.forEach(u => {
+                                        u.hotelInterests = byUser[u.id] || [];
+                                    });
+                                }
+                            } catch (prefErr) {
+                                console.warn('⚠️ Preferencias hotel (¿migración 066?):', prefErr?.message || prefErr);
+                            }
                             
                             // Guardar también en localStorage como backup
                             localStorage.setItem('checkin24hs_users', JSON.stringify(allUsers));
@@ -21175,7 +21216,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 console.log('📝 No hay usuarios, mostrando mensaje vacío');
                 tableBody.innerHTML = `
                     <tr>
-                        <td colspan="8" class="text-center text-muted">
+                        <td colspan="9" class="text-center text-muted">
                             <i class="fas fa-users"></i> No hay usuarios registrados
                         </td>
                     </tr>
@@ -21187,9 +21228,16 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             users.forEach((user, index) => {
                 const row = document.createElement('tr');
                 const userType = user.tipoCuenta || 'registrado';
-                const userSource = user.fechaRegistro ? 'Móvil' : (user.tipoCuenta === 'cliente_reserva' ? 'Reserva' : 'Dashboard');
-                const cotizaciones = user.cotizaciones ? user.cotizaciones.length : 0;
+                const userSource = user.fechaRegistro ? 'Móvil' : (user.tipoCuenta === 'cliente_reserva' ? 'Reserva' : (user.tipoCuenta === 'cliente_whatsapp' ? 'WhatsApp' : 'Dashboard'));
+                const cotizaciones = user.cotizaciones ? user.cotizaciones.length : (user.totalQuotes || 0);
                 const ultimaActividad = user.last_activity || user.ultimaActividad || user.updatedAt || user.createdAt || user.created_at;
+                const interests = user.hotelInterests || [];
+                let hotelCell = '<span style="color:#999;">—</span>';
+                if (interests.length) {
+                    const top = interests.slice(0, 2).map(i => i.hotel_name || 'Hotel').join(', ');
+                    const more = interests.length > 2 ? ` +${interests.length - 2}` : '';
+                    hotelCell = `<button type="button" onclick="showUserHotelPreferences('${user.id}')" title="Ver perfil de preferencias" style="background:none;border:none;color:#1565c0;cursor:pointer;text-align:left;padding:0;font-size:0.9rem;">${top}${more}</button>`;
+                }
                 
                 row.innerHTML = `
                     <td style="padding: 12px;">
@@ -21198,8 +21246,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             <div class="user-type">${userType} - ${userSource}</div>
                         </div>
                     </td>
-                    <td style="padding: 12px;">${user.email || 'Sin email'}</td>
+                    <td style="padding: 12px;">${(user.email && !String(user.email).includes('@whatsapp.checkin24hs.local')) ? user.email : '—'}</td>
                     <td style="padding: 12px; text-align: center;">${user.phone || 'Sin teléfono'}</td>
+                    <td style="padding: 12px; text-align: left; max-width: 220px;">${hotelCell}</td>
                     <td style="padding: 12px; text-align: center;">${cotizaciones}</td>
                     <td style="padding: 12px; text-align: center;">${formatDate(ultimaActividad)}</td>
                     <td style="padding: 12px; text-align: center;">
@@ -21253,6 +21302,39 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 if (existingInfo) existingInfo.remove();
             }
         }
+
+        /** Perfil de preferencias: hoteles consultados por WhatsApp (historial) */
+        function showUserHotelPreferences(userId) {
+            const user = (typeof allUsersData !== 'undefined' ? allUsersData : []).find(u => String(u.id) === String(userId));
+            const interests = (user && user.hotelInterests) || [];
+            const name = (user && user.name) || 'Contacto';
+            const phone = (user && user.phone) || '';
+            let listHtml = '<p style="color:#666;">Sin hoteles registrados aún. Se cargan cuando Flor detecta un hotel en el chat.</p>';
+            if (interests.length) {
+                listHtml = '<ul style="margin:0;padding-left:18px;line-height:1.6;">' + interests.map(i => {
+                    const last = i.last_interest_at ? new Date(i.last_interest_at).toLocaleString('es-AR') : '—';
+                    const first = i.first_interest_at ? new Date(i.first_interest_at).toLocaleDateString('es-AR') : '—';
+                    return `<li><strong>${i.hotel_name || 'Hotel'}</strong> — ${i.interest_count || 1} consulta(s)<br><span style="font-size:0.85rem;color:#666;">Primera: ${first} · Última: ${last}</span></li>`;
+                }).join('') + '</ul>';
+            }
+            const existing = document.getElementById('userHotelPrefModal');
+            if (existing) existing.remove();
+            const modal = document.createElement('div');
+            modal.id = 'userHotelPrefModal';
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:10000;display:flex;align-items:center;justify-content:center;padding:16px;';
+            modal.innerHTML = `
+              <div style="background:#fff;border-radius:12px;max-width:480px;width:100%;padding:24px;box-shadow:0 12px 40px rgba(0,0,0,.2);">
+                <h3 style="margin:0 0 8px 0;">🏨 Preferencias de hoteles</h3>
+                <p style="margin:0 0 16px 0;color:#555;">${name}${phone ? ' · ' + phone : ''}</p>
+                ${listHtml}
+                <div style="margin-top:20px;text-align:right;">
+                  <button type="button" onclick="document.getElementById('userHotelPrefModal').remove()" style="padding:8px 16px;border-radius:8px;border:1px solid #ccc;background:#f5f5f5;cursor:pointer;">Cerrar</button>
+                </div>
+              </div>`;
+            modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+            document.body.appendChild(modal);
+        }
+        window.showUserHotelPreferences = showUserHotelPreferences;
 
         // Función para editar usuario
         async function editUser(userId) {
@@ -31148,7 +31230,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             // apiKey ya no se guarda - está configurada de forma segura en el servidor (.env)
             model: document.getElementById('ai-model')?.value || 'gemini-3.1-flash-lite-preview',
             temperature: parseFloat(document.getElementById('ai-temperature')?.value) || 0.7,
-            maxTokens: parseInt(document.getElementById('ai-max-tokens')?.value) || 500,
+            maxTokens: parseInt(document.getElementById('ai-max-tokens')?.value) || 2048,
             imagen_cotizacion_url: (document.getElementById('ai-imagen-cotizador-url')?.value || '').trim() || null
         };
         

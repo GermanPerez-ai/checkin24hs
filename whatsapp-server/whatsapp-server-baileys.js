@@ -2360,6 +2360,208 @@ async function setCurrentHotelIdForChat(chatId, phone, instanceNumber, hotelId, 
         if (phoneKey) florLastHotelByPhone.set(phoneKey, hotelName || String(hotelId));
         console.log(`🏨 Flor sesión DB: current_hotel_id=${hotelId} (${hotelName || 'sin nombre'})`);
     }
+    // Sync CRM: usuario + perfil de preferencias (varios hoteles en el tiempo)
+    try {
+        await syncWhatsAppContactToUserAndHotel({
+            phone,
+            name: null,
+            hotelId,
+            hotelName,
+            instanceNumber: instanceNumber || CONFIG.INSTANCE_NUMBER,
+            chatId
+        });
+    } catch (e) {
+        console.warn('⚠️ syncWhatsAppContactToUserAndHotel:', e?.message || e);
+    }
+}
+
+/**
+ * Crea/actualiza contacto en users y registra interés en hotel (historial de preferencias).
+ * Varios hoteles en el tiempo → filas en user_hotel_interests (interest_count++).
+ */
+const florHotelInterestRecent = new Map(); // `${digits}:${hotelId}` → ts (anti-doble en mismo turno)
+
+async function syncWhatsAppContactToUserAndHotel({
+    phone,
+    name = null,
+    hotelId = null,
+    hotelName = null,
+    instanceNumber = null,
+    chatId = null
+} = {}) {
+    if (!supabase || !CONFIG.SAVE_TO_SUPABASE) return null;
+    const digits = String(phone || '').replace(/\D/g, '');
+    if (digits.length < 10 || isLikelyPseudoWhatsappPn(digits)) return null;
+
+    const e164 = digits.startsWith('54') ? `+${digits}` : `+${digits}`;
+    const phoneVariants = [...new Set([
+        e164,
+        `+${digits}`,
+        digits,
+        digits.startsWith('54') && digits.length === 12 ? `+549${digits.slice(2)}` : null,
+        digits.startsWith('549') ? `+${digits}` : null
+    ].filter(Boolean))];
+
+    const inst = instanceNumber || CONFIG.INSTANCE_NUMBER || 1;
+    const nowIso = new Date().toISOString();
+    let user = null;
+    let recordInterest = !!hotelId;
+    if (hotelId) {
+        const dedupeKey = `${digits}:${hotelId}`;
+        const prev = florHotelInterestRecent.get(dedupeKey) || 0;
+        if (Date.now() - prev < 120000) recordInterest = false;
+        else florHotelInterestRecent.set(dedupeKey, Date.now());
+    }
+
+    try {
+        for (const p of phoneVariants) {
+            const { data } = await supabase.from('users').select('*').eq('phone', p).limit(1);
+            if (data && data[0]) {
+                user = data[0];
+                break;
+            }
+        }
+        // Búsqueda flexible por dígitos al final del phone
+        if (!user) {
+            const { data: rows } = await supabase
+                .from('users')
+                .select('*')
+                .ilike('phone', `%${digits.slice(-10)}`)
+                .limit(5);
+            if (rows && rows.length) {
+                user = rows.find((r) => String(r.phone || '').replace(/\D/g, '').endsWith(digits.slice(-10))) || rows[0];
+            }
+        }
+
+        if (user) {
+            const updates = {
+                last_activity: nowIso,
+                updated_at: nowIso,
+                whatsapp_instance: inst,
+                is_active: true
+            };
+            if (name && (!user.name || /^usuario whatsapp$/i.test(String(user.name)))) {
+                updates.name = name;
+            }
+            if (hotelId) updates.last_hotel_id = hotelId;
+            // Preferir E.164 si el phone actual es raro
+            if (!user.phone || String(user.phone).replace(/\D/g, '').length < 10) {
+                updates.phone = e164;
+            }
+            const { data: updated, error } = await supabase
+                .from('users')
+                .update(updates)
+                .eq('id', user.id)
+                .select('*')
+                .limit(1);
+            if (error) console.warn('⚠️ users update:', error.message);
+            else if (updated && updated[0]) user = updated[0];
+        } else {
+            const placeholderEmail = `wa_${digits}@whatsapp.checkin24hs.local`;
+            const insertPayload = {
+                name: name || 'Usuario WhatsApp',
+                phone: e164,
+                email: placeholderEmail,
+                status: 'active',
+                is_active: true,
+                last_activity: nowIso,
+                tipo_cuenta: 'cliente_whatsapp',
+                whatsapp_instance: inst,
+                rewards_points: 0,
+                created_at: nowIso,
+                updated_at: nowIso
+            };
+            if (hotelId) insertPayload.last_hotel_id = hotelId;
+
+            let { data: createdRows, error } = await supabase
+                .from('users')
+                .insert(insertPayload)
+                .select('*')
+                .limit(1);
+            let created = createdRows && createdRows[0];
+
+            if (error && /email|null|not-null|unique/i.test(String(error.message || ''))) {
+                // Reintentos: sin email, o email único forzado
+                const alt = { ...insertPayload };
+                delete alt.email;
+                ({ data: createdRows, error } = await supabase.from('users').insert(alt).select('*').limit(1));
+                created = createdRows && createdRows[0];
+            }
+            if (error) {
+                console.warn('⚠️ users insert WhatsApp:', error.message);
+                return null;
+            }
+            user = created;
+            console.log(`👤 Usuario CRM creado desde WhatsApp: ${e164}${hotelName ? ' · hotel ' + hotelName : ''}`);
+        }
+
+        if (!user?.id) return null;
+
+        // Vincular chat → user_id
+        if (chatId) {
+            try {
+                await supabase.from('whatsapp_chats').update({ user_id: user.id }).eq('id', chatId);
+            } catch (_) { /* columna puede no existir en edge cases */ }
+        }
+
+        // Historial de preferencias (varios hoteles); dedupe ~2 min por hotel
+        if (hotelId && recordInterest) {
+            const { error: rpcErr } = await supabase.rpc('record_user_hotel_interest', {
+                p_user_id: user.id,
+                p_hotel_id: hotelId,
+                p_phone: e164,
+                p_instance: inst,
+                p_source: 'whatsapp'
+            });
+            if (rpcErr) {
+                // Fallback sin RPC (migración aún no aplicada)
+                const { data: existing } = await supabase
+                    .from('user_hotel_interests')
+                    .select('id, interest_count')
+                    .eq('user_id', user.id)
+                    .eq('hotel_id', hotelId)
+                    .limit(1);
+                const existingRow = existing && existing[0];
+                if (existingRow?.id) {
+                    await supabase
+                        .from('user_hotel_interests')
+                        .update({
+                            interest_count: (existingRow.interest_count || 1) + 1,
+                            last_interest_at: nowIso,
+                            phone: e164,
+                            whatsapp_instance: inst
+                        })
+                        .eq('id', existingRow.id);
+                } else {
+                    await supabase.from('user_hotel_interests').insert({
+                        user_id: user.id,
+                        hotel_id: hotelId,
+                        phone: e164,
+                        whatsapp_instance: inst,
+                        source: 'whatsapp',
+                        interest_count: 1,
+                        first_interest_at: nowIso,
+                        last_interest_at: nowIso
+                    });
+                }
+                console.warn('⚠️ record_user_hotel_interest RPC:', rpcErr.message, '(fallback OK)');
+            } else {
+                console.log(`⭐ Preferencia hotel registrada: user=${user.id} hotel=${hotelId} (${hotelName || ''})`);
+            }
+        } else if (hotelId && !recordInterest) {
+            // Igual actualizamos last_hotel_id si no lo hizo el insert/update arriba con hotel
+            await supabase.from('users').update({
+                last_hotel_id: hotelId,
+                last_activity: nowIso,
+                updated_at: nowIso
+            }).eq('id', user.id);
+        }
+
+        return user;
+    } catch (e) {
+        console.warn('⚠️ syncWhatsAppContactToUserAndHotel:', e?.message || e);
+        return null;
+    }
 }
 
 async function markCotizadorSentForChat(chatId, phone, instanceNumber) {
@@ -3133,7 +3335,7 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
                 const hId = h0.id;
                 const hName = h0.nombre || h0.name || searchTerm;
                 florLastHotelByPhone.set(phoneKey, hName);
-                if (hId && String(hId) !== String(chatSession?.current_hotel_id || '')) {
+                if (hId) {
                     await setCurrentHotelIdForChat(
                         chatSession?.id || chatIdFlor,
                         contexto.numero,
@@ -3343,8 +3545,18 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
                         console.log(`🔧 Flor llamó consultarCatalogoHoteles(ubicacion=${args.ubicacion}, hotel_especifico=${args.hotel_especifico}) → ${resultado.encontrado ? resultado.hoteles?.length + ' hotel(es)' : 'no encontrado'}`);
                         // Context Drift fix: guardar último hotel consultado para forzar reconsulta en "¿Qué incluye?"
                         if (resultado.encontrado && resultado.hoteles?.length > 0) {
-                            const lastHotel = (args.hotel_especifico && String(args.hotel_especifico).trim()) || resultado.hoteles[0]?.nombre || '';
+                            const h0 = resultado.hoteles[0];
+                            const lastHotel = (args.hotel_especifico && String(args.hotel_especifico).trim()) || h0?.nombre || h0?.name || '';
                             if (lastHotel) florLastHotelByPhone.set(phoneKey, lastHotel);
+                            if (h0?.id) {
+                                await setCurrentHotelIdForChat(
+                                    chatSession?.id || chatIdFlor,
+                                    contexto.numero,
+                                    instanciaFlor,
+                                    h0.id,
+                                    lastHotel
+                                );
+                            }
                         }
                     } else if (fc.name === 'buscarHotel') {
                         toolWasCalled = true;
@@ -3355,6 +3567,16 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
                         console.log(`🔧 Flor llamó buscarHotel(nombre_hotel=${nombreHotel}) → ${resultado.encontrado ? resultado.hoteles?.length + ' hotel(es)' : 'no encontrado'}`);
                         if (resultado.encontrado && resultado.hoteles?.length > 0 && nombreHotel) {
                             florLastHotelByPhone.set(phoneKey, nombreHotel);
+                            const h0 = resultado.hoteles[0];
+                            if (h0?.id) {
+                                await setCurrentHotelIdForChat(
+                                    chatSession?.id || chatIdFlor,
+                                    contexto.numero,
+                                    instanciaFlor,
+                                    h0.id,
+                                    h0.nombre || h0.name || nombreHotel
+                                );
+                            }
                         }
                     } else if (fc.name === 'enviarDocumentoPorWhatsApp') {
                         const args = fc.args || {};
@@ -4364,6 +4586,21 @@ async function guardarMensaje(numero, mensaje, esEnviado = false, respuestaFlor 
         if (!chatId) {
             console.error('❌ No se pudo obtener/crear chat_id. No se puede guardar el mensaje.');
             return null;
+        }
+
+        // Sync contacto → Usuarios (CRM) en mensajes entrantes
+        if (!esEnviado) {
+            try {
+                await syncWhatsAppContactToUserAndHotel({
+                    phone: numero,
+                    name: nombre || null,
+                    hotelId: null,
+                    instanceNumber: CONFIG.INSTANCE_NUMBER,
+                    chatId
+                });
+            } catch (e) {
+                console.warn('⚠️ sync usuario en guardarMensaje:', e?.message || e);
+            }
         }
 
         // Si whatsapp_messages.conversation_id apunta a whatsapp_conversations(id), asegurar que exista la fila
