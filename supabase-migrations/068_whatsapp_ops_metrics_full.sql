@@ -330,7 +330,7 @@ BEGIN
   handoffs AS (
     SELECT
       f.line,
-      count(DISTINCT f.chat_id)::int AS handoffs
+      count(DISTINCT f.chat_id)::int AS handoff_count
     FROM flor_out f
     WHERE f.ts >= p_from AND f.ts < p_to
       AND EXISTS (
@@ -582,13 +582,16 @@ BEGIN
     ), '[]'::json),
     'active_chats_with_inbound', (SELECT count(DISTINCT chat_id)::int FROM inbound),
     'chats_with_hotel', (SELECT n FROM chats_with_hotel),
-    'datos_ready', (SELECT row_to_json(datos_ready_stats) FROM datos_ready_stats),
+    'datos_ready', (SELECT row_to_json(dr) FROM datos_ready_stats dr),
     'recontacts', (SELECT any_prior FROM recontacts),
     'recontacts_7d', (SELECT d7 FROM recontacts),
     'recontacts_30d', (SELECT d30 FROM recontacts),
-    'handoffs_total', (SELECT COALESCE(sum(handoffs), 0)::int FROM handoffs),
-    'handoffs_by_line', COALESCE((SELECT json_agg(row_to_json(handoffs) ORDER BY line) FROM handoffs), '[]'::json),
-    'funnel', (SELECT row_to_json(funnel) FROM funnel),
+    'handoffs_total', (SELECT COALESCE(sum(handoff_count), 0)::int FROM handoffs),
+    'handoffs_by_line', COALESCE((
+      SELECT json_agg(json_build_object('line', h.line, 'handoffs', h.handoff_count) ORDER BY h.line)
+      FROM handoffs h
+    ), '[]'::json),
+    'funnel', (SELECT row_to_json(f) FROM funnel f),
     'ticket', json_build_object(
       'quotes_n', (SELECT quotes_n FROM ticket_stats),
       'avg_ticket', (SELECT avg_ticket FROM ticket_stats),
@@ -597,14 +600,14 @@ BEGIN
       'avg_ticket_res', (SELECT avg_ticket_res FROM ticket_res),
       'avg_nights_res', (SELECT avg_nights_res FROM ticket_res)
     ),
-    'origins', COALESCE((SELECT json_agg(row_to_json(origins)) FROM origins), '[]'::json),
-    'peak_hours', COALESCE((SELECT json_agg(row_to_json(peak_hours)) FROM peak_hours), '[]'::json),
-    'abandon', (SELECT row_to_json(abandon) FROM abandon),
-    'abandon_by_variant', COALESCE((SELECT json_agg(row_to_json(abandon_by_variant)) FROM abandon_by_variant), '[]'::json),
-    'line_phones', COALESCE((SELECT json_agg(row_to_json(line_phones) ORDER BY line) FROM line_phones), '[]'::json),
-    'human_sla_by_line', COALESCE((SELECT json_agg(row_to_json(human_sla) ORDER BY line) FROM human_sla), '[]'::json),
-    'flor_sla_by_line', COALESCE((SELECT json_agg(row_to_json(flor_sla) ORDER BY line) FROM flor_sla), '[]'::json),
-    'top_hotels', COALESCE((SELECT json_agg(row_to_json(top_hotels)) FROM top_hotels), '[]'::json),
+    'origins', COALESCE((SELECT json_agg(row_to_json(o)) FROM origins o), '[]'::json),
+    'peak_hours', COALESCE((SELECT json_agg(row_to_json(p)) FROM peak_hours p), '[]'::json),
+    'abandon', (SELECT row_to_json(a) FROM abandon a),
+    'abandon_by_variant', COALESCE((SELECT json_agg(row_to_json(v)) FROM abandon_by_variant v), '[]'::json),
+    'line_phones', COALESCE((SELECT json_agg(row_to_json(lp) ORDER BY lp.line) FROM line_phones lp), '[]'::json),
+    'human_sla_by_line', COALESCE((SELECT json_agg(row_to_json(hs) ORDER BY hs.line) FROM human_sla hs), '[]'::json),
+    'flor_sla_by_line', COALESCE((SELECT json_agg(row_to_json(fs) ORDER BY fs.line) FROM flor_sla fs), '[]'::json),
+    'top_hotels', COALESCE((SELECT json_agg(row_to_json(th)) FROM top_hotels th), '[]'::json),
     'sla_threshold_sec', 300
   ) INTO v_result;
 

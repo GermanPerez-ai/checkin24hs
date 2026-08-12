@@ -169,7 +169,7 @@ BEGIN
   handoffs AS (
     SELECT
       f.line,
-      count(DISTINCT f.chat_id)::int AS handoffs
+      count(DISTINCT f.chat_id)::int AS handoff_count
     FROM flor_out f
     WHERE f.ts >= p_from AND f.ts < p_to
       AND EXISTS (
@@ -229,12 +229,15 @@ BEGIN
     ),
     'chats_with_hotel', (SELECT n FROM chats_with_hotel),
     'recontacts', (SELECT n FROM recontacts),
-    'handoffs_total', (SELECT COALESCE(sum(handoffs), 0)::int FROM handoffs),
-    'handoffs_by_line', COALESCE((SELECT json_agg(row_to_json(handoffs) ORDER BY line) FROM handoffs), '[]'::json),
-    'line_phones', COALESCE((SELECT json_agg(row_to_json(line_phones) ORDER BY line) FROM line_phones), '[]'::json),
-    'human_sla_by_line', COALESCE((SELECT json_agg(row_to_json(human_sla) ORDER BY line) FROM human_sla), '[]'::json),
-    'flor_sla_by_line', COALESCE((SELECT json_agg(row_to_json(flor_sla) ORDER BY line) FROM flor_sla), '[]'::json),
-    'top_hotels', COALESCE((SELECT json_agg(row_to_json(top_hotels)) FROM top_hotels), '[]'::json),
+    'handoffs_total', (SELECT COALESCE(sum(handoff_count), 0)::int FROM handoffs),
+    'handoffs_by_line', COALESCE((
+      SELECT json_agg(json_build_object('line', h.line, 'handoffs', h.handoff_count) ORDER BY h.line)
+      FROM handoffs h
+    ), '[]'::json),
+    'line_phones', COALESCE((SELECT json_agg(row_to_json(lp) ORDER BY lp.line) FROM line_phones lp), '[]'::json),
+    'human_sla_by_line', COALESCE((SELECT json_agg(row_to_json(hs) ORDER BY hs.line) FROM human_sla hs), '[]'::json),
+    'flor_sla_by_line', COALESCE((SELECT json_agg(row_to_json(fs) ORDER BY fs.line) FROM flor_sla fs), '[]'::json),
+    'top_hotels', COALESCE((SELECT json_agg(row_to_json(th)) FROM top_hotels th), '[]'::json),
     'sla_threshold_sec', 300
   ) INTO v_result;
 
