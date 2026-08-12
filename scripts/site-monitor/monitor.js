@@ -55,6 +55,37 @@ function arDayBounds(ymd) {
   return { from: from.toISOString(), to: to.toISOString(), ymd };
 }
 
+async function supabaseRpc(fnName, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fnName}`, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
+  return { ok: res.ok, status: res.status, data };
+}
+
+function lineMapFromArray(arr, valueKey) {
+  const map = {};
+  if (!Array.isArray(arr)) return map;
+  for (const row of arr) {
+    const line = Number(row.line ?? row.whatsapp_instance ?? 0);
+    if (!line) continue;
+    map[line] = Number(row[valueKey] ?? 0);
+  }
+  return map;
+}
+
 async function fetchVisitStats() {
   const today = arYmd();
   const yesterday = addYmd(today, -1);
@@ -66,33 +97,66 @@ async function fetchVisitStats() {
 
   try {
     for (const r of ranges) {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/site_visit_stats`, {
-        method: 'POST',
-        headers: {
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ p_from: r.from, p_to: r.to }),
+      const { ok, status, data } = await supabaseRpc('site_visit_stats', {
+        p_from: r.from,
+        p_to: r.to,
       });
-      const text = await res.text();
-      let data = null;
-      try {
-        data = text ? JSON.parse(text) : null;
-      } catch {
-        data = null;
-      }
-      if (!res.ok) {
+      if (!ok) {
         out.error =
-          res.status === 404
+          status === 404
             ? 'Falta migración 064 (site_pageviews / site_visit_stats) en Supabase'
-            : `Supabase ${res.status}: ${typeof data === 'string' ? data : JSON.stringify(data)}`;
+            : `Supabase ${status}: ${typeof data === 'string' ? data : JSON.stringify(data)}`;
         return out;
       }
       const stats = {
         ymd: r.ymd,
         visitors: Number(data?.visitors ?? 0),
         pageviews: Number(data?.pageviews ?? 0),
+      };
+      if (r.label === 'hoy') out.today = stats;
+      else out.yesterday = stats;
+    }
+  } catch (e) {
+    out.error = e.message || String(e);
+  }
+  return out;
+}
+
+async function fetchWhatsappChatStats() {
+  const today = arYmd();
+  const yesterday = addYmd(today, -1);
+  const ranges = [
+    { label: 'hoy', ...arDayBounds(today) },
+    { label: 'ayer', ...arDayBounds(yesterday) },
+  ];
+  const out = { today: null, yesterday: null, error: null };
+
+  try {
+    for (const r of ranges) {
+      const { ok, status, data } = await supabaseRpc('whatsapp_daily_chat_stats', {
+        p_from: r.from,
+        p_to: r.to,
+      });
+      if (!ok) {
+        out.error =
+          status === 404
+            ? 'Falta migración 065 (whatsapp_daily_chat_stats) en Supabase'
+            : `Supabase ${status}: ${typeof data === 'string' ? data : JSON.stringify(data)}`;
+        return out;
+      }
+      const chatsByLine = lineMapFromArray(data?.new_chats_by_line, 'new_chats');
+      const inboundByLine = lineMapFromArray(data?.inbound_by_line, 'inbound_messages');
+      const lines = [1, 2, 3, 4].map((line) => ({
+        line,
+        new_chats: chatsByLine[line] || 0,
+        inbound: inboundByLine[line] || 0,
+      }));
+      const stats = {
+        ymd: r.ymd,
+        new_chats_total: Number(data?.new_chats_total ?? 0),
+        inbound_messages_total: Number(data?.inbound_messages_total ?? 0),
+        active_chats_with_inbound: Number(data?.active_chats_with_inbound ?? 0),
+        lines,
       };
       if (r.label === 'hoy') out.today = stats;
       else out.yesterday = stats;
@@ -187,7 +251,7 @@ async function fetchCheck(name, url, opts = {}) {
   }
 }
 
-function ideasFromResults(results, visitStats) {
+function ideasFromResults(results, visitStats, waStats) {
   const ideas = [];
   const failed = results.filter((r) => !r.ok);
   const slow = results.filter((r) => r.ok && r.ms > 4000);
@@ -205,18 +269,38 @@ function ideasFromResults(results, visitStats) {
     ideas.push('Revisar servicio cotizador en EasyPanel (tráfico de conversión).');
   }
   if (visitStats?.error) {
-    ideas.push('Visitas: correr migración 064 en Supabase SQL Editor y redeploy web.');
+    ideas.push('Visitas web: correr migración 064 en Supabase y redeploy web.');
+  }
+  if (waStats?.error) {
+    ideas.push('Chats WA: correr migración 065 (whatsapp_daily_chat_stats) en Supabase.');
   }
   if (slow.length) {
     ideas.push(`Rendimiento: ${slow.map((r) => `${r.name} ${r.ms}ms`).join(', ')}.`);
   }
-  if (!failed.length && !visitStats?.error) {
-    ideas.push('Todo verde. Si las visitas están en 0, confirmá que la web nueva ya está desplegada.');
+  if (!failed.length && !visitStats?.error && !waStats?.error) {
+    ideas.push('Todo verde. Si visitas=0, confirmá deploy web + migración 064.');
   }
   return ideas.slice(0, 5);
 }
 
-function formatWhatsApp(results, visitStats) {
+function formatWaDayBlock(label, stats) {
+  if (!stats) return [];
+  const lines = [];
+  lines.push(
+    `📅 ${label} (${stats.ymd}): *${stats.new_chats_total}* chats nuevos · *${stats.active_chats_with_inbound}* chats activos · ${stats.inbound_messages_total} msgs entrantes`
+  );
+  for (const L of stats.lines) {
+    if (L.new_chats === 0 && L.inbound === 0) continue;
+    lines.push(`   · Línea ${L.line}: ${L.new_chats} chats nuevos · ${L.inbound} msgs`);
+  }
+  const silent = stats.lines.filter((L) => L.new_chats === 0 && L.inbound === 0).map((L) => L.line);
+  if (silent.length && silent.length < 4) {
+    lines.push(`   · Sin actividad: L${silent.join(', L')}`);
+  }
+  return lines;
+}
+
+function formatWhatsApp(results, visitStats, waStats) {
   const failed = results.filter((r) => !r.ok);
   const okCount = results.length - failed.length;
   const when = new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
@@ -248,6 +332,17 @@ function formatWhatsApp(results, visitStats) {
     lines.push('');
   }
 
+  if (DIGEST || waStats) {
+    lines.push('*WhatsApp por línea*');
+    if (waStats?.error) {
+      lines.push(`⚠️ Sin datos: ${waStats.error}`);
+    } else {
+      lines.push(...formatWaDayBlock('Hoy', waStats.today));
+      lines.push(...formatWaDayBlock('Ayer', waStats.yesterday));
+    }
+    lines.push('');
+  }
+
   for (const r of results) {
     const icon = r.ok ? '✅' : '❌';
     lines.push(`${icon} *${r.name}* — ${r.status || '—'} (${r.ms}ms)`);
@@ -257,7 +352,7 @@ function formatWhatsApp(results, visitStats) {
     }
   }
 
-  const ideas = ideasFromResults(results, visitStats);
+  const ideas = ideasFromResults(results, visitStats, waStats);
   if (ideas.length) {
     lines.push('');
     lines.push('*Ideas / siguientes pasos*');
@@ -329,6 +424,7 @@ async function main() {
   }
 
   let visitStats = null;
+  let waStats = null;
   if (DIGEST || failed.length > 0 || !ONLY_FAILURES) {
     visitStats = await fetchVisitStats();
     if (visitStats.error) console.warn('⚠️ Visitas:', visitStats.error);
@@ -340,10 +436,21 @@ async function main() {
         `👥 Ayer: ${visitStats.yesterday?.visitors ?? 0} personas / ${visitStats.yesterday?.pageviews ?? 0} vistas`
       );
     }
+
+    waStats = await fetchWhatsappChatStats();
+    if (waStats.error) console.warn('⚠️ Chats WA:', waStats.error);
+    else {
+      console.log(
+        `💬 Hoy WA: ${waStats.today?.new_chats_total ?? 0} chats nuevos / ${waStats.today?.inbound_messages_total ?? 0} msgs`
+      );
+      console.log(
+        `💬 Ayer WA: ${waStats.yesterday?.new_chats_total ?? 0} chats nuevos / ${waStats.yesterday?.inbound_messages_total ?? 0} msgs`
+      );
+    }
   }
 
   const shouldNotify = DIGEST || failed.length > 0 || !ONLY_FAILURES;
-  const text = formatWhatsApp(results, visitStats);
+  const text = formatWhatsApp(results, visitStats, waStats);
 
   if (!shouldNotify) {
     console.log('ℹ️ Sin fallos y ONLY_FAILURES=1 — no se envía WhatsApp.');
