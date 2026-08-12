@@ -64,7 +64,8 @@ function readUtmFromLocation(search: string): {
 
 /** Registra una vista de página (fire-and-forget) para el digest diario por WhatsApp. */
 export function trackPageview(path: string, search = '') {
-  if (!supabase) return;
+  const client = supabase;
+  if (!client) return;
   const visitor_id = getOrCreateSessionId();
   const session_id = visitor_id;
   const referrer =
@@ -82,14 +83,14 @@ export function trackPageview(path: string, search = '') {
   if (utm.utm_medium) row.utm_medium = String(utm.utm_medium).slice(0, 120);
   if (utm.utm_campaign) row.utm_campaign = String(utm.utm_campaign).slice(0, 180);
 
-  void supabase
+  void client
     .from('site_pageviews')
     .insert(row)
     .then(async ({ error }) => {
       if (!error) return;
       // Fallback si aún no corrió migración 068 (sin UTM / session_id)
       if (/utm_|session_id|column/i.test(error.message || '')) {
-        const { error: e2 } = await supabase.from('site_pageviews').insert({
+        const { error: e2 } = await client.from('site_pageviews').insert({
           path: row.path,
           visitor_id: row.visitor_id,
           referrer: row.referrer,
