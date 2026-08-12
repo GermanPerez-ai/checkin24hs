@@ -1212,6 +1212,7 @@ Cuando detectes intención de reserva ("reservar", "confirmar", "hacer la reserv
 const FLOR_REGLAS_PRIORIDAD = `
 **BREVEDAD EXTREMA (V4.2 — PRIORIDAD MÁXIMA):** Máximo 2–3 líneas por mensaje. Saludo+respuesta ~20–30 palabras y UNA sola pregunta de cierre (~15–20 palabras). PROHIBIDO párrafos largos, enumeraciones eternas o "walls of text". Si hay mucho detalle en el catálogo, resumí en 1–2 bullets cortos y preguntá si quiere más.
 **UN SOLO MENSAJE POR TURNO (V4.2):** Respondé en UNA sola burbuja de texto. PROHIBIDO fragmentar la respuesta en varios mensajes seguidos.
+**DATOS DEL CATÁLOGO (V4.2):** Si consultarCatalogoHoteles / buscarHotel devolvió encontrado=true O te inyectaron [DATOS OFICIALES DEL SERVIDOR], PROHIBIDO decir que no tenés información, que no está en la base, o mandar solo a la web. Respondé con esos datos en 2–3 líneas.
 **VERIFICACIÓN OBLIGATORIA:** Nunca des por sentado qué incluye un programa. Ante "¿Qué incluye?" o "¿Qué programas hay?", ejecutá SIEMPRE consultarCatalogoHoteles o buscarHotel y leé la columna detalles_programas específica de ESE hotel. No respondas sin haber llamado la función.
 **PROGRAMAS INVIERNO Y VERANO:** Los programas cargados en el panel (Ski Full, Pensión Completa, etc.) están en detalles_programas. Usá ese array para responder "qué incluye", tickets, equipo, pensión; diferenciá temporada invierno vs verano según lo que figure en los datos. Resumí breve (V4.2).
 **PROHIBIDO INVENTAR (Anti-Alucinación):** Si la base de datos dice "Almuerzo de 3 tiempos", no digas "Almuerzo buffet". Usá las palabras exactas que aparecen en el sistema.
@@ -1542,6 +1543,7 @@ async function obtenerTodosLosHotelesParaTool() {
             const fi = hotel.flor_info || {};
             const ubicacionMaps = fi.ubicacion_maps || hotel.location || '';
             return {
+                id: hotel.id,
                 nombre: hotel.name,
                 ubicacion: hotel.location,
                 descripcion: (fi.description && String(fi.description).slice(0, 400)) || (fi.narrativa_poetica && String(fi.narrativa_poetica).slice(0, 400)) || '',
@@ -1645,8 +1647,19 @@ async function consultarCatalogoHotelesTool(ubicacion, hotel_especifico) {
     }
 
     if (hoteles.length === 0) {
+        // Fallback: si el término largo falló, probar keyword canónico (ej. "Hotel Termas de Puyehue" → puyehue)
+        const kw = extractHotelKeywordFromMessage(String(hRaw || h || '').toLowerCase());
+        if (kw && kw !== h && kw !== String(hRaw || '').toLowerCase()) {
+            hoteles = await buscarHotelesPorNombreParcial(kw);
+            if (hoteles.length) {
+                console.log(`🔍 Flor: fallback keyword "${kw}" recuperó ${hoteles.length} hotel(es) tras fallo de "${hRaw}"`);
+            }
+        }
+    }
+
+    if (hoteles.length === 0) {
         const activos = await obtenerTodosLosHotelesParaTool();
-        const nombres = activos.map(x => x.name).slice(0, 8).join(', ');
+        const nombres = activos.map(x => x.nombre || x.name).slice(0, 8).join(', ');
         console.warn(`⚠️ Flor: consultarCatalogoHoteles sin resultados (ubicacion="${u}", hotel="${hRaw}"→"${h}"). Hoteles activos en Supabase: ${activos.length}${nombres ? ` (${nombres}…)` : ''}`);
         return { encontrado: false, mensaje: 'No se encontraron hoteles con esos criterios en nuestra base autorizada.' };
     }
@@ -1664,6 +1677,7 @@ async function consultarCatalogoHotelesTool(ubicacion, hotel_especifico) {
         const imgGeneral = fi.img_general || '';
         const ubicacionMaps = fi.ubicacion_maps || hotel.location || '';
         const raw = {
+            id: hotel.id,
             nombre: hotel.name,
             ubicacion: hotel.location,
             descripcion: (fi.description && String(fi.description).slice(0, 1200)) || (fi.narrativa_poetica && String(fi.narrativa_poetica).slice(0, 1200)) || '',
@@ -1739,17 +1753,30 @@ const HOTEL_SEARCH_ALIASES = {
     wilo: 'huilo',
     guilohuilo: 'huilo',
     termaschillan: 'chillan',
-    corralko: 'corralco'
+    corralko: 'corralco',
+    termaspuyehue: 'puyehue',
+    termasdepuyehue: 'puyehue',
+    hoteltermaspuyehue: 'puyehue',
+    pehuye: 'puyehue',
+    pehueye: 'puyehue',
+    puyehe: 'puyehue'
 };
 
 function normalizeHotelSearchTerm(termino) {
-    const raw = String(termino || '').toLowerCase().trim();
+    const raw = String(termino || '').toLowerCase().trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
     if (!raw) return '';
-    const compact = raw.replace(/[^a-záéíóúñ0-9]/gi, '');
+    const compact = raw.replace(/[^a-z0-9]/gi, '');
     if (HOTEL_SEARCH_ALIASES[compact]) return HOTEL_SEARCH_ALIASES[compact];
     if (HOTEL_SEARCH_ALIASES[raw.replace(/\s+/g, '')]) return HOTEL_SEARCH_ALIASES[raw.replace(/\s+/g, '')];
+    // Frases largas: si contiene un canónico conocido, usarlo (ej. "hotel termas de puyehue" → puyehue)
+    const knownTokens = ['puyehue', 'futangue', 'corralco', 'huilo', 'chillan', 'llao', 'bariloche'];
+    for (const t of knownTokens) {
+        if (raw.includes(t) || compact.includes(t)) return t;
+    }
     for (const [alias, canonical] of Object.entries(HOTEL_SEARCH_ALIASES)) {
-        if (raw === alias || raw.includes(alias)) return canonical;
+        if (raw === alias || compact.includes(alias) || raw.includes(alias)) return canonical;
     }
     for (const w of raw.split(/\s+/).filter(Boolean)) {
         if (HOTEL_SEARCH_ALIASES[w]) return HOTEL_SEARCH_ALIASES[w];
@@ -1758,8 +1785,14 @@ function normalizeHotelSearchTerm(termino) {
 }
 
 function extractHotelKeywordFromMessage(mensajeLower) {
-    const known = ['corralco', 'puyehue', 'futangue', 'futanque', 'furangue', 'furanque', 'huilo', 'guilo', 'wilo', 'chillán', 'chillan', 'llao llao', 'llao', 'bariloche', 'aguas calientes', 'termas'];
-    for (const k of known) {
+    const known = [
+        'aguas calientes', 'llao llao', 'corralco', 'puyehue', 'futangue', 'futanque',
+        'furangue', 'furanque', 'huilo', 'guilo', 'wilo', 'chillán', 'chillan',
+        'bariloche', 'termas de puyehue', 'termas puyehue', 'llao', 'termas'
+    ];
+    // Priorizar frases más largas / específicas
+    const sorted = [...known].sort((a, b) => b.length - a.length);
+    for (const k of sorted) {
         if (mensajeLower.includes(k)) return normalizeHotelSearchTerm(k);
     }
     return '';
@@ -1767,12 +1800,13 @@ function extractHotelKeywordFromMessage(mensajeLower) {
 
 function buildQuickHotelReply(hotel) {
     if (!hotel) return '';
-    const lines = [`Con gusto te cuento sobre **${hotel.nombre}**. 🏔️`];
-    if (hotel.descripcion) lines.push(String(hotel.descripcion).slice(0, 900));
-    if (hotel.servicios) lines.push(`**Servicios:** ${String(hotel.servicios).slice(0, 400)}`);
-    if (hotel.ubicacion) lines.push(`**Ubicación:** ${hotel.ubicacion}`);
-    lines.push('¿Te gustaría saber sobre programas, spa, gastronomía o una cotización?');
-    return lines.join('\n\n');
+    const nombre = hotel.nombre || hotel.name || 'el hotel';
+    const desc = String(hotel.descripcion || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+    // V4.2: corto, 2–3 líneas
+    if (desc) {
+        return `¡Claro! **${nombre}** está en nuestro catálogo. ${desc}\n\n¿Querés fechas, noches y cantidad de huéspedes para cotizarte?`;
+    }
+    return `¡Claro! **${nombre}** está en nuestro catálogo Checkin24hs.\n\n¿Querés fechas, noches y cantidad de huéspedes para cotizarte?`;
 }
 
 /**
@@ -1801,27 +1835,73 @@ function similarEnough(a, b) {
     return edits <= 1;
 }
 
+const HOTEL_NAME_STOPWORDS = new Set([
+    'de', 'la', 'el', 'y', 'en', 'a', 'del', 'las', 'los', 'hotel', 'terma', 'termas',
+    'wellness', 'spa', 'resort', 'and', 'the', 'suite', 'suites'
+]);
+
+/** Score de coincidencia nombre/alias vs término (mayor = mejor). */
+function scoreHotelNameMatch(hotel, terminoLower) {
+    const hotelName = String(hotel.name || '').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const location = String(hotel.location || '').toLowerCase();
+    const fi = hotel.flor_info || {};
+    const aliasBusqueda = String(fi.alias_busqueda || '').toLowerCase();
+    const aliasList = aliasBusqueda ? aliasBusqueda.split(',').map(a => a.trim()).filter(Boolean) : [];
+    const term = String(terminoLower || '').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    if (!term || term.length < 2) return 0;
+
+    let score = 0;
+    if (hotelName === term) score += 200;
+    if (hotelName.includes(term)) score += 100;
+
+    const termTokens = term.split(/[^a-z0-9]+/).filter(t => t.length >= 3 && !HOTEL_NAME_STOPWORDS.has(t));
+    const nameTokens = hotelName.split(/[^a-z0-9]+/).filter(t => t.length >= 2);
+
+    for (const tw of termTokens) {
+        if (hotelName.includes(tw)) score += 40;
+        else if (nameTokens.some(hw => hw.includes(tw) || tw.includes(hw) || similarEnough(tw, hw))) score += 25;
+        if (aliasList.some(a => a.includes(tw) || tw.includes(a) || similarEnough(tw, a))) score += 35;
+        if (location.includes(tw)) score += 10;
+    }
+
+    // Si el término pide Puyehue y el hotel lo tiene, priorizar fuerte
+    if (term.includes('puyehue') && (hotelName.includes('puyehue') || aliasList.some(a => a.includes('puyehue')))) {
+        score += 80;
+    }
+    // Evitar que "termas" solo empareje Aguas Calientes cuando también dijeron puyehue
+    if (term.includes('puyehue') && hotelName.includes('aguas') && !hotelName.includes('puyehue')) {
+        score -= 100;
+    }
+
+    if (aliasList.some(alias => alias === term || alias.includes(term) || term.includes(alias))) score += 50;
+    if (aliasList.some(alias => similarEnough(term, alias))) score += 30;
+
+    return score;
+}
+
 /**
- * Buscar hoteles por nombre parcial (ej: "Puyehue" → "Termas de Puyehue", "Guilo" → "Hotel Huilo-Huilo")
- * Incluye alias_busqueda y fuzzy match (1 carácter de diferencia) para errores de tipeo.
+ * Buscar hoteles por nombre parcial (ej: "Puyehue" / "Termas de Puyehue" → Hotel Termas Puyehue…)
+ * Incluye alias_busqueda, ranking por score y fuzzy match.
  */
 async function buscarHotelesPorNombreParcial(termino) {
-    if (!supabase || !termino || termino.trim().length < 3) return [];
+    if (!supabase || !termino || termino.trim().length < 2) return [];
     const terminoOriginal = termino.trim();
     const terminoNorm = normalizeHotelSearchTerm(terminoOriginal);
     const terminos = [...new Set([terminoOriginal, terminoNorm].filter(Boolean))];
-    
+
     try {
         const { data: hotels, error } = await supabase
             .from('hotels')
             .select('id, name, location, flor_info, status')
             .order('name');
-        
+
         if (error) {
             console.warn(`⚠️ Flor/Supabase: error leyendo hotels (posible RLS o red): ${error.message || error.code}`);
             throw error;
         }
-        
+
         const list = Array.isArray(hotels) ? hotels : [];
         if (list.length === 0) {
             console.warn('🔍 Flor/Supabase: hotels devolvió 0 filas. Si la tabla tiene datos, revisar RLS (ej. ejecutar supabase-migrations/010_hotels_rls_select.sql).');
@@ -1830,52 +1910,28 @@ async function buscarHotelesPorNombreParcial(termino) {
             const s = (h.status || '').toLowerCase();
             return s !== 'inactivo' && s !== 'inactive';
         });
-        
-        const hotelNameWordsStop = ['de', 'la', 'el', 'y', 'en', 'a', 'del', 'las', 'los', 'hotel', 'terma', 'termas'];
-        
-        const matchTerm = (terminoBuscar) => {
-            const terminoLower = terminoBuscar.toLowerCase().trim();
-            return active.filter(h => {
-            const hotelName = (h.name || '').toLowerCase();
-            const location = (h.location || '').toLowerCase();
-            const fi = h.flor_info || {};
-            const aliasBusqueda = (fi.alias_busqueda || '').toLowerCase();
-            const aliasList = aliasBusqueda ? aliasBusqueda.split(',').map(a => a.trim()).filter(Boolean) : [];
-            const hotelNameWords = hotelName.split(/\s+/).filter(w => w.length >= 2);
-            
-            // Búsqueda exacta en nombre
-            if (hotelName.includes(terminoLower)) return true;
-            
-            // Búsqueda en alias_busqueda (sinónimos: Puyehue, Guilo, Wilo, Huilo Huilo)
-            if (aliasList.some(alias => alias.includes(terminoLower) || terminoLower.includes(alias))) return true;
-            
-            // Fuzzy: 1 carácter de diferencia (Guilo ↔ Huilo, Wilo ↔ Huilo)
-            if (aliasList.some(alias => similarEnough(terminoLower, alias))) return true;
-            if (hotelNameWords.some(w => similarEnough(terminoLower, w))) return true;
-            
-            // Búsqueda en ubicación
-            if (location.includes(terminoLower)) return true;
-            
-            // Búsqueda parcial: palabras del término en el nombre
-            const terminoWords = terminoLower.split(/\s+/).filter(w => w.length >= 2);
-            if (terminoWords.some(tw => hotelNameWords.some(hw => hw.includes(tw) || tw.includes(hw)))) {
-                return true;
-            }
-            
-            const palabrasSignificativas = hotelNameWords.filter(w => w.length >= 4 && !hotelNameWordsStop.includes(w));
-            if (palabrasSignificativas.some(p => terminoLower.includes(p))) {
-                return true;
-            }
-            
-            return false;
-        });
-        };
 
+        let best = [];
+        let bestScore = 0;
         for (const t of terminos) {
-            const coincidencias = matchTerm(t);
-            if (coincidencias.length > 0) return coincidencias;
+            const scored = active
+                .map(h => ({ h, score: scoreHotelNameMatch(h, t) }))
+                .filter(x => x.score >= 25)
+                .sort((a, b) => b.score - a.score);
+            if (scored.length && scored[0].score > bestScore) {
+                bestScore = scored[0].score;
+                // Si el top es claro (>= +30 vs 2º), devolver solo ese
+                if (scored.length === 1 || scored[0].score >= scored[1].score + 30) {
+                    best = [scored[0].h];
+                } else {
+                    best = scored.filter(x => x.score >= scored[0].score - 20).map(x => x.h);
+                }
+            }
         }
-        return [];
+        if (best.length) {
+            console.log(`🔍 Flor búsqueda "${terminoOriginal}"→"${terminoNorm}": ${best.length} match(es) score≥${bestScore} → ${best.map(h => h.name).join(' | ')}`);
+        }
+        return best;
     } catch (e) {
         console.warn('⚠️ Error buscando hoteles por nombre parcial:', e?.message || e);
         return [];
@@ -2256,7 +2312,7 @@ async function isFlorPausedByRecentHumanMessage(chatId) {
 }
 
 /** Columnas de estado persistente Flor por chat (Supabase). */
-const FLOR_CHAT_SESSION_SELECT = 'id, phone, real_phone, flor_paused_until, last_human_outbound_at, current_hotel_id, cotizador_sent_at';
+const FLOR_CHAT_SESSION_SELECT = 'id, phone, real_phone, flor_paused_until, last_human_outbound_at, current_hotel_id, cotizador_sent_at, travel_data, datos_ready_at, asked_travel_data_at, handoff_at, prompt_variant, lead_origin';
 
 async function findWhatsAppChatSession(phone, instanceNumber, chatIdOptional = null) {
     if (!supabase) return null;
@@ -2282,15 +2338,23 @@ async function findWhatsAppChatSession(phone, instanceNumber, chatIdOptional = n
                 .order('updated_at', { ascending: false })
                 .limit(1);
             if (error) {
-                if (String(error.message || '').includes('current_hotel_id') || String(error.message || '').includes('cotizador_sent_at')) {
+                if (/current_hotel_id|cotizador_sent_at|travel_data|datos_ready_at|asked_travel_data_at|handoff_at|prompt_variant|lead_origin/i.test(String(error.message || ''))) {
                     const { data: rowsLegacy } = await supabase
+                        .from('whatsapp_chats')
+                        .select('id, phone, real_phone, flor_paused_until, last_human_outbound_at, current_hotel_id, cotizador_sent_at')
+                        .eq('whatsapp_instance', inst)
+                        .in(col, candidatos)
+                        .order('updated_at', { ascending: false })
+                        .limit(1);
+                    if (rowsLegacy?.[0]) return rowsLegacy[0];
+                    const { data: rowsMin } = await supabase
                         .from('whatsapp_chats')
                         .select('id, phone, real_phone, flor_paused_until, last_human_outbound_at')
                         .eq('whatsapp_instance', inst)
                         .in(col, candidatos)
                         .order('updated_at', { ascending: false })
                         .limit(1);
-                    if (rowsLegacy?.[0]) return rowsLegacy[0];
+                    if (rowsMin?.[0]) return rowsMin[0];
                 }
                 continue;
             }
@@ -2320,11 +2384,17 @@ async function updateFlorChatSessionFields(chatId, phone, instanceNumber, fields
 
     const tryUpdate = async (filterFn) => {
         let { data, error } = await filterFn(supabase.from('whatsapp_chats').update(payload)).select('id');
-        if (error && (String(error.message || '').includes('current_hotel_id') || String(error.message || '').includes('cotizador_sent_at') || String(error.message || '').includes('flor_last_processed_inbound_id'))) {
+        if (error && /current_hotel_id|cotizador_sent_at|flor_last_processed_inbound_id|travel_data|datos_ready_at|asked_travel_data_at|handoff_at|prompt_variant|lead_origin/i.test(String(error.message || ''))) {
             const legacy = { ...payload };
             delete legacy.current_hotel_id;
             delete legacy.cotizador_sent_at;
             delete legacy.flor_last_processed_inbound_id;
+            delete legacy.travel_data;
+            delete legacy.datos_ready_at;
+            delete legacy.asked_travel_data_at;
+            delete legacy.handoff_at;
+            delete legacy.prompt_variant;
+            delete legacy.lead_origin;
             ({ data, error } = await filterFn(supabase.from('whatsapp_chats').update(legacy)).select('id'));
         }
         if (error) {
@@ -2571,6 +2641,99 @@ async function markCotizadorSentForChat(chatId, phone, instanceNumber) {
     });
     if (ok) console.log(`📋 Flor sesión DB: cotizador_sent_at=${nowIso}`);
     return ok;
+}
+
+/** Extrae fechas/noches/pax de un texto de cliente (heurística liviana). */
+function extractTravelDataFromText(text) {
+    const t = String(text || '');
+    if (!t.trim()) return null;
+    const out = {};
+    const dateM = t.match(/(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?/);
+    if (dateM) {
+        const d = dateM[1].padStart(2, '0');
+        const m = dateM[2].padStart(2, '0');
+        let y = dateM[3] || String(new Date().getFullYear());
+        if (y.length === 2) y = `20${y}`;
+        out.check_in = `${y}-${m}-${d}`;
+    }
+    const nightsM = t.match(/(\d{1,2})\s*noches?/i)
+        || t.match(/(una|dos|tres|cuatro|cinco|seis|siete)\s*noches?/i);
+    if (nightsM) {
+        const map = { una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7 };
+        const raw = String(nightsM[1]).toLowerCase();
+        out.nights = map[raw] || parseInt(raw, 10) || null;
+    }
+    const adultsM = t.match(/(\d{1,2})\s*(adultos?|personas?|pax|hu[eé]spedes?)/i)
+        || t.match(/(somos|vamos)\s+(\d{1,2})/i);
+    if (adultsM) {
+        const n = parseInt(adultsM[2] || adultsM[1], 10);
+        if (n > 0 && n < 40) out.adults = n;
+    }
+    const kidsM = t.match(/(\d{1,2})\s*(niñ|menores|infantes?)/i);
+    if (kidsM) {
+        const n = parseInt(kidsM[1], 10);
+        if (n >= 0 && n < 20) out.children = n;
+    }
+    const hasDate = !!(out.check_in || /\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i.test(t));
+    const hasNights = out.nights != null;
+    const hasPax = out.adults != null;
+    const score = (hasDate ? 1 : 0) + (hasNights ? 1 : 0) + (hasPax ? 1 : 0);
+    if (score < 2 && Object.keys(out).length === 0) return null;
+    out._ready = score >= 2;
+    out._score = score;
+    return out;
+}
+
+function florAskedForTravelData(botText) {
+    const t = String(botText || '').toLowerCase();
+    if (!t) return false;
+    const asksFechas = /fecha|check.?in|entrada|cu[aá]ndo/.test(t);
+    const asksNoches = /noche/.test(t);
+    const asksPax = /hu[eé]sped|persona|adulto|pax|niñ/.test(t);
+    return (asksFechas ? 1 : 0) + (asksNoches ? 1 : 0) + (asksPax ? 1 : 0) >= 2;
+}
+
+async function markAskedTravelDataForChat(chatId, phone, instanceNumber) {
+    const session = await findWhatsAppChatSession(phone, instanceNumber, chatId);
+    if (session?.asked_travel_data_at) return false;
+    const nowIso = new Date().toISOString();
+    return updateFlorChatSessionFields(chatId, phone, instanceNumber, {
+        asked_travel_data_at: nowIso,
+        prompt_variant: session?.prompt_variant || 'v4.2'
+    });
+}
+
+async function markHandoffForChat(chatId, phone, instanceNumber) {
+    const session = await findWhatsAppChatSession(phone, instanceNumber, chatId);
+    if (session?.handoff_at) return false;
+    const nowIso = new Date().toISOString();
+    return updateFlorChatSessionFields(chatId, phone, instanceNumber, {
+        handoff_at: nowIso
+    });
+}
+
+async function mergeTravelDataForChat(chatId, phone, instanceNumber, userText) {
+    const extracted = extractTravelDataFromText(userText);
+    if (!extracted) return null;
+    const session = await findWhatsAppChatSession(phone, instanceNumber, chatId);
+    const prev = (session && session.travel_data && typeof session.travel_data === 'object')
+        ? session.travel_data
+        : {};
+    const merged = { ...prev };
+    for (const k of ['check_in', 'check_out', 'nights', 'adults', 'children']) {
+        if (extracted[k] != null) merged[k] = extracted[k];
+    }
+    const score =
+        (merged.check_in || merged.check_out ? 1 : 0) +
+        (merged.nights != null ? 1 : 0) +
+        (merged.adults != null ? 1 : 0);
+    const fields = { travel_data: merged, prompt_variant: session?.prompt_variant || 'v4.2' };
+    if (score >= 2 && !session?.datos_ready_at) {
+        fields.datos_ready_at = new Date().toISOString();
+        console.log(`✅ Datos listos chat: score=${score}`, merged);
+    }
+    await updateFlorChatSessionFields(chatId, phone, instanceNumber, fields);
+    return merged;
 }
 
 function buildFlorSessionContextInjection(session, hotelDisplayName) {
@@ -3469,6 +3632,7 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
         let toolWasCalled = false;
         let documentToSend = null;
         let imageToSend = null;
+        let lastToolHotel = null; // hotel encontrado por tools (para corregir negaciones de Gemini)
         // CoT: la respuesta al usuario solo se devuelve al terminar el loop; cada tool (buscarHotel, consultarCatalogoHoteles) se await, así que la promesa no se resuelve antes de que las búsquedas terminen.
 
         for (let round = 0; round < maxToolRounds; round++) {
@@ -3546,6 +3710,7 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
                         // Context Drift fix: guardar último hotel consultado para forzar reconsulta en "¿Qué incluye?"
                         if (resultado.encontrado && resultado.hoteles?.length > 0) {
                             const h0 = resultado.hoteles[0];
+                            lastToolHotel = h0;
                             const lastHotel = (args.hotel_especifico && String(args.hotel_especifico).trim()) || h0?.nombre || h0?.name || '';
                             if (lastHotel) florLastHotelByPhone.set(phoneKey, lastHotel);
                             if (h0?.id) {
@@ -3568,6 +3733,7 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
                         if (resultado.encontrado && resultado.hoteles?.length > 0 && nombreHotel) {
                             florLastHotelByPhone.set(phoneKey, nombreHotel);
                             const h0 = resultado.hoteles[0];
+                            lastToolHotel = h0;
                             if (h0?.id) {
                                 await setCurrentHotelIdForChat(
                                     chatSession?.id || chatIdFlor,
@@ -3654,11 +3820,27 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
             const responseTime = Date.now() - startTime;
             const finalLower = (finalText || '').toLowerCase();
             const pareceNoEntendido = /no he podido entender|no (pude|pudo) entender|no entiendo|no (logro|logr[eé]) (entender|interpretar)/i.test(finalLower);
-            const noTrabajamos = /no trabajamos|no tenemos ese hotel|no manejamos ese hotel/i.test(finalLower);
-            if (noTrabajamos && catalogPrefetch?.encontrado && catalogPrefetch.hoteles?.length) {
-                console.warn('⚠️ Flor: Gemini dijo "no trabajamos" pero el catálogo SÍ tiene el hotel — respuesta corregida');
-                finalText = buildQuickHotelReply(catalogPrefetch.hoteles[0]);
+            const niegaHotelEnBase = /no trabajamos|no tenemos ese hotel|no manejamos ese hotel|no (cuento|cuenta|tenemos|tengo|hay).{0,60}(informaci[oó]n|datos|info)|no (lo )?conozco|no (est[aá]|figura).{0,40}(base|cat[aá]logo)|sin informaci[oó]n espec[ií]fica|no (dispongo|dispone).{0,40}(informaci|datos)/i.test(finalLower);
+            const soloMandaWeb = /checkin24hs\.com/i.test(finalText)
+                && !/(puyehue|huilo|corralco|futangue|programa|spa|tarifa|noches)/i.test(finalLower);
+            const hotelFromTool = (() => {
+                if (lastToolHotel) return lastToolHotel;
+                if (catalogPrefetch?.encontrado && catalogPrefetch.hoteles?.[0]) return catalogPrefetch.hoteles[0];
+                return null;
+            })();
+            if ((niegaHotelEnBase || soloMandaWeb) && hotelFromTool) {
+                console.warn('⚠️ Flor: Gemini negó el hotel / mandó solo a la web pero el catálogo SÍ tiene datos — respuesta corregida');
+                finalText = buildQuickHotelReply(hotelFromTool);
                 toolWasCalled = true;
+            } else if ((niegaHotelEnBase || soloMandaWeb) && pareceConsultaHotel) {
+                // Último recurso: buscar en servidor aunque Gemini no haya usado tools
+                const rescueTerm = hotelExtraido || extractHotelKeywordFromMessage(mensajeLower) || 'puyehue';
+                const rescue = await consultarCatalogoHotelesTool('', rescueTerm);
+                if (rescue?.encontrado && rescue.hoteles?.[0]) {
+                    console.warn(`⚠️ Flor: rescate servidor para "${rescueTerm}" tras negación de Gemini`);
+                    finalText = buildQuickHotelReply(rescue.hoteles[0]);
+                    toolWasCalled = true;
+                }
             } else if (pareceConsultaHotel && !toolWasCalled && !catalogPrefetch?.encontrado && catalogPrefetch !== null) {
                 console.warn(`⚠️ Flor: consulta de hotel "${hotelExtraido || extractHotelKeywordFromMessage(mensajeLower)}" sin datos en Supabase desde el servidor`);
             }
@@ -5871,6 +6053,11 @@ async function connectToWhatsApp() {
                 await safeSendPresenceUpdate('composing', destJid);
 
                 const t0 = Date.now();
+                try {
+                    await mergeTravelDataForChat(p.supabaseChatId, p.numero, CONFIG.INSTANCE_NUMBER, combined);
+                } catch (e) {
+                    console.warn('⚠️ mergeTravelDataForChat:', e?.message || e);
+                }
                 const raw = await procesarConFlor(combined, {
                     numero: p.numero,
                     nombre: p.nombre,
@@ -5895,6 +6082,7 @@ async function connectToWhatsApp() {
                 if (pausarFlor && p.numero) {
                     console.log(`📤 Slack: disparando alerta de escalación (transferir) para ${p.numero} — último mensaje: "${(combined || '').slice(0, 80)}..."`);
                     await setFlorPausedUntil(p.numero, FLOR_SILENCE_MINUTES);
+                    await markHandoffForChat(p.supabaseChatId, p.numero, CONFIG.INSTANCE_NUMBER);
                     const phoneKeyForSlack = (p.numero && String(p.numero).replace(/\D/g, '')) || 'unknown';
                     await sendSlackEscalationAlert(p.nombre || p.numero, p.numero, florLastHotelByPhone.get(phoneKeyForSlack) || 'No definido', combined);
                 }
@@ -5970,6 +6158,13 @@ async function connectToWhatsApp() {
                         usedAi,
                         responseTimeMs
                     });
+                    if (florAskedForTravelData(respuestaFlor)) {
+                        try {
+                            await markAskedTravelDataForChat(p.supabaseChatId, p.numero, CONFIG.INSTANCE_NUMBER);
+                        } catch (e) {
+                            console.warn('⚠️ markAskedTravelDataForChat:', e?.message || e);
+                        }
+                    }
                     if (esRespuestaCotizacion(textoGuardado || respuestaFlor)) {
                         await markCotizadorSentForChat(p.supabaseChatId, p.numero, CONFIG.INSTANCE_NUMBER);
                     }

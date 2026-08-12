@@ -112,6 +112,7 @@ async function fetchVisitStats() {
         ymd: r.ymd,
         visitors: Number(data?.visitors ?? 0),
         pageviews: Number(data?.pageviews ?? 0),
+        top_utm: Array.isArray(data?.top_utm) ? data.top_utm : [],
       };
       if (r.label === 'hoy') out.today = stats;
       else out.yesterday = stats;
@@ -182,10 +183,20 @@ function normalizeOpsDay(ymd, data) {
     active_chats_with_inbound: Number(data?.active_chats_with_inbound ?? 0),
     chats_with_hotel: Number(data?.chats_with_hotel ?? 0),
     recontacts: Number(data?.recontacts ?? 0),
+    recontacts_7d: Number(data?.recontacts_7d ?? 0),
+    recontacts_30d: Number(data?.recontacts_30d ?? 0),
     handoffs_total: Number(data?.handoffs_total ?? 0),
     top_hotels: Array.isArray(data?.top_hotels) ? data.top_hotels : [],
+    datos_ready: data?.datos_ready || null,
+    funnel: data?.funnel || null,
+    ticket: data?.ticket || null,
+    origins: Array.isArray(data?.origins) ? data.origins : [],
+    peak_hours: Array.isArray(data?.peak_hours) ? data.peak_hours : [],
+    abandon: data?.abandon || null,
+    abandon_by_variant: Array.isArray(data?.abandon_by_variant) ? data.abandon_by_variant : [],
     lines,
     has_sla: Array.isArray(data?.human_sla_by_line),
+    has_ops_full: !!(data?.datos_ready || data?.funnel || data?.peak_hours),
   };
 }
 
@@ -213,16 +224,22 @@ async function supabaseSelect(table, query) {
   return { ok: res.ok, status: res.status, data };
 }
 
-/** SLA humano por línea si aún no está la RPC 067. */
+/** SLA + métricas ops en cliente si aún no está la RPC 068. */
 async function computeHumanSlaClient(fromIso, toIso) {
   const replyTo = new Date(new Date(toIso).getTime() + 24 * 3600 * 1000).toISOString();
+  const from7 = new Date(new Date(fromIso).getTime() - 7 * 86400 * 1000).toISOString();
+  const from30 = new Date(new Date(fromIso).getTime() - 30 * 86400 * 1000).toISOString();
   const select =
-    'chat_id,is_from_me,is_from_flor,whatsapp_instance,sent_at,created_at,sender';
+    'chat_id,is_from_me,is_from_flor,whatsapp_instance,sent_at,created_at,sender,phone,message,body';
   const qIn = `select=${select}&is_from_me=eq.false&sent_at=gte.${fromIso}&sent_at=lt.${toIso}&order=sent_at.asc&limit=5000`;
   const qOut = `select=${select}&is_from_me=eq.true&sent_at=gte.${fromIso}&sent_at=lt.${replyTo}&order=sent_at.asc&limit=5000`;
-  const [inn, out] = await Promise.all([
+  const [inn, out, quotes] = await Promise.all([
     supabaseSelect('whatsapp_messages', qIn),
     supabaseSelect('whatsapp_messages', qOut),
+    supabaseSelect(
+      'quotes',
+      `select=customer_phone,total,check_in,check_out,contact_origin,created_at,status&created_at=gte.${fromIso}&created_at=lt.${toIso}&limit=2000`
+    ),
   ]);
   if (!inn.ok || !out.ok) return null;
 
@@ -246,10 +263,37 @@ async function computeHumanSlaClient(fromIso, toIso) {
   for (const cid of Object.keys(byChatHuman)) byChatHuman[cid].sort((a, b) => a - b);
 
   const secsByLine = {};
+  const hourCount = {};
+  const chatStats = {};
+  const dayPhones = new Set();
+
   for (const m of inbound) {
     const cid = m.chat_id;
     const line = Number(m.whatsapp_instance || 1);
     const t0 = new Date(m.sent_at || m.created_at).getTime();
+    const hour = Number(
+      new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        hour: '2-digit',
+        hour12: false,
+      }).format(new Date(m.sent_at || m.created_at))
+    );
+    hourCount[hour] = (hourCount[hour] || 0) + 1;
+    const pd = String(m.phone || '').replace(/\D/g, '');
+    if (pd.length >= 10) dayPhones.add(pd);
+
+    if (!chatStats[cid]) chatStats[cid] = { n: 0, first: t0, last: t0, date: false, nights: false, pax: false };
+    const cs = chatStats[cid];
+    cs.n += 1;
+    cs.last = Math.max(cs.last, t0);
+    cs.first = Math.min(cs.first, t0);
+    const body = String(m.message || m.body || '');
+    if (/\d{1,2}[\/\-.]\d{1,2}/.test(body) || /(enero|febrero|marzo|abril|mayo|junio|julio|agosto)/i.test(body)) {
+      cs.date = true;
+    }
+    if (/\d+\s*noches?/i.test(body)) cs.nights = true;
+    if (/\d+\s*(adultos?|personas?|pax)/i.test(body) || /(somos|vamos)\s+\d+/i.test(body)) cs.pax = true;
+
     const times = byChatHuman[cid];
     if (!times || !times.length) continue;
     let reply = null;
@@ -283,12 +327,100 @@ async function computeHumanSlaClient(fromIso, toIso) {
       };
     });
 
+  const activeChats = Object.keys(chatStats).length;
+  const readyChats = Object.values(chatStats).filter((c) => (c.date ? 1 : 0) + (c.nights ? 1 : 0) + (c.pax ? 1 : 0) >= 2).length;
+  const toMs = new Date(toIso).getTime();
+  let shortAbandon = 0;
+  let longAbandon = 0;
+  for (const c of Object.values(chatStats)) {
+    const score = (c.date ? 1 : 0) + (c.nights ? 1 : 0) + (c.pax ? 1 : 0);
+    if (score >= 2) continue;
+    if (c.last >= toMs - 2 * 3600 * 1000) continue;
+    if (c.n <= 2) shortAbandon += 1;
+    else longAbandon += 1;
+  }
+
+  const peak_hours = Object.keys(hourCount)
+    .map(Number)
+    .sort((a, b) => hourCount[b] - hourCount[a] || a - b)
+    .slice(0, 5)
+    .map((hour) => ({ hour, inbound: hourCount[hour] }));
+
+  // Recontactos 7/30 (muestra: phones del día vs inbound previo)
+  let recontacts_7d = 0;
+  let recontacts_30d = 0;
+  let recontacts = 0;
+  const phoneList = [...dayPhones].slice(0, 40);
+  if (phoneList.length) {
+    const priorBatch = await Promise.all(
+      phoneList.map((pd) =>
+        supabaseSelect(
+          'whatsapp_messages',
+          `select=phone,sent_at&is_from_me=eq.false&phone=eq.${encodeURIComponent(pd)}&sent_at=lt.${fromIso}&sent_at=gte.${from30}&order=sent_at.desc&limit=1`
+        )
+      )
+    );
+    const from7Ms = new Date(from7).getTime();
+    for (const prior of priorBatch) {
+      if (!(prior.ok && Array.isArray(prior.data) && prior.data.length)) continue;
+      recontacts += 1;
+      recontacts_30d += 1;
+      if (new Date(prior.data[0].sent_at).getTime() >= from7Ms) recontacts_7d += 1;
+    }
+  }
+
+  const quoteRows = quotes.ok && Array.isArray(quotes.data) ? quotes.data : [];
+  const originMap = {};
+  let qN = 0;
+  let sumTicket = 0;
+  let sumNights = 0;
+  let nNights = 0;
+  for (const q of quoteRows) {
+    const orig = String(q.contact_origin || '').trim().toLowerCase() || '(sin origen)';
+    originMap[orig] = (originMap[orig] || 0) + 1;
+    const total = Number(q.total);
+    if (total > 0) {
+      qN += 1;
+      sumTicket += total;
+    }
+    if (q.check_in && q.check_out) {
+      const n = Math.round((new Date(q.check_out) - new Date(q.check_in)) / 86400000);
+      if (n > 0 && n < 60) {
+        sumNights += n;
+        nNights += 1;
+      }
+    }
+  }
+  const origins = Object.keys(originMap)
+    .map((origin) => ({ origin, hits: originMap[origin] }))
+    .sort((a, b) => b.hits - a.hits)
+    .slice(0, 8);
+
   return {
     human_sla_by_line,
     line_phones: Object.keys(phoneByLine).map((line) => ({
       line: Number(line),
       phone: phoneByLine[line],
     })),
+    datos_ready: {
+      active_chats: activeChats,
+      chats_datos_ready: readyChats,
+      pct_datos_ready: activeChats ? Math.round((100 * readyChats) / activeChats) : 0,
+    },
+    peak_hours,
+    abandon: { short_abandon: shortAbandon, long_abandon: longAbandon, asked_no_datos: 0, active_for_abandon: activeChats },
+    recontacts,
+    recontacts_7d,
+    recontacts_30d,
+    origins,
+    ticket: {
+      quotes_n: qN,
+      avg_ticket: qN ? Math.round(sumTicket / qN) : null,
+      avg_nights: nNights ? Math.round(sumNights / nNights) : null,
+      reservations_n: 0,
+      avg_ticket_res: null,
+      avg_nights_res: null,
+    },
   };
 }
 
@@ -337,6 +469,14 @@ async function fetchWhatsappChatStats() {
         if (sla) {
           data.human_sla_by_line = sla.human_sla_by_line;
           data.line_phones = sla.line_phones;
+          data.datos_ready = sla.datos_ready;
+          data.peak_hours = sla.peak_hours;
+          data.abandon = sla.abandon;
+          data.recontacts = sla.recontacts;
+          data.recontacts_7d = sla.recontacts_7d;
+          data.recontacts_30d = sla.recontacts_30d;
+          data.origins = sla.origins;
+          data.ticket = sla.ticket;
           out.source = 'legacy+sla';
         } else {
           out.source = out.source || 'legacy';
@@ -457,7 +597,7 @@ function ideasFromResults(results, visitStats, waStats) {
     ideas.push('Visitas web: correr migración 064 en Supabase y redeploy web.');
   }
   if (waStats?.error) {
-    ideas.push('Chats WA: correr migración 067 (whatsapp_ops_daily_stats) en Supabase.');
+    ideas.push('Chats WA: correr migración 068 (whatsapp_ops_daily_stats completa) en Supabase.');
   }
   const y = waStats?.yesterday;
   if (y?.has_sla) {
@@ -469,13 +609,16 @@ function ideasFromResults(results, visitStats, waStats) {
       ideas.push(`SLA empleados: ayer hubo respuestas >5 min (${parts.join('; ')}).`);
     }
   }
+  if (y?.funnel && Number(y.funnel.handoffs || 0) > 0 && Number(y.funnel.quotes || 0) === 0) {
+    ideas.push('Embudo: hubo hand-offs ayer pero 0 cotizaciones vinculadas — revisar seguimiento.');
+  }
   if (slow.length) {
     ideas.push(`Rendimiento: ${slow.map((r) => `${r.name} ${r.ms}ms`).join(', ')}.`);
   }
   if (!failed.length && !visitStats?.error && !waStats?.error) {
-    ideas.push('Todo verde. Si visitas=0, confirmá deploy web + migración 064.');
+    ideas.push('Todo verde. Si falta embudo/UTM, confirmá migración 068 + redeploy web/WhatsApp.');
   }
-  return ideas.slice(0, 5);
+  return ideas.slice(0, 6);
 }
 
 function formatLineLabel(L) {
@@ -516,11 +659,66 @@ function formatWaDayBlock(label, stats) {
   if (stats.handoffs_total > 0) {
     lines.push(`   · Hand-offs Flor→humano: *${stats.handoffs_total}*`);
   }
+  if (stats.datos_ready) {
+    const dr = stats.datos_ready;
+    lines.push(
+      `   · Datos listos (fechas/noches/pax): *${dr.chats_datos_ready || 0}/${dr.active_chats || 0}* (${dr.pct_datos_ready || 0}%)`
+    );
+  }
+  if (stats.funnel) {
+    const f = stats.funnel;
+    lines.push(
+      `   · Embudo: hand-off *${f.handoffs || 0}* → cotiz *${f.quotes || 0}* → reserva *${f.reservations || 0}*`
+    );
+  }
+  if (stats.ticket && (Number(stats.ticket.quotes_n) > 0 || Number(stats.ticket.reservations_n) > 0)) {
+    const t = stats.ticket;
+    const parts = [];
+    if (Number(t.quotes_n) > 0) {
+      parts.push(`cotiz n=${t.quotes_n} ticket~$${Math.round(Number(t.avg_ticket || 0))} · ${Number(t.avg_nights || 0)} noches`);
+    }
+    if (Number(t.reservations_n) > 0) {
+      parts.push(`reservas n=${t.reservations_n} ticket~$${Math.round(Number(t.avg_ticket_res || 0))}`);
+    }
+    lines.push(`   · Ticket/noches: ${parts.join(' · ')}`);
+  }
+  if (Array.isArray(stats.origins) && stats.origins.length) {
+    const top = stats.origins
+      .slice(0, 4)
+      .map((o) => `${o.origin} (${o.hits})`)
+      .join(', ');
+    lines.push(`   · Origen leads (cotiz): ${top}`);
+  }
+  if (Array.isArray(stats.peak_hours) && stats.peak_hours.length) {
+    const peaks = stats.peak_hours
+      .slice(0, 3)
+      .map((h) => `${String(h.hour).padStart(2, '0')}h (${h.inbound})`)
+      .join(', ');
+    lines.push(`   · Horarios pico: ${peaks}`);
+  }
+  if (stats.abandon) {
+    const a = stats.abandon;
+    lines.push(
+      `   · Abandono: corto *${a.short_abandon || 0}* · largo *${a.long_abandon || 0}*` +
+        (a.asked_no_datos ? ` · pidió datos sin completar ${a.asked_no_datos}` : '')
+    );
+  }
+  if (Array.isArray(stats.abandon_by_variant) && stats.abandon_by_variant.length) {
+    const ab = stats.abandon_by_variant
+      .map((v) => {
+        const pct = v.chats ? Math.round((100 * Number(v.abandoned || 0)) / Number(v.chats)) : 0;
+        return `${v.variant}: ${v.abandoned}/${v.chats} (${pct}%)`;
+      })
+      .join(', ');
+    lines.push(`   · Abandono por prompt: ${ab}`);
+  }
   if (stats.chats_with_hotel > 0) {
     lines.push(`   · Chats con hotel detectado: ${stats.chats_with_hotel}`);
   }
-  if (stats.recontacts > 0) {
-    lines.push(`   · Recontactos (ya escribieron antes): ${stats.recontacts}`);
+  if (stats.recontacts > 0 || stats.recontacts_7d > 0 || stats.recontacts_30d > 0) {
+    lines.push(
+      `   · Recontactos: total ${stats.recontacts || 0} · 7d *${stats.recontacts_7d || 0}* · 30d *${stats.recontacts_30d || 0}*`
+    );
   }
   if (Array.isArray(stats.top_hotels) && stats.top_hotels.length) {
     const top = stats.top_hotels
@@ -561,9 +759,23 @@ function formatWhatsApp(results, visitStats, waStats) {
       const y = visitStats.yesterday;
       if (t) {
         lines.push(`📅 Hoy (${t.ymd}): *${t.visitors}* personas · ${t.pageviews} páginas vistas`);
+        if (Array.isArray(t.top_utm) && t.top_utm.length) {
+          const u = t.top_utm
+            .slice(0, 3)
+            .map((x) => `${x.source} (${x.visitors || x.hits})`)
+            .join(', ');
+          lines.push(`   · UTM/origen: ${u}`);
+        }
       }
       if (y) {
         lines.push(`📅 Ayer (${y.ymd}): *${y.visitors}* personas · ${y.pageviews} páginas vistas`);
+        if (Array.isArray(y.top_utm) && y.top_utm.length) {
+          const u = y.top_utm
+            .slice(0, 3)
+            .map((x) => `${x.source} (${x.visitors || x.hits})`)
+            .join(', ');
+          lines.push(`   · UTM/origen: ${u}`);
+        }
       }
     }
     lines.push('');
