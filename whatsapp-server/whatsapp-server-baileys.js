@@ -1076,14 +1076,100 @@ function mergeFlorPendingQueue(canonicalKey, pending) {
     for (const [k, v] of florPendingByUser.entries()) {
         if (k === canonicalKey || !v) continue;
         const vCanon = resolveCanonicalPhoneDigitsForFlor(v.numero, v.remoteJid);
-        if (vCanon === canon) {
+        const sameLid =
+            pending.remoteJid &&
+            v.remoteJid &&
+            String(pending.remoteJid).includes('@lid') &&
+            String(v.remoteJid) === String(pending.remoteJid);
+        if (vCanon === canon || sameLid) {
             pending.messages.push(...(v.messages || []));
-            if (!pending.timeoutId && v.timeoutId) pending.timeoutId = v.timeoutId;
+            // Crítico: cancelar el otro timer o se disparan 2 processPending
+            if (v.timeoutId) {
+                clearTimeout(v.timeoutId);
+                v.timeoutId = null;
+            }
             florPendingByUser.delete(k);
             console.log(`🔗 Flor: cola unificada ${k} → ${canonicalKey} (${pending.messages.length} msg)`);
         }
     }
     return pending;
+}
+
+/** Cancela colas pendientes cuando un humano escribe (evita respuesta Flor en vuelo). */
+function clearFlorPendingQueuesForContact(...phonesOrJids) {
+    const targets = new Set();
+    for (const p of phonesOrJids) {
+        if (!p) continue;
+        const d = String(p).replace(/\D/g, '');
+        if (d.length >= 10) targets.add(d);
+        const j = String(p).trim().toLowerCase();
+        if (j.includes('@')) targets.add(j);
+    }
+    if (!targets.size) return 0;
+    let n = 0;
+    for (const [k, v] of florPendingByUser.entries()) {
+        if (!v) continue;
+        const vCanon = resolveCanonicalPhoneDigitsForFlor(v.numero, v.remoteJid);
+        const rj = String(v.remoteJid || '').trim().toLowerCase();
+        const hit =
+            (vCanon && targets.has(vCanon)) ||
+            (rj && targets.has(rj)) ||
+            (k.startsWith('phone:') && targets.has(k.slice(6))) ||
+            (k.startsWith('jid:') && targets.has(k.slice(4)));
+        if (!hit) continue;
+        if (v.timeoutId) {
+            clearTimeout(v.timeoutId);
+            v.timeoutId = null;
+        }
+        florPendingByUser.delete(k);
+        n += 1;
+    }
+    if (n) console.log(`🛑 Flor: ${n} cola(s) cancelada(s) por intervención humana`);
+    return n;
+}
+
+/** Lock estricto: 1 respuesta Flor por turno/contacto (bloquea dobles Gemini en paralelo). */
+const florTurnLockByPhone = new Map(); // digits|jid → expiresAt
+const FLOR_TURN_LOCK_MS = Math.max(20000, Math.min(180000, parseInt(process.env.FLOR_TURN_LOCK_MS || '90000', 10) || 90000));
+const FLOR_TURN_COOLDOWN_MS = Math.max(8000, Math.min(25000, parseInt(process.env.FLOR_TURN_COOLDOWN_MS || '15000', 10) || 15000));
+const florLastAnyOutboundAtByPhone = new Map();
+
+function florTurnLockKey(phoneDigits, remoteJid) {
+    const d = String(phoneDigits || '').replace(/\D/g, '');
+    if (d.length >= 10 && !isLikelyPseudoWhatsappPn(d)) return 'p:' + d;
+    const rj = String(remoteJid || '').trim().toLowerCase();
+    return rj ? 'j:' + rj : '';
+}
+
+function tryAcquireFlorTurnLock(phoneDigits, remoteJid) {
+    const k = florTurnLockKey(phoneDigits, remoteJid);
+    if (!k) return true;
+    const now = Date.now();
+    const exp = florTurnLockByPhone.get(k);
+    if (exp && exp > now) {
+        console.log(`🔒 Flor turn-lock activo (${k}) — no segunda respuesta`);
+        return false;
+    }
+    florTurnLockByPhone.set(k, now + FLOR_TURN_LOCK_MS);
+    return true;
+}
+
+function releaseFlorTurnLock(phoneDigits, remoteJid) {
+    const k = florTurnLockKey(phoneDigits, remoteJid);
+    if (k) florTurnLockByPhone.delete(k);
+}
+
+function shouldSkipFlorTurnCooldown(phoneDigits, remoteJid) {
+    const k = florTurnLockKey(phoneDigits, remoteJid);
+    if (!k) return false;
+    const last = florLastAnyOutboundAtByPhone.get(k);
+    return !!(last && Date.now() - last < FLOR_TURN_COOLDOWN_MS);
+}
+
+function markFlorTurnOutbound(phoneDigits, remoteJid) {
+    const k = florTurnLockKey(phoneDigits, remoteJid);
+    if (!k) return;
+    florLastAnyOutboundAtByPhone.set(k, Date.now());
 }
 
 /** Evitar enviar la misma respuesta Flor dos veces seguidas (LID+PN procesaron por separado) */
@@ -1201,6 +1287,7 @@ Después de un mensaje manual del asesor, Flor debe guardar **45 minutos de sile
 
 **8. Escalación a humano:**
 Si piden "humano", "agente" o "asesor"; si no entendés la consulta tras un intento; si es una integración compleja → transferir de inmediato.
+Si el cliente dice que **no baja / no descarga / no ve / no abre** un mensaje o archivo, o insiste con problemas técnicos de visualización → hand-off INMEDIATO a un asesor. PROHIBIDO repetir precios, Flexi Pass u oferta comercial en ese caso.
 
 **9. Estilo:**
 Sé clara y completa: en saludos o confirmaciones breves usá 2-4 oraciones; si el cliente pide detalle (programas, qué incluye, spa, políticas), podés extenderte hasta ~10 oraciones o una lista con viñetas para no cortar información útil. Emojis con mesura (1-2 por mensaje). No repitas bloques informativos ya enviados en la misma conversación.
@@ -1292,6 +1379,7 @@ const FLOR_RESPONSES_DEFAULTS = {
     rateLimitExceeded: 'Estoy recibiendo muchas consultas ahora. Por favor intentá de nuevo en un minuto, o si preferís te conecto con un agente humano.',
     saludo: '¡Hola! Soy **Flor 🌸**, tu asistente de **Checkin24hs**. Estoy aquí para ayudarte a planificar tu escapada ideal hacia el relax y la naturaleza de la Patagonia. 🏔️✨ ¿Tenés algún hotel en mente (como Puyehue o Huilo Huilo) o te gustaría que te recomiende un refugio mágico para descansar?',
     transferir: 'Entendido, voy a transferirte con uno de nuestros agentes. Por favor espera un momento.',
+    transferirDescarga: 'Lamento el inconveniente técnico con el mensaje. Te derivo ahora mismo con un asesor de nuestro equipo para que te asista personalmente. En instantes te contactan.',
     despedida: '¡Gracias por su consulta! 🙏 Si tienes más preguntas, estaré aquí para ayudarte. ¡Hasta pronto!',
     audioFallback: 'Disculpa, el audio no fue del todo claro. Para atenderte con la rapidez que mereces, ¿podrías enviarme tu consulta por escrito, o prefieres que te conecte con un agente ahora mismo?',
     audioProcessing: 'Un momento, estoy escuchando tu mensaje de voz... 🎧',
@@ -2135,7 +2223,17 @@ function florSilenceReasonFromRows(rows) {
  * Se revisan TODAS las filas relacionadas; si alguna está en silencio, Flor aborta.
  */
 async function assertFlorSilenceProtocolDbOnly(phone, instanceNumber, chatIdOptional = null) {
-    if (!supabase) return { blocked: false };
+    if (!supabase) {
+        if (phone && florPauseMemoryIsActive(phone)) {
+            return { blocked: true, reason: { source: 'ram_no_supabase', at: 'now' } };
+        }
+        return { blocked: false };
+    }
+    // RAM primero: el humano puede haber escrito hace milisegundos (DB aún no refleja)
+    if (phone && florPauseMemoryIsActive(phone)) {
+        console.log(`🛑 Flor ABORT silencio RAM (humano reciente) phone=${phone}`);
+        return { blocked: true, reason: { source: 'ram_flor_pause', at: 'now' } };
+    }
     const inst = instanceNumber || CONFIG.INSTANCE_NUMBER || 1;
     try {
         const rowsToCheck = [];
@@ -2186,6 +2284,14 @@ async function assertFlorSilenceProtocolDbOnly(phone, instanceNumber, chatIdOpti
                     continue;
                 }
                 addRows(rows);
+            }
+        }
+
+        // También RAM por teléfonos de las filas encontradas
+        for (const r of rowsToCheck) {
+            if (florPauseMemoryIsActive(r.phone) || florPauseMemoryIsActive(r.real_phone)) {
+                console.log(`🛑 Flor ABORT silencio RAM (fila chat ${r.id})`);
+                return { blocked: true, reason: { source: 'ram_flor_pause_row', at: 'now', chatId: r.id } };
             }
         }
 
@@ -2281,21 +2387,28 @@ async function isFlorPausedForChat(phone, instanceNumber) {
 async function isFlorPausedByRecentHumanMessage(chatId) {
     if (!supabase || !chatId) return false;
     try {
-        let res = await supabase
-            .from('whatsapp_messages')
-            .select('sent_at, is_from_flor')
-            .eq('conversation_id', chatId)
-            .eq('is_from_me', true)
-            .order('sent_at', { ascending: false })
-            .limit(5);
-        if (res.error && String(res.error.message || '').includes('is_from_flor')) {
-            res = await supabase
+        const runQuery = async (col) => {
+            let res = await supabase
                 .from('whatsapp_messages')
-                .select('sent_at')
-                .eq('conversation_id', chatId)
+                .select('sent_at, is_from_flor')
+                .eq(col, chatId)
                 .eq('is_from_me', true)
                 .order('sent_at', { ascending: false })
-                .limit(1);
+                .limit(8);
+            if (res.error && String(res.error.message || '').includes('is_from_flor')) {
+                res = await supabase
+                    .from('whatsapp_messages')
+                    .select('sent_at')
+                    .eq(col, chatId)
+                    .eq('is_from_me', true)
+                    .order('sent_at', { ascending: false })
+                    .limit(3);
+            }
+            return res;
+        };
+        let res = await runQuery('chat_id');
+        if (res.error || !res.data?.length) {
+            res = await runQuery('conversation_id');
         }
         if (res.error || !res.data?.length) return false;
         const humanRow = res.data.find((r) => r.is_from_flor !== true);
@@ -3399,10 +3512,30 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
     const mensajeLower = (mensaje || '').toLowerCase().trim();
     
     // Detectar solicitud de transferencia a humano → respuesta predefinida y pausar Flor (por defecto 45 min)
-    const transferKeywords = ['hablar con humano', 'hablar con agente', 'hablar con asesor', 'transferir', 'agente humano', 'asesor humano', 'quiero hablar con alguien', 'asesor'];
-    if (transferKeywords.some(kw => mensajeLower.includes(kw))) {
-        console.log(`🔄 Usando respuesta predefinida: transferir (Flor se pausará ${FLOR_SILENCE_MINUTES} min para este chat)`);
-        return { text: responses.transferir, intent: 'transferir', pausarFlorMin: FLOR_SILENCE_MINUTES, pausarFlor20Min: true };
+    const transferKeywords = [
+        'hablar con humano', 'hablar con agente', 'hablar con asesor', 'transferir',
+        'agente humano', 'asesor humano', 'quiero hablar con alguien', 'asesor',
+        'hablar con german', 'hablar con germán', 'pasaron este número', 'pasaron este numero',
+        'quiero hablar con german', 'quiero hablar con germán', 'un humano', 'persona real'
+    ];
+    // Problemas de descarga / visualización de mensajes o archivos → hand-off inmediato (no insistir con precios)
+    const downloadFailKeywords = [
+        'no me baja', 'no baja el mensaje', 'no baja el', 'no se baja', 'no se bajan',
+        'no descarga', 'no puedo descargar', 'no puedo ver', 'no me deja ver',
+        'sigo sin ver', 'sigo sin poder', 'no me llega el archivo', 'no abre el',
+        'problema de descarga', 'problemas de descarga', 'no visualizo', 'no se ve el mensaje'
+    ];
+    if (
+        transferKeywords.some(kw => mensajeLower.includes(kw)) ||
+        downloadFailKeywords.some(kw => mensajeLower.includes(kw))
+    ) {
+        const isDownload = downloadFailKeywords.some(kw => mensajeLower.includes(kw));
+        console.log(`🔄 Usando respuesta predefinida: transferir (${isDownload ? 'falla descarga/visualización' : 'pedido humano'}; Flor se pausará ${FLOR_SILENCE_MINUTES} min)`);
+        const handoffText = isDownload
+            ? (responses.transferirDescarga ||
+                'Lamento el inconveniente técnico con el mensaje. Te derivo ahora mismo con un asesor de nuestro equipo para que te asista personalmente. En instantes te contactan.')
+            : responses.transferir;
+        return { text: handoffText, intent: 'transferir', pausarFlorMin: FLOR_SILENCE_MINUTES, pausarFlor20Min: true };
     }
 
     // Detectar despedida
@@ -5420,6 +5553,8 @@ async function connectToWhatsApp() {
                     if (willPauseFromMeHuman) {
                         markFromMeHumanSilenceProcessed(msg.key.id);
                     }
+                    // Cancelar colas Flor en curso: el humano ya tomó el chat
+                    clearFlorPendingQueuesForContact(resolved, primaryForDb, jidLocal, remoteJidOut);
                     // Siempre tocar RAM con el JID local (LID o PN): el entrante puede matchear otro formato que +E.164
                     if (jidDigits.length >= 10) {
                         florPauseMemoryTouchMany(resolved, '+' + jidDigits);
@@ -5775,6 +5910,8 @@ async function connectToWhatsApp() {
 
                 const inboundMsgIds = extractInboundMsgIdsFromPending(p);
                 const lockMsgId = inboundMsgIds.length ? inboundMsgIds[inboundMsgIds.length - 1] : (p.messages[p.messages.length - 1]?.msgId || null);
+                const turnDigits = resolveCanonicalPhoneDigitsForFlor(p.numero, p.remoteJid);
+                let turnLockHeld = false;
 
                 const silencePreIa = await assertFlorSilenceProtocolDbOnly(p.numero, CONFIG.INSTANCE_NUMBER, p.supabaseChatId || null);
                 if (silencePreIa.blocked) {
@@ -5783,8 +5920,15 @@ async function connectToWhatsApp() {
                     return;
                 }
 
+                if (!tryAcquireFlorTurnLock(turnDigits, p.remoteJid)) {
+                    florPendingByUser.delete(key);
+                    return;
+                }
+                turnLockHeld = true;
+
                 if (p.supabaseChatId && lockMsgId && await isFlorInboundMessageAlreadyProcessed(p.supabaseChatId, inboundMsgIds.length ? inboundMsgIds : [lockMsgId])) {
                     florPendingByUser.delete(key);
+                    releaseFlorTurnLock(turnDigits, p.remoteJid);
                     console.log(`🔒 Flor Message Lock: inbound ya procesado (${lockMsgId}) — no segunda respuesta`);
                     return;
                 }
@@ -5793,6 +5937,7 @@ async function connectToWhatsApp() {
                 if (connectionStatus !== 'open' || !sock) {
                     console.warn(`⚠️ processPending omitido: WhatsApp no conectado (status=${connectionStatus || 'n/a'}). Revisá conflicto 440 o duplicados. Mensajes en cola se descartan para este ciclo.`);
                     florPendingByUser.delete(key);
+                    if (turnLockHeld) releaseFlorTurnLock(turnDigits, p.remoteJid);
                     return;
                 }
 
@@ -6133,8 +6278,8 @@ async function connectToWhatsApp() {
                         return;
                     }
                     const outboundDigits = resolveCanonicalPhoneDigitsForFlor(p.numero, destJid || p.remoteJid);
-                    if (shouldSkipDuplicateFlorOutbound(outboundDigits, respuestaFlor)) {
-                        console.log(`⏭️ Flor: respuesta duplicada omitida para ${p.numero} (ya enviada hace <${FLOR_OUTBOUND_PHONE_DEDUPE_MS}ms)`);
+                    if (shouldSkipFlorTurnCooldown(outboundDigits, p.remoteJid) || shouldSkipDuplicateFlorOutbound(outboundDigits, respuestaFlor)) {
+                        console.log(`⏭️ Flor: respuesta duplicada/cooldown omitida para ${p.numero}`);
                         await safeSendPresenceUpdate('paused', destJid);
                         return;
                     }
@@ -6148,6 +6293,7 @@ async function connectToWhatsApp() {
                             ? mensajeParaEnvio.textFull
                             : (mensajeParaEnvio.caption || mensajeParaEnvio.text || textoConEmoji);
                     markFlorOutboundSent(outboundDigits, respuestaFlor);
+                    markFlorTurnOutbound(outboundDigits, p.remoteJid);
                     await guardarMensaje(p.numero, textoGuardado, true, respuestaFlor, p.nombre);
                     await guardarFlorInteraction({
                         phone: p.numero,
@@ -6179,6 +6325,7 @@ async function connectToWhatsApp() {
                     console.error('❌ processPending:', procErr?.message || procErr, procErr?.stack || '');
                 } finally {
                     if (dispatchPushed) popFlorDispatchContext(destJid);
+                    if (turnLockHeld) releaseFlorTurnLock(turnDigits, p.remoteJid);
                 }
             };
 
@@ -6744,6 +6891,7 @@ app.post('/api/send', async (req, res) => {
         const textoGuardado = textoNorm;
         await guardarMensaje(num.replace(/@.*$/, ''), textoGuardado, true, null, null, chatIdFromDashboard || null);
         await setFlorPausedUntil(num.replace(/@.*$/, ''), FLOR_SILENCE_MINUTES, chatIdFromDashboard || null);
+        clearFlorPendingQueuesForContact(num);
         markRecentDashboardFlorPause(num);
 
         res.json({ success: true, message: 'Mensaje enviado' });
@@ -6824,6 +6972,7 @@ app.post('/api/send-audio', async (req, res) => {
         await sock.sendMessage(jid, { audio: buffer, mimetype: mime, ptt: true });
         await guardarMensaje(num.replace(/@.*$/, ''), '[Audio]', true, null, null, chatIdFromDashboard || null);
         await setFlorPausedUntil(num.replace(/@.*$/, ''), FLOR_SILENCE_MINUTES, chatIdFromDashboard || null);
+        clearFlorPendingQueuesForContact(num);
         markRecentDashboardFlorPause(num);
         res.json({ success: true, message: 'Audio enviado' });
     } catch (error) {
@@ -6864,6 +7013,7 @@ app.post('/api/send-media', async (req, res) => {
             return res.status(400).json({ error: 'type debe ser image, video o document' });
         }
         await setFlorPausedUntil(num.replace(/@.*$/, ''), FLOR_SILENCE_MINUTES, chatIdFromDashboard || null);
+        clearFlorPendingQueuesForContact(num);
         markRecentDashboardFlorPause(num);
         res.json({ success: true, message: 'Media enviado' });
     } catch (error) {
