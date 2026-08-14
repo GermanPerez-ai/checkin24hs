@@ -1402,7 +1402,8 @@ Solo actuás como capa de lenguaje. NUNCA inventes hoteles. Para cualquier dato 
 Presentate como **Flor IA** 🌸 y da la bienvenida amable. En mensajes siguientes: PROHIBIDO volver a presentarte o saludar formalmente. Respondé directo a la consulta. Mantené el hilo.
 
 **3. Fijación de Destino (MEMORIA):**
-Si el cliente ya mencionó un hotel (ej: "Huilo Huilo"), TODOS los mensajes siguientes deben referirse a ESE hotel. PROHIBIDO preguntar "¿A qué destino te diriges?" si ya lo dijo antes. Usá siempre el historial de la conversación para no perder contexto.
+Si el cliente ya mencionó un hotel (ej: "Huilo Huilo") O el contexto de sesión trae un hotel activo, TODOS los mensajes siguientes deben referirse a ESE hotel (ruta, auto, spa, precios, promo). PROHIBIDO preguntar "¿A qué destino te diriges?" o "¿qué hotel tenés en mente?" si ya hay hotel activo. "Viajo en auto desde Neuquén" NO es un destino nuevo: es el origen del viaje hacia el hotel activo.
+**RUTA / AUTO / BARCAZA:** Si el cliente menciona auto, coche, ruta, cómo llegar, Neuquén u origen de viaje hacia un destino con cruce (ej. Huilo Huilo), OBLIGATORIO extraer de promociones / como_llegar / links_barcaza_ferry el link de barcaza/ferry (ej. Reserva del ferry) y pegarlo completo en la respuesta. No preguntes el destino: compartí la ruta y el link.
 
 **4. Negritas estratégicas:**
 Usá **negritas** para resaltar: nombres de **Hoteles**, **Precios/Tarifas**, **Beneficios clave** (ej: "incluye **Pensión Completa**"), y **Promociones activas**. Esto mejora la lectura en WhatsApp.
@@ -1436,7 +1437,8 @@ const FLOR_REGLAS_PRIORIDAD = `
 **PROGRAMAS INVIERNO Y VERANO:** Los programas cargados en el panel (Ski Full, Pensión Completa, etc.) están en detalles_programas. Usá ese array para responder "qué incluye", tickets, equipo, pensión; diferenciá temporada invierno vs verano según lo que figure en los datos. Resumí breve (V4.2).
 **PROHIBIDO INVENTAR (Anti-Alucinación):** Si la base de datos dice "Almuerzo de 3 tiempos", no digas "Almuerzo buffet". Usá las palabras exactas que aparecen en el sistema.
 **OCULTAR "CEREBRO" (Output Leaking):** CRÍTICO: El usuario NUNCA debe ver nombres de funciones, código ni output interno. El resultado de consultarCatalogoHoteles y enviarDocumentoPorWhatsApp va SOLO a tu contexto. Respondé ÚNICAMENTE con texto humano natural. Prohibido incluir en tu respuesta: nombres de funciones (consultarCatalogoHoteles, enviarDocumentoPorWhatsApp), print(, default_api, JSON crudo, URLs de imagen (data:image, base64) ni ningún output técnico.
-**MEMORIA DE HOTEL:** Si el usuario ya mencionó un hotel (ej: Puyehue), todos tus siguientes mensajes sobre "programas" deben referirse a ESE hotel. No preguntes "¿De qué hotel hablamos?" si ya te lo dijeron antes.
+**MEMORIA DE HOTEL:** Si el usuario ya mencionó un hotel O el contexto de sesión indica un hotel activo (ej: Huilo Huilo), TODOS tus siguientes mensajes (programas, ruta, auto, precios) se refieren a ESE hotel. PROHIBIDO preguntar "¿De qué hotel hablamos?" / "¿A qué destino te diriges?". Neuquén u otras ciudades de origen NO cambian el hotel activo.
+**RUTA EN AUTO / BARCAZA-FERRY:** Si hablan de auto, ruta o cómo llegar y el hotel activo requiere cruce (Huilo Huilo y similares), DEBÉS compartir el link de barcaza/ferry que está en promociones o como_llegar / links_barcaza_ferry (URL completa, clickeable). No inventes el link: usá el de la ficha. Si el campo links_barcaza_ferry viene con URL, pegala tal cual.
 **PRECISIÓN EN LINKS:** Si incluís un link de Maps u otro enlace útil del hotel, escribí siempre la URL completa para que sea clickeable. PROHIBIDO enviar links de cotizadores externos (ej. cotizar.checkin24hs.com) ante consultas de precios o tarifas.
 **IMÁGENES DE HOTEL:** PROHIBIDO enviar imágenes/PDFs/catálogos de forma proactiva (V4.2). Solo si el cliente lo pide explícitamente ("mandame la foto", "enviame el PDF") podés usar enviarImagenHotelPorWhatsApp / documento. NUNCA incluyas Base64 ni data:image en el texto.
 **FOTO + TEXTO:** Si piden foto y detalle juntos, priorizá UN mensaje de texto corto. Evitá encadenar varias burbujas.
@@ -1741,10 +1743,12 @@ function normalizarPromocionesHotel(raw) {
         const activa = p.activa !== false && p.status !== 'inactive' && p.status !== 'expired';
         if (!activa) return null;
         if (hasta && String(hasta).slice(0, 10) < today) return null;
+        const detalle = String(p.detalle || p.description || p.descripcion || '');
         return {
             nombre,
             precio: p.precio != null ? String(p.precio) : (p.price != null ? String(p.price) : ''),
-            detalle: String(p.detalle || p.description || p.descripcion || '').slice(0, 600),
+            detalle: detalle.slice(0, 2000),
+            links: extractHttpUrls(detalle),
             hasta: hasta ? String(hasta).slice(0, 10) : '',
             tipo: String(p.tipo || p.type || 'promocion')
         };
@@ -1762,10 +1766,62 @@ function mergePromocionesParaFlor(hotel, tablePromos) {
         nombre: p.name || p.nombre,
         precio: p.discount ? `${p.discount}%` : '',
         detalle: p.description || '',
+        links: extractHttpUrls(p.description || ''),
         hasta: p.end_date || '',
         tipo: p.type || 'promocion'
     }));
     return [...fromHotel, ...extra];
+}
+
+function extractHttpUrls(text) {
+    const t = String(text || '');
+    if (!t) return [];
+    const out = [];
+    const re = /https?:\/\/[^\s<>"'\)\]\|]+/gi;
+    let m;
+    while ((m = re.exec(t))) {
+        const u = String(m[0] || '').replace(/[.,;]+$/g, '');
+        if (u && !out.includes(u)) out.push(u);
+    }
+    return out;
+}
+
+function isFlorRutaOAutoQuery(mensajeLower) {
+    const t = String(mensajeLower || '');
+    const kws = [
+        'auto', 'coche', 'auto ', 'en auto', 'ruta', 'llegar', 'llego', 'barcaza', 'ferry',
+        'neuquen', 'neuquén', 'manejo', 'manejar', 'conducir', 'cruce', 'huahum',
+        'como llegar', 'cómo llegar', 'como llego', 'cómo llego', 'voy en auto',
+        'viajo en auto', 'viajamos en auto', 'desde neuquen', 'desde neuquén'
+    ];
+    return kws.some((kw) => t.includes(kw));
+}
+
+/** Links de acceso / barcaza-ferry desde ficha + promociones (no inventar URLs). */
+function enrichHotelAccessFields(raw, fi, promociones) {
+    const fi2 = fi || {};
+    const promoText = (promociones || []).map((p) => [p.nombre, p.detalle, (p.links || []).join(' ')].join(' ')).join('\n');
+    const blob = [
+        raw.como_llegar,
+        raw.ubicacion_maps,
+        fi2.tips_agencia,
+        fi2.transport,
+        fi2.description,
+        promoText
+    ].filter(Boolean).join('\n');
+    const urls = extractHttpUrls(blob);
+    const ferry = urls.filter((u) => /barcaza|huahum|ferry|transbord/i.test(u));
+    raw.links_acceso = urls.slice(0, 10);
+    raw.links_barcaza_ferry = ferry;
+    if (ferry.length) {
+        raw.aviso_cruce =
+            'OBLIGATORIO si el cliente viaja en auto o pregunta la ruta: compartí el link de barcaza/ferry: ' +
+            ferry.join(' ');
+    } else if (/barcaza|ferry|huahum|cruce/i.test(blob)) {
+        raw.aviso_cruce =
+            'Este destino menciona barcaza/ferry en la ficha o promo. Buscá el link en promociones.detalle / como_llegar y compartilo si preguntan por auto o ruta.';
+    }
+    return raw;
 }
 
 /** Obtener promociones activas por lista de hotel_id (tabla promotions del Dashboard). */
@@ -1820,7 +1876,7 @@ async function obtenerTodosLosHotelesParaTool() {
         return active.slice(0, 15).map(hotel => {
             const fi = hotel.flor_info || {};
             const ubicacionMaps = fi.ubicacion_maps || hotel.location || '';
-            return {
+            const payload = {
                 id: hotel.id,
                 nombre: hotel.name,
                 ubicacion: hotel.location,
@@ -1828,7 +1884,7 @@ async function obtenerTodosLosHotelesParaTool() {
                 servicios: (fi.services && String(fi.services).slice(0, 300)) || '',
                 excursiones: (fi.excursions && String(fi.excursions).slice(0, 250)) || '',
                 politicas: (fi.policies && String(fi.policies).slice(0, 200)) || '',
-                como_llegar: (fi.transport && String(fi.transport).slice(0, 150)) || '',
+                como_llegar: (fi.transport && String(fi.transport).slice(0, 800)) || '',
                 ubicacion_maps: ubicacionMaps,
                 detalles_programas: fi.detalles_programas || [],
                 servicios_json: fi.servicios_json || {},
@@ -1852,6 +1908,7 @@ async function obtenerTodosLosHotelesParaTool() {
                 link_cotizacion: fi.link_cotizacion || 'https://cotizar.checkin24hs.com/',
                 promociones: mergePromocionesParaFlor(hotel, promosByHotel[hotel.id] || [])
             };
+            return enrichHotelAccessFields(payload, fi, payload.promociones);
         });
     } catch (e) {
         console.warn('⚠️ Error obteniendo todos los hoteles:', e?.message || e);
@@ -1962,7 +2019,7 @@ async function consultarCatalogoHotelesTool(ubicacion, hotel_especifico) {
             servicios: (fi.services && String(fi.services).slice(0, 500)) || '',
             excursiones: (fi.excursions && String(fi.excursions).slice(0, 400)) || '',
             politicas: (fi.policies && String(fi.policies).slice(0, 300)) || '',
-            como_llegar: (fi.transport && String(fi.transport).slice(0, 300)) || '',
+            como_llegar: (fi.transport && String(fi.transport).slice(0, 800)) || '',
             ubicacion_maps: ubicacionMaps,
             detalles_programas: fi.detalles_programas || [],
             servicios_json: fi.servicios_json || {},
@@ -1986,7 +2043,7 @@ async function consultarCatalogoHotelesTool(ubicacion, hotel_especifico) {
             link_cotizacion: fi.link_cotizacion || 'https://cotizar.checkin24hs.com/',
             promociones: mergePromocionesParaFlor(hotel, promosByHotel[hotel.id] || [])
         };
-        return sanitizarHotelParaGemini(raw);
+        return sanitizarHotelParaGemini(enrichHotelAccessFields(raw, fi, raw.promociones));
     });
     return { encontrado: true, varios, hoteles: list };
 }
@@ -3112,8 +3169,9 @@ function buildFlorSessionContextInjection(session, hotelDisplayName) {
     if (session?.cotizador_sent_at) {
         block += `- REGLA OBLIGATORIA: Si el cliente vuelve a pedir precios/tarifas, NO envíes links de cotizadores ni PDFs. Si ya dio fechas/noches/pax, hacé hand-off a un asesor. Si NO los dio, el servidor adjunta el cierre de cotización: no lo pidas vos otra vez.\n`;
     }
-    if (session?.current_hotel_id && hotelDisplayName) {
-        block += `- PROHIBIDO preguntar "¿A qué destino te diriges?" — el hotel activo de esta conversación es ${hotelDisplayName}.\n`;
+    if (hotelDisplayName) {
+        block += `- PROHIBIDO preguntar "¿A qué destino te diriges?" o "¿qué hotel tenés en mente?" — el hotel activo de esta conversación es ${hotelDisplayName}. Neuquén/auto/ruta es ORIGEN del viaje, no un hotel nuevo.\n`;
+        block += `- MEMORIA OBLIGATORIA: todos los mensajes siguientes (ruta, auto, spa, precios, promo) se refieren a ${hotelDisplayName} hasta que el cliente nombre OTRO hotel del catálogo.\n`;
     }
     if (sessionTravelDataIsReady(session)) {
         block += `- El cliente YA dio datos de viaje (fechas/noches/pax). PROHIBIDO volver a pedirlos.\n`;
@@ -3769,6 +3827,9 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
         ? await getHotelDisplayNameById(chatSession.current_hotel_id)
         : null;
     const phoneKeyEarly = (contexto.numero && String(contexto.numero).replace(/\D/g, '')) || 'unknown';
+    if (!hotelNombrePersistido && phoneKeyEarly !== 'unknown') {
+        hotelNombrePersistido = florLastHotelByPhone.get(phoneKeyEarly) || null;
+    }
     if (hotelNombrePersistido && phoneKeyEarly !== 'unknown') {
         florLastHotelByPhone.set(phoneKeyEarly, hotelNombrePersistido);
     }
@@ -3827,7 +3888,7 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
     const systemPrompt = await getFlorPromptForGemini();
     const sessionContextBlock = buildFlorSessionContextInjection(chatSession, hotelNombrePersistido);
     const FLOR_FORZAR_TOOL_HOTEL = '\n**FORZAR HERRAMIENTA:** Si en tu respuesta vas a mencionar un hotel concreto del catálogo (Puyehue, Corralco, Huilo Huilo, Futangue, etc.), DEBÉS disparar INMEDIATAMENTE la herramienta consultarCatalogoHoteles o buscarHotel con ese hotel. No envíes solo un texto de confirmación ("Dejame darte los detalles...") sin haber llamado la función; el usuario debe recibir los datos reales. Chain of Thought: (1) llamá buscarHotel(nombre_hotel) o consultarCatalogoHoteles(hotel_especifico=...), (2) el backend ejecuta la consulta en Supabase y te devuelve el JSON, (3) recién entonces generá tu respuesta con esos datos. La respuesta al usuario solo se envía después de que las búsquedas terminen.';
-    const FLOR_PROGRAMAS_SOLO_CATALOGO = '\n**PROGRAMAS SOLO DEL CATÁLOGO:** Cuando consultes el catálogo, SOLO mencioná los programas que aparecen explícitamente en el campo "programas" (o detalles_programas). Si no hay programas cargados, no inventes nombres como "Semana Blanca" ni asumas beneficios. En su lugar, decí que los programas se están actualizando y ofrecé que te contacten para el detalle.\n**PROMOCIONES SOLO DEL CAMPO promociones:** Flexi Pass, 2x1 y ofertas comerciales salen del array promociones (no de programas). Si está vacío, no inventes la promo.';
+    const FLOR_PROGRAMAS_SOLO_CATALOGO = '\n**PROGRAMAS SOLO DEL CATÁLOGO:** Cuando consultes el catálogo, SOLO mencioná los programas que aparecen explícitamente en el campo "programas" (o detalles_programas). Si no hay programas cargados, no inventes nombres como "Semana Blanca" ni asumas beneficios. En su lugar, decí que los programas se están actualizando y ofrecé que te contacten para el detalle.\n**PROMOCIONES SOLO DEL CAMPO promociones:** Flexi Pass, 2x1 y ofertas comerciales salen del array promociones (no de programas). Si está vacío, no inventes la promo.\n**BARCAZA/FERRY:** Si el cliente viaja en auto o pregunta la ruta a un hotel con cruce (Huilo Huilo), extraé de promociones.detalle / links_barcaza_ferry / como_llegar el link de reserva de barcaza y compartilo. PROHIBIDO preguntar de nuevo el destino.';
     const systemPart = `${sessionContextBlock}\n\n${systemPrompt}\n\n${FLOR_REGLAS_PRIORIDAD}\n\n${FLOR_PROTOCOLO_VENTAS}\n\n${FLOR_FORZAR_TOOL_HOTEL}\n\n${FLOR_PROGRAMAS_SOLO_CATALOGO}`;
 
     let multiConsultasNote = '';
@@ -3874,16 +3935,20 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
     const programKeywords = ['programa', 'programas', 'qué incluye', 'que incluye', 'qué hay', 'que hay', 'qué tiene', 'que tiene', 'spa', 'menú', 'menus', 'carta', 'restaurante', 'excursiones', 'detalle', 'pensión completa', 'pension completa', 'incluye', 'incluyen'];
     const esPreguntaProgramas = programKeywords.some(kw => mensajeLower.includes(kw));
     const lastHotel = hotelNombrePersistido || florLastHotelByPhone.get(phoneKey);
-    const hintContextDrift = (esPreguntaProgramas && !hotelExtraido && lastHotel)
-        ? (() => { console.log(`🔄 Flor: Context Drift fix - forzando buscarHotel/consultarCatalogoHoteles con hotel="${lastHotel}" para pregunta de programas`); return ` [CONTEXT DRIFT - OBLIGATORIO: El usuario pregunta sobre programas/spa/menú pero NO mencionó hotel en este mensaje. En la conversación anterior ya habíamos hablado de "${lastHotel}". DEBÉS llamar buscarHotel(nombre_hotel="${lastHotel}") o consultarCatalogoHoteles(hotel_especifico="${lastHotel}") ANTES de responder. No uses memoria ni historial; traé datos frescos de la función.]`; })()
+    const esConsultaRuta = isFlorRutaOAutoQuery(mensajeLower);
+    const hintContextDrift = ((esPreguntaProgramas || esConsultaRuta) && !hotelExtraido && lastHotel)
+        ? (() => {
+            console.log(`🔄 Flor: Context Drift fix - forzando hotel="${lastHotel}" (${esConsultaRuta ? 'ruta/auto' : 'programas'})`);
+            return ` [CONTEXT DRIFT - OBLIGATORIO: El usuario NO mencionó hotel en este mensaje, pero el hotel activo de la conversación es "${lastHotel}". DEBÉS llamar buscarHotel(nombre_hotel="${lastHotel}") o consultarCatalogoHoteles(hotel_especifico="${lastHotel}") ANTES de responder. PROHIBIDO preguntar el destino. ${esConsultaRuta ? 'Es una consulta de RUTA/AUTO: compartí como_llegar y el link de barcaza/ferry de promociones o links_barcaza_ferry. Neuquén u otra ciudad es ORIGEN, no un hotel nuevo.' : 'No uses memoria inventada; traé datos frescos de la función.'}]`;
+        })()
         : '';
     // Refuerzo para consultas cortas/ambiguas: usar hotel previo del chat y evitar "no entendí".
     const shortAmbiguousKeywords = ['info', 'detalle', 'detalles', 'precio', 'tarifa', 'valor', 'cuanto sale', 'cuánto sale', 'incluye', 'que incluye', 'qué incluye'];
     const esConsultaAmbigua = !hotelExtraido
         && !!lastHotel
         && !pareceConsultaHotel
-        && mensajeLower.length <= 80
-        && shortAmbiguousKeywords.some(kw => mensajeLower.includes(kw));
+        && (mensajeLower.length <= 120 || esConsultaRuta)
+        && (esConsultaRuta || shortAmbiguousKeywords.some(kw => mensajeLower.includes(kw)));
     const hintAmbiguoConContexto = esConsultaAmbigua
         ? (() => {
             console.log(`🔄 Flor: refuerzo contexto - consulta ambigua, forzando hotel previo="${lastHotel}"`);
@@ -3946,13 +4011,52 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
             }
         }
     }
-    let userPart = `${multiConsultasNote}Mensaje del cliente: ${mensaje}${hintCampana}${hintAnuncioCtwa}${hintHotel}${hintContextDrift}${hintAmbiguoConContexto}`;
+    if (!catalogPrefetch && lastHotel && (esConsultaRuta || esPreguntaProgramas || esConsultaAmbigua)) {
+        catalogPrefetch = await consultarCatalogoHotelesTool('', lastHotel);
+        console.log(`🏨 Flor prefetch hotel activo "${lastHotel}" (${esConsultaRuta ? 'ruta/auto' : 'seguimiento'}): ${catalogPrefetch?.encontrado ? (catalogPrefetch.hoteles?.length || 0) + ' hotel(es)' : 'sin resultados'}`);
+        if (catalogPrefetch?.encontrado && catalogPrefetch.hoteles?.[0]) {
+            const h0 = catalogPrefetch.hoteles[0];
+            const hId = h0.id;
+            const hName = h0.nombre || h0.name || lastHotel;
+            florLastHotelByPhone.set(phoneKey, hName);
+            if (hId) {
+                await setCurrentHotelIdForChat(
+                    chatSession?.id || chatIdFlor,
+                    contexto.numero,
+                    instanciaFlor,
+                    hId,
+                    hName
+                );
+                chatSession = await findWhatsAppChatSession(contexto.numero, instanciaFlor, chatSession?.id || chatIdFlor);
+                hotelNombrePersistido = hName;
+            }
+        }
+    }
+    const hotelActivo = hotelNombrePersistido || lastHotel;
+    const hintMemoriaHotel = hotelActivo
+        ? ` [HOTEL ACTIVO DE ESTA CONVERSACIÓN: ${hotelActivo}. PROHIBIDO preguntar a qué destino o hotel va. Este mensaje es seguimiento de ${hotelActivo}.]`
+        : '';
+    let hintRutaBarcaza = '';
+    if (esConsultaRuta) {
+        const h0 = catalogPrefetch?.hoteles?.[0] || null;
+        const fromPromo = (h0?.promociones || []).flatMap((p) => [].concat(p.links || [], extractHttpUrls(p.detalle || '')));
+        const ferryLinks = [].concat(h0?.links_barcaza_ferry || [], fromPromo)
+            .filter((u, i, a) => u && a.indexOf(u) === i);
+        const ferryOnly = ferryLinks.filter((u) => /barcaza|huahum|ferry|transbord/i.test(u));
+        const links = (ferryOnly.length ? ferryOnly : ferryLinks).slice(0, 4);
+        hintRutaBarcaza = ` [RUTA/AUTO: El cliente viaja en auto o pregunta la ruta. Neuquén u otra ciudad es ORIGEN, no un hotel nuevo. Hotel activo=${hotelActivo || 'el de sesión'}. ${links.length ? 'OBLIGATORIO pegar en la respuesta este link de barcaza/ferry: ' + links.join(' ') : 'Buscá en promociones.detalle, como_llegar o links_barcaza_ferry el link de Reserva del ferry y compartilo completo.'} No preguntes el destino.]`;
+    }
+    let userPart = `${multiConsultasNote}Mensaje del cliente: ${mensaje}${hintMemoriaHotel}${hintCampana}${hintAnuncioCtwa}${hintHotel}${hintContextDrift}${hintAmbiguoConContexto}${hintRutaBarcaza}`;
     if (catalogPrefetch?.encontrado && catalogPrefetch.hoteles?.length) {
-        const payload = JSON.stringify(catalogPrefetch.hoteles.slice(0, 2)).slice(0, 6500);
+        const payload = JSON.stringify(catalogPrefetch.hoteles.slice(0, 2)).slice(0, 8000);
         userPart += `\n\n[DATOS OFICIALES DEL SERVIDOR — el hotel SÍ está en nuestra base Checkin24hs. PROHIBIDO decir "no trabajamos con ese hotel". Respondé usando SOLO estos datos:]\n${payload}`;
     }
     if (imageParts && imageParts.length > 0) {
-        userPart += ' [ANUNCIO/PUBLICIDAD: Analizá esta imagen publicitaria. Identificá el hotel (Puyehue, Corralco o Huilo Huilo) y respondé basándote EXCLUSIVAMENTE en ese hotel. IGNORÁ el historial previo; priorizá solo lo que ves en esta imagen. Llamá consultarCatalogoHoteles con el nombre del hotel que identifiques en la imagen.]';
+        if (contexto.adReferral || /fb\.me|instagram\.com|facebook\.com/i.test(mensaje)) {
+            userPart += ' [ANUNCIO/PUBLICIDAD: Analizá esta imagen publicitaria. Identificá el hotel (Puyehue, Corralco o Huilo Huilo) y respondé basándote EXCLUSIVAMENTE en ese hotel. IGNORÁ el historial previo; priorizá solo lo que ves en esta imagen. Llamá consultarCatalogoHoteles con el nombre del hotel que identifiques en la imagen.]';
+        } else if (hotelActivo) {
+            userPart += ` [IMAGEN DEL CLIENTE: el hotel activo sigue siendo ${hotelActivo}. No preguntes el destino. Si la imagen es de ruta/mapa, usá como_llegar y links_barcaza_ferry de ${hotelActivo}.]`;
+        }
     }
 
     // Historial de sesión para seguimiento ("¿Y tiene spa?")
@@ -3960,13 +4064,11 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
     if (florLastActivityByPhone.get(phoneKey) && (now - florLastActivityByPhone.get(phoneKey)) > FLOR_SESSION_INACTIVITY_MS) {
         florSessionByPhone.delete(phoneKey);
         florFailureCountByPhone.set(phoneKey, 0);
-        florLastHotelByPhone.delete(phoneKey);
-        console.log(`🔄 Flor: reset RAM por inactividad >30 min (${phoneKey}); estado hotel/cotizador sigue en DB`);
+        console.log(`🔄 Flor: reset historial RAM por inactividad >30 min (${phoneKey}); hotel activo se conserva`);
     }
     florLastActivityByPhone.set(phoneKey, now);
     // Context window: últimos 10 mensajes del chat desde Supabase para que Flor no olvide (ej: "estábamos hablando de Huilo Huilo")
-    const skipHistoryForAd = (imageParts && imageParts.length > 0)
-        || !!(contexto.adReferral && (contexto.adReferral.title || contexto.adReferral.body));
+    const skipHistoryForAd = !!(contexto.adReferral && (contexto.adReferral.title || contexto.adReferral.body));
     let sessionHistory = skipHistoryForAd ? [] : (florSessionByPhone.get(phoneKey) || []);
     const historialDesdeBD = skipHistoryForAd
         ? []
@@ -4137,7 +4239,24 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
                     if (fc.name === 'consultarCatalogoHoteles') {
                         toolWasCalled = true;
                         const args = fc.args || {};
-                        const resultado = await consultarCatalogoHotelesTool(args.ubicacion, args.hotel_especifico);
+                        let ubi = args.ubicacion;
+                        let hotelEsp = args.hotel_especifico;
+                        const activo = hotelNombrePersistido || florLastHotelByPhone.get(phoneKey);
+                        const origenNoHotel = (s) => {
+                            const t = String(s || '').toLowerCase().trim();
+                            if (!t) return false;
+                            return /neuqu[eé]n|buenos aires|rosario|c[oó]rdoba|mendoza|cipolletti|plotier|general roca/.test(t)
+                                && !extractHotelKeywordFromMessage(t);
+                        };
+                        if (activo && (origenNoHotel(ubi) || origenNoHotel(hotelEsp))) {
+                            console.log(`🏨 Flor: "${ubi || hotelEsp}" es origen de viaje, no hotel — usando hotel activo "${activo}"`);
+                            ubi = '';
+                            hotelEsp = activo;
+                        } else if (activo && !String(hotelEsp || '').trim() && esConsultaRuta) {
+                            hotelEsp = activo;
+                            ubi = '';
+                        }
+                        const resultado = await consultarCatalogoHotelesTool(ubi, hotelEsp);
                         functionResponses.push({ name: fc.name, response: resultado });
                         console.log(`🔧 Flor llamó consultarCatalogoHoteles(ubicacion=${args.ubicacion}, hotel_especifico=${args.hotel_especifico}) → ${resultado.encontrado ? resultado.hoteles?.length + ' hotel(es)' : 'no encontrado'}`);
                         // Context Drift fix: guardar último hotel consultado para forzar reconsulta en "¿Qué incluye?"
@@ -4159,7 +4278,14 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
                     } else if (fc.name === 'buscarHotel') {
                         toolWasCalled = true;
                         const args = fc.args || {};
-                        const nombreHotel = (args.nombre_hotel && String(args.nombre_hotel).trim()) || '';
+                        let nombreHotel = (args.nombre_hotel && String(args.nombre_hotel).trim()) || '';
+                        const activoBuscar = hotelNombrePersistido || florLastHotelByPhone.get(phoneKey);
+                        if (activoBuscar && nombreHotel && /neuqu[eé]n|buenos aires|rosario|c[oó]rdoba|mendoza/i.test(nombreHotel) && !extractHotelKeywordFromMessage(nombreHotel.toLowerCase())) {
+                            console.log(`🏨 Flor: buscarHotel("${nombreHotel}") reinterpretado como hotel activo "${activoBuscar}"`);
+                            nombreHotel = activoBuscar;
+                        } else if (activoBuscar && !nombreHotel && esConsultaRuta) {
+                            nombreHotel = activoBuscar;
+                        }
                         const resultado = await consultarCatalogoHotelesTool('', nombreHotel);
                         functionResponses.push({ name: fc.name, response: resultado });
                         console.log(`🔧 Flor llamó buscarHotel(nombre_hotel=${nombreHotel}) → ${resultado.encontrado ? resultado.hoteles?.length + ' hotel(es)' : 'no encontrado'}`);
@@ -6549,12 +6675,11 @@ async function connectToWhatsApp() {
                     }
                 }
 
-                // Reset de contexto por publicidad: si hay fb.me/instagram o imagen, limpiar historial para no mezclar hoteles
-                if (imageParts.length > 0 || p.adReferral) {
+                // Anuncio CTWA: limpiar historial RAM para no mezclar hoteles previos; el hotel nuevo lo fija el referral.
+                if (p.adReferral) {
                     const phoneKey = (p.numero && String(p.numero).replace(/\D/g, '')) || 'unknown';
                     florSessionByPhone.delete(phoneKey);
-                    if (imageParts.length > 0 && !p.adReferral) florLastHotelByPhone.delete(phoneKey);
-                    console.log('🔄 Flor: reset de contexto por anuncio/imagen (prioridad multimodal, sin historial previo)');
+                    console.log('🔄 Flor: reset de historial RAM por anuncio CTWA');
                 }
 
                 // Simulación de escritura (spec: UX premium)
