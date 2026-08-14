@@ -10,7 +10,7 @@ const SUPABASE_URL = 'https://lmoeuyasuvoqhtvhkyia.supabase.co';
 const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxtb2V1eWFzdXZvcWh0dmhreWlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzNjE5NjAsImV4cCI6MjA3OTkzNzk2MH0.28xpqAqAa7rkeT3Ma5fPmbzYnetlq2wOPOgh9XBF3g4';
 
-const PROMPT_PATH = path.join(__dirname, '..', 'docs', 'flor-prompt-v42.txt');
+const PROMPT_PATH = path.join(__dirname, '..', 'docs', 'flor-prompt-v43.txt');
 
 async function supabaseFetch(pathname, options = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${pathname}`, {
@@ -36,7 +36,7 @@ async function supabaseFetch(pathname, options = {}) {
 
 async function main() {
   const promptGeneral = fs.readFileSync(PROMPT_PATH, 'utf8').trim();
-  console.log(`📋 Prompt V4.2: ${promptGeneral.length} caracteres`);
+  console.log(`📋 Prompt V4.3: ${promptGeneral.length} caracteres`);
 
   let existing = {};
   try {
@@ -93,9 +93,9 @@ async function main() {
 
   const ok =
     savedPrompt &&
-    savedPrompt.includes('RESPUESTAS CORTAS Y DIRECTAS') &&
-    savedPrompt.includes('V.4.2');
-  console.log(ok ? '✅ Prompt V4.2 guardado en Supabase (flor_general_config)' : '❌ Verificación fallida');
+    savedPrompt.includes('ASESORA HUMANA') &&
+    savedPrompt.includes('V.4.3');
+  console.log(ok ? '✅ Prompt V4.3 guardado en Supabase (flor_general_config)' : '❌ Verificación fallida');
   console.log('🕐 updated_at:', saved.updated_at);
   console.log('🔤 Inicio:', savedPrompt.slice(0, 90).replace(/\n/g, ' ') + '...');
 }

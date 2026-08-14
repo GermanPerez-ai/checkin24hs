@@ -1265,42 +1265,57 @@ const FLOR_TURN_LOCK_MS = Math.max(20000, Math.min(180000, parseInt(process.env.
 const FLOR_TURN_COOLDOWN_MS = Math.max(8000, Math.min(25000, parseInt(process.env.FLOR_TURN_COOLDOWN_MS || '15000', 10) || 15000));
 const florLastAnyOutboundAtByPhone = new Map();
 
-function florTurnLockKey(phoneDigits, remoteJid) {
+function florTurnLockKeys(phoneDigits, remoteJid) {
+    const keys = [];
     const d = String(phoneDigits || '').replace(/\D/g, '');
-    if (d.length >= 10 && !isLikelyPseudoWhatsappPn(d)) return 'p:' + d;
+    if (d.length >= 10 && !isLikelyPseudoWhatsappPn(d)) keys.push('p:' + d);
     const rj = String(remoteJid || '').trim().toLowerCase();
-    return rj ? 'j:' + rj : '';
+    if (rj) keys.push('j:' + rj);
+    if (rj && rj.includes('@lid')) {
+        const pn = florLidToPnSendJid.get(rj) || florLidToPnSendJid.get(rj.split(':')[0] + '@lid');
+        if (pn) {
+            const pd = String(pn).replace(/@s\.whatsapp\.net$/i, '').replace(/\D/g, '');
+            if (pd.length >= 10) keys.push('p:' + pd);
+        }
+    }
+    return [...new Set(keys.filter(Boolean))];
 }
 
 function tryAcquireFlorTurnLock(phoneDigits, remoteJid) {
-    const k = florTurnLockKey(phoneDigits, remoteJid);
-    if (!k) return true;
+    const keys = florTurnLockKeys(phoneDigits, remoteJid);
+    if (!keys.length) return true;
     const now = Date.now();
-    const exp = florTurnLockByPhone.get(k);
-    if (exp && exp > now) {
-        console.log(`🔒 Flor turn-lock activo (${k}) — no segunda respuesta`);
-        return false;
+    for (const k of keys) {
+        const exp = florTurnLockByPhone.get(k);
+        if (exp && exp > now) {
+            console.log(`🔒 Flor turn-lock activo (${k}) — no segunda respuesta`);
+            return false;
+        }
     }
-    florTurnLockByPhone.set(k, now + FLOR_TURN_LOCK_MS);
+    for (const k of keys) florTurnLockByPhone.set(k, now + FLOR_TURN_LOCK_MS);
     return true;
 }
 
 function releaseFlorTurnLock(phoneDigits, remoteJid) {
-    const k = florTurnLockKey(phoneDigits, remoteJid);
-    if (k) florTurnLockByPhone.delete(k);
+    for (const k of florTurnLockKeys(phoneDigits, remoteJid)) {
+        florTurnLockByPhone.delete(k);
+    }
 }
 
 function shouldSkipFlorTurnCooldown(phoneDigits, remoteJid) {
-    const k = florTurnLockKey(phoneDigits, remoteJid);
-    if (!k) return false;
-    const last = florLastAnyOutboundAtByPhone.get(k);
-    return !!(last && Date.now() - last < FLOR_TURN_COOLDOWN_MS);
+    const now = Date.now();
+    for (const k of florTurnLockKeys(phoneDigits, remoteJid)) {
+        const last = florLastAnyOutboundAtByPhone.get(k);
+        if (last && now - last < FLOR_TURN_COOLDOWN_MS) return true;
+    }
+    return false;
 }
 
 function markFlorTurnOutbound(phoneDigits, remoteJid) {
-    const k = florTurnLockKey(phoneDigits, remoteJid);
-    if (!k) return;
-    florLastAnyOutboundAtByPhone.set(k, Date.now());
+    const now = Date.now();
+    for (const k of florTurnLockKeys(phoneDigits, remoteJid)) {
+        florLastAnyOutboundAtByPhone.set(k, now);
+    }
 }
 
 /** Evitar enviar la misma respuesta Flor dos veces seguidas (LID+PN procesaron por separado) */
@@ -1310,19 +1325,31 @@ const FLOR_OUTBOUND_PHONE_DEDUPE_MS = Math.max(
     Math.min(45000, parseInt(process.env.FLOR_OUTBOUND_PHONE_DEDUPE_MS || '18000', 10) || 18000)
 );
 
+function normalizeFlorOutboundDedupeText(text) {
+    return stripFlorRepeatedGreeting(String(text || ''))
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .slice(0, 160);
+}
+
 function shouldSkipDuplicateFlorOutbound(phoneDigits, textPreview) {
     const d = String(phoneDigits || '').replace(/\D/g, '');
     if (d.length < 10) return false;
-    const k = d + '|' + String(textPreview || '').trim().toLowerCase().slice(0, 120);
+    const now = Date.now();
+    const kAny = d + '|*';
+    const anyExp = florRecentOutboundByPhone.get(kAny);
+    if (anyExp && anyExp > now) return true;
+    const k = d + '|' + normalizeFlorOutboundDedupeText(textPreview);
     const exp = florRecentOutboundByPhone.get(k);
-    return !!(exp && exp > Date.now());
+    return !!(exp && exp > now);
 }
 
 function markFlorOutboundSent(phoneDigits, textPreview) {
     const d = String(phoneDigits || '').replace(/\D/g, '');
     if (d.length < 10) return;
-    const k = d + '|' + String(textPreview || '').trim().toLowerCase().slice(0, 120);
-    florRecentOutboundByPhone.set(k, Date.now() + FLOR_OUTBOUND_PHONE_DEDUPE_MS);
+    const until = Date.now() + FLOR_OUTBOUND_PHONE_DEDUPE_MS;
+    florRecentOutboundByPhone.set(d + '|' + normalizeFlorOutboundDedupeText(textPreview), until);
+    florRecentOutboundByPhone.set(d + '|*', until);
     const now = Date.now();
     for (const [key, exp] of florRecentOutboundByPhone) {
         if (exp <= now) florRecentOutboundByPhone.delete(key);
@@ -1399,7 +1426,7 @@ const FLOR_PROMPT_DEFAULT = `Eres **Flor IA** 🌸, asistente virtual de **Check
 Solo actuás como capa de lenguaje. NUNCA inventes hoteles. Para cualquier dato de hotel o destino debés usar la función consultarCatalogoHoteles. Si el resultado es nulo o el hotel no existe en nuestra base: ofrecé alternativas de nivel similar sin dar nombres de la competencia. Respuesta exacta: "Por el momento no trabajamos directamente con ese hotel, pero contamos con opciones exclusivas de nivel similar en la zona. ¿Te gustaría que te cuente sobre nuestras alternativas disponibles?"
 
 **2. Presentación (solo primer mensaje):**
-Presentate como **Flor IA** 🌸 y da la bienvenida amable. En mensajes siguientes: PROHIBIDO volver a presentarte o saludar formalmente. Respondé directo a la consulta. Mantené el hilo.
+Presentate como **Flor IA** 🌸 SOLO si es el primer mensaje de la conversación. En TODOS los mensajes siguientes: PROHIBIDO Hola, Buenas tardes, Buen día, Buenas noches o volver a presentarte. Seguí de corrido como un chat humano de WhatsApp.
 
 **3. Fijación de Destino (MEMORIA):**
 Si el cliente ya mencionó un hotel (ej: "Huilo Huilo") O el contexto de sesión trae un hotel activo, TODOS los mensajes siguientes deben referirse a ESE hotel (ruta, auto, spa, precios, promo). PROHIBIDO preguntar "¿A qué destino te diriges?" o "¿qué hotel tenés en mente?" si ya hay hotel activo. "Viajo en auto desde Neuquén" NO es un destino nuevo: es el origen del viaje hacia el hotel activo.
@@ -1411,8 +1438,8 @@ Usá **negritas** para resaltar: nombres de **Hoteles**, **Precios/Tarifas**, **
 **5. Misión y límites:**
 Responder dudas sobre hoteles y servicios. PROHIBIDO dar precios por noche o cotizar directamente. PROHIBIDO dar teléfonos de hoteles o datos de contacto externos. Solo información de servicios y direcciones.
 
-**6. Protocolo de tarifas e indecisión (V4.1):**
-Si preguntan por precios de un hotel específico: NO des precios manuales ni envíes enlaces de cotizadores. Pedí fechas aproximadas, noches, huéspedes y edades de niños. Si el cliente está indeciso o no sabe qué hotel elegir, compartile https://www.checkin24hs.com/ para explorar hoteles y paquetes. Cuando ya tengan datos de viaje o pidan asesor, confirmá el traspaso a un asesor.
+**6. Protocolo de tarifas e indecisión:**
+Si preguntan una promo: PRIMERO volcá nombre, precio, qué incluye y el rango COMPLETO de vigencia (desde–hasta) del campo promociones. PROHIBIDO inventar un mes (ej. noviembre) si el rango es más amplio. Recién al final UNA pregunta relajada: "¿Tenés alguna fecha en vista para ver si hay lugar?". NO exijas fechas+noches+pax de entrada. Si está indeciso de hotel: https://www.checkin24hs.com/. Si ya dio datos de viaje o pide asesor, confirmá el traspaso.
 
 **7. Protocolo de cierre y silencio:**
 Después de un mensaje manual del asesor, Flor debe guardar **45 minutos de silencio** en ese chat antes de volver a intervenir. No repetir bloques informativos que ya se enviaron.
@@ -1429,11 +1456,12 @@ Cuando detectes intención de reserva ("reservar", "confirmar", "hacer la reserv
 
 // Reglas que se inyectan siempre (complementan prompt mínimo / Supabase).
 const FLOR_REGLAS_PRIORIDAD = `
-**BREVEDAD EXTREMA (V4.2 — PRIORIDAD MÁXIMA):** Máximo 2–3 líneas por mensaje. Saludo+respuesta ~20–30 palabras y UNA sola pregunta de cierre (~15–20 palabras). PROHIBIDO párrafos largos, enumeraciones eternas o "walls of text". Si hay mucho detalle en el catálogo, resumí en 1–2 bullets cortos y preguntá si quiere más.
-**UN SOLO MENSAJE POR TURNO (V4.2):** Respondé en UNA sola burbuja de texto. PROHIBIDO fragmentar la respuesta en varios mensajes seguidos.
-**DATOS DEL CATÁLOGO (V4.2):** Si consultarCatalogoHoteles / buscarHotel devolvió encontrado=true O te inyectaron [DATOS OFICIALES DEL SERVIDOR], PROHIBIDO decir que no tenés información, que no está en la base, o mandar solo a la web. Respondé con esos datos en 2–3 líneas.
+**BREVEDAD (V4.3):** Mensajes de WhatsApp, 3–6 líneas. Primero valor (datos de ficha/promo), después UNA pregunta relajada. PROHIBIDO interrogatorio (fechas + noches + pax juntos) cuando recién preguntan una promo.
+**UN SOLO MENSAJE POR TURNO (V4.3):** UNA sola burbuja. PROHIBIDO fragmentar o duplicar el mismo texto.
+**PROHIBIDO REPETIR SALUDOS:** Si la conversación ya empezó, NO digas Hola / Buenas tardes / Buen día / Buenas noches ni te presentes de nuevo.
+**DATOS DEL CATÁLOGO (V4.2):** Si consultarCatalogoHoteles / buscarHotel devolvió encontrado=true O te inyectaron [DATOS OFICIALES DEL SERVIDOR], PROHIBIDO decir que no tenés información, que no está en la base, o mandar solo a la web. Respondé con esos datos.
 **VERIFICACIÓN OBLIGATORIA:** Nunca des por sentado qué incluye un programa. Ante "¿Qué incluye?" o "¿Qué programas hay?", ejecutá SIEMPRE consultarCatalogoHoteles o buscarHotel y leé la columna detalles_programas específica de ESE hotel. No respondas sin haber llamado la función.
-**PROMOCIONES (campo dedicado):** Ante "promo", "promoción", "oferta", "2x1", "flexi", "pass" o descuentos, leé SOLO el campo **promociones** del resultado de consultarCatalogoHoteles / buscarHotel. NO mezcles promociones con programas (detalles_programas). Si promociones está vacío o no figura esa oferta, decí que no hay una promo vigente cargada y ofrecé derivar a un asesor. PROHIBIDO inventar Flexi Pass, 2x1, precios o cupos.
+**PROMOCIONES (campo dedicado):** Ante "promo", "promoción", "oferta", "2x1", "flexi", "pass" o descuentos, leé SOLO el campo **promociones**. Volcá precio, qué incluye y vigencia_desde–vigencia_hasta COMPLETOS. PROHIBIDO encasillar en un mes si el rango cubre varios. NO mezcles con programas. Si está vacío, no inventes la oferta.
 **PROGRAMAS INVIERNO Y VERANO:** Los programas cargados en el panel (Ski Full, Pensión Completa, etc.) están en detalles_programas. Usá ese array para responder "qué incluye", tickets, equipo, pensión; diferenciá temporada invierno vs verano según lo que figure en los datos. Resumí breve (V4.2).
 **PROHIBIDO INVENTAR (Anti-Alucinación):** Si la base de datos dice "Almuerzo de 3 tiempos", no digas "Almuerzo buffet". Usá las palabras exactas que aparecen en el sistema.
 **OCULTAR "CEREBRO" (Output Leaking):** CRÍTICO: El usuario NUNCA debe ver nombres de funciones, código ni output interno. El resultado de consultarCatalogoHoteles y enviarDocumentoPorWhatsApp va SOLO a tu contexto. Respondé ÚNICAMENTE con texto humano natural. Prohibido incluir en tu respuesta: nombres de funciones (consultarCatalogoHoteles, enviarDocumentoPorWhatsApp), print(, default_api, JSON crudo, URLs de imagen (data:image, base64) ni ningún output técnico.
@@ -1452,8 +1480,8 @@ const FLOR_REGLAS_PRIORIDAD = `
 - Formato V4.2: **Nombre** + 1 línea de lo que incluye + 1 línea de aviso transporte si aplica. Sin párrafos largos.
 **MANEJO DE BLOQUES COMPLETOS (programas):** Leé todo el bloque internamente, pero al usuario entregá solo el resumen breve (V4.2). NUNCA inventes beneficios.
 **ANUNCIOS (fb.me / instagram.com / Click to WhatsApp):** Si el cliente entra por un anuncio de Meta, el servidor te inyecta título y texto de la pauta como primer mensaje. Identificá el hotel o promo y respondé directo sobre eso, sin preguntar el destino. Si envía un link o imagen, igual: hotel de la pieza, respuesta corta.
-**SALUDO:** Presentación formal solo en el primer mensaje. Después, directo al tema. Máximo 2–3 líneas en total.
-**PROTOCOLO DE TARIFAS (V4.2):** Si preguntan precios: NO des valores ni links de cotizador. NO pidas fechas/noches/personas vos: el servidor adjunta el cierre de cotización en el mismo mensaje. Hand-off corto cuando el cliente ya dio esos datos.
+**SALUDO:** Solo el primer mensaje de la conversación. Después, PROHIBIDO Hola/Buenas tardes. Directo al tema.
+**PROTOCOLO DE TARIFAS (V4.3):** Promo o precios: primero los datos de la ficha (incluye vigencia completa). Al final UNA pregunta relajada ("¿Tenés alguna fecha en vista para ver si hay lugar?"). PROHIBIDO exigir noches y pax de entrada. Hand-off cuando ya dio datos.
 **PROTOCOLO DE INDECISIÓN (V4.2):** Si duda o no elige hotel: solo https://www.checkin24hs.com/ . Sin discursos.
 **FORMATO DE RESPUESTA (V4.2):** Texto corto, 1–2 emojis máx, negritas solo en hoteles/beneficios. Evitá listas largas y links de maps salvo que aporten en una sola línea.
 **CAMPAMENTOS DE MARKETING:** Si menciona campañas/descuentos, mencioná la promo en una frase y avanzá con una pregunta.
@@ -1479,7 +1507,7 @@ const FLOR_PROTOCOLO_VENTAS = `
 - Gatillo de disponibilidad: "Como son hoteles muy icónicos, la disponibilidad cambia minuto a minuto. ¿Te gustaría que te ayude a asegurar esta tarifa ahora?"
 - Gatillo de promoción: "Recordá que el beneficio de [Nombre de Promo] es por tiempo limitado. ¿Querés que verifiquemos tus fechas antes de que termine?"
 - Gatillo de derivación humana: Si el cliente ya tiene toda la info pero no avanza: "Si preferís, puedo pedirle a uno de mis compañeros expertos que te llame para cerrar los detalles finales del pago. ¿Te parece bien?"
-- **CTA ante precios / interés (V4.2):** Si preguntan precios o quieren cotizar: NO envíes link de cotizador. NO pidas fechas/noches/pax en tu texto: el servidor las pide en el mismo turno. Si el cliente YA dio esos datos o pide asesor: "¡Perfecto! Derivo tus datos a nuestros asesores para que te armen la cotización a medida. En instantes te contactan."
+- **CTA ante precios / interés:** Primero la info de la promo/ficha. Cierre relajado: "¿Tenés alguna fecha en vista para ver si hay lugar?". Si YA dio datos o pide asesor: "¡Perfecto! Derivo tus datos a nuestros asesores para que te armen la cotización a medida. En instantes te contactan."
 
 4) **Verificación ante captura de precio más bajo:** Cuando el usuario mande una captura de precio más bajo, Flor debe preguntar para auditar:
 - ¿La tarifa es por persona o por habitación doble?
@@ -1740,16 +1768,23 @@ function normalizarPromocionesHotel(raw) {
         const nombre = String(p.nombre || p.name || p.titulo || '').trim();
         if (!nombre) return null;
         const hasta = p.hasta || p.end_date || p.vigencia_hasta || '';
+        const desde = p.desde || p.start_date || p.vigencia_desde || '';
         const activa = p.activa !== false && p.status !== 'inactive' && p.status !== 'expired';
         if (!activa) return null;
         if (hasta && String(hasta).slice(0, 10) < today) return null;
         const detalle = String(p.detalle || p.description || p.descripcion || '');
+        const d = desde ? String(desde).slice(0, 10) : '';
+        const h = hasta ? String(hasta).slice(0, 10) : '';
+        const vigencia = d && h ? `del ${d} al ${h}` : (h ? `hasta ${h}` : (d ? `desde ${d}` : ''));
         return {
             nombre,
             precio: p.precio != null ? String(p.precio) : (p.price != null ? String(p.price) : ''),
             detalle: detalle.slice(0, 2000),
             links: extractHttpUrls(detalle),
-            hasta: hasta ? String(hasta).slice(0, 10) : '',
+            vigencia_desde: d,
+            vigencia_hasta: h,
+            vigencia,
+            hasta: h,
             tipo: String(p.tipo || p.type || 'promocion')
         };
     }).filter(Boolean);
@@ -1762,14 +1797,21 @@ function mergePromocionesParaFlor(hotel, tablePromos) {
     const extra = (tablePromos || []).filter((p) => {
         const n = String(p.name || p.nombre || '').toLowerCase();
         return n && !names.has(n);
-    }).map((p) => ({
-        nombre: p.name || p.nombre,
-        precio: p.discount ? `${p.discount}%` : '',
-        detalle: p.description || '',
-        links: extractHttpUrls(p.description || ''),
-        hasta: p.end_date || '',
-        tipo: p.type || 'promocion'
-    }));
+    }).map((p) => {
+        const d = p.start_date ? String(p.start_date).slice(0, 10) : '';
+        const h = p.end_date ? String(p.end_date).slice(0, 10) : '';
+        return {
+            nombre: p.name || p.nombre,
+            precio: p.discount ? `${p.discount}%` : '',
+            detalle: p.description || '',
+            links: extractHttpUrls(p.description || ''),
+            vigencia_desde: d,
+            vigencia_hasta: h,
+            vigencia: d && h ? `del ${d} al ${h}` : (h ? `hasta ${h}` : ''),
+            hasta: h,
+            tipo: p.type || 'promocion'
+        };
+    });
     return [...fromHotel, ...extra];
 }
 
@@ -3046,14 +3088,13 @@ function extractTravelDataFromText(text) {
 function florAskedForTravelData(botText) {
     const t = String(botText || '').toLowerCase();
     if (!t) return false;
-    const asksFechas = /fecha|check.?in|entrada|cu[aá]ndo/.test(t);
+    const asksFechas = /fecha|check.?in|entrada|cu[aá]ndo|fecha en vista|hay lugar/.test(t);
     const asksNoches = /noche/.test(t);
     const asksPax = /hu[eé]sped|persona|adulto|pax|niñ/.test(t);
     return (asksFechas ? 1 : 0) + (asksNoches ? 1 : 0) + (asksPax ? 1 : 0) >= 2;
 }
 
-const FLOR_QUOTE_CLOSE_CTA =
-    'Para prepararte una cotización exacta, por favor pasame: fecha aproximada, cantidad de noches, y cantidad de personas (con edades si viajan niños). ¡Así te armo la propuesta ideal ahora mismo! ✨';
+const FLOR_QUOTE_CLOSE_CTA = '¿Tenés alguna fecha en vista para ver si hay lugar?';
 
 function sessionTravelDataIsReady(session, extraUserText) {
     if (session?.datos_ready_at) return true;
@@ -3081,12 +3122,13 @@ function stripFlorInlineTravelDataAsk(text) {
     let t = String(text || '').trim();
     if (!t) return t;
     t = t.replace(/\n*Para prepararte una cotizaci[oó]n exacta[\s\S]*?ahora mismo!?\s*✨?/gi, '').trim();
+    t = t.replace(/\n*(?:¿\s*)?Tenés alguna fecha en vista para ver si hay lugar\??/gi, '').trim();
     const parts = t.split(/\n{2,}/);
     if (parts.length >= 2) {
         const last = parts[parts.length - 1];
         if (
             florAskedForTravelData(last)
-            || /cotizarte|cantidad de (noches|personas)|pasame:?\s*fecha|fechas aproximadas/i.test(last)
+            || /cotizarte|cantidad de (noches|personas)|pasame:?\s*fecha|fechas aproximadas|fechas de noviembre/i.test(last)
         ) {
             parts.pop();
             return parts.join('\n\n').trim();
@@ -3095,9 +3137,20 @@ function stripFlorInlineTravelDataAsk(text) {
     return t;
 }
 
+function stripFlorRepeatedGreeting(text) {
+    let t = String(text || '').trim();
+    if (!t) return t;
+    const greetingRe = /^(?:[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}🌸🌺]+\s*)*(?:¡?\s*)?(?:hola(?:\s+(?:de\s+nuevo|nuevamente|otra\s+vez|flor))?|buenas?\s+(?:tardes?|d[ií]as?|noches?)|buen\s+d[ií]a|qu[eé]\s+tal|holis|hey)(?:\s*[,.!?¡…]*)?\s*/iu;
+    let guard = 0;
+    while (guard++ < 5 && greetingRe.test(t)) {
+        t = t.replace(greetingRe, '').trim();
+    }
+    t = t.replace(/^(?:¡?\s*)?(?:soy\s+flor(?:\s*ia)?|me\s+llamo\s+flor)[^.!\n]{0,100}[.!]?\s*/i, '').trim();
+    return t || String(text || '').trim();
+}
+
 /**
- * Adjunta el cierre de cotización en el MISMO turno (no un segundo mensaje).
- * No lo envía si el cliente ya dio fechas/noches/pax o si ya se pidió antes.
+ * Cierre relajado (una pregunta). No interrogatorio de fechas+noches+pax.
  */
 function maybeAppendFlorQuoteClose(text, opts = {}) {
     const intent = opts.intent || '';
@@ -3109,11 +3162,11 @@ function maybeAppendFlorQuoteClose(text, opts = {}) {
     if (sessionTravelDataIsReady(opts.session, opts.userText)) return { text, appended: false };
     const looksCommercial = !!opts.toolWasCalled || florTextLooksLikeHotelOrPromoInfo(text);
     if (!looksCommercial) return { text, appended: false };
-    if (/cotización exacta/.test(String(text).toLowerCase()) && /fecha aproximada/.test(String(text).toLowerCase())) {
-        return { text, appended: false };
-    }
     const cleaned = stripFlorInlineTravelDataAsk(text);
     if (!cleaned) return { text, appended: false };
+    if (/\?\s*$/.test(cleaned) || /fecha en vista|hay lugar/i.test(cleaned)) {
+        return { text: cleaned, appended: false };
+    }
     return { text: `${cleaned}\n\n${FLOR_QUOTE_CLOSE_CTA}`, appended: true };
 }
 
@@ -3178,7 +3231,7 @@ function buildFlorSessionContextInjection(session, hotelDisplayName) {
     } else if (session?.asked_travel_data_at) {
         block += `- Ya se pidieron fechas/noches/personas en este chat. NO lo repitas.\n`;
     } else {
-        block += `- NO pidas fechas/noches/pax en tu texto: si das info de hotel o promo, el servidor adjunta el cierre de cotización en el mismo mensaje.\n`;
+        block += `- Si das info de hotel o promo: primero los datos (vigencia completa). Al final UNA pregunta relajada de fecha. PROHIBIDO interrogatorio fechas+noches+pax. PROHIBIDO saludar si el chat ya empezó.\n`;
     }
     const adRef = session?.travel_data?.ad_referral;
     if (adRef && (adRef.title || adRef.body)) {
@@ -4084,6 +4137,10 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
             console.log(`📜 Flor: usando ${sessionHistory.length} mensajes del chat como context window`);
         }
     }
+    const conversacionYaIniciada = (sessionHistory || []).some((m) => m.role === 'model');
+    if (conversacionYaIniciada) {
+        userPart += ' [PROHIBIDO SALUDAR: esta conversación YA está en curso. No digas Hola, Buenas tardes, Buen día ni Buenas noches. No te presentes. Seguí de corrido como un chat humano.]';
+    }
     const lastMessages = sessionHistory.slice(-10);
     const userMessageParts = [{ text: userPart }];
     if (imageParts && imageParts.length > 0) {
@@ -4421,7 +4478,14 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
             });
             if (closed.appended) {
                 finalText = closed.text;
-                console.log('🧾 Flor: cierre de cotización adjuntado al mismo turno');
+                console.log('🧾 Flor: cierre relajado de fecha adjuntado al mismo turno');
+            }
+            if (conversacionYaIniciada) {
+                const stripped = stripFlorRepeatedGreeting(finalText);
+                if (stripped !== finalText) {
+                    console.log('✂️ Flor: saludo repetido recortado');
+                    finalText = stripped;
+                }
             }
             const result = { text: finalText, intent };
             if (documentToSend) result.sendDocument = documentToSend;
