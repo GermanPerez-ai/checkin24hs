@@ -42,7 +42,7 @@ Es decir: **Prompt General en Supabase** + **reglas inyectadas en código** = lo
   - `enabled: true`
   - `model: 'gemini-3.1-flash-lite-preview'` (o el ID estable que publique Google)
   - `temperature: 0.7`
-  - `maxTokens: 500`
+  - `maxTokens: 2048` (piso runtime ~1500 vía `FLOR_MAX_OUTPUT_TOKENS_MIN`)
 - **Variables de entorno (EasyPanel):**  
   `GEMINI_MODEL` y `GEMINI_API_KEY` pueden sobreescribir modelo y clave. El servidor combina: primero Supabase, luego env.
 

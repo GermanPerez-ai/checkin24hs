@@ -23,6 +23,7 @@ En la sección **Chats** del Dashboard, quien contesta como Flor es el **servido
 | **SUPABASE_ANON_KEY** | Sí | Clave anon de Supabase (Project Settings → API). Para leer hoteles, configuración de Flor, chats. |
 | **FLOR_ENABLED** | No | `true` o `false`. Por defecto `true`. Si es `false`, Flor no responde automáticamente. |
 | **FLOR_DELAY_MS** | No | Milisegundos para agrupar mensajes antes de responder (ej. `5000`). |
+| **FLOR_SILENCE_MINUTES** | No | Minutos de silencio tras intervención humana. **Debe ser `45`**. Si no está seteada, el código usa 45. Si quedó en `30`, cambiala a `45` y reiniciá el servicio. |
 | **IMAGEN_COTIZACION_URL** | No | URL de imagen para enlaces de cotización en WhatsApp. Opcional. |
 
 ---

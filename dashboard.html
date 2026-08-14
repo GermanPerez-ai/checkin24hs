@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-11T22:16:27Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 217; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-14T15:50:52Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 218; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">217</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">218</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -5456,6 +5456,12 @@ Ej:
                                     <textarea class="form-input" id="editHotelFlorTips" rows="3" placeholder="Recomendaciones internas"></textarea>
                                 </div>
                             </div>
+                            <div class="form-group">
+                                <label class="form-label">🏷️ Promociones vigentes (Flor lee este campo)</label>
+                                <textarea class="form-input" id="editHotelFlorPromociones" rows="5"
+                                    placeholder="Una promo por línea: Nombre | Precio | Detalle | Hasta (YYYY-MM-DD)&#10;Ej: Flexi Pass 10 días | 330 USD | Transferible, válido toda la temporada | 2026-09-30&#10;Ej: 2x1 Spa | | 2x1 en tratamientos | 2026-08-31"></textarea>
+                                <small style="color:#6a1b9a;">No mezclar con programas. Flor usa solo estas ofertas (Flexi Pass, 2x1, etc.).</small>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -8237,6 +8243,10 @@ Ej:
                 document.getElementById('editHotelFlorAlias').value = florInfo.alias_busqueda || '';
                 document.getElementById('editHotelFlorGastronomia').value = florInfo.gastronomia_info || '';
                 document.getElementById('editHotelFlorTips').value = florInfo.tips_agencia || '';
+                const florPromosElA = document.getElementById('editHotelFlorPromociones');
+                if (florPromosElA && typeof formatHotelPromocionesForForm === 'function') {
+                    florPromosElA.value = formatHotelPromocionesForForm(hotel.promociones);
+                }
                 
                 if (typeof fillFichaWebForm === 'function') {
                     fillFichaWebForm(hotel.ficha_web || hotel.fichaWeb || {});
@@ -16629,7 +16639,7 @@ Ej:
             const florFields = [
                 'editHotelFlorDescription', 'editHotelFlorServices', 'editHotelFlorExcursions',
                 'editHotelFlorPrices', 'editHotelFlorPolicies', 'editHotelFlorTransport', 'editHotelFlorContact',
-                'editHotelFlorAlias', 'editHotelFlorGastronomia', 'editHotelFlorTips'
+                'editHotelFlorAlias', 'editHotelFlorGastronomia', 'editHotelFlorTips', 'editHotelFlorPromociones'
             ];
             florFields.forEach(id => {
                 const el = document.getElementById(id);
@@ -16976,6 +16986,64 @@ Ej:
             });
         }
 
+        function parseHotelPromocionesFromForm(text) {
+            const raw = String(text || '').trim();
+            if (!raw) return [];
+            if (raw.startsWith('[')) {
+                try {
+                    const arr = JSON.parse(raw);
+                    return Array.isArray(arr) ? arr.map(normalizePromoRow).filter(Boolean) : [];
+                } catch (e) {
+                    console.warn('Promociones JSON inválido:', e);
+                }
+            }
+            return raw.split(/\n+/).map((line) => {
+                const t = line.trim();
+                if (!t) return null;
+                const parts = t.split('|').map((s) => s.trim());
+                return normalizePromoRow({
+                    nombre: parts[0] || '',
+                    precio: parts[1] || '',
+                    detalle: parts[2] || '',
+                    hasta: parts[3] || '',
+                    activa: true
+                });
+            }).filter(Boolean);
+        }
+
+        function formatHotelPromocionesForForm(raw) {
+            let arr = raw;
+            if (typeof arr === 'string') {
+                try { arr = JSON.parse(arr); } catch { return String(raw || ''); }
+            }
+            if (!Array.isArray(arr) || !arr.length) return '';
+            return arr.map((p) => {
+                if (typeof p === 'string') return p;
+                const nombre = p.nombre || p.name || '';
+                const precio = p.precio || p.price || '';
+                const detalle = p.detalle || p.description || p.descripcion || '';
+                const hasta = p.hasta || p.end_date || '';
+                return [nombre, precio, detalle, hasta].join(' | ').replace(/\s+\|\s+$/, '');
+            }).join('\n');
+        }
+
+        function normalizePromoRow(p) {
+            if (!p) return null;
+            if (typeof p === 'string') {
+                const t = p.trim();
+                return t ? { nombre: t, detalle: t, precio: '', hasta: '', activa: true } : null;
+            }
+            const nombre = String(p.nombre || p.name || '').trim();
+            if (!nombre) return null;
+            return {
+                nombre,
+                precio: String(p.precio || p.price || '').trim(),
+                detalle: String(p.detalle || p.description || p.descripcion || '').trim(),
+                hasta: String(p.hasta || p.end_date || '').trim().slice(0, 10),
+                activa: p.activa !== false
+            };
+        }
+
         // Función para editar hotel
         async function editHotel(hotelId) {
             const match = (h, id) => h.id == id || String(h && h.id) === String(id);
@@ -17082,6 +17150,10 @@ Ej:
             if (florAliasEl) florAliasEl.value = florInfo.alias_busqueda || '';
             if (florGastronomiaEl) florGastronomiaEl.value = florInfo.gastronomia_info || '';
             if (florTipsEl) florTipsEl.value = florInfo.tips_agencia || '';
+            const florPromosEl = document.getElementById('editHotelFlorPromociones');
+            if (florPromosEl) {
+                florPromosEl.value = formatHotelPromocionesForForm(hotel.promociones);
+            }
             
             if (typeof fillFichaWebForm === 'function') {
                 fillFichaWebForm(hotel.ficha_web || hotel.fichaWeb || {});
@@ -17438,6 +17510,9 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             const florAlias = document.getElementById('editHotelFlorAlias')?.value?.trim() || '';
             const florGastronomia = document.getElementById('editHotelFlorGastronomia')?.value?.trim() || '';
             const florTips = document.getElementById('editHotelFlorTips')?.value?.trim() || '';
+            const florPromocionesParsed = typeof parseHotelPromocionesFromForm === 'function'
+                ? parseHotelPromocionesFromForm(document.getElementById('editHotelFlorPromociones')?.value || '')
+                : [];
             const fichaWeb = typeof getFichaWebFromForm === 'function' ? getFichaWebFromForm() : {};
             const fichaPack = typeof getFichaPackFromForm === 'function' ? getFichaPackFromForm() : {};
             
@@ -17474,6 +17549,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 images: mainImage ? [mainImage, ...galleryImages] : galleryImages, // Compatibilidad con versiones anteriores
                 // Campos de información para Flor IA (ficha Flor: alias, gastronomía, tips)
                 florInfo: {
+                    ...(existingHotel.flor_info && typeof existingHotel.flor_info === 'object' ? existingHotel.flor_info : {}),
+                    ...(existingHotel.florInfo && typeof existingHotel.florInfo === 'object' ? existingHotel.florInfo : {}),
                     description: florDescription,
                     services: florServices,
                     excursions: florExcursions,
@@ -17488,6 +17565,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                     transport: florTransport,
                     contact: florContact
                 },
+                promociones: florPromocionesParsed,
                 fichaWeb: fichaWeb,
                 fichaPack: fichaPack
             };
@@ -17589,6 +17667,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         google_maps: hotelData.googleMaps || null,
                         website: hotelData.website || null,
                         flor_info: hotelData.florInfo || null, // Información para Flor IA
+                        promociones: Array.isArray(hotelData.promociones) ? hotelData.promociones : [],
                         ficha_web: hotelData.fichaWeb || {},
                         ficha_pack: hotelData.fichaPack || {},
                         precio_desde: hotelData.precio_desde != null ? hotelData.precio_desde : (hotelData.price || null)
@@ -17731,6 +17810,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         google_maps: hotelData.googleMaps || null,
                         website: hotelData.website || null,
                         flor_info: florInfoPayload,
+                        promociones: Array.isArray(hotelData.promociones) ? hotelData.promociones : [],
                         ficha_web: hotelData.fichaWeb || {},
                         ficha_pack: hotelData.fichaPack || {},
                         precio_desde: hotelData.precio_desde != null ? hotelData.precio_desde : (hotelData.price || null)

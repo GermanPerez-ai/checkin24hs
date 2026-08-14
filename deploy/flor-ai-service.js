@@ -23,7 +23,7 @@ class FlorAIService {
             apiUrl: null,
             model: 'gpt-4o-mini', // Modelo por defecto
             temperature: 0.7,
-            maxTokens: 500
+            maxTokens: 2048
         };
         
         // Cargar configuración desde localStorage

@@ -929,6 +929,136 @@ function isAllowedFlorInboundJid(remoteJid) {
     return j.includes('@s.whatsapp.net') || j.includes('@lid');
 }
 
+/** Desanida ephemeral / viewOnce / edited para leer texto y referral CTWA. */
+function unwrapBaileysInnerMessage(message) {
+    if (!message || typeof message !== 'object') return message;
+    const nested =
+        message.ephemeralMessage?.message ||
+        message.viewOnceMessage?.message ||
+        message.viewOnceMessageV2?.message ||
+        message.viewOnceMessageV2Extension?.message ||
+        message.documentWithCaptionMessage?.message ||
+        message.editedMessage?.message ||
+        message.futureProofMessage?.message;
+    return nested ? unwrapBaileysInnerMessage(nested) : message;
+}
+
+function pickCtwaReferralFields(obj) {
+    if (!obj || typeof obj !== 'object') return null;
+    const title = String(obj.title || obj.headline || obj.sourceTitle || '').trim();
+    const body = String(obj.body || obj.description || obj.mediaCaption || obj.caption || '').trim();
+    const sourceUrl = String(obj.sourceUrl || obj.source_url || obj.originalUrl || obj.url || '').trim();
+    const sourceId = String(obj.sourceId || obj.source_id || '').trim();
+    const sourceType = String(obj.sourceType || obj.source_type || obj.mediaType || obj.media_type || '');
+    const thumbnailUrl = String(
+        obj.thumbnailUrl || obj.thumbnail_url || obj.imageUrl || obj.image_url || obj.mediaUrl || obj.media_url || ''
+    ).trim();
+    const ctwaClid = String(obj.ctwaClid || obj.ctwa_clid || '').trim();
+    if (!title && !body && !sourceUrl && !sourceId && !ctwaClid) return null;
+    return { title, body, sourceUrl, sourceId, sourceType: String(sourceType), thumbnailUrl, ctwaClid };
+}
+
+/**
+ * Extrae el objeto referral de anuncios Click to WhatsApp (Meta).
+ * Cloud API: messages[].referral { headline, body, source_url, source_type, ctwa_clid }.
+ * Baileys: contextInfo.externalAdReply { title, body, sourceUrl, sourceId, ctwaClid }.
+ */
+function extractMetaCtwaReferral(msg) {
+    if (!msg) return null;
+    const candidates = [];
+    const push = (o) => { if (o && typeof o === 'object') candidates.push(o); };
+    const inner = unwrapBaileysInnerMessage(msg.message) || msg.message || {};
+    const ctxInfos = [
+        inner.extendedTextMessage?.contextInfo,
+        inner.imageMessage?.contextInfo,
+        inner.videoMessage?.contextInfo,
+        inner.documentMessage?.contextInfo,
+        inner.buttonsMessage?.contextInfo,
+        inner.templateMessage?.contextInfo,
+        inner.interactiveMessage?.contextInfo,
+        inner.contextInfo,
+        msg.contextInfo
+    ].filter(Boolean);
+    for (const ctx of ctxInfos) {
+        push(ctx.externalAdReply);
+        push(ctx.externalAdReplyInfo);
+        push(ctx.ctwaContext);
+        push(ctx.conversionSource);
+    }
+    push(inner.referral);
+    push(msg.referral);
+    const hydrated = inner.templateMessage?.hydratedTemplate || inner.templateMessage?.fourRowTemplate;
+    if (hydrated) {
+        push({
+            title: hydrated.hydratedTitleText || hydrated.title,
+            body: hydrated.hydratedContentText || hydrated.hydratedFooterText,
+            sourceUrl: hydrated.hydratedNativeFlowButtons?.[0]?.urlButton?.url
+        });
+    }
+    const seen = new Set();
+    const walk = (o, depth) => {
+        if (!o || typeof o !== 'object' || depth > 7 || seen.has(o)) return;
+        seen.add(o);
+        if (Array.isArray(o)) {
+            for (const item of o) walk(item, depth + 1);
+            return;
+        }
+        if (o.externalAdReply) push(o.externalAdReply);
+        if (o.referral && typeof o.referral === 'object') push(o.referral);
+        if (o.ctwaClid || o.ctwa_clid || o.headline) push(o);
+        for (const k of Object.keys(o)) {
+            if (/thumbnail|jpeg|fileSha|fileEnc|mediaKey|waveform/i.test(k)) continue;
+            walk(o[k], depth + 1);
+        }
+    };
+    walk(inner, 0);
+    for (const c of candidates) {
+        const picked = pickCtwaReferralFields(c);
+        if (picked) return picked;
+    }
+    return null;
+}
+
+function inferLeadOriginFromCtwa(ref) {
+    const blob = `${ref?.sourceUrl || ''} ${ref?.sourceType || ''} ${ref?.sourceId || ''}`.toLowerCase();
+    if (blob.includes('instagram')) return 'instagram_ad';
+    if (blob.includes('facebook') || blob.includes('fb.me') || blob.includes('fb.com')) return 'facebook_ad';
+    return 'meta_ad';
+}
+
+function formatCtwaReferralAsClientMessage(ref) {
+    if (!ref) return '';
+    const lines = [
+        '[El cliente acaba de entrar por un anuncio Click to WhatsApp de Instagram/Facebook. Todavía no escribió un mensaje propio.]'
+    ];
+    if (ref.title) lines.push(`Título del anuncio: ${ref.title}`);
+    if (ref.body) lines.push(`Texto de la pauta: ${ref.body}`);
+    if (ref.sourceUrl) lines.push(`URL del anuncio: ${ref.sourceUrl}`);
+    lines.push('Tratá este bloque como el primer mensaje del cliente: identificá hotel o promo y respondé sobre eso. Llamá consultarCatalogoHoteles o buscarHotel. No preguntes el destino si el anuncio ya lo indica.');
+    return lines.join('\n');
+}
+
+async function persistCtwaReferralForChat(chatId, phone, instanceNumber, ref) {
+    if (!ref) return;
+    try {
+        const session = await findWhatsAppChatSession(phone, instanceNumber, chatId);
+        const prev = (session && session.travel_data && typeof session.travel_data === 'object')
+            ? session.travel_data
+            : {};
+        const fields = {
+            travel_data: {
+                ...prev,
+                ad_referral: { ...ref, captured_at: new Date().toISOString() }
+            }
+        };
+        if (!session?.lead_origin) fields.lead_origin = inferLeadOriginFromCtwa(ref);
+        await updateFlorChatSessionFields(chatId, phone, instanceNumber, fields);
+        console.log(`📣 CTWA: lead_origin=${fields.lead_origin || session?.lead_origin || 'meta_ad'} title="${(ref.title || '').slice(0, 80)}"`);
+    } catch (e) {
+        console.warn('⚠️ persistCtwaReferralForChat:', e?.message || e);
+    }
+}
+
 /** Flor solo responde a inbound real y reciente (modelo reactivo). */
 function shouldFlorReplyToInbound(msg, upsertType) {
     const tsMs = getInboundMessageTimestampMs(msg);
@@ -1083,6 +1213,7 @@ function mergeFlorPendingQueue(canonicalKey, pending) {
             String(v.remoteJid) === String(pending.remoteJid);
         if (vCanon === canon || sameLid) {
             pending.messages.push(...(v.messages || []));
+            if (v.adReferral && !pending.adReferral) pending.adReferral = v.adReferral;
             // Crítico: cancelar el otro timer o se disparan 2 processPending
             if (v.timeoutId) {
                 clearTimeout(v.timeoutId);
@@ -1301,6 +1432,7 @@ const FLOR_REGLAS_PRIORIDAD = `
 **UN SOLO MENSAJE POR TURNO (V4.2):** Respondé en UNA sola burbuja de texto. PROHIBIDO fragmentar la respuesta en varios mensajes seguidos.
 **DATOS DEL CATÁLOGO (V4.2):** Si consultarCatalogoHoteles / buscarHotel devolvió encontrado=true O te inyectaron [DATOS OFICIALES DEL SERVIDOR], PROHIBIDO decir que no tenés información, que no está en la base, o mandar solo a la web. Respondé con esos datos en 2–3 líneas.
 **VERIFICACIÓN OBLIGATORIA:** Nunca des por sentado qué incluye un programa. Ante "¿Qué incluye?" o "¿Qué programas hay?", ejecutá SIEMPRE consultarCatalogoHoteles o buscarHotel y leé la columna detalles_programas específica de ESE hotel. No respondas sin haber llamado la función.
+**PROMOCIONES (campo dedicado):** Ante "promo", "promoción", "oferta", "2x1", "flexi", "pass" o descuentos, leé SOLO el campo **promociones** del resultado de consultarCatalogoHoteles / buscarHotel. NO mezcles promociones con programas (detalles_programas). Si promociones está vacío o no figura esa oferta, decí que no hay una promo vigente cargada y ofrecé derivar a un asesor. PROHIBIDO inventar Flexi Pass, 2x1, precios o cupos.
 **PROGRAMAS INVIERNO Y VERANO:** Los programas cargados en el panel (Ski Full, Pensión Completa, etc.) están en detalles_programas. Usá ese array para responder "qué incluye", tickets, equipo, pensión; diferenciá temporada invierno vs verano según lo que figure en los datos. Resumí breve (V4.2).
 **PROHIBIDO INVENTAR (Anti-Alucinación):** Si la base de datos dice "Almuerzo de 3 tiempos", no digas "Almuerzo buffet". Usá las palabras exactas que aparecen en el sistema.
 **OCULTAR "CEREBRO" (Output Leaking):** CRÍTICO: El usuario NUNCA debe ver nombres de funciones, código ni output interno. El resultado de consultarCatalogoHoteles y enviarDocumentoPorWhatsApp va SOLO a tu contexto. Respondé ÚNICAMENTE con texto humano natural. Prohibido incluir en tu respuesta: nombres de funciones (consultarCatalogoHoteles, enviarDocumentoPorWhatsApp), print(, default_api, JSON crudo, URLs de imagen (data:image, base64) ni ningún output técnico.
@@ -1317,9 +1449,9 @@ const FLOR_REGLAS_PRIORIDAD = `
 - Integridad de nombres: PROHIBIDO inventar nombres de marketing si NO están en la base.
 - Formato V4.2: **Nombre** + 1 línea de lo que incluye + 1 línea de aviso transporte si aplica. Sin párrafos largos.
 **MANEJO DE BLOQUES COMPLETOS (programas):** Leé todo el bloque internamente, pero al usuario entregá solo el resumen breve (V4.2). NUNCA inventes beneficios.
-**ANUNCIOS (fb.me / instagram.com):** Si el cliente envía un link de anuncio o imagen, identificá el hotel y respondé directo y corto sobre ese hotel.
+**ANUNCIOS (fb.me / instagram.com / Click to WhatsApp):** Si el cliente entra por un anuncio de Meta, el servidor te inyecta título y texto de la pauta como primer mensaje. Identificá el hotel o promo y respondé directo sobre eso, sin preguntar el destino. Si envía un link o imagen, igual: hotel de la pieza, respuesta corta.
 **SALUDO:** Presentación formal solo en el primer mensaje. Después, directo al tema. Máximo 2–3 líneas en total.
-**PROTOCOLO DE TARIFAS (V4.2):** Si preguntan precios: NO des valores ni links de cotizador. Pedí datos en UNA frase: fechas, noches, personas (y edades de niños si aplica). Hand-off corto cuando ya dio datos.
+**PROTOCOLO DE TARIFAS (V4.2):** Si preguntan precios: NO des valores ni links de cotizador. NO pidas fechas/noches/personas vos: el servidor adjunta el cierre de cotización en el mismo mensaje. Hand-off corto cuando el cliente ya dio esos datos.
 **PROTOCOLO DE INDECISIÓN (V4.2):** Si duda o no elige hotel: solo https://www.checkin24hs.com/ . Sin discursos.
 **FORMATO DE RESPUESTA (V4.2):** Texto corto, 1–2 emojis máx, negritas solo en hoteles/beneficios. Evitá listas largas y links de maps salvo que aporten en una sola línea.
 **CAMPAMENTOS DE MARKETING:** Si menciona campañas/descuentos, mencioná la promo en una frase y avanzá con una pregunta.
@@ -1345,7 +1477,7 @@ const FLOR_PROTOCOLO_VENTAS = `
 - Gatillo de disponibilidad: "Como son hoteles muy icónicos, la disponibilidad cambia minuto a minuto. ¿Te gustaría que te ayude a asegurar esta tarifa ahora?"
 - Gatillo de promoción: "Recordá que el beneficio de [Nombre de Promo] es por tiempo limitado. ¿Querés que verifiquemos tus fechas antes de que termine?"
 - Gatillo de derivación humana: Si el cliente ya tiene toda la info pero no avanza: "Si preferís, puedo pedirle a uno de mis compañeros expertos que te llame para cerrar los detalles finales del pago. ¿Te parece bien?"
-- **CTA ante precios / interés (V4.2):** Si preguntan precios o quieren cotizar: NO envíes link de cotizador. Pedí fechas, noches y personas en UNA frase. Si ya dio datos o pide asesor: "¡Perfecto! Derivo tus datos a nuestros asesores para que te armen la cotización a medida. En instantes te contactan."
+- **CTA ante precios / interés (V4.2):** Si preguntan precios o quieren cotizar: NO envíes link de cotizador. NO pidas fechas/noches/pax en tu texto: el servidor las pide en el mismo turno. Si el cliente YA dio esos datos o pide asesor: "¡Perfecto! Derivo tus datos a nuestros asesores para que te armen la cotización a medida. En instantes te contactan."
 
 4) **Verificación ante captura de precio más bajo:** Cuando el usuario mande una captura de precio más bajo, Flor debe preguntar para auditar:
 - ¿La tarifa es por persona o por habitación doble?
@@ -1572,8 +1704,69 @@ const florLastActivityByPhone = new Map(); // phone -> timestamp
 const FLOR_SESSION_INACTIVITY_MS = 30 * 60 * 1000; // 30 minutos
 // Último hotel consultado por chat (Context Drift fix): al preguntar "¿Qué incluye?" se fuerza consultarCatalogoHoteles con este hotel
 const florLastHotelByPhone = new Map(); // phone -> string (nombre hotel)
+const florAdReferralByPhone = new Map(); // phone -> { title, body, sourceUrl, ... } (CTWA)
 // Control repetición: "Temporada de Oportunidades" (y similares) se envía solo una vez por hotel por chat
 const florOportunidadesSentByPhone = new Map(); // phoneKey -> Set(hotelId o hotelName)
+
+const HOTELS_FLOR_SELECT = 'id, name, location, flor_info, status, promociones';
+const HOTELS_FLOR_SELECT_LEGACY = 'id, name, location, flor_info, status';
+
+async function selectHotelsForFlor() {
+    if (!supabase) return { data: [], error: new Error('no supabase') };
+    let res = await supabase.from('hotels').select(HOTELS_FLOR_SELECT).order('name');
+    if (res.error && /promociones/i.test(String(res.error.message || ''))) {
+        console.warn('⚠️ hotels.promociones no existe aún (migración 069). Usando select legado.');
+        res = await supabase.from('hotels').select(HOTELS_FLOR_SELECT_LEGACY).order('name');
+    }
+    return res;
+}
+
+/** Normaliza hotels.promociones (JSONB dedicado) para Gemini. Filtra inactivas / vencidas. */
+function normalizarPromocionesHotel(raw) {
+    let arr = raw;
+    if (typeof arr === 'string') {
+        try { arr = JSON.parse(arr); } catch { return []; }
+    }
+    if (!Array.isArray(arr)) return [];
+    const today = new Date().toISOString().slice(0, 10);
+    return arr.map((p) => {
+        if (p == null) return null;
+        if (typeof p === 'string') {
+            const t = p.trim();
+            return t ? { nombre: t, detalle: t, activa: true } : null;
+        }
+        const nombre = String(p.nombre || p.name || p.titulo || '').trim();
+        if (!nombre) return null;
+        const hasta = p.hasta || p.end_date || p.vigencia_hasta || '';
+        const activa = p.activa !== false && p.status !== 'inactive' && p.status !== 'expired';
+        if (!activa) return null;
+        if (hasta && String(hasta).slice(0, 10) < today) return null;
+        return {
+            nombre,
+            precio: p.precio != null ? String(p.precio) : (p.price != null ? String(p.price) : ''),
+            detalle: String(p.detalle || p.description || p.descripcion || '').slice(0, 600),
+            hasta: hasta ? String(hasta).slice(0, 10) : '',
+            tipo: String(p.tipo || p.type || 'promocion')
+        };
+    }).filter(Boolean);
+}
+
+/** Une ficha hotels.promociones (prioridad) + tabla promotions del dashboard. */
+function mergePromocionesParaFlor(hotel, tablePromos) {
+    const fromHotel = normalizarPromocionesHotel(hotel && hotel.promociones);
+    const names = new Set(fromHotel.map((p) => String(p.nombre || '').toLowerCase()));
+    const extra = (tablePromos || []).filter((p) => {
+        const n = String(p.name || p.nombre || '').toLowerCase();
+        return n && !names.has(n);
+    }).map((p) => ({
+        nombre: p.name || p.nombre,
+        precio: p.discount ? `${p.discount}%` : '',
+        detalle: p.description || '',
+        hasta: p.end_date || '',
+        tipo: p.type || 'promocion'
+    }));
+    return [...fromHotel, ...extra];
+}
 
 /** Obtener promociones activas por lista de hotel_id (tabla promotions del Dashboard). */
 async function obtenerPromocionesActivasPorHoteles(hotelIds) {
@@ -1610,10 +1803,7 @@ async function obtenerPromocionesActivasPorHoteles(hotelIds) {
 async function obtenerTodosLosHotelesParaTool() {
     if (!supabase) return [];
     try {
-        const { data: hotels, error } = await supabase
-            .from('hotels')
-            .select('id, name, location, flor_info, status')
-            .order('name');
+        const { data: hotels, error } = await selectHotelsForFlor();
         if (error) throw error;
         const list = Array.isArray(hotels) ? hotels : [];
         const active = list.filter(h => {
@@ -1660,7 +1850,7 @@ async function obtenerTodosLosHotelesParaTool() {
                 instagram_verano: fi.instagram_verano || '',
                 instagram_invierno: fi.instagram_invierno || '',
                 link_cotizacion: fi.link_cotizacion || 'https://cotizar.checkin24hs.com/',
-                promociones: promosByHotel[hotel.id] || []
+                promociones: mergePromocionesParaFlor(hotel, promosByHotel[hotel.id] || [])
             };
         });
     } catch (e) {
@@ -1794,7 +1984,7 @@ async function consultarCatalogoHotelesTool(ubicacion, hotel_especifico) {
             instagram_verano: fi.instagram_verano || '',
             instagram_invierno: fi.instagram_invierno || '',
             link_cotizacion: fi.link_cotizacion || 'https://cotizar.checkin24hs.com/',
-            promociones: promosByHotel[hotel.id] || []
+            promociones: mergePromocionesParaFlor(hotel, promosByHotel[hotel.id] || [])
         };
         return sanitizarHotelParaGemini(raw);
     });
@@ -1804,10 +1994,7 @@ async function consultarCatalogoHotelesTool(ubicacion, hotel_especifico) {
 async function buscarHotelesPorUbicacion(ubicacion) {
     if (!supabase || !ubicacion || String(ubicacion).trim().length < 2) return [];
     try {
-        const { data: hotels, error } = await supabase
-            .from('hotels')
-            .select('id, name, location, flor_info, status')
-            .order('name');
+        const { data: hotels, error } = await selectHotelsForFlor();
         if (error) throw error;
         const list = Array.isArray(hotels) ? hotels : [];
         const active = list.filter(h => {
@@ -1890,11 +2077,11 @@ function buildQuickHotelReply(hotel) {
     if (!hotel) return '';
     const nombre = hotel.nombre || hotel.name || 'el hotel';
     const desc = String(hotel.descripcion || '').replace(/\s+/g, ' ').trim().slice(0, 160);
-    // V4.2: corto, 2–3 líneas
+    // V4.2: corto, 2–3 líneas. El CTA de fechas/noches/pax lo adjunta el servidor (maybeAppendFlorQuoteClose).
     if (desc) {
-        return `¡Claro! **${nombre}** está en nuestro catálogo. ${desc}\n\n¿Querés fechas, noches y cantidad de huéspedes para cotizarte?`;
+        return `¡Claro! **${nombre}** está en nuestro catálogo. ${desc}`;
     }
-    return `¡Claro! **${nombre}** está en nuestro catálogo Checkin24hs.\n\n¿Querés fechas, noches y cantidad de huéspedes para cotizarte?`;
+    return `¡Claro! **${nombre}** está en nuestro catálogo Checkin24hs.`;
 }
 
 /**
@@ -1980,10 +2167,7 @@ async function buscarHotelesPorNombreParcial(termino) {
     const terminos = [...new Set([terminoOriginal, terminoNorm].filter(Boolean))];
 
     try {
-        const { data: hotels, error } = await supabase
-            .from('hotels')
-            .select('id, name, location, flor_info, status')
-            .order('name');
+        const { data: hotels, error } = await selectHotelsForFlor();
 
         if (error) {
             console.warn(`⚠️ Flor/Supabase: error leyendo hotels (posible RLS o red): ${error.message || error.code}`);
@@ -2038,10 +2222,7 @@ async function getHotelsBlockForFlor() {
     let block = '';
     if (supabase) {
         try {
-            const { data: hotels, error } = await supabase
-                .from('hotels')
-                .select('id, name, location, flor_info, status')
-                .order('name');
+            const { data: hotels, error } = await selectHotelsForFlor();
             if (error) throw error;
             const list = Array.isArray(hotels) ? hotels : [];
             const active = list.filter(h => {
@@ -2073,7 +2254,15 @@ async function getHotelsBlockForFlor() {
                         fi.prices ? `Precios (resumen): ${String(fi.prices).slice(0, 200)}` : '',
                         fi.policies ? `Políticas: ${String(fi.policies).slice(0, 200)}` : '',
                         fi.transport ? `Cómo llegar: ${String(fi.transport).slice(0, 150)}` : '',
-                        fi.contact ? `Contacto: ${String(fi.contact).slice(0, 120)}` : ''
+                        fi.contact ? `Contacto: ${String(fi.contact).slice(0, 120)}` : '',
+                        (() => {
+                            const promos = mergePromocionesParaFlor(h, []);
+                            if (!promos.length) return 'Promociones vigentes: (ninguna cargada en hotels.promociones)';
+                            return 'Promociones vigentes: ' + promos.map((p) => {
+                                const bits = [p.nombre, p.precio, p.detalle, p.hasta ? `hasta ${p.hasta}` : ''].filter(Boolean);
+                                return bits.join(' — ');
+                            }).join(' | ');
+                        })()
                     ].filter(Boolean);
                     return lines.join('\n');
                 });
@@ -2806,6 +2995,71 @@ function florAskedForTravelData(botText) {
     return (asksFechas ? 1 : 0) + (asksNoches ? 1 : 0) + (asksPax ? 1 : 0) >= 2;
 }
 
+const FLOR_QUOTE_CLOSE_CTA =
+    'Para prepararte una cotización exacta, por favor pasame: fecha aproximada, cantidad de noches, y cantidad de personas (con edades si viajan niños). ¡Así te armo la propuesta ideal ahora mismo! ✨';
+
+function sessionTravelDataIsReady(session, extraUserText) {
+    if (session?.datos_ready_at) return true;
+    const td = (session?.travel_data && typeof session.travel_data === 'object') ? session.travel_data : {};
+    const extracted = extraUserText ? extractTravelDataFromText(extraUserText) : null;
+    const hasDate = !!(td.check_in || td.check_out || extracted?.check_in);
+    const hasNights = td.nights != null || extracted?.nights != null;
+    const hasPax = td.adults != null || extracted?.adults != null;
+    const score = (hasDate ? 1 : 0) + (hasNights ? 1 : 0) + (hasPax ? 1 : 0);
+    return score >= 2 || !!(extracted && extracted._ready);
+}
+
+function florTextLooksLikeHotelOrPromoInfo(text) {
+    const t = String(text || '').toLowerCase();
+    if (!t || t.length < 35) return false;
+    if (/no he podido entender|no (pude|pudo) entender|no entiendo/.test(t)) return false;
+    if (/no trabajamos|no tenemos ese hotel|no manejamos ese hotel/.test(t)) return false;
+    const hotels = /puyehue|huilo|guilo|wilo|corralco|futangue|futanque|furangue|llao|aguas calientes|chill[aá]n|termas de/;
+    const promo = /promoci[oó]n|\bpromo\b|flexi|2\s*x\s*1|descuento|% ?off|\boferta\b|campaña|beneficio/;
+    const hotelDetalle = /\bhotel\b/.test(t) && /(programa|spa|habitaci|cat[aá]logo|incluye|ubicaci|piscina|termales?)/.test(t);
+    return hotels.test(t) || promo.test(t) || hotelDetalle;
+}
+
+function stripFlorInlineTravelDataAsk(text) {
+    let t = String(text || '').trim();
+    if (!t) return t;
+    t = t.replace(/\n*Para prepararte una cotizaci[oó]n exacta[\s\S]*?ahora mismo!?\s*✨?/gi, '').trim();
+    const parts = t.split(/\n{2,}/);
+    if (parts.length >= 2) {
+        const last = parts[parts.length - 1];
+        if (
+            florAskedForTravelData(last)
+            || /cotizarte|cantidad de (noches|personas)|pasame:?\s*fecha|fechas aproximadas/i.test(last)
+        ) {
+            parts.pop();
+            return parts.join('\n\n').trim();
+        }
+    }
+    return t;
+}
+
+/**
+ * Adjunta el cierre de cotización en el MISMO turno (no un segundo mensaje).
+ * No lo envía si el cliente ya dio fechas/noches/pax o si ya se pidió antes.
+ */
+function maybeAppendFlorQuoteClose(text, opts = {}) {
+    const intent = opts.intent || '';
+    if (!text) return { text, appended: false };
+    if (['transferir', 'rate_limit_429', 'despedida', 'noEntendido', 'audio_fallback'].includes(intent)) {
+        return { text, appended: false };
+    }
+    if (opts.session?.asked_travel_data_at) return { text, appended: false };
+    if (sessionTravelDataIsReady(opts.session, opts.userText)) return { text, appended: false };
+    const looksCommercial = !!opts.toolWasCalled || florTextLooksLikeHotelOrPromoInfo(text);
+    if (!looksCommercial) return { text, appended: false };
+    if (/cotización exacta/.test(String(text).toLowerCase()) && /fecha aproximada/.test(String(text).toLowerCase())) {
+        return { text, appended: false };
+    }
+    const cleaned = stripFlorInlineTravelDataAsk(text);
+    if (!cleaned) return { text, appended: false };
+    return { text: `${cleaned}\n\n${FLOR_QUOTE_CLOSE_CTA}`, appended: true };
+}
+
 async function markAskedTravelDataForChat(chatId, phone, instanceNumber) {
     const session = await findWhatsAppChatSession(phone, instanceNumber, chatId);
     if (session?.asked_travel_data_at) return false;
@@ -2856,10 +3110,21 @@ function buildFlorSessionContextInjection(session, hotelDisplayName) {
     block += `- Hotel en consulta: ${hotelLabel}\n`;
     block += `- ¿Cotizador ya enviado?: ${cotizadorYa}\n`;
     if (session?.cotizador_sent_at) {
-        block += `- REGLA OBLIGATORIA: Si el cliente vuelve a pedir precios/tarifas, NO envíes links de cotizadores ni PDFs. Pedí (o confirmá) fechas aproximadas, noches, huéspedes y edades de niños; si ya los dio, hacé hand-off a un asesor para cotización a medida.\n`;
+        block += `- REGLA OBLIGATORIA: Si el cliente vuelve a pedir precios/tarifas, NO envíes links de cotizadores ni PDFs. Si ya dio fechas/noches/pax, hacé hand-off a un asesor. Si NO los dio, el servidor adjunta el cierre de cotización: no lo pidas vos otra vez.\n`;
     }
     if (session?.current_hotel_id && hotelDisplayName) {
         block += `- PROHIBIDO preguntar "¿A qué destino te diriges?" — el hotel activo de esta conversación es ${hotelDisplayName}.\n`;
+    }
+    if (sessionTravelDataIsReady(session)) {
+        block += `- El cliente YA dio datos de viaje (fechas/noches/pax). PROHIBIDO volver a pedirlos.\n`;
+    } else if (session?.asked_travel_data_at) {
+        block += `- Ya se pidieron fechas/noches/personas en este chat. NO lo repitas.\n`;
+    } else {
+        block += `- NO pidas fechas/noches/pax en tu texto: si das info de hotel o promo, el servidor adjunta el cierre de cotización en el mismo mensaje.\n`;
+    }
+    const adRef = session?.travel_data?.ad_referral;
+    if (adRef && (adRef.title || adRef.body)) {
+        block += `- Origen: anuncio Click to WhatsApp (Meta). Título: ${adRef.title || '(sin título)'}. Pauta: ${adRef.body || '(sin texto)'}. Respondé sobre ese hotel/promo; no preguntes el destino.\n`;
     }
     return block;
 }
@@ -3562,7 +3827,7 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
     const systemPrompt = await getFlorPromptForGemini();
     const sessionContextBlock = buildFlorSessionContextInjection(chatSession, hotelNombrePersistido);
     const FLOR_FORZAR_TOOL_HOTEL = '\n**FORZAR HERRAMIENTA:** Si en tu respuesta vas a mencionar un hotel concreto del catálogo (Puyehue, Corralco, Huilo Huilo, Futangue, etc.), DEBÉS disparar INMEDIATAMENTE la herramienta consultarCatalogoHoteles o buscarHotel con ese hotel. No envíes solo un texto de confirmación ("Dejame darte los detalles...") sin haber llamado la función; el usuario debe recibir los datos reales. Chain of Thought: (1) llamá buscarHotel(nombre_hotel) o consultarCatalogoHoteles(hotel_especifico=...), (2) el backend ejecuta la consulta en Supabase y te devuelve el JSON, (3) recién entonces generá tu respuesta con esos datos. La respuesta al usuario solo se envía después de que las búsquedas terminen.';
-    const FLOR_PROGRAMAS_SOLO_CATALOGO = '\n**PROGRAMAS SOLO DEL CATÁLOGO:** Cuando consultes el catálogo, SOLO mencioná los programas que aparecen explícitamente en el campo "programas" (o detalles_programas). Si no hay programas cargados, no inventes nombres como "Semana Blanca" ni asumas beneficios. En su lugar, decí que los programas se están actualizando y ofrecé que te contacten para el detalle.';
+    const FLOR_PROGRAMAS_SOLO_CATALOGO = '\n**PROGRAMAS SOLO DEL CATÁLOGO:** Cuando consultes el catálogo, SOLO mencioná los programas que aparecen explícitamente en el campo "programas" (o detalles_programas). Si no hay programas cargados, no inventes nombres como "Semana Blanca" ni asumas beneficios. En su lugar, decí que los programas se están actualizando y ofrecé que te contacten para el detalle.\n**PROMOCIONES SOLO DEL CAMPO promociones:** Flexi Pass, 2x1 y ofertas comerciales salen del array promociones (no de programas). Si está vacío, no inventes la promo.';
     const systemPart = `${sessionContextBlock}\n\n${systemPrompt}\n\n${FLOR_REGLAS_PRIORIDAD}\n\n${FLOR_PROTOCOLO_VENTAS}\n\n${FLOR_FORZAR_TOOL_HOTEL}\n\n${FLOR_PROGRAMAS_SOLO_CATALOGO}`;
 
     let multiConsultasNote = '';
@@ -3570,14 +3835,20 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
         multiConsultasNote = `\n(Múltiples consultas: responde a todas en un solo mensaje, ordenado.)\n`;
     }
     // Palabras clave de campañas de marketing: priorizar promociones en la respuesta
-    const CAMPANA_KEYWORDS = ['25% off', 'black friday', 'invierno', 'descuento', 'promoción', 'promo', 'oferta', 'campaña'];
+    const CAMPANA_KEYWORDS = ['25% off', 'black friday', 'invierno', 'descuento', 'promoción', 'promo', 'oferta', 'campaña', 'flexi', '2x1', 'pass'];
     const esSeguimientoCampana = CAMPANA_KEYWORDS.some(kw => mensajeLower.includes(kw));
     const hintCampana = esSeguimientoCampana
         ? ' [CONTEXTO CAMPAÑA: El cliente está respondiendo a una campaña de marketing. Priorizá en tu respuesta las promociones activas (campo promociones de consultarCatalogoHoteles) y adaptá el mensaje a la oferta (descuentos, fechas, beneficios).]'
         : '';
+    const adRefCtx = contexto.adReferral
+        || chatSession?.travel_data?.ad_referral
+        || florAdReferralByPhone.get(phoneKeyEarly);
+    const hintAnuncioCtwa = adRefCtx && (adRefCtx.title || adRefCtx.body)
+        ? ` [CONTEXTO ANUNCIO META / CLICK TO WHATSAPP: El usuario llegó por un anuncio. Título="${adRefCtx.title || ''}". Texto de la pauta="${adRefCtx.body || ''}". ${adRefCtx.sourceUrl ? 'URL=' + adRefCtx.sourceUrl + '.' : ''} Esto ES el primer mensaje del cliente. Identificá hotel o promo y llamá consultarCatalogoHoteles/buscarHotel. PROHIBIDO preguntar a qué destino va si el anuncio ya lo dice.]`
+        : '';
 
     // Detectar consulta de hotel/destino: reforzar que debe llamar consultarCatalogoHoteles (evita bucle "no entiendo")
-    const hotelKeywords = ['huilo', 'guilo', 'wilo', 'hotel', 'carta', 'menú', 'restaurante', 'spa', 'programa', 'info de', 'información de', 'qué hoteles', 'que hoteles', 'destino', 'puyehue', 'corralco', 'futangue', 'futanque', 'furangue', 'furanque', 'bariloche', 'termas'];
+    const hotelKeywords = ['huilo', 'guilo', 'wilo', 'hotel', 'carta', 'menú', 'restaurante', 'spa', 'programa', 'info de', 'información de', 'qué hoteles', 'que hoteles', 'destino', 'puyehue', 'corralco', 'futangue', 'futanque', 'furangue', 'furanque', 'bariloche', 'termas', 'flexi', 'promo', 'promoción', '2x1'];
     const pareceConsultaHotel = hotelKeywords.some(kw => mensajeLower.includes(kw));
     // Extraer hotel/destino de la frase (ej: "información de Futangue" → Futangue) para inyectar hotel_especifico sin preguntar de nuevo
     let hotelExtraido = '';
@@ -3650,7 +3921,32 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
             }
         }
     }
-    let userPart = `${multiConsultasNote}Mensaje del cliente: ${mensaje}${hintCampana}${hintHotel}${hintContextDrift}${hintAmbiguoConContexto}`;
+    if (!catalogPrefetch && adRefCtx) {
+        const adBlob = `${adRefCtx.title || ''} ${adRefCtx.body || ''}`.toLowerCase();
+        const searchTermAd = extractHotelKeywordFromMessage(adBlob);
+        if (searchTermAd) {
+            catalogPrefetch = await consultarCatalogoHotelesTool('', searchTermAd);
+            console.log(`🏨 Flor prefetch CTWA("${searchTermAd}"): ${catalogPrefetch?.encontrado ? (catalogPrefetch.hoteles?.length || 0) + ' hotel(es)' : 'sin resultados'}`);
+            if (catalogPrefetch?.encontrado && catalogPrefetch.hoteles?.[0]) {
+                const h0 = catalogPrefetch.hoteles[0];
+                const hId = h0.id;
+                const hName = h0.nombre || h0.name || searchTermAd;
+                florLastHotelByPhone.set(phoneKey, hName);
+                if (hId) {
+                    await setCurrentHotelIdForChat(
+                        chatSession?.id || chatIdFlor,
+                        contexto.numero,
+                        instanciaFlor,
+                        hId,
+                        hName
+                    );
+                    chatSession = await findWhatsAppChatSession(contexto.numero, instanciaFlor, chatSession?.id || chatIdFlor);
+                    hotelNombrePersistido = hName;
+                }
+            }
+        }
+    }
+    let userPart = `${multiConsultasNote}Mensaje del cliente: ${mensaje}${hintCampana}${hintAnuncioCtwa}${hintHotel}${hintContextDrift}${hintAmbiguoConContexto}`;
     if (catalogPrefetch?.encontrado && catalogPrefetch.hoteles?.length) {
         const payload = JSON.stringify(catalogPrefetch.hoteles.slice(0, 2)).slice(0, 6500);
         userPart += `\n\n[DATOS OFICIALES DEL SERVIDOR — el hotel SÍ está en nuestra base Checkin24hs. PROHIBIDO decir "no trabajamos con ese hotel". Respondé usando SOLO estos datos:]\n${payload}`;
@@ -3669,13 +3965,17 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
     }
     florLastActivityByPhone.set(phoneKey, now);
     // Context window: últimos 10 mensajes del chat desde Supabase para que Flor no olvide (ej: "estábamos hablando de Huilo Huilo")
-    let sessionHistory = (imageParts && imageParts.length > 0) ? [] : (florSessionByPhone.get(phoneKey) || []);
-    const historialDesdeBD = await obtenerUltimosMensajesChat(
-        contexto.numero,
-        CONFIG.INSTANCE_NUMBER,
-        10,
-        chatIdFlor || chatSession?.id || null
-    );
+    const skipHistoryForAd = (imageParts && imageParts.length > 0)
+        || !!(contexto.adReferral && (contexto.adReferral.title || contexto.adReferral.body));
+    let sessionHistory = skipHistoryForAd ? [] : (florSessionByPhone.get(phoneKey) || []);
+    const historialDesdeBD = skipHistoryForAd
+        ? []
+        : await obtenerUltimosMensajesChat(
+            contexto.numero,
+            CONFIG.INSTANCE_NUMBER,
+            10,
+            chatIdFlor || chatSession?.id || null
+        );
     if (historialDesdeBD && historialDesdeBD.length > 0) {
         sessionHistory = historialDesdeBD;
         if (sessionHistory.length > 0) {
@@ -3699,7 +3999,7 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
     const toolDeclarations = [
         {
             name: 'consultarCatalogoHoteles',
-            description: 'Busca y devuelve la narrativa poética, imágenes (img_general, img_spa, etc.), detalles técnicos, programas, spa, cartas y promociones de hoteles desde la base de datos de Supabase. OBLIGATORIO llamar esta función ANTES de responder cualquier consulta sobre un hotel o destino; sin llamarla no tenés datos reales. Si el cliente pregunta "qué hoteles tienen" o "qué opciones hay", llamá SIN ubicacion ni hotel_especifico (devuelve el listado). Si menciona nombre (Puyehue, Corralco, Huilo Huilo, Futangue) o ubicación (Patagonia, Bariloche), pasá hotel_especifico y/o ubicacion. El resultado incluye nombre, descripcion, servicios, detalles_programas, img_general, PDFs y promociones; usá esos datos para tu respuesta.',
+            description: 'Busca y devuelve la ficha del hotel desde Supabase: descripción, programas (detalles_programas), spa, cartas y el campo dedicado promociones (Flexi Pass, 2x1, ofertas vigentes). OBLIGATORIO llamar esta función ANTES de responder cualquier consulta sobre un hotel, destino o promo. Si preguntan "qué hoteles tienen", llamá SIN ubicacion ni hotel_especifico. El resultado incluye nombre, descripcion, detalles_programas y promociones; para ofertas usá SOLO promociones.',
             parameters: {
                 type: 'OBJECT',
                 properties: {
@@ -3710,7 +4010,7 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
         },
         {
             name: 'buscarHotel',
-            description: 'Busca UN hotel específico por nombre y devuelve su narrativa poética, imágenes (img_general, img_spa), detalles técnicos, programas, spa, cartas y promociones desde Supabase. Usar cuando el usuario pida "detalles de X", "info de X", "contame de X", "dame los detalles" o "dejame darte los detalles". OBLIGATORIO llamar esta función ANTES de responder con datos del hotel; el backend ejecuta la consulta y te devuelve el JSON; recién entonces generá tu respuesta. No respondas solo con texto de confirmación sin haber llamado buscarHotel.',
+            description: 'Busca UN hotel específico por nombre y devuelve ficha + programas (detalles_programas) + promociones vigentes (campo promociones: Flexi Pass, 2x1, etc.). OBLIGATORIO antes de hablar de precios/promos. No inventes ofertas que no vengan en promociones.',
             parameters: {
                 type: 'OBJECT',
                 properties: {
@@ -3987,6 +4287,16 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
             florSessionByPhone.set(phoneKey, newTurns.slice(-FLOR_SESSION_MAX_MESSAGES));
             // Intent para flor_interactions: consulta_hotel si usó la herramienta, consulta_hotel_sin_resolver si era de hotel pero no la llamó
             const intent = toolWasCalled ? 'consulta_hotel' : (pareceConsultaHotel ? 'consulta_hotel_sin_resolver' : 'consulta_general');
+            const closed = maybeAppendFlorQuoteClose(finalText, {
+                session: chatSession,
+                userText: mensaje,
+                intent,
+                toolWasCalled
+            });
+            if (closed.appended) {
+                finalText = closed.text;
+                console.log('🧾 Flor: cierre de cotización adjuntado al mismo turno');
+            }
             const result = { text: finalText, intent };
             if (documentToSend) result.sendDocument = documentToSend;
             if (imageToSend) result.sendImage = imageToSend;
@@ -5574,7 +5884,7 @@ async function connectToWhatsApp() {
                 continue;
             }
 
-            const message = msg.message;
+            const message = unwrapBaileysInnerMessage(msg.message) || msg.message;
             if (!message) {
                 // Upsert previo al plaintext (o stub): aun así puede traer sender_pn en el envelope; cachear LID→PN antes del continue.
                 if (!msg.key?.fromMe && msg.key?.remoteJid && String(msg.key.remoteJid).includes('@lid')) {
@@ -5610,11 +5920,16 @@ async function connectToWhatsApp() {
             const tieneAudio = !!(message.audioMessage || message.pttMessage);
             const tieneVideo = !!(message.videoMessage);
             const tieneDocumento = !!(message.documentMessage);
+            const ctwaReferral = extractMetaCtwaReferral(msg);
+            if (ctwaReferral) {
+                console.log(`📣 CTWA referral: title="${(ctwaReferral.title || '').slice(0, 80)}" body="${(ctwaReferral.body || '').slice(0, 120)}" url=${ctwaReferral.sourceUrl || 'n/a'}`);
+            }
 
-            if (!texto && !tieneImagen && !tieneAudio && !tieneVideo && !tieneDocumento) {
+            if (!texto && !tieneImagen && !tieneAudio && !tieneVideo && !tieneDocumento && !ctwaReferral) {
                 console.log(`⚠️ Mensaje sin texto ni media soportada`);
                 continue;
             }
+            if (!texto && ctwaReferral) texto = formatCtwaReferralAsClientMessage(ctwaReferral);
             if (!texto && tieneImagen) texto = '[Imagen]';
             if (!texto && tieneAudio) texto = '[Audio]';
             if (!texto && tieneVideo) texto = '[Video]';
@@ -5878,13 +6193,19 @@ async function connectToWhatsApp() {
                 pending.supabaseChatId = savedChatIdInbound;
             }
             if (!pending.upsertType) pending.upsertType = type;
+            if (ctwaReferral) {
+                pending.adReferral = ctwaReferral;
+                const phoneKeyAd = (numero && String(numero).replace(/\D/g, '')) || '';
+                if (phoneKeyAd.length >= 10) florAdReferralByPhone.set(phoneKeyAd, ctwaReferral);
+                persistCtwaReferralForChat(savedChatIdInbound || pending.supabaseChatId, numero, CONFIG.INSTANCE_NUMBER, ctwaReferral).catch(() => {});
+            }
 
             // Guardar siempre msg si hay LID: sin msg.key en cola resolveFlorSendJid no puede leer senderPn (hidrata tarde) → "Esperando mensaje"
             pending.messages.push({
                 texto,
                 ts: Date.now(),
                 msgId: normalizeBaileysMessageId(msg.key?.id),
-                msg: (String(remoteJid).includes('@lid') || tieneImagen || tieneAudio || tieneVideo || tieneDocumento) ? msg : null
+                msg: (String(remoteJid).includes('@lid') || tieneImagen || tieneAudio || tieneVideo || tieneDocumento || !!ctwaReferral) ? msg : null
             });
             pending.nombre = nombre;
             pending.numero = numero;
@@ -6040,6 +6361,20 @@ async function connectToWhatsApp() {
                 let combined = textos.length === 1
                     ? textos[0]
                     : textos.map((t, i) => `Consulta ${i + 1}: ${t}`).join('\n\n');
+                if (!p.adReferral) {
+                    const fromQueued = (p.messages || []).map(m => m.msg && extractMetaCtwaReferral(m.msg)).find(Boolean);
+                    if (fromQueued) p.adReferral = fromQueued;
+                }
+                if (p.adReferral) {
+                    const syn = formatCtwaReferralAsClientMessage(p.adReferral);
+                    const alreadyInjected = String(combined).includes('Click to WhatsApp');
+                    if (syn && !alreadyInjected) {
+                        combined = `${syn}\n\nMensaje del cliente: ${combined}`;
+                    }
+                    const phoneKeyAd = (p.numero && String(p.numero).replace(/\D/g, '')) || '';
+                    if (phoneKeyAd.length >= 10) florAdReferralByPhone.set(phoneKeyAd, p.adReferral);
+                    persistCtwaReferralForChat(p.supabaseChatId, p.numero, CONFIG.INSTANCE_NUMBER, p.adReferral).catch(() => {});
+                }
 
                 const inboundMsgIds = (p.messages || []).map(m => m.msg && m.msg.key && m.msg.key.id).filter(Boolean);
                 logFlorOutboundTrigger(p, destJid, p.upsertType, inboundMsgIds, combined);
@@ -6107,6 +6442,21 @@ async function connectToWhatsApp() {
                     let contenido = (integration.content && String(integration.content).trim()) || '';
                     console.log(`📋 Integración activada: "${integration.name || 'Sin nombre'}" (override, BLOQUEO DE LLM)`);
                     contenido = sanitizarContenidoIntegracionParaLinks(contenido);
+                    try {
+                        const sessInt = await findWhatsAppChatSession(p.numero, CONFIG.INSTANCE_NUMBER, p.supabaseChatId || null);
+                        const closedInt = maybeAppendFlorQuoteClose(contenido, {
+                            session: sessInt,
+                            userText: combined,
+                            intent: 'integracion_override',
+                            toolWasCalled: true
+                        });
+                        if (closedInt.appended) {
+                            contenido = closedInt.text;
+                            console.log('🧾 Flor: cierre de cotización adjuntado a integración');
+                        }
+                    } catch (e) {
+                        console.warn('⚠️ cierre cotización integración:', e?.message || e);
+                    }
                     if (contenido) await sendOutboundText(sock, destJid, contenido, 'integracion-texto');
                     if (!FLOR_TEXT_ONLY_OUTBOUND && integration.sendImage && hotel) {
                         const fi = hotel.flor_info || {};
@@ -6186,11 +6536,24 @@ async function connectToWhatsApp() {
                     }
                 }
 
+                // Thumbnail del anuncio CTWA (si Meta lo mandó y no hay otra imagen)
+                if (imageParts.length === 0 && p.adReferral?.thumbnailUrl) {
+                    try {
+                        const imgPart = await fetchImageAsBase64(p.adReferral.thumbnailUrl);
+                        if (imgPart) {
+                            imageParts = [imgPart];
+                            console.log('🖼️ Thumbnail CTWA obtenido para análisis multimodal');
+                        }
+                    } catch (e) {
+                        console.warn('⚠️ No se pudo obtener thumbnail CTWA:', e?.message || e);
+                    }
+                }
+
                 // Reset de contexto por publicidad: si hay fb.me/instagram o imagen, limpiar historial para no mezclar hoteles
-                if (imageParts.length > 0) {
+                if (imageParts.length > 0 || p.adReferral) {
                     const phoneKey = (p.numero && String(p.numero).replace(/\D/g, '')) || 'unknown';
                     florSessionByPhone.delete(phoneKey);
-                    florLastHotelByPhone.delete(phoneKey);
+                    if (imageParts.length > 0 && !p.adReferral) florLastHotelByPhone.delete(phoneKey);
                     console.log('🔄 Flor: reset de contexto por anuncio/imagen (prioridad multimodal, sin historial previo)');
                 }
 
@@ -6209,7 +6572,8 @@ async function connectToWhatsApp() {
                     instancia: CONFIG.INSTANCE_NUMBER,
                     chatId: p.supabaseChatId || null,
                     multiConsultas: textos.length > 1,
-                    consultas: textos
+                    consultas: textos,
+                    adReferral: p.adReferral || null
                 }, imageParts);
                 const responseTimeMs = Date.now() - t0;
                 let respuestaFlor = (typeof raw === 'object' && raw != null && 'text' in raw) ? raw.text : (typeof raw === 'string' ? raw : null);

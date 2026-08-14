@@ -52,7 +52,7 @@ Flor envía mensajes a contactos que **no escribieron** (o que no escribieron re
 Variables opcionales:
 
 ```bash
-FLOR_SILENCE_MINUTES=30
+FLOR_SILENCE_MINUTES=45
 WA_OUTBOUND_BUBBLE_DELAY_MS=3000
 FLOR_TEXT_ONLY_OUTBOUND=1   # 0 para reactivar imágenes
 FLOR_INBOUND_MAX_AGE_MS_NOTIFY=600000
