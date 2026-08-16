@@ -2305,6 +2305,63 @@ class SupabaseClient {
     // ============================================
     // USUARIOS (CLIENTES)
     // ============================================
+
+    /** Conteo exacto (no recorta en 1000). PostgREST head+count. */
+    async countExact(table, applyFilters) {
+        if (!this.isInitialized()) return 0;
+        try {
+            let q = this.client.from(table).select('id', { count: 'exact', head: true });
+            if (typeof applyFilters === 'function') q = applyFilters(q);
+            const { count, error } = await q;
+            if (error) throw error;
+            return count || 0;
+        } catch (error) {
+            console.warn('⚠️ countExact', table, error?.message || error);
+            return 0;
+        }
+    }
+
+    /** Inicio del mes calendario en Argentina (UTC-3). */
+    getArgentinaMonthStartIso() {
+        const parts = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'America/Argentina/Buenos_Aires',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        }).formatToParts(new Date());
+        const get = (t) => parts.find((p) => p.type === t)?.value;
+        return `${get('year')}-${get('month')}-01T00:00:00.000-03:00`;
+    }
+
+    /** Totales reales para las tarjetas de Gestión de Usuarios. */
+    async getUsersDashboardStats() {
+        const empty = { totalUsers: 0, newThisMonth: 0, totalQuotes: 0, avgRating: null };
+        if (!this.isInitialized()) return empty;
+        const monthStart = this.getArgentinaMonthStartIso();
+        try {
+            const [totalUsers, newThisMonth, totalQuotes] = await Promise.all([
+                this.countExact('users'),
+                this.countExact('users', (q) => q.gte('created_at', monthStart)),
+                this.countExact('quotes')
+            ]);
+            let avgRating = null;
+            const { data: hotels, error: hotelErr } = await this.client
+                .from('hotels')
+                .select('rating,puntuacion_num');
+            if (!hotelErr && hotels && hotels.length) {
+                const vals = hotels
+                    .map((h) => Number(h.puntuacion_num != null ? h.puntuacion_num : h.rating))
+                    .filter((n) => Number.isFinite(n) && n > 0);
+                if (vals.length) {
+                    avgRating = vals.reduce((a, b) => a + b, 0) / vals.length;
+                }
+            }
+            return { totalUsers, newThisMonth, totalQuotes, avgRating };
+        } catch (error) {
+            console.warn('⚠️ getUsersDashboardStats:', error?.message || error);
+            return empty;
+        }
+    }
     
     async getUsers() {
         if (!this.isInitialized()) {
@@ -2313,16 +2370,24 @@ class SupabaseClient {
         }
 
         try {
-            const { data, error } = await this.client
-                .from('users')
-                .select('*')
-                .order('created_at', { ascending: false });
-            
-            if (error) throw error;
-            
-            console.log(`☁️ Usuarios cargados de Supabase: ${data ? data.length : 0} registros`);
-            // Supabase es la fuente de verdad: no escribir en localStorage
-            return data || [];
+            const pageSize = 1000;
+            let from = 0;
+            const all = [];
+            for (;;) {
+                const { data, error } = await this.client
+                    .from('users')
+                    .select('*')
+                    .order('created_at', { ascending: false })
+                    .range(from, from + pageSize - 1);
+                if (error) throw error;
+                const batch = data || [];
+                all.push(...batch);
+                if (batch.length < pageSize) break;
+                from += pageSize;
+                if (from >= 100000) break;
+            }
+            console.log(`☁️ Usuarios cargados de Supabase: ${all.length} registros`);
+            return all;
         } catch (error) {
             if (error.name === 'QuotaExceededError') {
                 console.warn('⚠️ localStorage lleno al obtener usuarios. Usando caché si hay.');

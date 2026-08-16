@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-14T15:50:52Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 218; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-16T18:11:30Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 220; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">218</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">220</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -3965,7 +3965,7 @@
                             <span class="material-icons">receipt</span>
                             </div>
                             <div class="stat-info">
-                                <h3 id="totalQuotes">0</h3>
+                                <h3 id="usersTotalQuotes">0</h3>
                                 <p>Total Cotizaciones</p>
                             </div>
                         </div>
@@ -5455,6 +5455,12 @@ Ej:
                                     <label class="form-label">💡 Tips agencia (secretos Checkin24hs)</label>
                                     <textarea class="form-input" id="editHotelFlorTips" rows="3" placeholder="Recomendaciones internas"></textarea>
                                 </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">🏷️ Promociones vigentes (Flor lee este campo)</label>
+                                <textarea class="form-input" id="editHotelFlorPromociones" rows="5"
+                                    placeholder="Una promo por línea: Nombre | Precio | Detalle | Hasta (YYYY-MM-DD)&#10;Ej: Flexi Pass 10 días | 330 USD | Transferible, válido toda la temporada | 2026-09-30&#10;Ej: 2x1 Spa | | 2x1 en tratamientos | 2026-08-31"></textarea>
+                                <small style="color:#6a1b9a;">No mezclar con programas. Flor usa solo estas ofertas (Flexi Pass, 2x1, etc.).</small>
                             </div>
                         </div>
                     </div>
@@ -8237,6 +8243,10 @@ Ej:
                 document.getElementById('editHotelFlorAlias').value = florInfo.alias_busqueda || '';
                 document.getElementById('editHotelFlorGastronomia').value = florInfo.gastronomia_info || '';
                 document.getElementById('editHotelFlorTips').value = florInfo.tips_agencia || '';
+                const florPromosElA = document.getElementById('editHotelFlorPromociones');
+                if (florPromosElA && typeof formatHotelPromocionesForForm === 'function') {
+                    florPromosElA.value = formatHotelPromocionesForForm(hotel.promociones);
+                }
                 
                 if (typeof fillFichaWebForm === 'function') {
                     fillFichaWebForm(hotel.ficha_web || hotel.fichaWeb || {});
@@ -16629,7 +16639,7 @@ Ej:
             const florFields = [
                 'editHotelFlorDescription', 'editHotelFlorServices', 'editHotelFlorExcursions',
                 'editHotelFlorPrices', 'editHotelFlorPolicies', 'editHotelFlorTransport', 'editHotelFlorContact',
-                'editHotelFlorAlias', 'editHotelFlorGastronomia', 'editHotelFlorTips'
+                'editHotelFlorAlias', 'editHotelFlorGastronomia', 'editHotelFlorTips', 'editHotelFlorPromociones'
             ];
             florFields.forEach(id => {
                 const el = document.getElementById(id);
@@ -16976,6 +16986,64 @@ Ej:
             });
         }
 
+        function parseHotelPromocionesFromForm(text) {
+            const raw = String(text || '').trim();
+            if (!raw) return [];
+            if (raw.startsWith('[')) {
+                try {
+                    const arr = JSON.parse(raw);
+                    return Array.isArray(arr) ? arr.map(normalizePromoRow).filter(Boolean) : [];
+                } catch (e) {
+                    console.warn('Promociones JSON inválido:', e);
+                }
+            }
+            return raw.split(/\n+/).map((line) => {
+                const t = line.trim();
+                if (!t) return null;
+                const parts = t.split('|').map((s) => s.trim());
+                return normalizePromoRow({
+                    nombre: parts[0] || '',
+                    precio: parts[1] || '',
+                    detalle: parts[2] || '',
+                    hasta: parts[3] || '',
+                    activa: true
+                });
+            }).filter(Boolean);
+        }
+
+        function formatHotelPromocionesForForm(raw) {
+            let arr = raw;
+            if (typeof arr === 'string') {
+                try { arr = JSON.parse(arr); } catch { return String(raw || ''); }
+            }
+            if (!Array.isArray(arr) || !arr.length) return '';
+            return arr.map((p) => {
+                if (typeof p === 'string') return p;
+                const nombre = p.nombre || p.name || '';
+                const precio = p.precio || p.price || '';
+                const detalle = p.detalle || p.description || p.descripcion || '';
+                const hasta = p.hasta || p.end_date || '';
+                return [nombre, precio, detalle, hasta].join(' | ').replace(/\s+\|\s+$/, '');
+            }).join('\n');
+        }
+
+        function normalizePromoRow(p) {
+            if (!p) return null;
+            if (typeof p === 'string') {
+                const t = p.trim();
+                return t ? { nombre: t, detalle: t, precio: '', hasta: '', activa: true } : null;
+            }
+            const nombre = String(p.nombre || p.name || '').trim();
+            if (!nombre) return null;
+            return {
+                nombre,
+                precio: String(p.precio || p.price || '').trim(),
+                detalle: String(p.detalle || p.description || p.descripcion || '').trim(),
+                hasta: String(p.hasta || p.end_date || '').trim().slice(0, 10),
+                activa: p.activa !== false
+            };
+        }
+
         // Función para editar hotel
         async function editHotel(hotelId) {
             const match = (h, id) => h.id == id || String(h && h.id) === String(id);
@@ -17082,6 +17150,10 @@ Ej:
             if (florAliasEl) florAliasEl.value = florInfo.alias_busqueda || '';
             if (florGastronomiaEl) florGastronomiaEl.value = florInfo.gastronomia_info || '';
             if (florTipsEl) florTipsEl.value = florInfo.tips_agencia || '';
+            const florPromosEl = document.getElementById('editHotelFlorPromociones');
+            if (florPromosEl) {
+                florPromosEl.value = formatHotelPromocionesForForm(hotel.promociones);
+            }
             
             if (typeof fillFichaWebForm === 'function') {
                 fillFichaWebForm(hotel.ficha_web || hotel.fichaWeb || {});
@@ -17438,6 +17510,9 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             const florAlias = document.getElementById('editHotelFlorAlias')?.value?.trim() || '';
             const florGastronomia = document.getElementById('editHotelFlorGastronomia')?.value?.trim() || '';
             const florTips = document.getElementById('editHotelFlorTips')?.value?.trim() || '';
+            const florPromocionesParsed = typeof parseHotelPromocionesFromForm === 'function'
+                ? parseHotelPromocionesFromForm(document.getElementById('editHotelFlorPromociones')?.value || '')
+                : [];
             const fichaWeb = typeof getFichaWebFromForm === 'function' ? getFichaWebFromForm() : {};
             const fichaPack = typeof getFichaPackFromForm === 'function' ? getFichaPackFromForm() : {};
             
@@ -17474,6 +17549,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 images: mainImage ? [mainImage, ...galleryImages] : galleryImages, // Compatibilidad con versiones anteriores
                 // Campos de información para Flor IA (ficha Flor: alias, gastronomía, tips)
                 florInfo: {
+                    ...(existingHotel.flor_info && typeof existingHotel.flor_info === 'object' ? existingHotel.flor_info : {}),
+                    ...(existingHotel.florInfo && typeof existingHotel.florInfo === 'object' ? existingHotel.florInfo : {}),
                     description: florDescription,
                     services: florServices,
                     excursions: florExcursions,
@@ -17488,6 +17565,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                     transport: florTransport,
                     contact: florContact
                 },
+                promociones: florPromocionesParsed,
                 fichaWeb: fichaWeb,
                 fichaPack: fichaPack
             };
@@ -17589,6 +17667,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         google_maps: hotelData.googleMaps || null,
                         website: hotelData.website || null,
                         flor_info: hotelData.florInfo || null, // Información para Flor IA
+                        promociones: Array.isArray(hotelData.promociones) ? hotelData.promociones : [],
                         ficha_web: hotelData.fichaWeb || {},
                         ficha_pack: hotelData.fichaPack || {},
                         precio_desde: hotelData.precio_desde != null ? hotelData.precio_desde : (hotelData.price || null)
@@ -17731,6 +17810,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         google_maps: hotelData.googleMaps || null,
                         website: hotelData.website || null,
                         flor_info: florInfoPayload,
+                        promociones: Array.isArray(hotelData.promociones) ? hotelData.promociones : [],
                         ficha_web: hotelData.fichaWeb || {},
                         ficha_pack: hotelData.fichaPack || {},
                         precio_desde: hotelData.precio_desde != null ? hotelData.precio_desde : (hotelData.price || null)
@@ -18963,15 +19043,13 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         }
 
         // Función para exportar usuarios
-        // Función para exportar usuarios
-        function exportUsers() {
+        async function exportUsers() {
             console.log('📤 Exportando usuarios...');
             
             try {
-                // Cargar usuarios
-                const users = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+                const users = await loadUsersData();
                 
-                if (users.length === 0) {
+                if (!users || users.length === 0) {
                     alert('❌ No hay usuarios para exportar');
                     return;
                 }
@@ -20342,8 +20420,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         }
         
         // Función para exportar segmentos
-        function exportSegment(segmentType) {
-            const users = loadUsersData();
+        async function exportSegment(segmentType) {
+            const users = await loadUsersData();
             let segmentUsers = [];
             
             switch(segmentType) {
@@ -20784,8 +20862,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         }
         
         // Funciones auxiliares para las acciones rápidas
-        function exportActiveUsers() {
-            const users = loadUsersData();
+        async function exportActiveUsers() {
+            const users = await loadUsersData();
             const activeUsers = users.filter(user => user.status === 'active' || user.status === 'Activo');
             
             const csvContent = 'data:text/csv;charset=utf-8,' + 
@@ -20805,8 +20883,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             alert('✅ Usuarios activos exportados correctamente');
         }
         
-        function exportUsersWithQuotes() {
-            const users = loadUsersData();
+        async function exportUsersWithQuotes() {
+            const users = await loadUsersData();
             const usersWithQuotes = users.filter(user => user.cotizaciones && user.cotizaciones > 0);
             
             const csvContent = 'data:text/csv;charset=utf-8,' + 
@@ -20826,8 +20904,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             alert('✅ Usuarios con cotizaciones exportados correctamente');
         }
         
-        function generateUserReport() {
-            const users = loadUsersData();
+        async function generateUserReport() {
+            const users = await loadUsersData();
             const stats = calculateUserStats(users);
             
             const report = `
@@ -20958,8 +21036,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                 console.warn('⚠️ Preferencias hotel (¿migración 066?):', prefErr?.message || prefErr);
                             }
                             
-                            // Guardar también en localStorage como backup
-                            localStorage.setItem('checkin24hs_users', JSON.stringify(allUsers));
+                            // No volcar miles de usuarios a localStorage (cuota / tope 1000).
                         }
                     } catch (supabaseError) {
                         console.warn('⚠️ Error cargando de Supabase, usando localStorage:', supabaseError);
@@ -21011,8 +21088,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 // Actualizar tabla de usuarios (solo primeros 20)
                 loadUsersTable(allUsers.slice(0, 20));
                 
-                // Actualizar estadísticas
-                updateDashboardStats(allUsers);
+                // Actualizar estadísticas (conteos exactos en Supabase, no users.length)
+                await updateDashboardStats(allUsers);
                 
                 return allUsers;
             } catch (error) {
@@ -21100,30 +21177,60 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }
         }
 
-        // Función para actualizar estadísticas del dashboard
-        function updateDashboardStats(users) {
-            const totalUsers = users.length;
-            const activeUsers = users.filter(user => user.status === 'active').length;
-            const newUsersThisMonth = users.filter(user => {
-                const userDate = new Date(user.createdAt);
+        function formatDashboardCount(n) {
+            return Number(n || 0).toLocaleString('es-AR');
+        }
+
+        // Función para actualizar estadísticas del dashboard (conteo exacto, no tope de 1000 filas)
+        async function updateDashboardStats(users) {
+            const list = Array.isArray(users) ? users : [];
+            let totalUsers = list.length;
+            const activeUsers = list.filter(user => user.status === 'active').length;
+            let newUsersThisMonth = list.filter(user => {
+                const userDate = new Date(user.createdAt || user.created_at);
                 const currentDate = new Date();
-                return userDate.getMonth() === currentDate.getMonth() && 
+                return userDate.getMonth() === currentDate.getMonth() &&
                        userDate.getFullYear() === currentDate.getFullYear();
             }).length;
-            
-            // Actualizar contadores en el dashboard
+            let totalQuotes = 0;
+            let avgRating = null;
+
+            try {
+                if (window.supabaseClient && typeof window.supabaseClient.getUsersDashboardStats === 'function') {
+                    const s = await window.supabaseClient.getUsersDashboardStats();
+                    if (s && typeof s.totalUsers === 'number') {
+                        totalUsers = s.totalUsers;
+                        newUsersThisMonth = s.newThisMonth;
+                        totalQuotes = s.totalQuotes;
+                        avgRating = s.avgRating;
+                    }
+                }
+            } catch (statsErr) {
+                console.warn('⚠️ Conteos exactos no disponibles, se usa el listado cargado:', statsErr);
+            }
+
             const totalUsersElement = document.querySelector('#totalUsers');
             const activeUsersElement = document.querySelector('#activeUsers');
             const newUsersElement = document.querySelector('#newUsers');
-            
-            if (totalUsersElement) totalUsersElement.textContent = totalUsers;
-            if (activeUsersElement) activeUsersElement.textContent = activeUsers;
-            if (newUsersElement) newUsersElement.textContent = newUsersThisMonth;
-            
+            const quotesElement = document.querySelector('#usersTotalQuotes');
+            const ratingElement = document.querySelector('#avgUserRating');
+
+            if (totalUsersElement) totalUsersElement.textContent = formatDashboardCount(totalUsers);
+            if (activeUsersElement) activeUsersElement.textContent = formatDashboardCount(activeUsers);
+            if (newUsersElement) newUsersElement.textContent = formatDashboardCount(newUsersThisMonth);
+            if (quotesElement) quotesElement.textContent = formatDashboardCount(totalQuotes);
+            if (ratingElement) {
+                ratingElement.textContent = (avgRating != null && Number.isFinite(avgRating))
+                    ? avgRating.toFixed(1)
+                    : '—';
+            }
+
             console.log('📊 Estadísticas actualizadas:', {
                 total: totalUsers,
                 active: activeUsers,
-                newThisMonth: newUsersThisMonth
+                newThisMonth: newUsersThisMonth,
+                totalQuotes,
+                avgRating
             });
         }
 

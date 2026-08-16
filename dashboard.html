@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-14T15:50:52Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 218; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-16T18:11:30Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 220; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">218</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">220</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -3965,7 +3965,7 @@
                             <span class="material-icons">receipt</span>
                             </div>
                             <div class="stat-info">
-                                <h3 id="totalQuotes">0</h3>
+                                <h3 id="usersTotalQuotes">0</h3>
                                 <p>Total Cotizaciones</p>
                             </div>
                         </div>
@@ -19043,15 +19043,13 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         }
 
         // Función para exportar usuarios
-        // Función para exportar usuarios
-        function exportUsers() {
+        async function exportUsers() {
             console.log('📤 Exportando usuarios...');
             
             try {
-                // Cargar usuarios
-                const users = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
+                const users = await loadUsersData();
                 
-                if (users.length === 0) {
+                if (!users || users.length === 0) {
                     alert('❌ No hay usuarios para exportar');
                     return;
                 }
@@ -20422,8 +20420,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         }
         
         // Función para exportar segmentos
-        function exportSegment(segmentType) {
-            const users = loadUsersData();
+        async function exportSegment(segmentType) {
+            const users = await loadUsersData();
             let segmentUsers = [];
             
             switch(segmentType) {
@@ -20864,8 +20862,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         }
         
         // Funciones auxiliares para las acciones rápidas
-        function exportActiveUsers() {
-            const users = loadUsersData();
+        async function exportActiveUsers() {
+            const users = await loadUsersData();
             const activeUsers = users.filter(user => user.status === 'active' || user.status === 'Activo');
             
             const csvContent = 'data:text/csv;charset=utf-8,' + 
@@ -20885,8 +20883,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             alert('✅ Usuarios activos exportados correctamente');
         }
         
-        function exportUsersWithQuotes() {
-            const users = loadUsersData();
+        async function exportUsersWithQuotes() {
+            const users = await loadUsersData();
             const usersWithQuotes = users.filter(user => user.cotizaciones && user.cotizaciones > 0);
             
             const csvContent = 'data:text/csv;charset=utf-8,' + 
@@ -20906,8 +20904,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             alert('✅ Usuarios con cotizaciones exportados correctamente');
         }
         
-        function generateUserReport() {
-            const users = loadUsersData();
+        async function generateUserReport() {
+            const users = await loadUsersData();
             const stats = calculateUserStats(users);
             
             const report = `
@@ -21038,8 +21036,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                 console.warn('⚠️ Preferencias hotel (¿migración 066?):', prefErr?.message || prefErr);
                             }
                             
-                            // Guardar también en localStorage como backup
-                            localStorage.setItem('checkin24hs_users', JSON.stringify(allUsers));
+                            // No volcar miles de usuarios a localStorage (cuota / tope 1000).
                         }
                     } catch (supabaseError) {
                         console.warn('⚠️ Error cargando de Supabase, usando localStorage:', supabaseError);
@@ -21091,8 +21088,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 // Actualizar tabla de usuarios (solo primeros 20)
                 loadUsersTable(allUsers.slice(0, 20));
                 
-                // Actualizar estadísticas
-                updateDashboardStats(allUsers);
+                // Actualizar estadísticas (conteos exactos en Supabase, no users.length)
+                await updateDashboardStats(allUsers);
                 
                 return allUsers;
             } catch (error) {
@@ -21180,30 +21177,60 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }
         }
 
-        // Función para actualizar estadísticas del dashboard
-        function updateDashboardStats(users) {
-            const totalUsers = users.length;
-            const activeUsers = users.filter(user => user.status === 'active').length;
-            const newUsersThisMonth = users.filter(user => {
-                const userDate = new Date(user.createdAt);
+        function formatDashboardCount(n) {
+            return Number(n || 0).toLocaleString('es-AR');
+        }
+
+        // Función para actualizar estadísticas del dashboard (conteo exacto, no tope de 1000 filas)
+        async function updateDashboardStats(users) {
+            const list = Array.isArray(users) ? users : [];
+            let totalUsers = list.length;
+            const activeUsers = list.filter(user => user.status === 'active').length;
+            let newUsersThisMonth = list.filter(user => {
+                const userDate = new Date(user.createdAt || user.created_at);
                 const currentDate = new Date();
-                return userDate.getMonth() === currentDate.getMonth() && 
+                return userDate.getMonth() === currentDate.getMonth() &&
                        userDate.getFullYear() === currentDate.getFullYear();
             }).length;
-            
-            // Actualizar contadores en el dashboard
+            let totalQuotes = 0;
+            let avgRating = null;
+
+            try {
+                if (window.supabaseClient && typeof window.supabaseClient.getUsersDashboardStats === 'function') {
+                    const s = await window.supabaseClient.getUsersDashboardStats();
+                    if (s && typeof s.totalUsers === 'number') {
+                        totalUsers = s.totalUsers;
+                        newUsersThisMonth = s.newThisMonth;
+                        totalQuotes = s.totalQuotes;
+                        avgRating = s.avgRating;
+                    }
+                }
+            } catch (statsErr) {
+                console.warn('⚠️ Conteos exactos no disponibles, se usa el listado cargado:', statsErr);
+            }
+
             const totalUsersElement = document.querySelector('#totalUsers');
             const activeUsersElement = document.querySelector('#activeUsers');
             const newUsersElement = document.querySelector('#newUsers');
-            
-            if (totalUsersElement) totalUsersElement.textContent = totalUsers;
-            if (activeUsersElement) activeUsersElement.textContent = activeUsers;
-            if (newUsersElement) newUsersElement.textContent = newUsersThisMonth;
-            
+            const quotesElement = document.querySelector('#usersTotalQuotes');
+            const ratingElement = document.querySelector('#avgUserRating');
+
+            if (totalUsersElement) totalUsersElement.textContent = formatDashboardCount(totalUsers);
+            if (activeUsersElement) activeUsersElement.textContent = formatDashboardCount(activeUsers);
+            if (newUsersElement) newUsersElement.textContent = formatDashboardCount(newUsersThisMonth);
+            if (quotesElement) quotesElement.textContent = formatDashboardCount(totalQuotes);
+            if (ratingElement) {
+                ratingElement.textContent = (avgRating != null && Number.isFinite(avgRating))
+                    ? avgRating.toFixed(1)
+                    : '—';
+            }
+
             console.log('📊 Estadísticas actualizadas:', {
                 total: totalUsers,
                 active: activeUsers,
-                newThisMonth: newUsersThisMonth
+                newThisMonth: newUsersThisMonth,
+                totalQuotes,
+                avgRating
             });
         }
 
