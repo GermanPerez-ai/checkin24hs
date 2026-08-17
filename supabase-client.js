@@ -2377,6 +2377,7 @@ class SupabaseClient {
                 const { data, error } = await this.client
                     .from('users')
                     .select('*')
+                    .order('last_activity', { ascending: false, nullsFirst: false })
                     .order('created_at', { ascending: false })
                     .range(from, from + pageSize - 1);
                 if (error) throw error;

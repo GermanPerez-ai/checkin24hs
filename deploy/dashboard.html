@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-17T01:02:16Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 222; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-17T12:58:54Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 224; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">222</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">224</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -21066,6 +21066,27 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                     });
                                     allUsers.forEach(u => {
                                         u.hotelInterests = byUser[u.id] || [];
+                                    });
+                                }
+                                // Atajo last_hotel_id (migración 066) si no hay filas en el historial
+                                const needHotel = allUsers.filter(u =>
+                                    u.last_hotel_id && !(u.hotelInterests && u.hotelInterests.length)
+                                );
+                                if (needHotel.length) {
+                                    const { data: hotelRows } = await window.supabaseClient.client
+                                        .from('hotels')
+                                        .select('id,name');
+                                    const hotelById = {};
+                                    (hotelRows || []).forEach(h => { hotelById[h.id] = h.name; });
+                                    needHotel.forEach(u => {
+                                        const hotelName = hotelById[u.last_hotel_id];
+                                        if (hotelName) {
+                                            u.hotelInterests = [{
+                                                hotel_id: u.last_hotel_id,
+                                                hotel_name: hotelName,
+                                                interest_count: 1
+                                            }];
+                                        }
                                     });
                                 }
                             } catch (prefErr) {
