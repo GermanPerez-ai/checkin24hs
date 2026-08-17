@@ -42,10 +42,15 @@ const SINCE_DAYS = Math.max(
   parseInt(sinceArg ? sinceArg.split('=')[1] : process.env.EMAIL_SYNC_SINCE_DAYS || '60', 10) || 60
 );
 
-const IMAP_HOST = process.env.IMAP_HOST || 'mail.checkin24hs.com';
+const IMAP_HOST = (process.env.IMAP_HOST || 'mail.checkin24hs.com').trim();
 const IMAP_PORT = parseInt(process.env.IMAP_PORT || '993', 10) || 993;
-const IMAP_USER = process.env.IMAP_USER || 'reservas@checkin24hs.com';
-const IMAP_PASS = process.env.IMAP_PASS || '';
+const IMAP_USER = (process.env.IMAP_USER || 'reservas@checkin24hs.com').trim();
+const IMAP_PASS = (process.env.IMAP_PASS || '').trim();
+const IMAP_LOGIN_METHOD = (process.env.IMAP_LOGIN_METHOD || 'LOGIN').trim();
+const IMAP_SECURE =
+  process.env.IMAP_SECURE === '1' ||
+  process.env.IMAP_SECURE === 'true' ||
+  (process.env.IMAP_SECURE !== '0' && IMAP_PORT === 993);
 const IMAP_TLS_REJECT =
   process.env.IMAP_TLS_REJECT_UNAUTHORIZED === '1' ||
   process.env.IMAP_TLS_REJECT_UNAUTHORIZED === 'true';
@@ -165,8 +170,13 @@ async function main() {
   const client = new ImapFlow({
     host: IMAP_HOST,
     port: IMAP_PORT,
-    secure: true,
-    auth: { user: IMAP_USER, pass: IMAP_PASS },
+    secure: IMAP_SECURE,
+    disableSTARTTLS: !IMAP_SECURE && IMAP_PORT !== 993,
+    auth: {
+      user: IMAP_USER,
+      pass: IMAP_PASS,
+      loginMethod: IMAP_LOGIN_METHOD,
+    },
     logger: false,
     tls: { rejectUnauthorized: IMAP_TLS_REJECT },
   });
