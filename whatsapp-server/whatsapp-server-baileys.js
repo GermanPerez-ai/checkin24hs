@@ -46,6 +46,7 @@ const qrcode = require('qrcode');
 const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
 const { getLinkPreview } = require('link-preview-js');
+const { handleHuiloGroupMessage, isWhatsAppGroupJid } = require('./huilo-group-reservations');
 
 console.log('🚀 Iniciando servidor WhatsApp con Baileys...');
 
@@ -6028,6 +6029,18 @@ async function connectToWhatsApp() {
         }
 
         for (const msg of messages) {
+            const groupJidEarly = msg.key?.remoteJid;
+            if (groupJidEarly && isWhatsAppGroupJid(groupJidEarly)) {
+                try {
+                    await handleHuiloGroupMessage(sock, msg, {
+                        supabase,
+                        instanceNumber: CONFIG.INSTANCE_NUMBER,
+                    });
+                } catch (e) {
+                    console.warn('⚠️ Huilo grupo:', e.message || e);
+                }
+                continue;
+            }
             // Mensajes SALIENTES (fromMe): Baileys recibe también lo enviado por Flor y por el humano desde el teléfono.
             if (msg.key.fromMe) {
                 const remoteJidOut = msg.key.remoteJid;

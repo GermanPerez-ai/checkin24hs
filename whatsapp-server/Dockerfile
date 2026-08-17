@@ -16,6 +16,8 @@ RUN npm install --production --no-optional && \
     node -e "require('@whiskeysockets/baileys')" || (echo "FATAL: Baileys no instalado" && exit 1)
 COPY whatsapp-server-baileys.js ./
 COPY whatsapp-server.js ./
+COPY huilo-parse.js ./
+COPY huilo-group-reservations.js ./
 
 # Carpetas para persistencia de sesión WhatsApp (montar volumen en EasyPanel)
 RUN mkdir -p logs auth_info_baileys_1 auth_info_baileys_2 auth_info_baileys_3 auth_info_baileys_4
