@@ -143,14 +143,22 @@ def find_hotel():
     return {"id": preferred.get("id"), "name": preferred.get("name") or "Huilo Huilo"}
 
 
-def already_imported(message_id: str) -> bool:
-    q = "email_reservation_imports?select=id&message_id=eq." + urllib.parse.quote(message_id, safe="") + "&limit=1"
+def already_imported(message_id: str, retry_skipped: bool = False) -> bool:
+    q = (
+        "email_reservation_imports?select=id,status&message_id=eq."
+        + urllib.parse.quote(message_id, safe="")
+        + "&limit=1"
+    )
     data = sb("GET", q)
-    return isinstance(data, list) and len(data) > 0
+    if not isinstance(data, list) or not data:
+        return False
+    if retry_skipped and (data[0].get("status") or "") == "skipped":
+        return False
+    return True
 
 
 def mark_imported(row: dict):
-    sb("POST", "email_reservation_imports", [row])
+    sb("POST", "email_reservation_imports?on_conflict=message_id", [row])
 
 
 def upsert_reservation(parsed, hotel):
@@ -181,6 +189,8 @@ def upsert_reservation(parsed, hotel):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--retry-skipped", action="store_true", help="Reprocesar mails marcados skipped (HTML/tabla)")
+    ap.add_argument("--subject-contains", default="", help="Solo mails cuyo asunto contiene este texto")
     ap.add_argument("--since-days", type=int, default=int(env("EMAIL_SYNC_SINCE_DAYS", "60") or "60"))
     args = ap.parse_args()
 
@@ -194,7 +204,7 @@ def main():
     since = dt.date.today() - dt.timedelta(days=max(1, args.since_days))
     since_imap = since.strftime("%d-%b-%Y")
     print(f"📬 IMAP {IMAP_USER}@{IMAP_HOST}:{IMAP_PORT} mailbox={MAILBOX}")
-    print(f"📅 SINCE {since_imap}{' (DRY-RUN)' if args.dry_run else ''}")
+    print(f"📅 SINCE {since_imap}{' (DRY-RUN)' if args.dry_run else ''}{' (retry skipped)' if args.retry_skipped else ''}")
 
     hotel = {"id": None, "name": "Huilo Huilo"} if args.dry_run else find_hotel()
     print(f"🏨 Hotel destino: {hotel['name']}")
@@ -221,10 +231,13 @@ def main():
             message_id = (msg.get("Message-ID") or f"uid-{uid.decode()}").strip()
             text, html = body_text(msg)
 
+            if args.subject_contains and args.subject_contains.lower() not in subject.lower():
+                continue
+
             if "huilohuilo.com" not in from_addr.lower() and "huilo" not in subject.lower():
                 continue
 
-            if not args.dry_run and already_imported(message_id):
+            if not args.dry_run and already_imported(message_id, args.retry_skipped):
                 stats["skipped"] += 1
                 continue
 

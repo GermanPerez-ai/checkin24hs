@@ -1,3 +1,4 @@
+import html as html_lib
 import re
 import unicodedata
 
@@ -17,19 +18,54 @@ MONTHS_ES = {
     "diciembre": 12,
 }
 
+_LABELS = (
+    r"Nombre",
+    r"Alojamiento",
+    r"N[uú]mero de confirmaci[oó]n",
+    r"Pasajeros",
+    r"Categor[ií]a de habitaci[oó]n",
+    r"Tipo de habitaci[oó]n",
+    r"Plan de alimentaci[oó]n",
+    r"Traslados",
+    r"Fechas",
+    r"Tarifa final a pagar",
+)
 
-def strip_html(html: str) -> str:
+
+def html_to_text(html: str) -> str:
+    """Tablas HTML de Huilo: <td>Label</td><td>valor</td> → Label: valor."""
     s = str(html or "")
-    s = re.sub(r"<br\s*/?>", "\n", s, flags=re.I)
-    s = re.sub(r"</p>", "\n", s, flags=re.I)
-    s = re.sub(r"</tr>", "\n", s, flags=re.I)
-    s = re.sub(r"</div>", "\n", s, flags=re.I)
+    s = html_lib.unescape(s)
+    s = s.replace("\xa0", " ").replace("\u200b", "")
+    s = re.sub(r"(?i)<br\s*/?>", "\n", s)
+    s = re.sub(r"(?i)</(p|div|tr|h[1-6]|li|table)>", "\n", s)
+    s = re.sub(r"(?i)</t[dh]>\s*<t[dh][^>]*>", ": ", s)
+    s = re.sub(r"(?i)</t[dh]>", "\n", s)
     s = re.sub(r"<[^>]+>", " ", s)
-    s = s.replace("&nbsp;", " ").replace("&amp;", "&").replace("\r", "")
+    s = s.replace("\r", "")
     s = re.sub(r"[ \t]+\n", "\n", s)
     s = re.sub(r"\n{3,}", "\n\n", s)
     s = re.sub(r"[ \t]{2,}", " ", s)
+    labels = "|".join(_LABELS)
+    s = re.sub(rf"(?im)(^|\n)\s*({labels})\s*\n\s*", r"\1\2: ", s)
+    s = re.sub(r"(?im)(^|\n)\s*(In|Out)\s*\n\s*", r"\1\2: ", s)
     return s.strip()
+
+
+def strip_html(html: str) -> str:
+    return html_to_text(html)
+
+
+def nombre_from_subject(subject: str):
+    s = str(subject or "").strip()
+    s = re.sub(r"^(RE|RV|FW|Fwd)\s*:\s*", "", s, flags=re.I)
+    m = re.match(r"^Confirmaci[oó]n\s+(.+)$", s, re.I)
+    if not m:
+        return None
+    name = m.group(1).strip()
+    if re.search(r"fotograf|congreso|consulta|tarifas|fauna", name, re.I):
+        return None
+    return name or None
 
 
 def _fold(s: str) -> str:
@@ -40,7 +76,8 @@ def parse_huilo_date(raw):
     if not raw:
         return None
     s = re.sub(r"\s+", " ", str(raw).strip().lower())
-    m = re.match(r"^(\d{1,2})[-\s/]+([a-záéíóú]+)[-\s/]+(\d{2,4})$", s, re.I)
+    s = re.sub(r"\s*[-–]\s*$", "", s).strip()
+    m = re.search(r"(\d{1,2})[-\s/]+([a-záéíóú]+)[-\s/]+(\d{2,4})", s, re.I)
     if m:
         day = int(m.group(1))
         month = MONTHS_ES.get(_fold(m.group(2)))
@@ -50,7 +87,7 @@ def parse_huilo_date(raw):
         if not month or not day:
             return None
         return f"{year:04d}-{month:02d}-{day:02d}"
-    m = re.match(r"^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$", s)
+    m = re.search(r"(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})", s)
     if m:
         day, month, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
         if year < 100:
@@ -79,29 +116,36 @@ def field(text, label):
     return re.sub(r"\s+", " ", m.group(1)).strip() if m else None
 
 
-def parse_huilo_confirmation(mail: dict):
-    from_addr = str(mail.get("from") or "").lower()
-    subject = str(mail.get("subject") or "")
-    text = mail.get("text") or strip_html(mail.get("html") or "")
-
+def _from_text(text: str, subject: str, from_addr: str):
     looks = (
         "huilohuilo.com" in from_addr
         or re.search(r"huilo", subject, re.I)
         or re.search(r"Confirmaci[oó]n de reserva", text, re.I)
         or re.search(r"N[uú]mero de confirmaci[oó]n", text, re.I)
+        or bool(nombre_from_subject(subject))
     )
     if not looks:
         return None
-    if not re.search(r"confirmaci[oó]n", subject, re.I) and not re.search(
-        r"Confirmaci[oó]n de reserva", text, re.I
+    if (
+        not re.search(r"confirmaci[oó]n", subject, re.I)
+        and not re.search(r"Confirmaci[oó]n de reserva", text, re.I)
+        and not nombre_from_subject(subject)
     ):
         return None
 
     code = field(text, r"N[uú]mero de confirmaci[oó]n")
     if not code:
-        m = re.search(r"N[uú]mero de confirmaci[oó]n\s*[:：]?\s*(\d{6,})", text, re.I)
-        code = m.group(1) if m else None
-    nombre = field(text, r"Nombre")
+        m = re.search(r"N[uú]mero de confirmaci[oó]n\s*[:：]?\s*(.+)", text, re.I)
+        code = m.group(1).strip() if m else None
+    if code:
+        nums = re.findall(r"\b\d{9}\b", code)
+        if nums:
+            code = " y ".join(dict.fromkeys(nums))
+    if not code:
+        nums = re.findall(r"\b\d{9}\b", text)
+        if nums:
+            code = " y ".join(dict.fromkeys(nums))
+    nombre = field(text, r"Nombre") or nombre_from_subject(subject)
     if not code or not nombre:
         return None
 
@@ -163,3 +207,22 @@ def parse_huilo_confirmation(mail: dict):
         "currency": currency,
         "notes": notes,
     }
+
+
+def parse_huilo_confirmation(mail: dict):
+    from_addr = str(mail.get("from") or "").lower()
+    subject = str(mail.get("subject") or "")
+    text = mail.get("text") or ""
+    html = mail.get("html") or ""
+    candidates = []
+    if text.strip():
+        candidates.append(text)
+    if html.strip():
+        candidates.append(html_to_text(html))
+    if not candidates:
+        return None
+    for body in candidates:
+        parsed = _from_text(body, subject, from_addr)
+        if parsed:
+            return parsed
+    return None

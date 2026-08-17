@@ -20,19 +20,33 @@ const MONTHS_ES = {
 };
 
 function stripHtml(html) {
-  return String(html || '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>/gi, '\n')
-    .replace(/<\/tr>/gi, '\n')
-    .replace(/<\/div>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
+  let s = String(html || '')
     .replace(/&nbsp;/gi, ' ')
     .replace(/&amp;/gi, '&')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|tr|h[1-6]|li|table)>/gi, '\n')
+    .replace(/<\/t[dh]>\s*<t[dh][^>]*>/gi, ': ')
+    .replace(/<\/t[dh]>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
     .replace(/\r/g, '')
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .replace(/[ \t]{2,}/g, ' ')
     .trim();
+  const labels =
+    'Nombre|Alojamiento|N[uú]mero de confirmaci[oó]n|Pasajeros|Categor[ií]a de habitaci[oó]n|Tipo de habitaci[oó]n|Plan de alimentaci[oó]n|Traslados|Fechas|Tarifa final a pagar';
+  s = s.replace(new RegExp('(^|\\n)\\s*(' + labels + ')\\s*\\n\\s*', 'gim'), '$1$2: ');
+  s = s.replace(/(^|\n)\s*(In|Out)\s*\n\s*/gim, '$1$2: ');
+  return s;
+}
+
+function nombreFromSubject(subject) {
+  let s = String(subject || '').trim().replace(/^(RE|RV|FW|Fwd)\s*:\s*/i, '');
+  const m = s.match(/^Confirmaci[oó]n\s+(.+)$/i);
+  if (!m) return null;
+  const name = m[1].trim();
+  if (/fotograf|congreso|consulta|tarifas|fauna/i.test(name)) return null;
+  return name || null;
 }
 
 /** @returns {string|null} YYYY-MM-DD */
@@ -46,7 +60,7 @@ function parseHuiloDate(raw) {
     .trim();
 
   // 04-noviembre-2026 | 4 noviembre 2026
-  let m = s.match(/^(\d{1,2})[-\s/]+([a-záéíóú]+)[-\s/]+(\d{2,4})$/i);
+  let m = s.match(/(\d{1,2})[-\s/]+([a-záéíóú]+)[-\s/]+(\d{2,4})/i);
   if (m) {
     const day = parseInt(m[1], 10);
     const monName = m[2].normalize('NFD').replace(/\p{M}/gu, '');
@@ -58,7 +72,7 @@ function parseHuiloDate(raw) {
   }
 
   // 06-11-26 | 06/11/2026
-  m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  m = s.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
   if (m) {
     const day = parseInt(m[1], 10);
     const month = parseInt(m[2], 10);
@@ -111,23 +125,51 @@ function field(text, label) {
 function parseHuiloConfirmation(mail) {
   const from = String(mail.from || '').toLowerCase();
   const subject = String(mail.subject || '');
-  const text = mail.text || stripHtml(mail.html || '');
+  const rawText = mail.text || '';
+  const html = mail.html || '';
+  const candidates = [];
+  if (String(rawText).trim()) candidates.push(rawText);
+  if (String(html).trim()) candidates.push(stripHtml(html));
+  if (!candidates.length) return null;
 
+  for (const text of candidates) {
+    const parsed = fromText(text, subject, from);
+    if (parsed) return parsed;
+  }
+  return null;
+}
+
+function fromText(text, subject, from) {
   const looksHuilo =
     from.includes('huilohuilo.com') ||
     /huilo/i.test(subject) ||
     /Confirmaci[oó]n de reserva/i.test(text) ||
-    /N[uú]mero de confirmaci[oó]n/i.test(text);
+    /N[uú]mero de confirmaci[oó]n/i.test(text) ||
+    !!nombreFromSubject(subject);
 
   if (!looksHuilo) return null;
-  if (!/confirmaci[oó]n/i.test(subject) && !/Confirmaci[oó]n de reserva/i.test(text)) {
+  if (
+    !/confirmaci[oó]n/i.test(subject) &&
+    !/Confirmaci[oó]n de reserva/i.test(text) &&
+    !nombreFromSubject(subject)
+  ) {
     return null;
   }
 
-  const code =
-    field(text, 'N[uú]mero de confirmaci[oó]n') ||
-    (text.match(/N[uú]mero de confirmaci[oó]n\s*[:：]?\s*(\d{6,})/i) || [])[1];
-  const nombre = field(text, 'Nombre');
+  let code = field(text, 'N[uú]mero de confirmaci[oó]n');
+  if (!code) {
+    const m = text.match(/N[uú]mero de confirmaci[oó]n\s*[:：]?\s*(.+)/i);
+    code = m ? m[1].trim() : null;
+  }
+  if (code) {
+    const nums = code.match(/\b\d{9}\b/g);
+    if (nums && nums.length) code = [...new Set(nums)].join(' y ');
+  }
+  if (!code) {
+    const nums = text.match(/\b\d{9}\b/g);
+    if (nums && nums.length) code = [...new Set(nums)].join(' y ');
+  }
+  const nombre = field(text, 'Nombre') || nombreFromSubject(subject);
   if (!code || !nombre) return null;
 
   const pasajerosRaw = field(text, 'Pasajeros') || '';

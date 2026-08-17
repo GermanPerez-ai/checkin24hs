@@ -65,4 +65,45 @@ assert.strictEqual(p2.adults, 1);
 assert.strictEqual(p2.children, 0);
 assert.strictEqual(p2.total_amount, 600);
 
+const htmlTable = `
+<html><body><table>
+<tr><td>Nombre</td><td>Adriana Carpineti</td></tr>
+<tr><td>Número de confirmación</td><td>597003333</td></tr>
+<tr><td>Pasajeros</td><td>1 adulto</td></tr>
+<tr><td>Fechas</td><td>In: 03-diciembre-2026 Out: 06-diciembre-2026</td></tr>
+<tr><td>Tarifa final a pagar</td><td>USD 900</td></tr>
+</table></body></html>
+`;
+const p3 = parseHuiloConfirmation({
+  from: 'paz.galvez@huilohuilo.com',
+  subject: 'Confirmación Adriana Carpineti',
+  text: 'Ver HTML',
+  html: htmlTable,
+});
+assert.ok(p3, 'tabla HTML debe parsear');
+assert.strictEqual(p3.reservation_code, '597003333');
+assert.strictEqual(p3.client_name, 'Adriana Carpineti');
+assert.strictEqual(p3.check_in, '2026-12-03');
+assert.strictEqual(p3.check_out, '2026-12-06');
+
+const htmlStacked = `
+<table>
+<tr><td>Nombre</td></tr><tr><td>agencia Caupolican</td></tr>
+<tr><td>Número de confirmación</td></tr><tr><td>597002222</td></tr>
+<tr><td>In</td></tr><tr><td>21-10-26</td></tr>
+<tr><td>Out</td></tr><tr><td>24-10-26</td></tr>
+<tr><td>Tarifa final a pagar</td></tr><tr><td>USD 1500</td></tr>
+</table>
+`;
+const p4 = parseHuiloConfirmation({
+  from: 'paz.galvez@huilohuilo.com',
+  subject: 'Confirmación agencia Caupolican',
+  html: htmlStacked,
+});
+assert.ok(p4, 'filas apiladas deben parsear');
+assert.strictEqual(p4.reservation_code, '597002222');
+assert.strictEqual(p4.client_name, 'agencia Caupolican');
+assert.strictEqual(p4.check_in, '2026-10-21');
+assert.strictEqual(p4.check_out, '2026-10-24');
+
 console.log('OK parse-huilo tests');
