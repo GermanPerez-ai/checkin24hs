@@ -772,6 +772,17 @@ class SupabaseClient {
             }
             
             console.log('✅ Reserva guardada en Supabase con ID:', data.id);
+            try {
+                await this.upsertUser({
+                    name: data.client_name || data.customer_name || reservationToCreate.client_name,
+                    email: data.client_email || data.customer_email || reservationToCreate.client_email,
+                    phone: data.client_phone || data.customer_phone || reservationToCreate.client_phone,
+                    hotel_id: data.hotel_id || reservationToCreate.hotel_id,
+                    hotel_name: data.hotel_name || reservationToCreate.hotel_name
+                });
+            } catch (userErr) {
+                console.warn('⚠️ Reserva OK, no se pudo actualizar hotel de interés del usuario:', userErr?.message || userErr);
+            }
             
             return data;
         } catch (error) {
@@ -2449,11 +2460,63 @@ class SupabaseClient {
         }
     }
 
+    async recordUserHotelInterest(userId, hotelId, options = {}) {
+        if (!this.isInitialized() || !userId || !hotelId) return false;
+        const phone = options.phone || null;
+        const source = options.source || 'reserva';
+        const nowIso = new Date().toISOString();
+        try {
+            const { error } = await this.client.rpc('record_user_hotel_interest', {
+                p_user_id: userId,
+                p_hotel_id: hotelId,
+                p_phone: phone,
+                p_instance: options.instance || null,
+                p_source: source
+            });
+            if (!error) return true;
+            const { data: existing } = await this.client
+                .from('user_hotel_interests')
+                .select('id, interest_count')
+                .eq('user_id', userId)
+                .eq('hotel_id', hotelId)
+                .limit(1);
+            const row = existing && existing[0];
+            if (row?.id) {
+                await this.client.from('user_hotel_interests').update({
+                    interest_count: (row.interest_count || 1) + 1,
+                    last_interest_at: nowIso,
+                    phone: phone || undefined,
+                    source
+                }).eq('id', row.id);
+            } else {
+                await this.client.from('user_hotel_interests').insert({
+                    user_id: userId,
+                    hotel_id: hotelId,
+                    phone,
+                    source,
+                    interest_count: 1,
+                    first_interest_at: nowIso,
+                    last_interest_at: nowIso
+                });
+            }
+            await this.client.from('users').update({
+                last_hotel_id: hotelId,
+                last_activity: nowIso,
+                updated_at: nowIso
+            }).eq('id', userId);
+            return true;
+        } catch (err) {
+            console.warn('⚠️ recordUserHotelInterest:', err?.message || err);
+            return false;
+        }
+    }
+
     // Crear o actualizar usuario (upsert con lógica de deduplicación)
     async upsertUser(userData) {
         const email = userData.email?.trim().toLowerCase() || '';
         const phone = userData.phone?.trim() || '';
         const name = userData.name?.trim() || '';
+        const hotelId = userData.hotel_id || userData.hotelId || null;
         
         // Si no hay email ni teléfono, no guardar
         if (!email && !phone) {
@@ -2469,6 +2532,7 @@ class SupabaseClient {
         try {
             // Buscar si ya existe por email o teléfono
             const existingUser = await this.findUserByEmailOrPhone(email, phone);
+            let saved = existingUser;
             
             if (existingUser) {
                 // Actualizar usuario existente - agregar campos faltantes
@@ -2483,6 +2547,7 @@ class SupabaseClient {
                 if (!existingUser.name && name) {
                     updates.name = name;
                 }
+                if (hotelId) updates.last_hotel_id = hotelId;
                 updates.last_activity = new Date().toISOString();
                 updates.updated_at = new Date().toISOString();
                 
@@ -2496,11 +2561,10 @@ class SupabaseClient {
                     
                     if (error) throw error;
                     console.log('🔄 Usuario actualizado en Supabase:', data.id);
-                    return data;
+                    saved = data;
+                } else {
+                    console.log('ℹ️ Usuario ya existe, sin cambios necesarios:', existingUser.id);
                 }
-                
-                console.log('ℹ️ Usuario ya existe, sin cambios necesarios:', existingUser.id);
-                return existingUser;
             } else {
                 // Crear nuevo usuario
                 const newUser = {
@@ -2513,6 +2577,7 @@ class SupabaseClient {
                     rewards_points: 0,
                     tipo_cuenta: 'cliente_reserva'
                 };
+                if (hotelId) newUser.last_hotel_id = hotelId;
                 
                 const { data, error } = await this.client
                     .from('users')
@@ -2523,8 +2588,12 @@ class SupabaseClient {
                 if (error) throw error;
                 
                 console.log('✅ Nuevo usuario creado en Supabase:', data.id);
-                return data;
+                saved = data;
             }
+            if (saved?.id && hotelId) {
+                await this.recordUserHotelInterest(saved.id, hotelId, { phone, source: 'reserva' });
+            }
+            return saved;
         } catch (error) {
             console.error('❌ Error en upsertUser:', error);
             // Fallback a localStorage

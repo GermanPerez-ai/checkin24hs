@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-17T12:58:54Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 224; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-17T13:44:39Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 226; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">224</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">226</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -21092,6 +21092,75 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                             } catch (prefErr) {
                                 console.warn('⚠️ Preferencias hotel (¿migración 066?):', prefErr?.message || prefErr);
                             }
+                            // Hoteles de reservas: se suman a los de Flor (varios hoteles por usuario)
+                            try {
+                                const phoneKey = (p) => {
+                                    const d = String(p || '').replace(/\D/g, '');
+                                    return d.length >= 10 ? d.slice(-10) : d;
+                                };
+                                const resPage = 1000;
+                                let resFrom = 0;
+                                const reservations = [];
+                                for (;;) {
+                                    const resQ = await window.supabaseClient.client
+                                        .from('reservations')
+                                        .select('client_phone,client_email,hotel_id,hotel_name,created_at')
+                                        .order('created_at', { ascending: false })
+                                        .range(resFrom, resFrom + resPage - 1);
+                                    if (resQ.error) break;
+                                    const batch = resQ.data || [];
+                                    reservations.push(...batch);
+                                    if (batch.length < resPage) break;
+                                    resFrom += resPage;
+                                    if (resFrom >= 100000) break;
+                                }
+                                const byPhone = {};
+                                const byEmail = {};
+                                const pushHotel = (map, key, entry) => {
+                                    if (!key) return;
+                                    if (!map[key]) map[key] = [];
+                                    const dup = map[key].some((h) =>
+                                        (entry.hotel_id && h.hotel_id === entry.hotel_id) ||
+                                        (h.hotel_name && entry.hotel_name && h.hotel_name.toLowerCase() === entry.hotel_name.toLowerCase())
+                                    );
+                                    if (!dup) map[key].push(entry);
+                                };
+                                reservations.forEach((r) => {
+                                    const hotelName = String(r.hotel_name || '').trim();
+                                    if (!hotelName && !r.hotel_id) return;
+                                    const entry = {
+                                        hotel_id: r.hotel_id || null,
+                                        hotel_name: hotelName || 'Hotel',
+                                        interest_count: 1,
+                                        source: 'reserva',
+                                        last_interest_at: r.created_at
+                                    };
+                                    pushHotel(byPhone, phoneKey(r.client_phone), entry);
+                                    const em = String(r.client_email || '').trim().toLowerCase();
+                                    if (em) pushHotel(byEmail, em, entry);
+                                });
+                                allUsers.forEach((u) => {
+                                    const extra = [];
+                                    const pk = phoneKey(u.phone);
+                                    if (pk && byPhone[pk]) extra.push(...byPhone[pk]);
+                                    const em = String(u.email || '').trim().toLowerCase();
+                                    if (em && byEmail[em] && !String(u.email).includes('@whatsapp.checkin24hs.local')) {
+                                        extra.push(...byEmail[em]);
+                                    }
+                                    if (!extra.length) return;
+                                    const current = Array.isArray(u.hotelInterests) ? u.hotelInterests.slice() : [];
+                                    extra.forEach((e) => {
+                                        const exists = current.some((c) =>
+                                            (e.hotel_id && c.hotel_id === e.hotel_id) ||
+                                            (c.hotel_name && e.hotel_name && String(c.hotel_name).toLowerCase() === String(e.hotel_name).toLowerCase())
+                                        );
+                                        if (!exists) current.push(e);
+                                    });
+                                    u.hotelInterests = current;
+                                });
+                            } catch (resPrefErr) {
+                                console.warn('⚠️ Hoteles desde reservas:', resPrefErr?.message || resPrefErr);
+                            }
                             
                             // No volcar miles de usuarios a localStorage (cuota / tope 1000).
                         }
@@ -25929,7 +25998,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 saveUserFromReservation({
                     clientName: reservationData.client_name,
                     clientEmail: reservationData.client_email,
-                    clientPhone: reservationData.client_phone
+                    clientPhone: reservationData.client_phone,
+                    hotelId: reservationData.hotel_id,
+                    hotelName: reservationData.hotel_name,
+                    hotel_id: reservationData.hotel_id,
+                    hotel_name: reservationData.hotel_name
                 });
                 
                 console.log('✅ Nueva reserva creada:', newReservation);
@@ -25965,7 +26038,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 
                 // Usar Supabase si está disponible
                 if (window.supabaseClient && window.supabaseClient.isInitialized()) {
-                    const result = await window.supabaseClient.upsertUser({ name, email, phone });
+                    const result = await window.supabaseClient.upsertUser({
+                        name,
+                        email,
+                        phone,
+                        hotel_id: reservationData.hotelId || reservationData.hotel_id || null,
+                        hotel_name: reservationData.hotelName || reservationData.hotel_name || null
+                    });
                     return result;
                 }
                 
