@@ -7,6 +7,7 @@ import { HeroHome } from '../components/HeroHome';
 import { SelectorDestinos } from '../components/SelectorDestinos';
 import { AlojamientosCarousel } from '../components/AlojamientosCarousel';
 import { Novedades } from '../components/Novedades';
+import { Testimonios } from '../components/Testimonios';
 import { Institucional } from '../components/Institucional';
 import { WhatsAppCta } from '../components/WhatsAppCta';
 import { Footer } from '../components/Footer';
@@ -103,6 +104,7 @@ export function Home() {
           />
         )}
         <Novedades />
+        <Testimonios />
         <Institucional />
         <WhatsAppCta />
         <Footer />

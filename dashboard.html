@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-17T13:44:39Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 226; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-17T15:58:27Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 227; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -195,6 +195,9 @@
                     }
                     if (section === 'novedades') {
                         setTimeout(function() { if (typeof loadNovedades === 'function') loadNovedades(); }, 200);
+                    }
+                    if (section === 'testimonios') {
+                        setTimeout(function() { if (typeof loadTestimonios === 'function') loadTestimonios(); }, 200);
                     }
                     
                     console.log('✅ [PRIMERA showSection] Estilos aplicados. Display:', target.style.display);
@@ -2299,7 +2302,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">226</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">227</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -2354,6 +2357,10 @@
             <a href="#" class="menu-item" onclick="window.showSection('novedades', event)">
                 <span class="material-icons">newspaper</span>
                 Novedades
+            </a>
+            <a href="#" class="menu-item" onclick="window.showSection('testimonios', event)">
+                <span class="material-icons">reviews</span>
+                Testimonios
             </a>
             <a href="#" class="menu-item" onclick="window.showSection('administrators', event)" id="adminMenuLink" style="display: none;">
                 <span class="material-icons">admin_panel_settings</span>
@@ -2748,6 +2755,90 @@
                         </table>
                     </div>
                     <p id="novedadesEmptyMsg" style="padding: 16px; color: #999; display: none;">No hay novedades. Agregá una con el botón de arriba. Ejecutá 022_web_novedades.sql y 028_novedades_dashboard_rls.sql en Supabase si falta.</p>
+                </div>
+            </div>
+
+            <!-- Testimonios (Home checkin24hs.com) -->
+            <div id="testimonios-section" style="display: none;">
+                <h2 class="page-title">⭐ Testimonios (checkin24hs.com)</h2>
+                <p style="color: #666; margin-bottom: 16px;">Opiniones curadas de Instagram, Facebook, Google o WhatsApp. Se muestran en la Home bajo “Lo que dicen nuestros viajeros”.</p>
+                <div style="margin-bottom: 16px;">
+                    <button class="form-button" onclick="openTestimonioModal()">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">add</span>
+                        Agregar testimonio
+                    </button>
+                    <button class="form-button secondary" onclick="loadTestimonios()">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">refresh</span>
+                        Actualizar
+                    </button>
+                </div>
+                <div class="activity-card">
+                    <h3 class="card-title">Listado de testimonios</h3>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background-color: #f5f5f5; border-bottom: 2px solid #e0e0e0;">
+                                    <th style="padding: 10px; text-align: left;">Orden</th>
+                                    <th style="padding: 10px; text-align: left;">Nombre</th>
+                                    <th style="padding: 10px; text-align: left;">Texto</th>
+                                    <th style="padding: 10px; text-align: left;">Fuente</th>
+                                    <th style="padding: 10px; text-align: center;">★</th>
+                                    <th style="padding: 10px; text-align: center;">Activo</th>
+                                    <th style="padding: 10px; text-align: center;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="testimoniosTableBody"></tbody>
+                        </table>
+                    </div>
+                    <p id="testimoniosEmptyMsg" style="padding: 16px; color: #999; display: none;">No hay testimonios. Agregá uno con el botón de arriba. Ejecutá <code>071_testimonios_web.sql</code> en Supabase si falta la tabla.</p>
+                </div>
+            </div>
+
+            <!-- Modal Agregar/Editar Testimonio -->
+            <div id="testimonioModal" style="display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); overflow: auto;">
+                <div style="background: white; max-width: 560px; margin: 40px auto; padding: 24px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);">
+                    <h3 id="testimonioModalTitle" style="margin-top: 0;">Agregar testimonio</h3>
+                    <div class="form-section" style="margin-bottom: 12px;">
+                        <label>Nombre *</label>
+                        <input type="text" id="testimonioNombre" placeholder="Ej. María G." style="width: 100%; padding: 8px; box-sizing: border-box;">
+                    </div>
+                    <div class="form-section" style="margin-bottom: 12px;">
+                        <label>Texto de la opinión *</label>
+                        <textarea id="testimonioTexto" rows="4" placeholder="Copiá o resumí el comentario del viajero" style="width: 100%; padding: 8px; box-sizing: border-box;"></textarea>
+                    </div>
+                    <div class="form-section" style="margin-bottom: 12px;">
+                        <label>Fuente</label>
+                        <select id="testimonioFuente" style="width: 100%; padding: 8px;">
+                            <option value="instagram">Instagram</option>
+                            <option value="facebook">Facebook</option>
+                            <option value="google">Google</option>
+                            <option value="whatsapp">WhatsApp</option>
+                            <option value="otro">Otro</option>
+                        </select>
+                    </div>
+                    <div class="form-section" style="margin-bottom: 12px;">
+                        <label>Estrellas (1–5)</label>
+                        <input type="number" id="testimonioEstrellas" value="5" min="1" max="5" style="width: 100%; padding: 8px; box-sizing: border-box;">
+                    </div>
+                    <div class="form-section" style="margin-bottom: 12px;">
+                        <label>Orden (menor = primero)</label>
+                        <input type="number" id="testimonioOrden" value="0" min="0" style="width: 100%; padding: 8px; box-sizing: border-box;">
+                    </div>
+                    <div class="form-section" style="margin-bottom: 12px;">
+                        <label>URL foto (opcional)</label>
+                        <input type="url" id="testimonioAvatar" placeholder="https://..." style="width: 100%; padding: 8px; box-sizing: border-box;">
+                    </div>
+                    <div class="form-section" style="margin-bottom: 12px;">
+                        <label>Link al post original (opcional)</label>
+                        <input type="url" id="testimonioEnlace" placeholder="https://instagram.com/..." style="width: 100%; padding: 8px; box-sizing: border-box;">
+                    </div>
+                    <div class="form-section" style="margin-bottom: 16px;">
+                        <label><input type="checkbox" id="testimonioActivo" checked> Activo (visible en la web)</label>
+                    </div>
+                    <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                        <button class="form-button secondary" onclick="closeTestimonioModal()">Cancelar</button>
+                        <button class="form-button" onclick="saveTestimonio()">Guardar</button>
+                    </div>
                 </div>
             </div>
 
@@ -3154,6 +3245,119 @@
                         loadNovedades();
                     } catch (e) {
                         alert('Error guardando: ' + (e.message || e));
+                    }
+                };
+            })();
+            </script>
+
+            <script>
+            (function() {
+                var editingTestimonioId = null;
+                var FUENTE_LABEL = { instagram: 'Instagram', facebook: 'Facebook', google: 'Google', whatsapp: 'WhatsApp', otro: 'Otro' };
+
+                window.loadTestimonios = async function() {
+                    var tbody = document.getElementById('testimoniosTableBody');
+                    var emptyMsg = document.getElementById('testimoniosEmptyMsg');
+                    if (!tbody) return;
+                    tbody.innerHTML = '<tr><td colspan="7" style="padding:16px;color:#999;">Cargando...</td></tr>';
+                    if (emptyMsg) emptyMsg.style.display = 'none';
+                    if (!window.supabaseClient || !window.supabaseClient.isInitialized()) {
+                        tbody.innerHTML = '<tr><td colspan="7" style="padding:16px;color:#c00;">Supabase no configurado.</td></tr>';
+                        return;
+                    }
+                    try {
+                        var list = await window.supabaseClient.getTestimonios();
+                        window._testimoniosCache = list;
+                        if (!list || list.length === 0) {
+                            tbody.innerHTML = '';
+                            if (emptyMsg) emptyMsg.style.display = 'block';
+                            return;
+                        }
+                        if (emptyMsg) emptyMsg.style.display = 'none';
+                        tbody.innerHTML = list.map(function(t) {
+                            var texto = (t.texto || '').substring(0, 80);
+                            if ((t.texto || '').length > 80) texto += '…';
+                            var fuente = FUENTE_LABEL[t.fuente] || t.fuente || '-';
+                            var activo = t.activo === false ? 'No' : 'Sí';
+                            return '<tr><td>' + (t.orden != null ? t.orden : 0) + '</td><td>' + (t.nombre || '-') + '</td><td>' + (texto || '-') + '</td><td>' + fuente + '</td><td style="text-align:center">' + (t.estrellas || 5) + '</td><td style="text-align:center">' + activo + '</td><td style="text-align:center"><button class="form-button secondary" style="padding:4px 10px;font-size:0.85rem" onclick="window.editTestimonio(\'' + t.id + '\')">Editar</button> <button class="form-button" style="padding:4px 10px;font-size:0.85rem;background:#c62828" onclick="window.deleteTestimonio(\'' + t.id + '\')">Eliminar</button></td></tr>';
+                        }).join('');
+                    } catch (e) {
+                        tbody.innerHTML = '<tr><td colspan="7" style="padding:16px;color:#c00;">Error: ' + (e.message || e) + '. ¿Ejecutaste 071_testimonios_web.sql en Supabase?</td></tr>';
+                        if (emptyMsg) emptyMsg.style.display = 'none';
+                    }
+                };
+
+                window.openTestimonioModal = function(id) {
+                    editingTestimonioId = id || null;
+                    document.getElementById('testimonioModalTitle').textContent = id ? 'Editar testimonio' : 'Agregar testimonio';
+                    document.getElementById('testimonioNombre').value = '';
+                    document.getElementById('testimonioTexto').value = '';
+                    document.getElementById('testimonioFuente').value = 'instagram';
+                    document.getElementById('testimonioEstrellas').value = '5';
+                    document.getElementById('testimonioOrden').value = '0';
+                    document.getElementById('testimonioAvatar').value = '';
+                    document.getElementById('testimonioEnlace').value = '';
+                    document.getElementById('testimonioActivo').checked = true;
+                    if (id && window._testimoniosCache) {
+                        var t = window._testimoniosCache.find(function(x) { return x.id === id; });
+                        if (t) {
+                            document.getElementById('testimonioNombre').value = t.nombre || '';
+                            document.getElementById('testimonioTexto').value = t.texto || '';
+                            document.getElementById('testimonioFuente').value = t.fuente || 'instagram';
+                            document.getElementById('testimonioEstrellas').value = t.estrellas != null ? t.estrellas : 5;
+                            document.getElementById('testimonioOrden').value = t.orden != null ? t.orden : 0;
+                            document.getElementById('testimonioAvatar').value = t.avatar_url || '';
+                            document.getElementById('testimonioEnlace').value = t.enlace_url || '';
+                            document.getElementById('testimonioActivo').checked = t.activo !== false;
+                        }
+                    }
+                    document.getElementById('testimonioModal').style.display = 'block';
+                };
+
+                window.editTestimonio = function(id) { window.openTestimonioModal(id); };
+
+                window.closeTestimonioModal = function() {
+                    document.getElementById('testimonioModal').style.display = 'none';
+                    editingTestimonioId = null;
+                };
+
+                window.deleteTestimonio = function(id) {
+                    if (!confirm('¿Eliminar este testimonio?')) return;
+                    if (!window.supabaseClient || !window.supabaseClient.isInitialized()) { alert('Supabase no configurado'); return; }
+                    window.supabaseClient.deleteTestimonio(id).then(function() { loadTestimonios(); }).catch(function(e) { alert('Error: ' + (e.message || e)); });
+                };
+
+                window.saveTestimonio = async function() {
+                    if (!window.supabaseClient || !window.supabaseClient.isInitialized()) { alert('Supabase no configurado'); return; }
+                    var nombre = document.getElementById('testimonioNombre').value.trim();
+                    var texto = document.getElementById('testimonioTexto').value.trim();
+                    if (!nombre) { alert('El nombre es obligatorio.'); return; }
+                    if (!texto) { alert('El texto es obligatorio.'); return; }
+                    var estrellas = parseInt(document.getElementById('testimonioEstrellas').value, 10);
+                    if (isNaN(estrellas) || estrellas < 1) estrellas = 5;
+                    if (estrellas > 5) estrellas = 5;
+                    var orden = parseInt(document.getElementById('testimonioOrden').value, 10);
+                    if (isNaN(orden)) orden = 0;
+                    var row = {
+                        nombre: nombre,
+                        texto: texto,
+                        fuente: document.getElementById('testimonioFuente').value || 'instagram',
+                        estrellas: estrellas,
+                        orden: orden,
+                        avatar_url: document.getElementById('testimonioAvatar').value.trim() || null,
+                        enlace_url: document.getElementById('testimonioEnlace').value.trim() || null,
+                        activo: document.getElementById('testimonioActivo').checked
+                    };
+                    try {
+                        if (editingTestimonioId) {
+                            await window.supabaseClient.updateTestimonio(editingTestimonioId, row);
+                        } else {
+                            await window.supabaseClient.createTestimonio(row);
+                        }
+                        closeTestimonioModal();
+                        loadTestimonios();
+                    } catch (e) {
+                        alert('Error guardando: ' + (e.message || e) + '. ¿Ejecutaste 071_testimonios_web.sql?');
                     }
                 };
             })();
@@ -7554,6 +7758,7 @@ Ej:
                 'flor-config': 'Flor IA',
                 banners: 'Banners del sitio',
                 novedades: 'Novedades',
+                testimonios: 'Testimonios',
                 administrators: 'Administradores'
             };
             if (event && event.target) {

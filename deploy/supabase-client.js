@@ -686,6 +686,67 @@ class SupabaseClient {
     }
 
     // ============================================
+    // TESTIMONIOS (Home web checkin24hs.com)
+    // ============================================
+
+    async getTestimonios() {
+        if (!this.isInitialized()) return [];
+        try {
+            const { data, error } = await this.client
+                .from('testimonios')
+                .select('*')
+                .order('orden', { ascending: true })
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+            return data || [];
+        } catch (error) {
+            console.error('❌ Error obteniendo testimonios:', error);
+            return [];
+        }
+    }
+
+    async createTestimonio(row) {
+        if (!this.isInitialized()) throw new Error('Supabase no inicializado');
+        const { data, error } = await this.client
+            .from('testimonios')
+            .insert([{
+                nombre: row.nombre || '',
+                texto: row.texto || '',
+                fuente: row.fuente || 'instagram',
+                estrellas: row.estrellas != null ? Number(row.estrellas) : 5,
+                avatar_url: row.avatar_url || null,
+                enlace_url: row.enlace_url || null,
+                activo: row.activo !== false,
+                orden: row.orden != null ? Number(row.orden) : 0
+            }])
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    }
+
+    async updateTestimonio(id, updates) {
+        if (!this.isInitialized()) throw new Error('Supabase no inicializado');
+        const { data, error } = await this.client
+            .from('testimonios')
+            .update({
+                ...updates,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', id)
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    }
+
+    async deleteTestimonio(id) {
+        if (!this.isInitialized()) throw new Error('Supabase no inicializado');
+        const { error } = await this.client.from('testimonios').delete().eq('id', id);
+        if (error) throw error;
+    }
+
+    // ============================================
     // RESERVAS
     // ============================================
     

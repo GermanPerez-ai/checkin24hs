@@ -142,6 +142,25 @@ export interface Novedad {
   etiqueta_boton?: string | null;
 }
 
+export type TestimonioFuente =
+  | 'instagram'
+  | 'facebook'
+  | 'google'
+  | 'whatsapp'
+  | 'otro';
+
+export interface Testimonio {
+  id: string;
+  nombre: string;
+  texto: string;
+  fuente: TestimonioFuente | string;
+  estrellas: number;
+  avatar_url?: string | null;
+  enlace_url?: string | null;
+  activo?: boolean;
+  orden?: number;
+}
+
 export interface SearchParams {
   pais?: string;
   ciudad?: string;
