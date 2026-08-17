@@ -1,0 +1,20 @@
+{
+  "name": "checkin24hs-email-reservations",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Lee confirmaciones de reservas por IMAP y las carga en Supabase",
+  "main": "sync.js",
+  "scripts": {
+    "sync": "node sync.js",
+    "dry-run": "node sync.js --dry-run",
+    "test:parser": "node test-parse-huilo.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "imapflow": "^1.0.181",
+    "mailparser": "^3.7.2"
+  }
+}
