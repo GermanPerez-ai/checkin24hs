@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-17T15:58:27Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 227; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-17T16:52:50Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 228; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -198,6 +198,9 @@
                     }
                     if (section === 'testimonios') {
                         setTimeout(function() { if (typeof loadTestimonios === 'function') loadTestimonios(); }, 200);
+                    }
+                    if (section === 'newsletter') {
+                        setTimeout(function() { if (typeof loadNewsletter === 'function') loadNewsletter(); }, 200);
                     }
                     
                     console.log('✅ [PRIMERA showSection] Estilos aplicados. Display:', target.style.display);
@@ -2302,7 +2305,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">227</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">228</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -2361,6 +2364,10 @@
             <a href="#" class="menu-item" onclick="window.showSection('testimonios', event)">
                 <span class="material-icons">reviews</span>
                 Testimonios
+            </a>
+            <a href="#" class="menu-item" onclick="window.showSection('newsletter', event)">
+                <span class="material-icons">mail</span>
+                Newsletter
             </a>
             <a href="#" class="menu-item" onclick="window.showSection('administrators', event)" id="adminMenuLink" style="display: none;">
                 <span class="material-icons">admin_panel_settings</span>
@@ -3359,6 +3366,115 @@
                     } catch (e) {
                         alert('Error guardando: ' + (e.message || e) + '. ¿Ejecutaste 071_testimonios_web.sql?');
                     }
+                };
+            })();
+            </script>
+
+
+            <!-- Newsletter (suscriptores web) -->
+            <div id="newsletter-section" style="display: none;">
+                <h2 class="page-title">✉️ Newsletter</h2>
+                <p style="color: #666; margin-bottom: 16px;">Emails que se suscribieron desde checkin24hs.com. Exportá el CSV para enviar campañas (Gmail, Brevo, etc.).</p>
+                <div style="margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap;">
+                    <button class="form-button secondary" onclick="loadNewsletter()">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">refresh</span>
+                        Actualizar
+                    </button>
+                    <button class="form-button" onclick="exportNewsletterCsv()">
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">download</span>
+                        Exportar CSV
+                    </button>
+                </div>
+                <div class="activity-card">
+                    <h3 class="card-title">Suscriptores <span id="newsletterCount" style="font-weight:400;color:#666;font-size:0.9rem;"></span></h3>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="background-color: #f5f5f5; border-bottom: 2px solid #e0e0e0;">
+                                    <th style="padding: 10px; text-align: left;">Fecha</th>
+                                    <th style="padding: 10px; text-align: left;">Email</th>
+                                    <th style="padding: 10px; text-align: left;">Origen</th>
+                                    <th style="padding: 10px; text-align: center;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="newsletterTableBody"></tbody>
+                        </table>
+                    </div>
+                    <p id="newsletterEmptyMsg" style="padding: 16px; color: #999; display: none;">Todavía no hay suscriptores. Ejecutá <code>072_newsletter_subscribers.sql</code> en Supabase si falta la tabla.</p>
+                </div>
+            </div>
+
+            <script>
+            (function() {
+                window.loadNewsletter = async function() {
+                    var tbody = document.getElementById('newsletterTableBody');
+                    var emptyMsg = document.getElementById('newsletterEmptyMsg');
+                    var countEl = document.getElementById('newsletterCount');
+                    if (!tbody) return;
+                    tbody.innerHTML = '<tr><td colspan="4" style="padding:16px;color:#999;">Cargando...</td></tr>';
+                    if (emptyMsg) emptyMsg.style.display = 'none';
+                    if (countEl) countEl.textContent = '';
+                    if (!window.supabaseClient || !window.supabaseClient.isInitialized()) {
+                        tbody.innerHTML = '<tr><td colspan="4" style="padding:16px;color:#c00;">Supabase no configurado.</td></tr>';
+                        return;
+                    }
+                    try {
+                        var list = await window.supabaseClient.getNewsletterSubscribers();
+                        window._newsletterCache = list || [];
+                        if (countEl) countEl.textContent = '(' + window._newsletterCache.length + ')';
+                        if (!list || list.length === 0) {
+                            tbody.innerHTML = '';
+                            if (emptyMsg) emptyMsg.style.display = 'block';
+                            return;
+                        }
+                        if (emptyMsg) emptyMsg.style.display = 'none';
+                        tbody.innerHTML = list.map(function(s) {
+                            var fecha = s.created_at ? new Date(s.created_at).toLocaleString('es-AR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-';
+                            var email = (s.email || '-').replace(/</g, '&lt;');
+                            return '<tr><td>' + fecha + '</td><td>' + email + '</td><td>' + (s.origen || 'web') + '</td><td style="text-align:center"><button class="form-button" style="padding:4px 10px;font-size:0.85rem;background:#c62828" onclick="window.deleteNewsletterSubscriber(\'' + s.id + '\')">Eliminar</button></td></tr>';
+                        }).join('');
+                    } catch (e) {
+                        tbody.innerHTML = '<tr><td colspan="4" style="padding:16px;color:#c00;">Error: ' + (e.message || e) + '. ¿Ejecutaste 072_newsletter_subscribers.sql?</td></tr>';
+                        if (emptyMsg) emptyMsg.style.display = 'none';
+                    }
+                };
+
+                window.deleteNewsletterSubscriber = function(id) {
+                    if (!confirm('¿Eliminar este email del newsletter?')) return;
+                    if (!window.supabaseClient || !window.supabaseClient.isInitialized()) { alert('Supabase no configurado'); return; }
+                    window.supabaseClient.deleteNewsletterSubscriber(id).then(function() { loadNewsletter(); }).catch(function(e) { alert('Error: ' + (e.message || e)); });
+                };
+
+                window.exportNewsletterCsv = function() {
+                    var list = window._newsletterCache;
+                    if (!list || !list.length) {
+                        alert('No hay suscriptores para exportar. Actualizá la lista primero.');
+                        return;
+                    }
+                    var rows = [['email', 'origen', 'fecha']];
+                    list.forEach(function(s) {
+                        rows.push([
+                            s.email || '',
+                            s.origen || 'web',
+                            s.created_at || ''
+                        ]);
+                    });
+                    var csv = rows.map(function(r) {
+                        return r.map(function(cell) {
+                            var v = String(cell == null ? '' : cell);
+                            if (/[",\n]/.test(v)) return '"' + v.replace(/"/g, '""') + '"';
+                            return v;
+                        }).join(',');
+                    }).join('\n');
+                    var blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+                    var url = URL.createObjectURL(blob);
+                    var a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'newsletter-checkin24hs-' + new Date().toISOString().slice(0, 10) + '.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
                 };
             })();
             </script>
@@ -7759,6 +7875,7 @@ Ej:
                 banners: 'Banners del sitio',
                 novedades: 'Novedades',
                 testimonios: 'Testimonios',
+                newsletter: 'Newsletter',
                 administrators: 'Administradores'
             };
             if (event && event.target) {

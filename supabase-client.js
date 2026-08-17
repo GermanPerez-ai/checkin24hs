@@ -747,6 +747,31 @@ class SupabaseClient {
     }
 
     // ============================================
+    // NEWSLETTER (suscriptores web)
+    // ============================================
+
+    async getNewsletterSubscribers() {
+        if (!this.isInitialized()) return [];
+        try {
+            const { data, error } = await this.client
+                .from('newsletter_subscribers')
+                .select('*')
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+            return data || [];
+        } catch (error) {
+            console.error('❌ Error obteniendo newsletter:', error);
+            return [];
+        }
+    }
+
+    async deleteNewsletterSubscriber(id) {
+        if (!this.isInitialized()) throw new Error('Supabase no inicializado');
+        const { error } = await this.client.from('newsletter_subscribers').delete().eq('id', id);
+        if (error) throw error;
+    }
+
+    // ============================================
     // RESERVAS
     // ============================================
     

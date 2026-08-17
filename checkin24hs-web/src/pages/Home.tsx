@@ -10,6 +10,7 @@ import { Novedades } from '../components/Novedades';
 import { Testimonios } from '../components/Testimonios';
 import { Institucional } from '../components/Institucional';
 import { WhatsAppCta } from '../components/WhatsAppCta';
+import { Newsletter } from '../components/Newsletter';
 import { Footer } from '../components/Footer';
 import { useFlorContext } from '../context/FlorContext';
 import { esAlojamiento, esPaquete } from '../data/destinoPaises';
@@ -107,6 +108,7 @@ export function Home() {
         <Testimonios />
         <Institucional />
         <WhatsAppCta />
+        <Newsletter />
         <Footer />
       </main>
     </>
