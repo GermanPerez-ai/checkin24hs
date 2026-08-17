@@ -26,23 +26,27 @@ export function buildCotizadorUrl(params: {
   return url.toString();
 }
 
-/** WhatsApp con mensaje prellenado según el producto en pantalla (Flor usa el primer texto). */
+/** WhatsApp con mensaje prellenado: SOLO nombre del producto (sin pax/fechas). */
 export function buildWhatsAppConsultaUrl(
   tituloProducto?: string,
   tipo: 'hotel' | 'pack' | 'general' = 'hotel'
 ): string {
   const number = String(WHATSAPP_NUMBER || '').replace(/\D/g, '');
-  const name = String(tituloProducto || '').trim();
-  const isGeneric = !name || /^consulta general/i.test(name);
+  const name = String(tituloProducto || '')
+    .trim()
+    // No filtrar a WhatsApp cantidades de ficha (ej. "En base a 3 adultos")
+    .replace(/\s+/g, ' ');
+  const isGeneric = !name || /^consulta general/i.test(name) || /^hola,\s*tengo una consulta/i.test(name);
   let text = 'Hola, tengo una consulta desde checkin24hs.com';
   if (!isGeneric) {
     if (tipo === 'pack') {
-      text = `Hola, quiero más info del pack ${name}`;
+      text = `Hola, tengo una consulta desde checkin24hs.com, quiero más info del pack ${name}`;
     } else if (tipo === 'general') {
       text = `Hola, tengo una consulta desde checkin24hs.com, sobre: ${name}`;
     } else {
-      text = `Hola, quiero más info del hotel ${name}`;
+      text = `Hola, tengo una consulta desde checkin24hs.com, quiero más info del hotel ${name}`;
     }
   }
+  // encodeURIComponent: espacios → %20, acentos y comas correctos en cualquier dispositivo
   return `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
 }

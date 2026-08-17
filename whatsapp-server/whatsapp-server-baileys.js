@@ -1457,6 +1457,7 @@ Cuando detectes intención de reserva ("reservar", "confirmar", "hacer la reserv
 // Reglas que se inyectan siempre (complementan prompt mínimo / Supabase).
 const FLOR_REGLAS_PRIORIDAD = `
 **BREVEDAD (V4.3):** Mensajes de WhatsApp, 3–6 líneas. Primero valor (datos de ficha/promo), después UNA pregunta relajada. PROHIBIDO interrogatorio (fechas + noches + pax juntos) cuando recién preguntan una promo.
+**LEAD DESDE LA WEB (Contactanos):** Si el mensaje dice "consulta desde checkin24hs.com" + "quiero más info del hotel/pack …", el cliente SOLO indicó el producto. PROHIBIDO asumir adultos, niños, noches o fechas (ej. "3 adultos"). Esos datos los debe preguntar Flor; no vienen del botón.
 **UN SOLO MENSAJE POR TURNO (V4.3):** UNA sola burbuja. PROHIBIDO fragmentar o duplicar el mismo texto.
 **PROHIBIDO REPETIR SALUDOS:** Si la conversación ya empezó, NO digas Hola / Buenas tardes / Buen día / Buenas noches ni te presentes de nuevo.
 **DATOS DEL CATÁLOGO (V4.2):** Si consultarCatalogoHoteles / buscarHotel devolvió encontrado=true O te inyectaron [DATOS OFICIALES DEL SERVIDOR], PROHIBIDO decir que no tenés información, que no está en la base, o mandar solo a la web. Respondé con esos datos.
@@ -3048,6 +3049,19 @@ async function markCotizadorSentForChat(chatId, phone, instanceNumber) {
 function extractTravelDataFromText(text) {
     const t = String(text || '');
     if (!t.trim()) return null;
+    // Lead desde la web (Contactanos): solo trae nombre de hotel/pack. NO inventar ni parsear pax.
+    if (/consulta desde checkin24hs\.com/i.test(t) && /quiero m[aá]s info del (hotel|pack)/i.test(t)) {
+        return null;
+    }
+    // Frases de ficha/precio base ("en base a 3 adultos") no son pax del viajero
+    if (/\ben base a\b|\bprecio por persona\b|\bcotizaci[oó]n incluye\b/i.test(t) && !/\b(somos|vamos|viajamos|somos)\b/i.test(t)) {
+        const onlyPricingPax = /(\d{1,2})\s*(adultos?|personas?|pax|hu[eé]spedes?)/i.test(t)
+            && !/(somos|vamos|viajamos)\s+\d{1,2}/i.test(t)
+            && !/\bnecesito\b.+\d{1,2}\s*adultos?/i.test(t);
+        if (onlyPricingPax && !/\d{1,2}[\/\-.]\d{1,2}/.test(t) && !/\bnoches?\b/i.test(t)) {
+            return null;
+        }
+    }
     const out = {};
     const dateM = t.match(/(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?/);
     if (dateM) {
@@ -3064,14 +3078,16 @@ function extractTravelDataFromText(text) {
         const raw = String(nightsM[1]).toLowerCase();
         out.nights = map[raw] || parseInt(raw, 10) || null;
     }
-    const adultsM = t.match(/(\d{1,2})\s*(adultos?|personas?|pax|hu[eé]spedes?)/i)
-        || t.match(/(somos|vamos)\s+(\d{1,2})/i);
-    if (adultsM) {
+    // Pax solo si el cliente lo declara (somos/vamos/viajamos/necesito N adultos), no "3 adultos" suelto de una ficha
+    const adultsM = t.match(/(somos|vamos|viajamos)\s+(\d{1,2})/i)
+        || t.match(/(?:para|somos|vamos|viajamos|necesito|ser[ií]amos)\s+(\d{1,2})\s*(adultos?|personas?|pax|hu[eé]spedes?)/i)
+        || t.match(/(\d{1,2})\s*(adultos?|personas?|pax|hu[eé]spedes?)\s*(?:y|,|\.|$)/i);
+    if (adultsM && !/\ben base a\b/i.test(t)) {
         const n = parseInt(adultsM[2] || adultsM[1], 10);
         if (n > 0 && n < 40) out.adults = n;
     }
     const kidsM = t.match(/(\d{1,2})\s*(niñ|menores|infantes?)/i);
-    if (kidsM) {
+    if (kidsM && !/\ben base a\b/i.test(t)) {
         const n = parseInt(kidsM[1], 10);
         if (n >= 0 && n < 20) out.children = n;
     }
@@ -3083,6 +3099,12 @@ function extractTravelDataFromText(text) {
     out._ready = score >= 2;
     out._score = score;
     return out;
+}
+
+function isFlorWebLeadConsulta(text) {
+    const t = String(text || '');
+    return /consulta desde checkin24hs\.com/i.test(t)
+        && /quiero m[aá]s info del (hotel|pack)\s+/i.test(t);
 }
 
 function florAskedForTravelData(botText) {
@@ -4099,7 +4121,10 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
         const links = (ferryOnly.length ? ferryOnly : ferryLinks).slice(0, 4);
         hintRutaBarcaza = ` [RUTA/AUTO: El cliente viaja en auto o pregunta la ruta. Neuquén u otra ciudad es ORIGEN, no un hotel nuevo. Hotel activo=${hotelActivo || 'el de sesión'}. ${links.length ? 'OBLIGATORIO pegar en la respuesta este link de barcaza/ferry: ' + links.join(' ') : 'Buscá en promociones.detalle, como_llegar o links_barcaza_ferry el link de Reserva del ferry y compartilo completo.'} No preguntes el destino.]`;
     }
-    let userPart = `${multiConsultasNote}Mensaje del cliente: ${mensaje}${hintMemoriaHotel}${hintCampana}${hintAnuncioCtwa}${hintHotel}${hintContextDrift}${hintAmbiguoConContexto}${hintRutaBarcaza}`;
+    const hintLeadWeb = isFlorWebLeadConsulta(mensaje)
+        ? ' [LEAD WEB CONTACTANOS: El cliente llegó desde la ficha en checkin24hs.com. Solo indicó el nombre del hotel/pack. PROHIBIDO asumir cantidad de adultos, niños, noches o fechas (no inventes "3 adultos" ni similares). Respondé sobre ese producto y preguntá fechas/personas solo si hace falta, sin inventarlas.]'
+        : '';
+    let userPart = `${multiConsultasNote}Mensaje del cliente: ${mensaje}${hintMemoriaHotel}${hintCampana}${hintAnuncioCtwa}${hintHotel}${hintContextDrift}${hintAmbiguoConContexto}${hintRutaBarcaza}${hintLeadWeb}`;
     if (catalogPrefetch?.encontrado && catalogPrefetch.hoteles?.length) {
         const payload = JSON.stringify(catalogPrefetch.hoteles.slice(0, 2)).slice(0, 8000);
         userPart += `\n\n[DATOS OFICIALES DEL SERVIDOR — el hotel SÍ está en nuestra base Checkin24hs. PROHIBIDO decir "no trabajamos con ese hotel". Respondé usando SOLO estos datos:]\n${payload}`;
