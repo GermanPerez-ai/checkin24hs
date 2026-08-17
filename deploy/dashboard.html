@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-16T18:11:30Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 220; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-17T01:02:16Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 222; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2299,7 +2299,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">220</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">222</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -19042,6 +19042,19 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             console.log('Abriendo base de datos de usuarios...');
         }
 
+        function formatUserHotelInterestsForExport(user) {
+            const interests = Array.isArray(user?.hotelInterests) ? user.hotelInterests : [];
+            if (!interests.length) return '';
+            return interests
+                .map((i) => {
+                    const name = (i.hotel_name || i.name || 'Hotel').toString().trim();
+                    const n = Number(i.interest_count);
+                    return Number.isFinite(n) && n > 1 ? `${name} (${n})` : name;
+                })
+                .filter(Boolean)
+                .join('; ');
+        }
+
         // Función para exportar usuarios
         async function exportUsers() {
             console.log('📤 Exportando usuarios...');
@@ -19060,14 +19073,15 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                     apellido: user.lastName || '',
                     email: user.email || '',
                     telefono: user.phone || '',
+                    hoteles_interes: formatUserHotelInterestsForExport(user),
                     estado: user.status || 'active',
                     fecha_registro: user.createdAt || user.fechaRegistro || '',
                     tipo_cuenta: user.tipoCuenta || 'registrado'
                 }));
                 
                 // Crear CSV
-                const headers = ['nombre', 'apellido', 'email', 'telefono', 'estado', 'fecha_registro', 'tipo_cuenta'];
-                let csv = headers.join(',') + '\n';
+                const headers = ['nombre', 'apellido', 'email', 'telefono', 'hoteles_interes', 'estado', 'fecha_registro', 'tipo_cuenta'];
+                let csv = '\uFEFF' + headers.join(',') + '\n';
                 
                 exportData.forEach(user => {
                     const row = headers.map(header => {
@@ -21000,19 +21014,37 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
                             // Perfil de preferencias: hoteles consultados por WhatsApp (varios en el tiempo)
                             try {
-                                let prefRows = null;
-                                const prefRes = await window.supabaseClient.client
-                                    .from('user_hotel_preferences_view')
-                                    .select('user_id, hotel_id, hotel_name, interest_count, last_interest_at, first_interest_at')
-                                    .order('last_interest_at', { ascending: false });
-                                if (!prefRes.error) prefRows = prefRes.data;
-                                else {
-                                    const fallback = await window.supabaseClient.client
-                                        .from('user_hotel_interests')
-                                        .select('user_id, hotel_id, interest_count, last_interest_at, first_interest_at, hotels(name)')
-                                        .order('last_interest_at', { ascending: false });
-                                    if (!fallback.error) {
-                                        prefRows = (fallback.data || []).map(r => ({
+                                let prefRows = [];
+                                const pageSize = 1000;
+                                let from = 0;
+                                let useFallback = false;
+                                for (;;) {
+                                    const prefRes = await window.supabaseClient.client
+                                        .from('user_hotel_preferences_view')
+                                        .select('user_id, hotel_id, hotel_name, interest_count, last_interest_at, first_interest_at')
+                                        .order('last_interest_at', { ascending: false })
+                                        .range(from, from + pageSize - 1);
+                                    if (prefRes.error) {
+                                        useFallback = true;
+                                        break;
+                                    }
+                                    const batch = prefRes.data || [];
+                                    prefRows.push(...batch);
+                                    if (batch.length < pageSize) break;
+                                    from += pageSize;
+                                    if (from >= 100000) break;
+                                }
+                                if (useFallback) {
+                                    prefRows = [];
+                                    from = 0;
+                                    for (;;) {
+                                        const fallback = await window.supabaseClient.client
+                                            .from('user_hotel_interests')
+                                            .select('user_id, hotel_id, interest_count, last_interest_at, first_interest_at, hotels(name)')
+                                            .order('last_interest_at', { ascending: false })
+                                            .range(from, from + pageSize - 1);
+                                        if (fallback.error) break;
+                                        const mapped = (fallback.data || []).map(r => ({
                                             user_id: r.user_id,
                                             hotel_id: r.hotel_id,
                                             hotel_name: r.hotels?.name || 'Hotel',
@@ -21020,6 +21052,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                             last_interest_at: r.last_interest_at,
                                             first_interest_at: r.first_interest_at
                                         }));
+                                        prefRows.push(...mapped);
+                                        if (mapped.length < pageSize) break;
+                                        from += pageSize;
+                                        if (from >= 100000) break;
                                     }
                                 }
                                 if (prefRows && prefRows.length) {
