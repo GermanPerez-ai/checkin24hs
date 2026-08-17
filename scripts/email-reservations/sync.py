@@ -13,10 +13,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from email.header import decode_header
-from email.utils import parseaddr
+from email.utils import parseaddr, parsedate_to_datetime
 from pathlib import Path
 
-from parse_huilo import parse_huilo_confirmation, strip_html
+from parse_huilo import parse_huilo_confirmations, strip_html
 
 DIR = Path(__file__).resolve().parent
 
@@ -120,6 +120,13 @@ def body_text(msg: email.message.Message) -> tuple[str, str]:
     if not text and html:
         text = strip_html(html)
     return text, html
+
+
+def msg_date(msg):
+    try:
+        return parsedate_to_datetime(msg.get("Date")).date()
+    except Exception:
+        return None
 
 
 def connect_imap():
@@ -241,10 +248,16 @@ def main():
                 stats["skipped"] += 1
                 continue
 
-            parsed = parse_huilo_confirmation(
-                {"from": from_addr, "subject": subject, "text": text, "html": html}
+            parsed_list = parse_huilo_confirmations(
+                {
+                    "from": from_addr,
+                    "subject": subject,
+                    "text": text,
+                    "html": html,
+                    "date": msg_date(msg),
+                }
             )
-            if not parsed:
+            if not parsed_list:
                 print(f"⏭️  No parseable: {subject}")
                 if not args.dry_run:
                     try:
@@ -264,29 +277,31 @@ def main():
                 stats["skipped"] += 1
                 continue
 
-            stats["parsed"] += 1
-            print(
-                f"✅ {parsed['reservation_code']} | {parsed['client_name']} | "
-                f"{parsed['check_in']}→{parsed['check_out']} | {parsed['currency']} {parsed['total_amount']}"
-            )
+            stats["parsed"] += len(parsed_list)
+            for parsed in parsed_list:
+                print(
+                    f"✅ {parsed['reservation_code']} | {parsed['client_name']} | "
+                    f"{parsed['check_in']}→{parsed['check_out']} | {parsed['currency']} {parsed['total_amount']}"
+                )
             if args.dry_run:
                 continue
             try:
-                upsert_reservation(parsed, hotel)
+                for parsed in parsed_list:
+                    upsert_reservation(parsed, hotel)
+                    stats["imported"] += 1
                 mark_imported(
                     {
                         "message_id": message_id,
-                        "reservation_code": parsed["reservation_code"],
+                        "reservation_code": " | ".join(p["reservation_code"] for p in parsed_list),
                         "hotel_key": "huilo",
                         "subject": subject,
                         "from_addr": from_addr,
                         "status": "imported",
                     }
                 )
-                stats["imported"] += 1
             except Exception as e:
                 stats["errors"] += 1
-                print(f"❌ Error importando {parsed['reservation_code']}: {e}")
+                print(f"❌ Error importando {parsed_list[0]['reservation_code']}: {e}")
     finally:
         try:
             client.logout()

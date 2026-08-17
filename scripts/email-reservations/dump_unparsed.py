@@ -7,8 +7,8 @@ import datetime as dt
 import email as email_mod
 from email.utils import parseaddr
 
-from parse_huilo import html_to_text, parse_huilo_confirmation
-from sync import MAILBOX, body_text, connect_imap, decode_mime
+from parse_huilo import html_to_text, parse_huilo_confirmations
+from sync import MAILBOX, body_text, connect_imap, decode_mime, msg_date
 
 
 def main():
@@ -37,13 +37,26 @@ def main():
                 continue
             from_addr = parseaddr(msg.get("From") or "")[1]
             text, html = body_text(msg)
-            parsed = parse_huilo_confirmation(
-                {"from": from_addr, "subject": subject, "text": text, "html": html}
+            rows = parse_huilo_confirmations(
+                {
+                    "from": from_addr,
+                    "subject": subject,
+                    "text": text,
+                    "html": html,
+                    "date": msg_date(msg),
+                }
             )
             print("=" * 72)
             print(f"Subject: {subject}")
             print(f"From: {from_addr}")
-            print(f"Parsed: {parsed['reservation_code'] if parsed else 'NO'}")
+            if rows:
+                for parsed in rows:
+                    print(
+                        f"Parsed: {parsed['reservation_code']} | {parsed['client_name']} | "
+                        f"{parsed['check_in']}→{parsed['check_out']}"
+                    )
+            else:
+                print("Parsed: NO")
             print("--- text ---")
             print((text or "")[:2500])
             print("--- html→text ---")

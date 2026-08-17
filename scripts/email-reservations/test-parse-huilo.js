@@ -5,6 +5,8 @@ const { parseHuiloConfirmation, parseHuiloDate } = require('./parse-huilo');
 assert.strictEqual(parseHuiloDate('04-noviembre-2026'), '2026-11-04');
 assert.strictEqual(parseHuiloDate('06-11-26'), '2026-11-06');
 assert.strictEqual(parseHuiloDate('09-11-26'), '2026-11-09');
+assert.strictEqual(parseHuiloDate('03-feb-27'), '2027-02-03');
+assert.strictEqual(parseHuiloDate('16-07', '2026-05-22'), '2026-07-16');
 
 const sample1 = `
 Estimados, Envío confirmación de reserva según lo solicitado.

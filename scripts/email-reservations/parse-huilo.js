@@ -5,18 +5,31 @@
 
 const MONTHS_ES = {
   enero: 1,
+  ene: 1,
   febrero: 2,
+  feb: 2,
   marzo: 3,
+  mar: 3,
   abril: 4,
+  abr: 4,
   mayo: 5,
+  may: 5,
   junio: 6,
+  jun: 6,
   julio: 7,
+  jul: 7,
   agosto: 8,
+  ago: 8,
   septiembre: 9,
   setiembre: 9,
+  sep: 9,
+  set: 9,
   octubre: 10,
+  oct: 10,
   noviembre: 11,
+  nov: 11,
   diciembre: 12,
+  dic: 12,
 };
 
 function stripHtml(html) {
@@ -50,7 +63,7 @@ function nombreFromSubject(subject) {
 }
 
 /** @returns {string|null} YYYY-MM-DD */
-function parseHuiloDate(raw) {
+function parseHuiloDate(raw, refDate) {
   if (!raw) return null;
   const s = String(raw)
     .trim()
@@ -58,8 +71,21 @@ function parseHuiloDate(raw) {
     .replace(/\s+/g, ' ')
     .replace(/\s*[-–]\s*$/g, '')
     .trim();
+  const ref = refDate ? new Date(refDate) : new Date();
 
-  // 04-noviembre-2026 | 4 noviembre 2026
+  function ymd(day, month, year) {
+    const d = new Date(year, month - 1, day);
+    if (d.getFullYear() !== year || d.getMonth() !== month - 1 || d.getDate() !== day) return null;
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+  function yearForMd(day, month) {
+    let year = ref.getFullYear();
+    const candidate = new Date(year, month - 1, Math.min(day, 28));
+    const cutoff = new Date(ref.getTime() - 45 * 24 * 3600 * 1000);
+    if (candidate < cutoff) year += 1;
+    return year;
+  }
+
   let m = s.match(/(\d{1,2})[-\s/]+([a-záéíóú]+)[-\s/]+(\d{2,4})/i);
   if (m) {
     const day = parseInt(m[1], 10);
@@ -68,10 +94,14 @@ function parseHuiloDate(raw) {
     let year = parseInt(m[3], 10);
     if (!month || !day) return null;
     if (year < 100) year += 2000;
-    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return ymd(day, month, year);
   }
-
-  // 06-11-26 | 06/11/2026
+  m = s.match(/(\d{1,2})[-\s/]+([a-záéíóú]+)\b/i);
+  if (m) {
+    const day = parseInt(m[1], 10);
+    const month = MONTHS_ES[m[2].normalize('NFD').replace(/\p{M}/gu, '')];
+    if (month && day) return ymd(day, month, yearForMd(day, month));
+  }
   m = s.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
   if (m) {
     const day = parseInt(m[1], 10);
@@ -79,9 +109,16 @@ function parseHuiloDate(raw) {
     let year = parseInt(m[3], 10);
     if (year < 100) year += 2000;
     if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    return ymd(day, month, year);
   }
-
+  m = s.match(/(\d{1,2})[\/\-.](\d{1,2})\b/);
+  if (m) {
+    const day = parseInt(m[1], 10);
+    const month = parseInt(m[2], 10);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return ymd(day, month, yearForMd(day, month));
+    }
+  }
   return null;
 }
 
@@ -103,59 +140,78 @@ function field(text, label) {
   return m ? m[1].replace(/\s+/g, ' ').trim() : null;
 }
 
-/**
- * @param {{ subject?: string, text?: string, html?: string, from?: string }} mail
- * @returns {null | {
- *   hotel_key: string,
- *   reservation_code: string,
- *   client_name: string,
- *   alojamiento: string|null,
- *   room_category: string|null,
- *   room_type: string|null,
- *   meal_plan: string|null,
- *   adults: number,
- *   children: number,
- *   check_in: string,
- *   check_out: string,
- *   total_amount: number,
- *   currency: string,
- *   notes: string
- * }}
- */
-function parseHuiloConfirmation(mail) {
-  const from = String(mail.from || '').toLowerCase();
-  const subject = String(mail.subject || '');
-  const rawText = mail.text || '';
-  const html = mail.html || '';
-  const candidates = [];
-  if (String(rawText).trim()) candidates.push(rawText);
-  if (String(html).trim()) candidates.push(stripHtml(html));
-  if (!candidates.length) return null;
-
-  for (const text of candidates) {
-    const parsed = fromText(text, subject, from);
-    if (parsed) return parsed;
-  }
-  return null;
+function stripQuotedReply(text) {
+  let s = String(text || '');
+  s = s.split(/^De:\s+.+\nEnviado el:/im)[0];
+  s = s.split(/^From:\s+.+\nSent:/im)[0];
+  s = s.split(/^-{5,}Original Message-{5,}/im)[0];
+  return s.trim();
 }
 
-function fromText(text, subject, from) {
+function splitConfirmationBlocks(text) {
+  const re = /(?:^|\n)\s*(?:\d+\.-\s*)?Confirmaci[oó]n de reserva\b/gim;
+  const starts = [];
+  let m;
+  while ((m = re.exec(text)) !== null) starts.push(m.index);
+  if (!starts.length) return [text];
+  const blocks = [];
+  for (let i = 0; i < starts.length; i++) {
+    blocks.push(text.slice(starts[i], starts[i + 1] ?? text.length).trim());
+  }
+  return blocks;
+}
+
+function looksConfirmation(text, subject, from) {
   const looksHuilo =
     from.includes('huilohuilo.com') ||
     /huilo/i.test(subject) ||
     /Confirmaci[oó]n de reserva/i.test(text) ||
     /N[uú]mero de confirmaci[oó]n/i.test(text) ||
     !!nombreFromSubject(subject);
-
-  if (!looksHuilo) return null;
+  if (!looksHuilo) return false;
   if (
     !/confirmaci[oó]n/i.test(subject) &&
     !/Confirmaci[oó]n de reserva/i.test(text) &&
     !nombreFromSubject(subject)
   ) {
-    return null;
+    return false;
   }
+  return true;
+}
 
+/**
+ * @param {{ subject?: string, text?: string, html?: string, from?: string, date?: string|Date }} mail
+ */
+function parseHuiloConfirmations(mail) {
+  const from = String(mail.from || '').toLowerCase();
+  const subject = String(mail.subject || '');
+  const refDate = mail.date || null;
+  const candidates = [];
+  if (String(mail.text || '').trim()) candidates.push(stripQuotedReply(mail.text));
+  if (String(mail.html || '').trim()) candidates.push(stripQuotedReply(stripHtml(mail.html)));
+  if (!candidates.length) return [];
+
+  for (const body of candidates) {
+    if (!looksConfirmation(body, subject, from)) continue;
+    const blocks = splitConfirmationBlocks(body);
+    const found = [];
+    for (const block of blocks) {
+      const parsed = fromText(block, subject, refDate);
+      if (parsed) found.push(parsed);
+    }
+    if (found.length) return found;
+    const single = fromText(body, subject, refDate);
+    if (single) return [single];
+  }
+  return [];
+}
+
+function parseHuiloConfirmation(mail) {
+  const rows = parseHuiloConfirmations(mail);
+  return rows[0] || null;
+}
+
+function fromText(text, subject, refDate) {
   let code = field(text, 'N[uú]mero de confirmaci[oó]n');
   if (!code) {
     const m = text.match(/N[uú]mero de confirmaci[oó]n\s*[:：]?\s*(.+)/i);
@@ -177,11 +233,11 @@ function fromText(text, subject, from) {
 
   const fechasBlock = field(text, 'Fechas') || '';
   let checkIn =
-    parseHuiloDate((fechasBlock.match(/\bIn\s*[:：]?\s*(.+?)(?=\s*Out\b|$)/i) || [])[1]) ||
-    parseHuiloDate((text.match(/\bIn\s*[:：]\s*([^\n]+)/i) || [])[1]);
+    parseHuiloDate((fechasBlock.match(/\bIn\s*[:：]?\s*(.+?)(?=\s*Out\b|$)/i) || [])[1], refDate) ||
+    parseHuiloDate((text.match(/\bIn\s*[:：]?\s*([^\n]+)/i) || [])[1], refDate);
   let checkOut =
-    parseHuiloDate((fechasBlock.match(/\bOut\s*[:：]?\s*(.+)$/i) || [])[1]) ||
-    parseHuiloDate((text.match(/\bOut\s*[:：]\s*([^\n]+)/i) || [])[1]);
+    parseHuiloDate((fechasBlock.match(/\bOut\s*[:：]?\s*(.+)$/i) || [])[1], refDate) ||
+    parseHuiloDate((text.match(/\bOut\s*[:：]?\s*([^\n]+)/i) || [])[1], refDate);
 
   const tarifaRaw =
     field(text, 'Tarifa final a pagar') ||
@@ -228,6 +284,7 @@ function fromText(text, subject, from) {
 
 module.exports = {
   parseHuiloConfirmation,
+  parseHuiloConfirmations,
   parseHuiloDate,
   stripHtml,
 };
