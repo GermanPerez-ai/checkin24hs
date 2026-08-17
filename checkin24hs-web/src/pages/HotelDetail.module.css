@@ -35,8 +35,26 @@
 
 .location {
   color: var(--text-muted);
-  margin: 0 0 28px;
+  margin: 0 0 16px;
   font-size: 1rem;
+}
+
+.btnContacto {
+  display: inline-block;
+  margin: 0 0 28px;
+  padding: 11px 18px;
+  border-radius: 6px;
+  background: #25d366;
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.btnContacto:hover {
+  background: #1ebe57;
+  color: #fff;
+  text-decoration: none;
 }
 
 .desc {

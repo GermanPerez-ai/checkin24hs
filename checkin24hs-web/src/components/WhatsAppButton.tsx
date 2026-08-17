@@ -1,21 +1,19 @@
-import { WHATSAPP_NUMBER } from '../config';
+import { WHATSAPP_NUMBER, buildWhatsAppConsultaUrl } from '../config';
+import { useFlorContext } from '../context/FlorContext';
 import styles from './WhatsAppButton.module.css';
 
-/** Mensaje opcional prellenado al abrir WhatsApp (codificado en URL). */
-const DEFAULT_MESSAGE = 'Hola, tengo una consulta desde checkin24hs.com';
-/** Si no hay número configurado en build, usamos este por defecto (o configurá VITE_WHATSAPP_NUMBER en EasyPanel). */
-const PLACEHOLDER_NUMBER = '5492944411580';
-
-export function WhatsAppButton({ inline }: { inline?: boolean } = {}) {
-  const number = (WHATSAPP_NUMBER || PLACEHOLDER_NUMBER).replace(/\D/g, '');
+export function WhatsAppButton({ inline, productName }: { inline?: boolean; productName?: string } = {}) {
+  const { context } = useFlorContext();
   const isPlaceholder = !WHATSAPP_NUMBER || WHATSAPP_NUMBER.trim() === '';
-
-  const url = new URL(`https://wa.me/${number}`);
-  url.searchParams.set('text', DEFAULT_MESSAGE);
+  const name = (productName || context?.hotelName || '').trim();
+  const tipo = context?.kind === 'pack' ? 'pack' : name ? 'hotel' : 'general';
+  const href = name
+    ? buildWhatsAppConsultaUrl(name, tipo)
+    : buildWhatsAppConsultaUrl('Hola, tengo una consulta desde checkin24hs.com', 'general');
 
   return (
     <a
-      href={url.toString()}
+      href={href}
       target="_blank"
       rel="noopener noreferrer"
       className={inline ? `${styles.link} ${styles.linkInline}` : styles.link}

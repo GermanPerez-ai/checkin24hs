@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { buildWhatsAppConsultaUrl } from '../config';
 import { supabase } from '../lib/supabase';
 import type { FichaWeb, Hotel } from '../types';
 import { Header } from '../components/Header';
@@ -349,6 +350,7 @@ export function HotelDetail() {
       setContext({
         hotelSlug: hotel.slug || slug || undefined,
         hotelName: hotel.name,
+        kind: 'hotel',
       });
     }
     return () => setContext(undefined);
@@ -429,6 +431,14 @@ export function HotelDetail() {
             <p className={styles.location}>
               {[hotel.ciudad, hotel.region, hotel.pais].filter(Boolean).join(' · ') || hotel.location || '—'}
             </p>
+            <a
+              href={buildWhatsAppConsultaUrl(hotel.name, 'hotel')}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.btnContacto}
+            >
+              Contactanos
+            </a>
 
             {useFicha ? (
               <FichaModular ficha={ficha!} />

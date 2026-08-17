@@ -47,7 +47,7 @@ export function HotelCard({ hotel, variant = 'default' }: { hotel: Hotel; varian
   const metodoVenta = hotel.metodo_venta || 'cotizacion';
   const cotizarUrl = buildCotizadorUrl({ hotel_id: hotel.id });
   const isCarousel = variant === 'carousel';
-  const waUrl = buildWhatsAppConsultaUrl(hotel.name);
+  const waUrl = buildWhatsAppConsultaUrl(hotel.name, 'hotel');
   const reservaUrl = getReservaDirectaUrl(hotel);
   const showReservarCarousel = isCarousel && hasReservarCarousel(hotel) && !!reservaUrl;
   const paisLabel = getPaisLabel(hotel);

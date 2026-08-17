@@ -7,6 +7,7 @@ export interface FlorContext {
   hotelSlug?: string;
   hotelName?: string;
   destinoId?: string;
+  kind?: 'hotel' | 'pack';
 }
 
 export function FlorWidget({ context: contextProp, inline }: { context?: FlorContext; inline?: boolean }) {

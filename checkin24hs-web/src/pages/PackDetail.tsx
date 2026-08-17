@@ -12,6 +12,7 @@ import {
 import { sharePackUrl } from '../lib/share';
 import { supabase } from '../lib/supabase';
 import type { Hotel } from '../types';
+import { useFlorContext } from '../context/FlorContext';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import { ShareButton } from '../components/ShareButton';
@@ -26,6 +27,7 @@ export function PackDetail() {
   const [hotel, setHotel] = useState<Hotel | null>(null);
   const [loading, setLoading] = useState(true);
   const [imgIndex, setImgIndex] = useState(0);
+  const { setContext } = useFlorContext();
 
   useEffect(() => {
     if (!slug || !supabase) {
@@ -66,6 +68,17 @@ export function PackDetail() {
   useEffect(() => {
     setImgIndex(0);
   }, [hotel?.id]);
+
+  useEffect(() => {
+    if (hotel) {
+      setContext({
+        hotelSlug: hotel.slug || slug || undefined,
+        hotelName: hotel.name,
+        kind: 'pack',
+      });
+    }
+    return () => setContext(undefined);
+  }, [hotel, slug, setContext]);
 
   if (loading) {
     return (
@@ -109,7 +122,7 @@ export function PackDetail() {
   const excluye = linesFromText(fp.excluye);
   const alojamientosPrev = linesFromText(fp.alojamientos_previstos);
   const itinerario = linesFromText(fp.itinerario);
-  const waUrl = buildWhatsAppConsultaUrl(hotel.name);
+  const waUrl = buildWhatsAppConsultaUrl(hotel.name, 'pack');
   const currentImg = images[Math.min(imgIndex, images.length - 1)];
 
   const onShare = async () => {

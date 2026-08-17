@@ -26,8 +26,23 @@ export function buildCotizadorUrl(params: {
   return url.toString();
 }
 
-/** WhatsApp con mensaje prellenado según producto (spec web Checkin24hs). */
-export function buildWhatsAppConsultaUrl(tituloProducto: string): string {
-  const text = `Hola, tengo una consulta desde checkin24hs.com, sobre: ${tituloProducto}`;
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
+/** WhatsApp con mensaje prellenado según el producto en pantalla (Flor usa el primer texto). */
+export function buildWhatsAppConsultaUrl(
+  tituloProducto?: string,
+  tipo: 'hotel' | 'pack' | 'general' = 'hotel'
+): string {
+  const number = String(WHATSAPP_NUMBER || '').replace(/\D/g, '');
+  const name = String(tituloProducto || '').trim();
+  const isGeneric = !name || /^consulta general/i.test(name);
+  let text = 'Hola, tengo una consulta desde checkin24hs.com';
+  if (!isGeneric) {
+    if (tipo === 'pack') {
+      text = `Hola, quiero más info del pack ${name}`;
+    } else if (tipo === 'general') {
+      text = `Hola, tengo una consulta desde checkin24hs.com, sobre: ${name}`;
+    } else {
+      text = `Hola, quiero más info del hotel ${name}`;
+    }
+  }
+  return `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
 }

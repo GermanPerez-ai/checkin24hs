@@ -12,7 +12,7 @@ export function WhatsAppCta({
   titulo = '¿Necesitás ayuda personalizada?',
   textoBoton = 'Escribinos por WhatsApp',
 }: Props) {
-  const href = buildWhatsAppConsultaUrl(mensajeProducto);
+  const href = buildWhatsAppConsultaUrl(mensajeProducto, 'general');
 
   return (
     <section className={styles.section} aria-label="Contacto WhatsApp">
