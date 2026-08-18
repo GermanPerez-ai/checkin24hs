@@ -771,6 +771,16 @@ class SupabaseClient {
         if (error) throw error;
     }
 
+    async getSitePageStats(fromIso, toIso) {
+        if (!this.isInitialized()) return null;
+        const { data, error } = await this.client.rpc('site_page_stats', {
+            p_from: fromIso,
+            p_to: toIso,
+        });
+        if (error) throw error;
+        return data || { pageviews: 0, visitors: 0, top_pages: [], top_utm: [], recent: [] };
+    }
+
     // ============================================
     // RESERVAS
     // ============================================
