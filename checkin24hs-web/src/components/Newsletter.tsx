@@ -47,55 +47,45 @@ export function Newsletter() {
   return (
     <section id="newsletter" className={styles.section} aria-label="Newsletter">
       <div className="container">
-        <div className={styles.box}>
-          <h2 className={styles.title}>Recibí ofertas y novedades</h2>
-          <p className={styles.text}>
-            Suscribite al newsletter de Checkin24hs y enterate primero de promos y viajes en Patagonia.
+        {status === 'ok' || status === 'dup' ? (
+          <p className={styles.success} role="status">
+            {status === 'ok' ? '¡Listo! Te sumaste al newsletter.' : 'Ese email ya está suscripto. ¡Gracias!'}
           </p>
-          {status === 'ok' ? (
-            <p className={styles.success} role="status">
-              ¡Listo! Te sumaste al newsletter.
+        ) : (
+          <form className={styles.row} onSubmit={onSubmit} noValidate>
+            <label className={styles.srOnly} htmlFor="newsletter-email">
+              Email
+            </label>
+            <input
+              id="newsletter-email"
+              type="email"
+              name="email"
+              autoComplete="email"
+              placeholder="Tu email"
+              value={email}
+              onChange={(ev) => {
+                setEmail(ev.target.value);
+                if (status === 'error') setStatus('idle');
+              }}
+              className={styles.input}
+              disabled={status === 'loading'}
+              required
+            />
+            <p className={styles.copy}>
+              Recibí nuestras
+              <br />
+              ofertas y novedades
             </p>
-          ) : status === 'dup' ? (
-            <p className={styles.success} role="status">
-              Ese email ya está suscripto. ¡Gracias!
-            </p>
-          ) : (
-            <form className={styles.form} onSubmit={onSubmit} noValidate>
-              <label className={styles.srOnly} htmlFor="newsletter-email">
-                Email
-              </label>
-              <input
-                id="newsletter-email"
-                type="email"
-                name="email"
-                autoComplete="email"
-                placeholder="Tu email"
-                value={email}
-                onChange={(ev) => {
-                  setEmail(ev.target.value);
-                  if (status === 'error') setStatus('idle');
-                }}
-                className={styles.input}
-                disabled={status === 'loading'}
-                required
-              />
-              <button
-                type="submit"
-                className={styles.btn}
-                disabled={status === 'loading'}
-              >
-                {status === 'loading' ? 'Enviando…' : 'Suscribirme'}
-              </button>
-            </form>
-          )}
-          {status === 'error' && errorMsg && (
-            <p className={styles.error} role="alert">
-              {errorMsg}
-            </p>
-          )}
-          <p className={styles.note}>Sin spam. Podés darte de baja cuando quieras.</p>
-        </div>
+            <button type="submit" className={styles.btn} disabled={status === 'loading'}>
+              {status === 'loading' ? 'Enviando…' : 'Suscribirme'}
+            </button>
+          </form>
+        )}
+        {status === 'error' && errorMsg && (
+          <p className={styles.error} role="alert">
+            {errorMsg}
+          </p>
+        )}
       </div>
     </section>
   );
