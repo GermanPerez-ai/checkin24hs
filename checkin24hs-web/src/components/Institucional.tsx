@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import styles from './Institucional.module.css';
 
-const FOTO_INSTITUCIONAL =
-  'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400&h=400&fit=crop';
+const LOGO_CHECKIN24HS = '/logo-checkin24hs.png';
 
 export function Institucional() {
   const [open, setOpen] = useState(false);
@@ -35,8 +34,8 @@ export function Institucional() {
             <p className={styles.subtitle}>Tu viaje, diseñado por quienes conocemos el terreno.</p>
           </div>
           <img
-            src={FOTO_INSTITUCIONAL}
-            alt="Checkin24hs"
+            src={LOGO_CHECKIN24HS}
+            alt="Logo Checkin24hs"
             className={styles.foto}
             width={160}
             height={160}
