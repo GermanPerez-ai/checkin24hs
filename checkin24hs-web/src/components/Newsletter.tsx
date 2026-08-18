@@ -77,7 +77,7 @@ export function Newsletter() {
               ofertas y novedades
             </p>
             <button type="submit" className={styles.btn} disabled={status === 'loading'}>
-              {status === 'loading' ? 'Enviando…' : 'Suscribirme'}
+              {status === 'loading' ? 'Enviando…' : 'suscribirme'}
             </button>
           </form>
         )}
