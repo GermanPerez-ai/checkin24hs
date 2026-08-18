@@ -52,31 +52,34 @@ export function Newsletter() {
             {status === 'ok' ? '¡Listo! Te sumaste al newsletter.' : 'Ese email ya está suscripto. ¡Gracias!'}
           </p>
         ) : (
-          <form className={styles.row} onSubmit={onSubmit} noValidate>
-            <label className={styles.srOnly} htmlFor="newsletter-email">
-              Email
-            </label>
-            <input
-              id="newsletter-email"
-              type="email"
-              name="email"
-              autoComplete="email"
-              placeholder="Tu email"
-              value={email}
-              onChange={(ev) => {
-                setEmail(ev.target.value);
-                if (status === 'error') setStatus('idle');
-              }}
-              className={styles.input}
-              disabled={status === 'loading'}
-              required
-            />
-            <p className={styles.copy}>
-              Dejanos tu e-mail para ser el primero en recibir nuestras ofertas y novedades!!!
-            </p>
-            <button type="submit" className={styles.btn} disabled={status === 'loading'}>
-              {status === 'loading' ? 'Enviando…' : 'Suscribirme'}
-            </button>
+          <form className={styles.box} onSubmit={onSubmit} noValidate>
+            <p className={styles.title}>Ofertas y novedades</p>
+            <div className={styles.row}>
+              <label className={styles.srOnly} htmlFor="newsletter-email">
+                Email
+              </label>
+              <input
+                id="newsletter-email"
+                type="email"
+                name="email"
+                autoComplete="email"
+                placeholder="Tu e-mail"
+                value={email}
+                onChange={(ev) => {
+                  setEmail(ev.target.value);
+                  if (status === 'error') setStatus('idle');
+                }}
+                className={styles.input}
+                disabled={status === 'loading'}
+                required
+              />
+              <p className={styles.copy}>
+                Dejanos tu e-mail para ser el primero en recibir nuestras ofertas y novedades!!!
+              </p>
+              <button type="submit" className={styles.btn} disabled={status === 'loading'}>
+                {status === 'loading' ? 'Enviando…' : 'Suscribirme'}
+              </button>
+            </div>
           </form>
         )}
         {status === 'error' && errorMsg && (

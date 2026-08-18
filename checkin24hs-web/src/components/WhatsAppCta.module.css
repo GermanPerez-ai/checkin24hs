@@ -45,8 +45,12 @@
 }
 
 @media (max-width: 768px) {
+  .section {
+    padding: 20px 0 0;
+  }
+
   .box {
-    padding: 24px 16px;
+    padding: 20px;
   }
   .title {
     font-size: 1.25rem;

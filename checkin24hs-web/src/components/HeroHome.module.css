@@ -57,6 +57,10 @@
     height: 31vw;
     max-height: 192px;
   }
+  .content {
+    padding-top: 20px;
+    padding-bottom: 20px;
+  }
   .title {
     max-width: none;
   }

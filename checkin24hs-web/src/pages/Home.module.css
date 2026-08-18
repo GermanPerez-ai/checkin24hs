@@ -2,6 +2,16 @@
   padding: 40px 0;
 }
 
+@media (max-width: 768px) {
+  .hoteles {
+    padding: 20px 0 0;
+  }
+
+  .sectionTitle {
+    margin: 0 0 20px;
+  }
+}
+
 .sectionTitle {
   font-size: 1.75rem;
   font-weight: 700;

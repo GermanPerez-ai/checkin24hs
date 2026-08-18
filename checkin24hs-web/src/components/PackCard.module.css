@@ -163,3 +163,9 @@
 .shareBtn:hover {
   background: rgba(0, 0, 0, 0.6);
 }
+
+@media (max-width: 768px) {
+  .top {
+    padding: 20px;
+  }
+}

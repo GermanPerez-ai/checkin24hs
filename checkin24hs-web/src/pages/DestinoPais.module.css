@@ -49,3 +49,14 @@
   padding: 32px 0;
   color: var(--text-muted);
 }
+
+@media (max-width: 768px) {
+  .heroContent {
+    padding-top: 20px;
+    padding-bottom: 20px;
+  }
+
+  .loading {
+    padding: 20px 0;
+  }
+}

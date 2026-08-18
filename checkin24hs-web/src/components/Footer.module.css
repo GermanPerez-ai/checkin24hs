@@ -12,9 +12,14 @@
   margin-bottom: 32px;
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
+  .footer {
+    padding: 20px 0;
+  }
+
   .grid {
     grid-template-columns: 1fr;
+    margin-bottom: 20px;
   }
 }
 

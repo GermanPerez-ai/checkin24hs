@@ -42,3 +42,13 @@
 .pilares li:last-child {
   margin-bottom: 0;
 }
+
+@media (max-width: 768px) {
+  .section {
+    padding: 20px 0 0;
+  }
+
+  .title {
+    margin: 0 0 20px;
+  }
+}

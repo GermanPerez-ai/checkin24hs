@@ -37,3 +37,17 @@
   color: var(--text-muted);
   line-height: 1.6;
 }
+
+@media (max-width: 768px) {
+  .section {
+    padding: 20px 0 0;
+  }
+
+  .title {
+    margin: 0 0 20px;
+  }
+
+  .card {
+    padding: 20px;
+  }
+}
