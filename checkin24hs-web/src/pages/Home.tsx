@@ -84,6 +84,7 @@ export function Home() {
       <Header />
       <main>
         <HeroHome />
+        <Newsletter />
         <SelectorDestinos />
         <AlojamientosCarousel
           hotels={hotels}
@@ -108,7 +109,6 @@ export function Home() {
         <Testimonios />
         <Institucional />
         <WhatsAppCta />
-        <Newsletter />
         <Footer />
       </main>
     </>
