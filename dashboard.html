@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-18T12:33:29Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 230; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-18T12:45:26Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 231; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">230</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">231</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -3584,8 +3584,16 @@
                 }
                 function labelPath(p) {
                     p = String(p || '/');
-                    if (p === '/') return 'Inicio (/)';
+                    if (p === '/') return 'Inicio';
+                    if (p === '/packs') return 'Listado de packs';
+                    if (p === '/chile') return 'Destinos Chile';
+                    if (p === '/argentina') return 'Destinos Argentina';
+                    if (p === '/internacionales') return 'Destinos internacionales';
                     return p;
+                }
+                function displayPage(row) {
+                    if (row && row.label) return row.label;
+                    return labelPath(row && row.path);
                 }
                 function esc(s) {
                     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -3634,7 +3642,9 @@
                             if (emptyMsg) emptyMsg.style.display = 'block';
                         } else {
                             pagesBody.innerHTML = pages.map(function(row) {
-                                return '<tr><td style="padding:8px 10px;">' + esc(labelPath(row.path)) + '</td>' +
+                                return '<tr><td style="padding:8px 10px;">' + esc(displayPage(row)) +
+                                    (row.path && row.label && row.path !== '/' ? '<div style="color:#888;font-size:0.8rem;margin-top:2px;">' + esc(row.path) + '</div>' : '') +
+                                    '</td>' +
                                     '<td style="padding:8px 10px;text-align:right;">' + (row.views || 0) + '</td>' +
                                     '<td style="padding:8px 10px;text-align:right;">' + (row.visitors || 0) + '</td></tr>';
                             }).join('');
@@ -3646,7 +3656,7 @@
                                 var origen = r.utm_source || '(directo)';
                                 var ref = r.referrer || '—';
                                 return '<tr><td style="padding:8px 10px;white-space:nowrap;">' + esc(cuando) + '</td>' +
-                                    '<td style="padding:8px 10px;">' + esc(labelPath(r.path)) + '</td>' +
+                                    '<td style="padding:8px 10px;">' + esc(displayPage(r)) + '</td>' +
                                     '<td style="padding:8px 10px;">' + esc(origen) + '</td>' +
                                     '<td style="padding:8px 10px;max-width:280px;overflow:hidden;text-overflow:ellipsis;">' + esc(ref) + '</td></tr>';
                             }).join('') : '<tr><td colspan="4" style="padding:16px;color:#999;">Sin visitas recientes en el período.</td></tr>';
@@ -3663,9 +3673,9 @@
                         alert('No hay páginas para exportar. Actualizá la lista primero.');
                         return;
                     }
-                    var rows = [['pagina', 'vistas', 'personas']];
+                    var rows = [['pagina', 'ruta', 'vistas', 'personas']];
                     pages.forEach(function(p) {
-                        rows.push([p.path || '/', p.views || 0, p.visitors || 0]);
+                        rows.push([p.label || p.path || '/', p.path || '/', p.views || 0, p.visitors || 0]);
                     });
                     var csv = rows.map(function(r) {
                         return r.map(function(cell) {
