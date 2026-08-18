@@ -72,12 +72,10 @@ export function Newsletter() {
               required
             />
             <p className={styles.copy}>
-              Recibí nuestras
-              <br />
-              ofertas y novedades
+              Dejanos tu e-mail para ser el primero en recibir nuestras ofertas y novedades!!!
             </p>
             <button type="submit" className={styles.btn} disabled={status === 'loading'}>
-              {status === 'loading' ? 'Enviando…' : 'suscribirme'}
+              {status === 'loading' ? 'Enviando…' : 'Suscribirme'}
             </button>
           </form>
         )}
