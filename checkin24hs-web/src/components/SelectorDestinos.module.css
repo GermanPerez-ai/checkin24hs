@@ -13,7 +13,7 @@
   position: relative;
   display: block;
   min-height: 200px;
-  border-radius: 12px;
+  border-radius: 18px;
   overflow: hidden;
   text-decoration: none;
   box-shadow: var(--card-shadow);
@@ -37,7 +37,7 @@
 .overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(transparent 20%, rgba(0, 53, 128, 0.88) 100%);
+  background: linear-gradient(to top, rgba(0, 40, 90, 0.88) 0%, rgba(0, 53, 128, 0.35) 42%, transparent 70%);
 }
 
 .body {
@@ -45,8 +45,9 @@
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 20px 16px;
+  padding: 20px 16px 16px;
   color: #fff;
+  text-align: left;
 }
 
 .label {
@@ -54,13 +55,17 @@
   font-size: 1.25rem;
   font-weight: 800;
   letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fff;
 }
 
 .resumen {
   display: block;
-  margin-top: 6px;
+  margin-top: 4px;
   font-size: 0.85rem;
-  opacity: 0.92;
+  font-weight: 400;
+  opacity: 0.95;
+  color: #fff;
 }
 
 @media (max-width: 960px) {
@@ -69,12 +74,33 @@
   }
 }
 
-@media (max-width: 520px) {
-  .grid {
-    grid-template-columns: 1fr;
-    gap: 12px;
+@media (max-width: 768px) {
+  .section {
+    padding: 16px 0 20px;
   }
+
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
   .card {
-    min-height: 160px;
+    min-height: 148px;
+    border-radius: 16px;
+  }
+
+  .body {
+    padding: 14px 12px 12px;
+  }
+
+  .label {
+    font-size: 0.95rem;
+    letter-spacing: 0.03em;
+  }
+
+  .resumen {
+    margin-top: 3px;
+    font-size: 0.72rem;
+    line-height: 1.25;
   }
 }
