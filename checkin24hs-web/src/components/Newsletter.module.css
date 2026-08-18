@@ -15,21 +15,14 @@
   background: #eef4fb;
 }
 
-.field {
-  display: flex;
-  align-items: center;
-  flex: 0 1 220px;
-  min-width: 0;
-  max-width: 240px;
-}
-
 .copyMobile {
   display: none;
 }
 
 .input {
-  flex: 1 1 auto;
+  flex: 0 1 220px;
   min-width: 0;
+  max-width: 240px;
   width: 100%;
   padding: 8px 4px;
   border: none;
@@ -118,57 +111,42 @@
   }
 
   .row {
-    gap: 8px;
-    width: auto;
-    padding: 0;
-    border: none;
-    background: transparent;
-    border-radius: 0;
+    gap: 10px;
+    width: 100%;
+    padding: 20px;
+    border: 1.5px solid var(--primary);
+    border-radius: 14px;
+    background: #eef4fb;
   }
 
   .copy {
     display: none;
   }
 
-  .field {
-    flex: 1 1 auto;
-    max-width: none;
-    gap: 8px;
-    padding: 8px 12px;
-    border: 1px solid var(--primary);
-    border-radius: 10px;
-    background: #eef4fb;
-  }
-
   .copyMobile {
     display: block;
-    flex: 0 0 auto;
+    flex: 1 1 auto;
+    min-width: 0;
     margin: 0;
-    font-size: 0.72rem;
+    text-align: center;
+    font-size: 0.82rem;
     font-weight: 700;
-    line-height: 1.2;
+    line-height: 1.25;
     color: var(--primary);
-    white-space: nowrap;
-  }
-
-  .field:focus-within {
-    background: #fff;
-    box-shadow: 0 0 0 3px rgba(0, 53, 128, 0.12);
   }
 
   .input {
-    flex: 1 1 auto;
+    flex: 1 1 0;
     max-width: none;
+    min-width: 0;
+    width: auto;
     padding: 0;
-    font-size: 0.82rem;
-    border: none;
-    border-radius: 0;
-    background: transparent;
+    font-size: 0.88rem;
   }
 
   .btn {
-    padding: 8px 12px;
-    font-size: 0.78rem;
+    padding: 10px 14px;
+    font-size: 0.82rem;
     border-radius: 10px;
   }
 }
