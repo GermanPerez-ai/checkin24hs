@@ -15,10 +15,22 @@
   background: #eef4fb;
 }
 
-.input {
+.field {
+  display: flex;
+  align-items: center;
   flex: 0 1 220px;
   min-width: 0;
   max-width: 240px;
+}
+
+.copyMobile {
+  display: none;
+}
+
+.input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
   padding: 8px 4px;
   border: none;
   border-radius: 0;
@@ -118,19 +130,40 @@
     display: none;
   }
 
-  .input {
-    max-width: none;
+  .field {
     flex: 1 1 auto;
+    max-width: none;
+    gap: 8px;
     padding: 8px 12px;
-    font-size: 0.82rem;
     border: 1px solid var(--primary);
     border-radius: 10px;
     background: #eef4fb;
   }
 
-  .input:focus {
+  .copyMobile {
+    display: block;
+    flex: 0 0 auto;
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--primary);
+    white-space: nowrap;
+  }
+
+  .field:focus-within {
     background: #fff;
     box-shadow: 0 0 0 3px rgba(0, 53, 128, 0.12);
+  }
+
+  .input {
+    flex: 1 1 auto;
+    max-width: none;
+    padding: 0;
+    font-size: 0.82rem;
+    border: none;
+    border-radius: 0;
+    background: transparent;
   }
 
   .btn {
