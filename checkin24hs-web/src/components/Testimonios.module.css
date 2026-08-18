@@ -116,8 +116,8 @@ a.card:hover {
   }
 
   .grid {
-    grid-template-columns: 1fr;
-    gap: 20px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
 
   .title {
@@ -127,9 +127,42 @@ a.card:hover {
 
   .subtitle {
     margin: 0 0 20px;
+    font-size: 0.82rem;
   }
 
   .card {
-    padding: 20px;
+    gap: 8px;
+    padding: 12px 10px;
+    min-width: 0;
+  }
+
+  .stars {
+    font-size: 0.72rem;
+    letter-spacing: 0.5px;
+  }
+
+  .quote {
+    font-size: 0.72rem;
+    line-height: 1.4;
+  }
+
+  .meta {
+    gap: 6px;
+  }
+
+  .avatar,
+  .avatarInitial {
+    width: 28px;
+    height: 28px;
+    font-size: 0.75rem;
+  }
+
+  .name {
+    font-size: 0.72rem;
+    line-height: 1.2;
+  }
+
+  .fuente {
+    font-size: 0.62rem;
   }
 }
