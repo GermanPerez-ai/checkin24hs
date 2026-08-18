@@ -63,15 +63,15 @@ AS $$
       ON n.kind = 'hotel'
      AND (
        h.slug = n.slug_key
-       OR lower(h.slug) = lower(n.slug_key)
-       OR h.id::text = n.slug_key
+       OR lower(coalesce(h.slug, '')) = lower(n.slug_key)
+       OR lower(h.id::text) = lower(n.slug_key)
      )
     LEFT JOIN hotels hp
       ON n.kind = 'pack'
      AND (
        hp.slug = n.slug_key
-       OR lower(hp.slug) = lower(n.slug_key)
-       OR hp.id::text = n.slug_key
+       OR lower(coalesce(hp.slug, '')) = lower(n.slug_key)
+       OR lower(hp.id::text) = lower(n.slug_key)
      )
     LEFT JOIN novedades nv
       ON n.kind = 'novedad'

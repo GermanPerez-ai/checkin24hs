@@ -771,6 +771,44 @@ class SupabaseClient {
         if (error) throw error;
     }
 
+    async getVisitNameLookup() {
+        const map = {};
+        if (!this.isInitialized()) return map;
+        try {
+            const { data: hotels, error } = await this.client
+                .from('hotels')
+                .select('id,name,slug')
+                .limit(5000);
+            if (error) throw error;
+            (hotels || []).forEach((h) => {
+                const name = (h.name || '').trim();
+                if (!name) return;
+                if (h.id) {
+                    map[String(h.id).toLowerCase()] = name;
+                    map[String(h.id)] = name;
+                }
+                if (h.slug) {
+                    map[String(h.slug)] = name;
+                    map[String(h.slug).toLowerCase()] = name;
+                }
+            });
+        } catch (e) {
+            console.warn('Visitas: no se pudieron cargar nombres de hoteles', e);
+        }
+        try {
+            const { data: news } = await this.client.from('novedades').select('id,titulo,slug').limit(2000);
+            (news || []).forEach((n) => {
+                const name = (n.titulo || '').trim();
+                if (!name) return;
+                if (n.id) map[String(n.id).toLowerCase()] = name;
+                if (n.slug) map[String(n.slug).toLowerCase()] = name;
+            });
+        } catch {
+            /* tabla opcional */
+        }
+        return map;
+    }
+
     async getSitePageStats(fromIso, toIso) {
         if (!this.isInitialized()) return null;
         const { data, error } = await this.client.rpc('site_page_stats', {

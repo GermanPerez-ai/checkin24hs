@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-18T12:45:26Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 231; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-18T12:55:12Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 233; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">231</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">233</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -3591,9 +3591,28 @@
                     if (p === '/internacionales') return 'Destinos internacionales';
                     return p;
                 }
+                function resolveHotelPack(path) {
+                    var raw = String(path || '').split('?')[0];
+                    var m = raw.match(/^\/(hotel|pack|novedad)\/([^/]+)/i);
+                    if (!m) return null;
+                    var kind = m[1].toLowerCase();
+                    var key = m[2];
+                    try { key = decodeURIComponent(key); } catch (e) { /* ignore */ }
+                    var map = window._visitasNameMap || {};
+                    var name = map[key] || map[key.toLowerCase()];
+                    if (!name) return null;
+                    if (kind === 'pack') return 'Pack: ' + name;
+                    if (kind === 'novedad') return 'Novedad: ' + name;
+                    return 'Hotel: ' + name;
+                }
                 function displayPage(row) {
-                    if (row && row.label) return row.label;
-                    return labelPath(row && row.path);
+                    var path = (row && (row.path || '')) || '';
+                    var fromMap = resolveHotelPack(path) || resolveHotelPack(row && row.label);
+                    if (fromMap) return fromMap;
+                    if (row && row.label && String(row.label).indexOf('/') !== 0 && !/^[0-9a-f-]{36}$/i.test(row.label)) {
+                        return row.label;
+                    }
+                    return labelPath(path || (row && row.label));
                 }
                 function esc(s) {
                     return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
@@ -3626,6 +3645,9 @@
                     }
                     try {
                         var b = visitasRangeBounds(window._visitasRange);
+                        if (!window._visitasNameMap) {
+                            window._visitasNameMap = await window.supabaseClient.getVisitNameLookup();
+                        }
                         var data = await window.supabaseClient.getSitePageStats(b.from, b.to);
                         window._visitasCache = data;
                         if (visitorsEl) visitorsEl.textContent = String(data.visitors || 0);
