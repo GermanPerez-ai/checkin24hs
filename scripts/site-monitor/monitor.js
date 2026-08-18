@@ -445,8 +445,12 @@ async function fetchWhatsappChatStats() {
         if (ops.ok) {
           data = ops.data;
           out.source = 'ops';
-        } else if (ops.status === 404) {
+        } else if (ops.status === 404 || ops.status === 500 || ops.status === 504 || ops.status === 57014) {
+          // 068 es pesada (SLA + regex sobre whatsapp_messages) y a veces da timeout 57014
           useOps = false;
+          console.warn(
+            `⚠️ RPC ops falló (${ops.status}); uso whatsapp_daily_chat_stats (liviana)`
+          );
         } else {
           out.error = `Supabase ${ops.status}: ${typeof ops.data === 'string' ? ops.data : JSON.stringify(ops.data)}`;
           return out;
@@ -597,7 +601,9 @@ function ideasFromResults(results, visitStats, waStats) {
     ideas.push('Visitas web: correr migración 064 en Supabase y redeploy web.');
   }
   if (waStats?.error) {
-    ideas.push('Chats WA: correr migración 068 (whatsapp_ops_daily_stats completa) en Supabase.');
+    ideas.push(
+      'Chats WA: la consulta pesada (068) dio timeout; el digest debería caer a 065. Si sigue fallando, hay que aligerar whatsapp_ops_daily_stats.'
+    );
   }
   const y = waStats?.yesterday;
   if (y?.has_sla) {
