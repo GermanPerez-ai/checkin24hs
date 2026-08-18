@@ -56,4 +56,49 @@ assert parse_corralco_confirmations(
     {"from": "paz.galvez@huilohuilo.com", "subject": "Confirmación", "text": "Huilo"}
 ) == []
 
+REAL = """Hotel Corralco
+Fecha de llegada: 15 de julio de 2026
+Fecha de salida: 18 de julio de 2026
+Total: CLP 450.000
+"""
+p4 = parse_corralco_confirmation(
+    {
+        "from": "reservas@corralco.com",
+        "subject": "Confirmación de reserva | Sr. Axel Bisio - Rsva. 2602569",
+        "text": REAL,
+    }
+)
+assert p4, "real subject Rsva should parse"
+assert p4["reservation_code"] == "2602569"
+assert p4["client_name"] == "Axel Bisio"
+assert p4["check_in"] == "2026-07-15"
+assert p4["check_out"] == "2026-07-18"
+
+p5 = parse_corralco_confirmation(
+    {
+        "from": "info@corralco.com",
+        "subject": "Confirmación de Reserva | Corralco #2602640",
+        "text": "Llegada 10/09/2026\nSalida 14/09/2026\nHuésped: Ana López",
+    }
+)
+assert p5
+assert p5["reservation_code"] == "2602640"
+assert p5["check_in"] == "2026-09-10"
+assert p5["client_name"] == "Ana López"
+
+p6 = parse_corralco_confirmation(
+    {
+        "from": "x@y.com",
+        "subject": "Extensión - Reserva | Corralco #2601843 & 2602710",
+        "html": "<p>Check-in: 01/08/2026</p><p>Check-out: 05/08/2026</p>",
+    }
+)
+assert p6
+assert "2601843" in p6["reservation_code"]
+assert "2602710" in p6["reservation_code"]
+
+assert parse_corralco_confirmation(
+    {"from": "mailer@x.com", "subject": "Undeliverable: Confirmación de Reserva | Corralco #2601604", "text": "fail"}
+) is None
+
 print("OK parse_corralco")

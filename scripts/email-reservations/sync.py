@@ -7,6 +7,7 @@ import datetime as dt
 import email
 import imaplib
 import json
+import re
 import ssl
 import sys
 import urllib.error
@@ -218,6 +219,8 @@ def parse_reservation_mail(from_addr, subject, text, html, msg_dt):
         "date": msg_dt,
     }
     blob = f"{from_addr} {subject} {text[:2000]} {(html or '')[:500]}".lower()
+    if re.search(r"undeliverable|propuesta comercial|jahuel|delivery status", subject, re.I):
+        return None, []
     is_corralco = looks_corralco(from_addr, subject, f"{text}\n{html or ''}")
     is_huilo = "huilohuilo.com" in from_addr.lower() or "huilo" in subject.lower()
     if is_corralco and not is_huilo:
