@@ -76,7 +76,7 @@
 
 @media (max-width: 768px) {
   .section {
-    padding: 10px 0 20px;
+    padding: 20px 0 20px;
   }
 
   .grid {
@@ -90,7 +90,7 @@
   }
 
   .body {
-    padding: 14px 12px 12px;
+    padding: 20px;
   }
 
   .label {
