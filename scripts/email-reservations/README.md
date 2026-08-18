@@ -1,13 +1,15 @@
-# Sync de reservas por email (Huilo Huilo)
+# Sync de reservas por email (Huilo Huilo + Corralco)
 
-Lee la casilla **`reservas@checkin24hs.com`** por IMAP y carga **confirmaciones** de Huilo Huilo en Supabase → Dashboard → Reservas.
+Lee la casilla **`reservas@checkin24hs.com`** por IMAP y carga **confirmaciones** en Supabase → Dashboard → Reservas.
 
-- **Confirmaciones:** email (este script)
-- **Modificaciones / cancelaciones:** WhatsApp (grupo Confirmaciones Huilo)
+- **Confirmaciones Huilo:** email (este script)
+- **Modificaciones / cancelaciones Huilo:** WhatsApp (grupo Confirmaciones Huilo)
+- **Confirmaciones Corralco:** email (este script)
+- **Modificaciones / cancelaciones Corralco:** WhatsApp (grupo **Reservas Corralco Paz**)
 
 ## 1. Supabase
 
-Ejecutá en SQL Editor:
+Ejecutá en SQL Editor (si aún no está):
 
 - `supabase-migrations/073_email_reservation_imports.sql`
 
@@ -27,6 +29,7 @@ IMAP en el VPS: `IMAP_HOST=127.0.0.1`, `IMAP_PORT=143`, `IMAP_USER=reservas` (us
 
 ```bash
 python3 test_parse_huilo.py
+python3 test_parse_corralco.py
 python3 sync.py --dry-run --since-days=90
 
 # Relee mails que quedaron en skipped (tablas HTML)
@@ -36,7 +39,7 @@ python3 sync.py --retry-skipped --since-days=90
 Si un asunto no parsea:
 
 ```bash
-python3 dump_unparsed.py --subject-contains="Caupolican" --since-days=90
+python3 dump_unparsed.py --subject-contains="Corralco" --since-days=90
 ```
 
 ## 4. Cron (cada 6 horas)
@@ -45,9 +48,23 @@ python3 dump_unparsed.py --subject-contains="Caupolican" --since-days=90
 0 */6 * * * cd /root/checkin24hs/scripts/email-reservations && /usr/bin/python3 sync.py --since-days=14 >> /var/log/email-reservas-huilo.log 2>&1
 ```
 
+El mismo cron ya cubre Huilo y Corralco.
+
+## WhatsApp (Línea 2)
+
+El chip de Línea 2 tiene que estar en el grupo **Reservas Corralco Paz**.
+
+Opcional en el `.env` de WhatsApp 2:
+
+```
+CORRALCO_WA_GROUP_NAME=Reservas Corralco Paz
+# CORRALCO_WA_GROUP_JID=1203...@g.us
+```
+
 ## Notas
 
 - Deduplica por `Message-ID` en `email_reservation_imports` y por `reservation_code` en `reservations`.
 - Los skipped no se reintentan solos: hace falta `--retry-skipped`.
-- El hotel se busca en `hotels` por nombre que contenga “huilo”.
+- Huilo se busca por nombre que contenga “huilo”; Corralco por “corralco”.
+- Agentes: `Email Huilo` / `Email Corralco` / `WhatsApp Huilo` / `WhatsApp Corralco Paz`.
 - Si el mail no trae teléfono/email del huésped, quedan vacíos (se puede completar a mano en el dashboard).

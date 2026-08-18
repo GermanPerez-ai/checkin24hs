@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sync IMAP (Dovecot LOGIN) → Supabase. Confirmaciones Huilo Huilo."""
+"""Sync IMAP (Dovecot LOGIN) → Supabase. Confirmaciones Huilo y Corralco."""
 from __future__ import annotations
 
 import argparse
@@ -16,6 +16,7 @@ from email.header import decode_header
 from email.utils import parseaddr, parsedate_to_datetime
 from pathlib import Path
 
+from parse_corralco import looks_corralco, parse_corralco_confirmations
 from parse_huilo import parse_huilo_confirmations, strip_html
 
 DIR = Path(__file__).resolve().parent
@@ -141,13 +142,28 @@ def connect_imap():
     return client
 
 
-def find_hotel():
-    q = "hotels?select=id,name&or=(name.ilike.*huilo*,name.ilike.*Huilo*)&limit=5"
+def find_hotel(key: str = "huilo"):
+    key = (key or "huilo").lower()
+    if key == "corralco":
+        q = "hotels?select=id,name&name.ilike.*corralco*&limit=8"
+        fallback = "Hotel Corralco Resort"
+        token = "corralco"
+    else:
+        q = "hotels?select=id,name&or=(name.ilike.*huilo*,name.ilike.*Huilo*)&limit=5"
+        fallback = "Huilo Huilo"
+        token = "huilo"
     data = sb("GET", q)
     if not isinstance(data, list) or not data:
-        return {"id": None, "name": "Huilo Huilo"}
-    preferred = next((h for h in data if "huilo" in (h.get("name") or "").lower() and "pack" not in (h.get("name") or "").lower()), data[0])
-    return {"id": preferred.get("id"), "name": preferred.get("name") or "Huilo Huilo"}
+        return {"id": None, "name": fallback}
+    preferred = next(
+        (
+            h
+            for h in data
+            if token in (h.get("name") or "").lower() and "pack" not in (h.get("name") or "").lower()
+        ),
+        data[0],
+    )
+    return {"id": preferred.get("id"), "name": preferred.get("name") or fallback}
 
 
 def already_imported(message_id: str, retry_skipped: bool = False) -> bool:
@@ -168,7 +184,7 @@ def mark_imported(row: dict):
     sb("POST", "email_reservation_imports?on_conflict=message_id", [row])
 
 
-def upsert_reservation(parsed, hotel):
+def upsert_reservation(parsed, hotel, agent_name: str):
     row = {
         "reservation_code": parsed["reservation_code"],
         "client_name": parsed["client_name"],
@@ -179,7 +195,7 @@ def upsert_reservation(parsed, hotel):
         "check_in": parsed["check_in"],
         "check_out": parsed["check_out"],
         "reservation_date": dt.date.today().isoformat(),
-        "agent_name": "Email Huilo",
+        "agent_name": agent_name,
         "status": "Confirmada",
         "total_amount": parsed.get("total_amount") or 0,
         "notes": parsed.get("notes"),
@@ -191,6 +207,33 @@ def upsert_reservation(parsed, hotel):
             row.pop("notes", None)
             return sb("POST", "reservations?on_conflict=reservation_code", [row])
         raise
+
+
+def parse_reservation_mail(from_addr, subject, text, html, msg_dt):
+    mail = {
+        "from": from_addr,
+        "subject": subject,
+        "text": text,
+        "html": html,
+        "date": msg_dt,
+    }
+    blob = f"{from_addr} {subject} {text[:2000]} {(html or '')[:500]}".lower()
+    is_corralco = looks_corralco(from_addr, subject, f"{text}\n{html or ''}")
+    is_huilo = "huilohuilo.com" in from_addr.lower() or "huilo" in subject.lower()
+    if is_corralco and not is_huilo:
+        rows = parse_corralco_confirmations(mail)
+        return "corralco", rows
+    if is_huilo:
+        rows = parse_huilo_confirmations(mail)
+        return "huilo", rows
+    if "corralco" in blob:
+        rows = parse_corralco_confirmations(mail)
+        return "corralco", rows
+    return None, []
+
+
+def agent_for(hotel_key: str) -> str:
+    return "Email Corralco" if hotel_key == "corralco" else "Email Huilo"
 
 
 def main():
@@ -213,8 +256,14 @@ def main():
     print(f"📬 IMAP {IMAP_USER}@{IMAP_HOST}:{IMAP_PORT} mailbox={MAILBOX}")
     print(f"📅 SINCE {since_imap}{' (DRY-RUN)' if args.dry_run else ''}{' (retry skipped)' if args.retry_skipped else ''}")
 
-    hotel = {"id": None, "name": "Huilo Huilo"} if args.dry_run else find_hotel()
-    print(f"🏨 Hotel destino: {hotel['name']}")
+    hotels = {
+        "huilo": {"id": None, "name": "Huilo Huilo"},
+        "corralco": {"id": None, "name": "Hotel Corralco Resort"},
+    }
+    if not args.dry_run:
+        hotels["huilo"] = find_hotel("huilo")
+        hotels["corralco"] = find_hotel("corralco")
+    print(f"🏨 Huilo: {hotels['huilo']['name']} | Corralco: {hotels['corralco']['name']}")
 
     stats = {"scanned": 0, "parsed": 0, "imported": 0, "skipped": 0, "errors": 0}
     client = connect_imap()
@@ -241,31 +290,25 @@ def main():
             if args.subject_contains and args.subject_contains.lower() not in subject.lower():
                 continue
 
-            if "huilohuilo.com" not in from_addr.lower() and "huilo" not in subject.lower():
+            hotel_key, parsed_list = parse_reservation_mail(
+                from_addr, subject, text, html, msg_date(msg)
+            )
+            if not hotel_key:
                 continue
 
             if not args.dry_run and already_imported(message_id, args.retry_skipped):
                 stats["skipped"] += 1
                 continue
 
-            parsed_list = parse_huilo_confirmations(
-                {
-                    "from": from_addr,
-                    "subject": subject,
-                    "text": text,
-                    "html": html,
-                    "date": msg_date(msg),
-                }
-            )
             if not parsed_list:
-                print(f"⏭️  No parseable: {subject}")
+                print(f"⏭️  No parseable ({hotel_key}): {subject}")
                 if not args.dry_run:
                     try:
                         mark_imported(
                             {
                                 "message_id": message_id,
                                 "reservation_code": None,
-                                "hotel_key": "huilo",
+                                "hotel_key": hotel_key,
                                 "subject": subject,
                                 "from_addr": from_addr,
                                 "status": "skipped",
@@ -280,20 +323,21 @@ def main():
             stats["parsed"] += len(parsed_list)
             for parsed in parsed_list:
                 print(
-                    f"✅ {parsed['reservation_code']} | {parsed['client_name']} | "
+                    f"✅ [{hotel_key}] {parsed['reservation_code']} | {parsed['client_name']} | "
                     f"{parsed['check_in']}→{parsed['check_out']} | {parsed['currency']} {parsed['total_amount']}"
                 )
             if args.dry_run:
                 continue
+            hotel = hotels.get(hotel_key) or hotels["huilo"]
             try:
                 for parsed in parsed_list:
-                    upsert_reservation(parsed, hotel)
+                    upsert_reservation(parsed, hotel, agent_for(hotel_key))
                     stats["imported"] += 1
                 mark_imported(
                     {
                         "message_id": message_id,
                         "reservation_code": " | ".join(p["reservation_code"] for p in parsed_list),
-                        "hotel_key": "huilo",
+                        "hotel_key": hotel_key,
                         "subject": subject,
                         "from_addr": from_addr,
                         "status": "imported",

@@ -7,6 +7,7 @@ import datetime as dt
 import email as email_mod
 from email.utils import parseaddr
 
+from parse_corralco import parse_corralco_confirmations
 from parse_huilo import html_to_text, parse_huilo_confirmations
 from sync import MAILBOX, body_text, connect_imap, decode_mime, msg_date
 
@@ -46,6 +47,16 @@ def main():
                     "date": msg_date(msg),
                 }
             )
+            if not rows:
+                rows = parse_corralco_confirmations(
+                    {
+                        "from": from_addr,
+                        "subject": subject,
+                        "text": text,
+                        "html": html,
+                        "date": msg_date(msg),
+                    }
+                )
             print("=" * 72)
             print(f"Subject: {subject}")
             print(f"From: {from_addr}")

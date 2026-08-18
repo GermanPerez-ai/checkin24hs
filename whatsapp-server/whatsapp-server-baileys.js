@@ -47,6 +47,7 @@ const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
 const { getLinkPreview } = require('link-preview-js');
 const { handleHuiloGroupMessage, isWhatsAppGroupJid } = require('./huilo-group-reservations');
+const { handleCorralcoGroupMessage } = require('./corralco-group-reservations');
 
 console.log('🚀 Iniciando servidor WhatsApp con Baileys...');
 
@@ -6038,6 +6039,14 @@ async function connectToWhatsApp() {
                     });
                 } catch (e) {
                     console.warn('⚠️ Huilo grupo:', e.message || e);
+                }
+                try {
+                    await handleCorralcoGroupMessage(sock, msg, {
+                        supabase,
+                        instanceNumber: CONFIG.INSTANCE_NUMBER,
+                    });
+                } catch (e) {
+                    console.warn('⚠️ Corralco grupo:', e.message || e);
                 }
                 continue;
             }
