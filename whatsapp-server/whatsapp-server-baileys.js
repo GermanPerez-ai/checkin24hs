@@ -1664,7 +1664,9 @@ const FLOR_REGLAS_PRIORIDAD = `
 **PROHIBIDO REPETIR SALUDOS:** Si la conversación ya empezó, NO digas Hola / Buenas tardes / Buen día / Buenas noches ni te presentes de nuevo.
 **DATOS DEL CATÁLOGO (V4.2):** Si consultarCatalogoHoteles / buscarHotel devolvió encontrado=true O te inyectaron [DATOS OFICIALES DEL SERVIDOR], PROHIBIDO decir que no tenés información, que no está en la base, o mandar solo a la web. Respondé con esos datos.
 **VERIFICACIÓN OBLIGATORIA:** Nunca des por sentado qué incluye un programa. Ante "¿Qué incluye?" o "¿Qué programas hay?", ejecutá SIEMPRE consultarCatalogoHoteles o buscarHotel y leé la columna detalles_programas específica de ESE hotel. No respondas sin haber llamado la función.
-**PROMOCIONES (campo dedicado):** Ante "promo", "promoción", "oferta", "2x1", "flexi", "pass" o descuentos, leé SOLO el campo **promociones**. Volcá precio, qué incluye y vigencia_desde–vigencia_hasta COMPLETOS. PROHIBIDO encasillar en un mes si el rango cubre varios. NO mezcles con programas. Si está vacío, no inventes la oferta.
+**PROMOCIONES (campo dedicado):** Ante "promo", "promoción", "oferta", "2x1", "flexi", "pass" o descuentos, leé SOLO el campo **promociones**.
+**VIGENCIA vs VIAJE (CRÍTICO):** vigencia_desde/hasta = plazo para CONTRATAR la promo. viaje_desde/hasta = fechas en las que se puede VIAJAR. Si preguntan "hasta cuándo se puede viajar/ir/hospedar", respondé con **viaje_hasta** (ej. diciembre). PROHIBIDO decir que el viaje cierra en vigencia_hasta (ej. 31 de agosto) cuando exista viaje_hasta. En el texto, "válida del … al …" suele ser vigencia comercial, no el tope de viaje.
+Volcá precio, qué incluye, vigencia y fechas de viaje si están. NO mezcles con programas. Si está vacío, no inventes la oferta.
 **PROGRAMAS INVIERNO Y VERANO:** Los programas cargados en el panel (Ski Full, Pensión Completa, etc.) están en detalles_programas. Usá ese array para responder "qué incluye", tickets, equipo, pensión; diferenciá temporada invierno vs verano según lo que figure en los datos. Resumí breve (V4.2).
 **PROHIBIDO INVENTAR (Anti-Alucinación):** Si la base de datos dice "Almuerzo de 3 tiempos", no digas "Almuerzo buffet". Usá las palabras exactas que aparecen en el sistema.
 **OCULTAR "CEREBRO" (Output Leaking):** CRÍTICO: El usuario NUNCA debe ver nombres de funciones, código ni output interno. El resultado de consultarCatalogoHoteles y enviarDocumentoPorWhatsApp va SOLO a tu contexto. Respondé ÚNICAMENTE con texto humano natural. Prohibido incluir en tu respuesta: nombres de funciones (consultarCatalogoHoteles, enviarDocumentoPorWhatsApp), print(, default_api, JSON crudo, URLs de imagen (data:image, base64) ni ningún output técnico.
@@ -1984,15 +1986,23 @@ function normalizarPromocionesHotel(raw) {
         const detalle = String(p.detalle || p.description || p.descripcion || '');
         const d = desde ? String(desde).slice(0, 10) : '';
         const h = hasta ? String(hasta).slice(0, 10) : '';
+        const vd = String(p.viaje_desde || p.travel_start_date || p.travelStartDate || '').slice(0, 10);
+        const vh = String(p.viaje_hasta || p.travel_end_date || p.travelEndDate || '').slice(0, 10);
         const vigencia = d && h ? `del ${d} al ${h}` : (h ? `hasta ${h}` : (d ? `desde ${d}` : ''));
+        const viaje = vd && vh ? `del ${vd} al ${vh}` : (vh ? `hasta ${vh}` : (vd ? `desde ${vd}` : ''));
         return {
             nombre,
             precio: p.precio != null ? String(p.precio) : (p.price != null ? String(p.price) : ''),
-            detalle: detalle.slice(0, 2000),
+            detalle: detalle.slice(0, 2500),
             links: extractHttpUrls(detalle),
             vigencia_desde: d,
             vigencia_hasta: h,
             vigencia,
+            vigencia_significa: 'Plazo para CONTRATAR/reservar la promo (no es el tope de fechas de viaje)',
+            viaje_desde: vd || null,
+            viaje_hasta: vh || null,
+            viaje,
+            viaje_significa: 'Fechas en las que el cliente PUEDE VIAJAR. Si preguntan hasta cuándo se puede ir/hospedar, usá viaje_hasta.',
             hasta: h,
             tipo: String(p.tipo || p.type || 'promocion')
         };
@@ -2009,6 +2019,10 @@ function mergePromocionesParaFlor(hotel, tablePromos) {
     }).map((p) => {
         const d = p.start_date ? String(p.start_date).slice(0, 10) : '';
         const h = p.end_date ? String(p.end_date).slice(0, 10) : '';
+        const vd = p.travel_start_date ? String(p.travel_start_date).slice(0, 10) : '';
+        const vh = p.travel_end_date ? String(p.travel_end_date).slice(0, 10) : '';
+        const vigencia = d && h ? `del ${d} al ${h}` : (h ? `hasta ${h}` : '');
+        const viaje = vd && vh ? `del ${vd} al ${vh}` : (vh ? `hasta ${vh}` : '');
         return {
             nombre: p.name || p.nombre,
             precio: p.discount ? `${p.discount}%` : '',
@@ -2016,7 +2030,12 @@ function mergePromocionesParaFlor(hotel, tablePromos) {
             links: extractHttpUrls(p.description || ''),
             vigencia_desde: d,
             vigencia_hasta: h,
-            vigencia: d && h ? `del ${d} al ${h}` : (h ? `hasta ${h}` : ''),
+            vigencia,
+            vigencia_significa: 'Plazo para CONTRATAR/reservar la promo (no es el tope de fechas de viaje)',
+            viaje_desde: vd || null,
+            viaje_hasta: vh || null,
+            viaje,
+            viaje_significa: 'Fechas en las que el cliente PUEDE VIAJAR. Si preguntan hasta cuándo se puede ir/hospedar, usá viaje_hasta.',
             hasta: h,
             tipo: p.type || 'promocion'
         };
@@ -2161,12 +2180,37 @@ async function obtenerPromocionesActivasPorHoteles(hotelIds) {
         const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
         const { data, error } = await supabase
             .from('promotions')
-            .select('id, hotel_id, name, type, description, discount, start_date, end_date, status')
+            .select('id, hotel_id, name, type, description, discount, start_date, end_date, travel_start_date, travel_end_date, status')
             .in('hotel_id', hotelIds)
             .eq('status', 'active')
             .lte('start_date', today)
             .gte('end_date', today);
         if (error) {
+            // Fallback si faltan columnas travel_* en algún entorno viejo
+            if (/travel_start_date|travel_end_date/i.test(String(error.message || ''))) {
+                const legacy = await supabase
+                    .from('promotions')
+                    .select('id, hotel_id, name, type, description, discount, start_date, end_date, status')
+                    .in('hotel_id', hotelIds)
+                    .eq('status', 'active')
+                    .lte('start_date', today)
+                    .gte('end_date', today);
+                if (legacy.error) {
+                    console.warn('⚠️ Error obteniendo promociones:', legacy.error.message);
+                    return [];
+                }
+                return (legacy.data || []).map(p => ({
+                    hotel_id: p.hotel_id,
+                    name: p.name,
+                    type: p.type || '',
+                    description: (p.description && String(p.description).slice(0, 2500)) || '',
+                    discount: parseFloat(p.discount) || 0,
+                    start_date: p.start_date,
+                    end_date: p.end_date,
+                    travel_start_date: null,
+                    travel_end_date: null
+                }));
+            }
             console.warn('⚠️ Error obteniendo promociones:', error.message);
             return [];
         }
@@ -2174,10 +2218,12 @@ async function obtenerPromocionesActivasPorHoteles(hotelIds) {
             hotel_id: p.hotel_id,
             name: p.name,
             type: p.type || '',
-            description: (p.description && String(p.description).slice(0, 500)) || '',
+            description: (p.description && String(p.description).slice(0, 2500)) || '',
             discount: parseFloat(p.discount) || 0,
             start_date: p.start_date,
-            end_date: p.end_date
+            end_date: p.end_date,
+            travel_start_date: p.travel_start_date || null,
+            travel_end_date: p.travel_end_date || null
         }));
     } catch (e) {
         console.warn('⚠️ Error obteniendo promociones:', e?.message || e);
