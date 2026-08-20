@@ -1657,7 +1657,9 @@ Cuando detectes intención de reserva ("reservar", "confirmar", "hacer la reserv
 
 // Reglas que se inyectan siempre (complementan prompt mínimo / Supabase).
 const FLOR_REGLAS_PRIORIDAD = `
-**UN DATO A LA VEZ (V4.4 — ANTI-ABANDONO):** En cada respuesta, máximo UNA pregunta sobre UN solo dato de viaje. Primero valor comercial; después una pregunta relajada (preferí fecha). PROHIBIDO interrogatorio fechas+noches+pax juntos. Recopilá de a poco en mensajes sucesivos, tono conversacional (no formulario).
+**UN DATO A LA VEZ (V4.5 — ANTI-ABANDONO):** En cada respuesta, máximo UNA pregunta sobre UN solo dato de viaje. Primero valor comercial; después una pregunta relajada SOLO si ese dato aún no está en el historial ni en DATOS YA DADOS. PROHIBIDO interrogatorio fechas+noches+pax juntos.
+**ANTI-SORDERA (CRÍTICO):** Antes de preguntar fechas, noches o pasajeros, leé el historial y el bloque DATOS YA DADOS. Si el cliente ya dijo el dato (ej. "del 26 de dic al 2 de enero"), PROHIBIDO volver a pedirlo: confirmalo y pasá al siguiente paso.
+**IDENTIDAD / AISLAMIENTO:** Sos SOLO Flor 🌸. PROHIBIDO decir que te llamás Germán u otro asesor, filtrar notas internas, o hablarle al administrador dentro del chat del cliente.
 **BREVEDAD (V4.4):** Mensajes de WhatsApp, 3–6 líneas. Primero valor (datos de ficha/promo), después UNA pregunta relajada.
 **LEAD DESDE LA WEB (Contactanos):** Si el mensaje dice "consulta desde checkin24hs.com" + "quiero más info del hotel/pack …", el cliente SOLO indicó el producto. PROHIBIDO asumir adultos, niños, noches o fechas (ej. "3 adultos"). Preguntá de a un dato; no vienen del botón.
 **UN SOLO MENSAJE POR TURNO (V4.4):** UNA sola burbuja. PROHIBIDO fragmentar o duplicar el mismo texto.
@@ -3397,13 +3399,82 @@ function extractTravelDataFromText(text) {
         const onlyPricingPax = /(\d{1,2})\s*(adultos?|personas?|pax|hu[eé]spedes?)/i.test(t)
             && !/(somos|vamos|viajamos)\s+\d{1,2}/i.test(t)
             && !/\bnecesito\b.+\d{1,2}\s*adultos?/i.test(t);
-        if (onlyPricingPax && !/\d{1,2}[\/\-.]\d{1,2}/.test(t) && !/\bnoches?\b/i.test(t)) {
+        if (onlyPricingPax && !/\d{1,2}[\/\-.]\d{1,2}/.test(t) && !/\bnoches?\b/i.test(t) && !/\bd[ií]as?\b/i.test(t)) {
             return null;
         }
     }
+    const monthMap = {
+        ene: 1, enero: 1, feb: 2, febrero: 2, mar: 3, marzo: 3, abr: 4, abril: 4,
+        may: 5, mayo: 5, jun: 6, junio: 6, jul: 7, julio: 7, ago: 8, agosto: 8,
+        sep: 9, sept: 9, septiembre: 9, setiembre: 9, oct: 10, octubre: 10,
+        nov: 11, noviembre: 11, dic: 12, diciembre: 12
+    };
+    const monthRe = 'ene(?:ro)?|feb(?:rero)?|mar(?:zo)?|abr(?:il)?|may(?:o)?|jun(?:io)?|jul(?:io)?|ago(?:sto)?|sep(?:t(?:iembre)?)?|setiembre|oct(?:ubre)?|nov(?:iembre)?|dic(?:iembre)?';
+    const resolveYear = (monthNum, explicitYear) => {
+        if (explicitYear) {
+            const y = String(explicitYear);
+            return y.length === 2 ? `20${y}` : y;
+        }
+        const now = new Date();
+        let y = now.getFullYear();
+        if (monthNum < (now.getMonth() + 1) - 1) y += 1;
+        return String(y);
+    };
     const out = {};
+
+    // Rango: "del 26 de dic al 2 de enero" / "26 de diciembre al 2 de enero 2027"
+    const rangeM = t.match(new RegExp(
+        `(?:del?\\s+)?(\\d{1,2})\\s+de\\s+(${monthRe})(?:\\s+de\\s+(\\d{2,4}))?\\s+(?:al?|hasta)\\s+(?:el\\s+)?(\\d{1,2})\\s+de\\s+(${monthRe})(?:\\s+de\\s+(\\d{2,4}))?`,
+        'i'
+    ));
+    if (rangeM) {
+        const m1 = monthMap[String(rangeM[2]).toLowerCase()] || 0;
+        const m2 = monthMap[String(rangeM[5]).toLowerCase()] || 0;
+        if (m1 && m2) {
+            const y1 = resolveYear(m1, rangeM[3]);
+            let y2 = rangeM[6] ? resolveYear(m2, rangeM[6]) : y1;
+            if (!rangeM[6] && m2 < m1) y2 = String(parseInt(y1, 10) + 1);
+            out.check_in = `${y1}-${String(m1).padStart(2, '0')}-${String(rangeM[1]).padStart(2, '0')}`;
+            out.check_out = `${y2}-${String(m2).padStart(2, '0')}-${String(rangeM[4]).padStart(2, '0')}`;
+            out.date_note = `del ${rangeM[1]} de ${rangeM[2]} al ${rangeM[4]} de ${rangeM[5]}`;
+            try {
+                const a = new Date(out.check_in + 'T12:00:00');
+                const b = new Date(out.check_out + 'T12:00:00');
+                const nights = Math.round((b - a) / 86400000);
+                if (nights > 0 && nights < 60) out.nights = nights;
+            } catch (_) { /* ignore */ }
+        }
+    }
+
+    // Fecha suelta: "a partir del 26 de diciembre" / "el 15 de enero"
+    if (!out.check_in) {
+        const namedM = t.match(new RegExp(
+            `(?:a\\s+partir\\s+del?|desde\\s+el|para\\s+el|el|del)\\s+(\\d{1,2})\\s+de\\s+(${monthRe})(?:\\s+de\\s+(\\d{2,4}))?`,
+            'i'
+        ));
+        if (namedM) {
+            const mNum = monthMap[String(namedM[2]).toLowerCase()] || 0;
+            if (mNum) {
+                const y = resolveYear(mNum, namedM[3]);
+                out.check_in = `${y}-${String(mNum).padStart(2, '0')}-${String(namedM[1]).padStart(2, '0')}`;
+                out.date_note = `${namedM[1]} de ${namedM[2]}`;
+            }
+        }
+    }
+
+    // Mes aproximado sin día: "en enero" / "diciembre/enero"
+    if (!out.check_in && !out.date_note) {
+        const approx = t.match(new RegExp(`\\b(${monthRe})(?:\\s*\\/?\\s*(${monthRe}))?\\b`, 'i'));
+        if (approx && !/\bv[aá]lida\b|\bvigencia\b/i.test(t)) {
+            out.date_note = approx[2]
+                ? `${approx[1]}/${approx[2]}`
+                : String(approx[1]);
+            out.date_approx = true;
+        }
+    }
+
     const dateM = t.match(/(\d{1,2})[\/\-.](\d{1,2})(?:[\/\-.](\d{2,4}))?/);
-    if (dateM) {
+    if (!out.check_in && dateM) {
         const d = dateM[1].padStart(2, '0');
         const m = dateM[2].padStart(2, '0');
         let y = dateM[3] || String(new Date().getFullYear());
@@ -3411,8 +3482,9 @@ function extractTravelDataFromText(text) {
         out.check_in = `${y}-${m}-${d}`;
     }
     const nightsM = t.match(/(\d{1,2})\s*noches?/i)
-        || t.match(/(una|dos|tres|cuatro|cinco|seis|siete)\s*noches?/i);
-    if (nightsM) {
+        || t.match(/(\d{1,2})\s*d[ií]as?/i)
+        || t.match(/(una|dos|tres|cuatro|cinco|seis|siete)\s*(?:noches?|d[ií]as?)/i);
+    if (nightsM && out.nights == null) {
         const map = { una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7 };
         const raw = String(nightsM[1]).toLowerCase();
         out.nights = map[raw] || parseInt(raw, 10) || null;
@@ -3425,18 +3497,30 @@ function extractTravelDataFromText(text) {
         const n = parseInt(adultsM[2] || adultsM[1], 10);
         if (n > 0 && n < 40) out.adults = n;
     }
+    if (out.adults == null && /\b(pareja|de a dos|los dos|mi marido|mi esposa|mi mujer)\b/i.test(t)) {
+        out.adults = 2;
+    }
     const kidsM = t.match(/(\d{1,2})\s*(niñ|menores|infantes?)/i);
     if (kidsM && !/\ben base a\b/i.test(t)) {
         const n = parseInt(kidsM[1], 10);
         if (n >= 0 && n < 20) out.children = n;
     }
-    const hasDate = !!(out.check_in || /\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i.test(t));
+    const hasDate = !!(out.check_in || out.check_out || out.date_note
+        || /\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i.test(t));
     const hasNights = out.nights != null;
     const hasPax = out.adults != null;
     const score = (hasDate ? 1 : 0) + (hasNights ? 1 : 0) + (hasPax ? 1 : 0);
-    if (score < 2 && Object.keys(out).length === 0) return null;
+    if (score < 1 && Object.keys(out).length === 0) return null;
+    // Guardar nota aunque solo haya mes aproximado
+    if (hasDate && !out.date_note && !out.check_in) {
+        const mOnly = t.match(/\b(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/i);
+        if (mOnly) out.date_note = mOnly[1];
+    }
     out._ready = score >= 2;
     out._score = score;
+    out._hasDate = hasDate;
+    out._hasNights = hasNights;
+    out._hasPax = hasPax;
     return out;
 }
 
@@ -3461,11 +3545,32 @@ function sessionTravelDataIsReady(session, extraUserText) {
     if (session?.datos_ready_at) return true;
     const td = (session?.travel_data && typeof session.travel_data === 'object') ? session.travel_data : {};
     const extracted = extraUserText ? extractTravelDataFromText(extraUserText) : null;
-    const hasDate = !!(td.check_in || td.check_out || extracted?.check_in);
+    const hasDate = !!(td.check_in || td.check_out || td.date_note || extracted?.check_in || extracted?.date_note || extracted?._hasDate);
     const hasNights = td.nights != null || extracted?.nights != null;
     const hasPax = td.adults != null || extracted?.adults != null;
     const score = (hasDate ? 1 : 0) + (hasNights ? 1 : 0) + (hasPax ? 1 : 0);
     return score >= 2 || !!(extracted && extracted._ready);
+}
+
+function sessionHasTravelDate(session, extraUserText) {
+    const td = (session?.travel_data && typeof session.travel_data === 'object') ? session.travel_data : {};
+    if (td.check_in || td.check_out || td.date_note) return true;
+    const extracted = extraUserText ? extractTravelDataFromText(extraUserText) : null;
+    return !!(extracted?.check_in || extracted?.date_note || extracted?._hasDate);
+}
+
+function sessionHasTravelNights(session, extraUserText) {
+    const td = (session?.travel_data && typeof session.travel_data === 'object') ? session.travel_data : {};
+    if (td.nights != null) return true;
+    const extracted = extraUserText ? extractTravelDataFromText(extraUserText) : null;
+    return extracted?.nights != null;
+}
+
+function sessionHasTravelPax(session, extraUserText) {
+    const td = (session?.travel_data && typeof session.travel_data === 'object') ? session.travel_data : {};
+    if (td.adults != null) return true;
+    const extracted = extraUserText ? extractTravelDataFromText(extraUserText) : null;
+    return extracted?.adults != null;
 }
 
 function florTextLooksLikeHotelOrPromoInfo(text) {
@@ -3498,6 +3603,38 @@ function stripFlorInlineTravelDataAsk(text) {
     return t;
 }
 
+/** Quita preguntas de fechas/noches/pax si el cliente YA las dio en la sesión o en este turno. */
+function stripFlorRedundantTravelAsks(text, session, userText) {
+    let t = String(text || '').trim();
+    if (!t) return t;
+    const hasDate = sessionHasTravelDate(session, userText);
+    const hasNights = sessionHasTravelNights(session, userText);
+    const hasPax = sessionHasTravelPax(session, userText);
+    if (hasDate) {
+        t = t.replace(/(?:\n+)?(?:¿\s*)?(?:Tenés|Tienes|Me\s+pas[aá]s|Podr[ií]as\s+(?:decir|indicar)|Decime)[^.?\n]{0,80}?fecha[^.?\n]{0,60}\?/gi, '').trim();
+        t = t.replace(/(?:\n+)?(?:¿\s*)?Tenés alguna fecha en vista[^.?\n]*\?/gi, '').trim();
+        t = t.replace(/(?:\n+)?(?:¿\s*)?Para\s+(?:orientarnos|cotizar)[^.?\n]{0,40}fecha[^.?\n]*\?/gi, '').trim();
+    }
+    if (hasNights) {
+        t = t.replace(/(?:\n+)?(?:¿\s*)?(?:Cu[aá]ntas?\s+noches|cu[aá]ntos?\s+d[ií]as)[^.?\n]{0,50}\?/gi, '').trim();
+    }
+    if (hasPax) {
+        t = t.replace(/(?:\n+)?(?:¿\s*)?(?:Cu[aá]ntas?\s+personas|cu[aá]ntos?\s+(?:van|viajan)|viajan\s+solo)[^.?\n]{0,60}\?/gi, '').trim();
+    }
+    return t.replace(/\n{3,}/g, '\n\n').trim();
+}
+
+/** Evita que Flor filtre identidad de asesores (Germán, etc.) en el chat del cliente. */
+function stripFlorStaffIdentityLeak(text) {
+    let t = String(text || '').trim();
+    if (!t) return t;
+    t = t.replace(/(?:^|\n)[^\n]*(?:germ[aá]n|german)\s+es\s+m[ií]\s+nombre[^\n]*/gi, '').trim();
+    t = t.replace(/(?:^|\n)[^\n]*(?:me\s+llamo|soy)\s+(?:germ[aá]n|german)\b[^\n]*/gi, '').trim();
+    t = t.replace(/\b(?:germ[aá]n|german)\s+es\s+m[ií]\s+nombre\b[^.!\n]*/gi, '').trim();
+    t = t.replace(/\bHola\s+Germ[aá]n\b[^.!\n]*/gi, '').trim();
+    return t.replace(/\n{3,}/g, '\n\n').trim() || String(text || '').trim();
+}
+
 function stripFlorRepeatedGreeting(text) {
     let t = String(text || '').trim();
     if (!t) return t;
@@ -3512,6 +3649,7 @@ function stripFlorRepeatedGreeting(text) {
 
 /**
  * Cierre relajado (una pregunta). No interrogatorio de fechas+noches+pax.
+ * No pregunta por un dato que el cliente ya dio.
  */
 function maybeAppendFlorQuoteClose(text, opts = {}) {
     const intent = opts.intent || '';
@@ -3521,6 +3659,9 @@ function maybeAppendFlorQuoteClose(text, opts = {}) {
     }
     if (opts.session?.asked_travel_data_at) return { text, appended: false };
     if (sessionTravelDataIsReady(opts.session, opts.userText)) return { text, appended: false };
+    if (sessionHasTravelDate(opts.session, opts.userText)) {
+        return { text: stripFlorRedundantTravelAsks(text, opts.session, opts.userText), appended: false };
+    }
     const looksCommercial = !!opts.toolWasCalled || florTextLooksLikeHotelOrPromoInfo(text);
     if (!looksCommercial) return { text, appended: false };
     const cleaned = stripFlorInlineTravelDataAsk(text);
@@ -3558,14 +3699,14 @@ async function mergeTravelDataForChat(chatId, phone, instanceNumber, userText) {
         ? session.travel_data
         : {};
     const merged = { ...prev };
-    for (const k of ['check_in', 'check_out', 'nights', 'adults', 'children']) {
-        if (extracted[k] != null) merged[k] = extracted[k];
+    for (const k of ['check_in', 'check_out', 'nights', 'adults', 'children', 'date_note', 'date_approx']) {
+        if (extracted[k] != null && extracted[k] !== '') merged[k] = extracted[k];
     }
     const score =
-        (merged.check_in || merged.check_out ? 1 : 0) +
+        (merged.check_in || merged.check_out || merged.date_note ? 1 : 0) +
         (merged.nights != null ? 1 : 0) +
         (merged.adults != null ? 1 : 0);
-    const fields = { travel_data: merged, prompt_variant: session?.prompt_variant || 'v4.4' };
+    const fields = { travel_data: merged, prompt_variant: session?.prompt_variant || 'v4.5' };
     if (score >= 2 && !session?.datos_ready_at) {
         fields.datos_ready_at = new Date().toISOString();
         console.log(`✅ Datos listos chat: score=${score}`, merged);
@@ -3577,6 +3718,7 @@ async function mergeTravelDataForChat(chatId, phone, instanceNumber, userText) {
 function buildFlorSessionContextInjection(session, hotelDisplayName) {
     const hotelLabel = hotelDisplayName || (session?.current_hotel_id ? `id:${session.current_hotel_id}` : '(ninguno)');
     const cotizadorYa = session?.cotizador_sent_at ? 'SÍ' : 'NO';
+    const td = (session?.travel_data && typeof session.travel_data === 'object') ? session.travel_data : {};
     let block = `Contexto de sesión (persistente en base de datos — prioridad sobre inferencia del historial):\n`;
     block += `- Hotel en consulta: ${hotelLabel}\n`;
     block += `- ¿Cotizador ya enviado?: ${cotizadorYa}\n`;
@@ -3587,13 +3729,25 @@ function buildFlorSessionContextInjection(session, hotelDisplayName) {
         block += `- PROHIBIDO preguntar "¿A qué destino te diriges?" o "¿qué hotel tenés en mente?" — el hotel activo de esta conversación es ${hotelDisplayName}. Neuquén/auto/ruta es ORIGEN del viaje, no un hotel nuevo.\n`;
         block += `- MEMORIA OBLIGATORIA: todos los mensajes siguientes (ruta, auto, spa, precios, promo) se refieren a ${hotelDisplayName} hasta que el cliente nombre OTRO hotel del catálogo.\n`;
     }
+    const knownBits = [];
+    if (td.check_in) knownBits.push(`check-in ${td.check_in}`);
+    if (td.check_out) knownBits.push(`check-out ${td.check_out}`);
+    if (td.date_note) knownBits.push(`fechas: ${td.date_note}`);
+    if (td.nights != null) knownBits.push(`${td.nights} noches`);
+    if (td.adults != null) knownBits.push(`${td.adults} adultos`);
+    if (td.children != null) knownBits.push(`${td.children} niños`);
+    if (knownBits.length) {
+        block += `- DATOS YA DADOS POR EL CLIENTE (obligatorio leer antes de preguntar): ${knownBits.join(' · ')}\n`;
+        block += `- ANTI-SORDERA: PROHIBIDO volver a pedir un dato que ya figure arriba. Confirmalo en una frase y pedí SOLO lo que falte. Si ya hay fecha/rango, PROHIBIDO "¿Tenés alguna fecha en vista?".\n`;
+    }
     if (sessionTravelDataIsReady(session)) {
-        block += `- El cliente YA dio datos de viaje (fechas/noches/pax). PROHIBIDO volver a pedirlos.\n`;
+        block += `- El cliente YA dio datos suficientes de viaje. PROHIBIDO volver a pedir fechas/noches/pax; avanzá a hand-off o al siguiente paso útil.\n`;
     } else if (session?.asked_travel_data_at) {
         block += `- Ya se hizo una pregunta de viaje en este chat. Seguí UN DATO A LA VEZ: no repitas la misma pregunta ni armes un interrogatorio fechas+noches+pax.\n`;
     } else {
-        block += `- UN DATO A LA VEZ (V4.4): primero los datos de hotel/promo (vigencia completa). Al final UNA pregunta relajada (preferí fecha). PROHIBIDO interrogatorio fechas+noches+pax. PROHIBIDO saludar si el chat ya empezó.\n`;
+        block += `- UN DATO A LA VEZ (V4.5): primero los datos de hotel/promo. Al final UNA pregunta relajada SOLO si falta ese dato. PROHIBIDO interrogatorio fechas+noches+pax. PROHIBIDO saludar si el chat ya empezó.\n`;
     }
+    block += `- IDENTIDAD: Sos SOLO Flor 🌸 de Checkin24hs. PROHIBIDO presentarte como Germán u otro asesor, decir "Germán es mi nombre", o mezclar mensajes internos/admin en el chat del cliente.\n`;
     const adRef = session?.travel_data?.ad_referral;
     if (adRef && (adRef.title || adRef.body)) {
         block += `- Origen: anuncio Click to WhatsApp (Meta). Título: ${adRef.title || '(sin título)'}. Pauta: ${adRef.body || '(sin texto)'}. Respondé sobre ese hotel/promo; no preguntes el destino.\n`;
@@ -4843,7 +4997,11 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
             if (closed.appended) {
                 finalText = closed.text;
                 console.log('🧾 Flor: cierre relajado de fecha adjuntado al mismo turno');
+            } else if (closed.text) {
+                finalText = closed.text;
             }
+            finalText = stripFlorRedundantTravelAsks(finalText, chatSession, mensaje);
+            finalText = stripFlorStaffIdentityLeak(finalText);
             if (conversacionYaIniciada) {
                 const stripped = stripFlorRepeatedGreeting(finalText);
                 if (stripped !== finalText) {
