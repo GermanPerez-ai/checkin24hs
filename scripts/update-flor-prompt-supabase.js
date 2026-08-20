@@ -10,7 +10,7 @@ const SUPABASE_URL = 'https://lmoeuyasuvoqhtvhkyia.supabase.co';
 const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imxtb2V1eWFzdXZvcWh0dmhreWlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQzNjE5NjAsImV4cCI6MjA3OTkzNzk2MH0.28xpqAqAa7rkeT3Ma5fPmbzYnetlq2wOPOgh9XBF3g4';
 
-const PROMPT_PATH = path.join(__dirname, '..', 'docs', 'flor-prompt-v44.txt');
+const PROMPT_PATH = path.join(__dirname, '..', 'docs', 'flor-prompt-v45.txt');
 
 async function supabaseFetch(pathname, options = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${pathname}`, {
@@ -36,7 +36,7 @@ async function supabaseFetch(pathname, options = {}) {
 
 async function main() {
   const promptGeneral = fs.readFileSync(PROMPT_PATH, 'utf8').trim();
-  console.log(`📋 Prompt V4.4: ${promptGeneral.length} caracteres`);
+  console.log(`📋 Prompt V4.5: ${promptGeneral.length} caracteres`);
 
   let existing = {};
   try {
@@ -47,13 +47,15 @@ async function main() {
       existing = typeof rows[0].value === 'string' ? JSON.parse(rows[0].value) : rows[0].value;
       console.log('📦 Config existente encontrada; se preservan name, greeting, multimodal, etc.');
       const prev = String(existing.promptGeneral || '');
-      const hint = prev.includes('V.4.4')
-        ? 'ya era V4.4'
-        : prev.includes('V.4.3')
-          ? 'antes V4.3'
-          : prev.includes('V.4.2') || prev.includes('RESPUESTAS CORTAS')
-            ? 'antes V4.2 (interrogatorio multi-dato)'
-            : 'versión previa desconocida';
+      const hint = prev.includes('V.4.5')
+        ? 'ya era V4.5'
+        : prev.includes('V.4.4')
+          ? 'antes V4.4'
+          : prev.includes('V.4.3')
+            ? 'antes V4.3'
+            : prev.includes('V.4.2') || prev.includes('RESPUESTAS CORTAS')
+              ? 'antes V4.2 (interrogatorio multi-dato)'
+              : 'versión previa desconocida';
       console.log(`🔎 Prompt previo: ${hint}`);
     }
   } catch (e) {
@@ -102,9 +104,9 @@ async function main() {
 
   const ok =
     savedPrompt &&
-    savedPrompt.includes('UN DATO A LA VEZ') &&
-    savedPrompt.includes('V.4.4');
-  console.log(ok ? '✅ Prompt V4.4 guardado en Supabase (flor_general_config)' : '❌ Verificación fallida');
+    savedPrompt.includes('GEO: BANDERA') &&
+    savedPrompt.includes('V.4.5');
+  console.log(ok ? '✅ Prompt V4.5 guardado en Supabase (flor_general_config)' : '❌ Verificación fallida');
   console.log('🕐 updated_at:', saved.updated_at);
   console.log('🔤 Inicio:', savedPrompt.slice(0, 100).replace(/\n/g, ' ') + '...');
 }

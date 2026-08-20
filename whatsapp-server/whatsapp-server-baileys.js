@@ -207,6 +207,19 @@ const FLOR_DELAY_MS = Math.max(0, parseInt(process.env.FLOR_DELAY_MS, 10) || 500
 /** Tras intervención humana (móvil, dashboard, /api/send), Flor calla este tiempo (RAM + DB). Default 45 min. */
 const FLOR_SILENCE_MINUTES = Math.max(1, parseInt(process.env.FLOR_SILENCE_MINUTES || '45', 10) || 45);
 const FLOR_SILENCE_MS = FLOR_SILENCE_MINUTES * 60 * 1000;
+/** Anti-loop: Flor vs otro bot de WhatsApp (evitar quemar tokens Gemini). Desactivar: FLOR_ANTI_LOOP=0 */
+const FLOR_ANTI_LOOP_ENABLED = process.env.FLOR_ANTI_LOOP !== '0' && process.env.FLOR_ANTI_LOOP !== 'false';
+/** Máx. respuestas consecutivas de Flor sin datos reales del contacto. */
+const FLOR_ANTI_LOOP_MAX_CONSECUTIVE = Math.max(1, parseInt(process.env.FLOR_ANTI_LOOP_MAX_CONSECUTIVE || '3', 10) || 3);
+/** Respuesta entrante más rápida que esto (ms) tras un outbound de Flor = señal robótica. */
+const FLOR_ANTI_LOOP_RAPID_MS = Math.max(500, parseInt(process.env.FLOR_ANTI_LOOP_RAPID_MS || '4000', 10) || 4000);
+/** Hits rápidos consecutivos sin datos reales para pausar (aunque aún no llegue al máx. de Flor). */
+const FLOR_ANTI_LOOP_RAPID_HITS = Math.max(1, parseInt(process.env.FLOR_ANTI_LOOP_RAPID_HITS || '2', 10) || 2);
+/** Minutos de pausa al detectar loop con otro bot (default 24h). */
+const FLOR_ANTI_LOOP_PAUSE_MINUTES = Math.max(
+    FLOR_SILENCE_MINUTES,
+    parseInt(process.env.FLOR_ANTI_LOOP_PAUSE_MINUTES || '1440', 10) || 1440
+);
 
 /** Pausa mínima entre burbujas salientes (cola de salida). Default 3s — evita "Esperando mensaje". */
 const WA_OUTBOUND_BUBBLE_DELAY_MS = Math.max(
@@ -322,6 +335,8 @@ if (FLOR_SESSION_CRYPTO_SUMMARY) {
 }
 
 const florPendingByUser = new Map(); // key: phone:+E.164 o jid:remoteJid -> { timeoutId, messages, ... }
+/** Anti-loop por chat: streak Flor sin datos reales + hits bot/rápidos. Clave: solo dígitos ≥10 */
+const florAntiLoopByPhone = new Map();
 /** Silencio Flor: respaldo en RAM si aún no existe fila en whatsapp_chats (clave: solo dígitos, ≥10) */
 const florPauseMemoryUntil = new Map();
 /** JID del chat (remoteJid / variante) → +E.164 real; evita pausar con PN interno (ej. 133397…@s.whatsapp.net) en mensajes salientes del humano */
@@ -1084,6 +1099,185 @@ function shouldFlorReplyToInbound(msg, upsertType) {
     return true;
 }
 
+function florAntiLoopPhoneKey(phone) {
+    const d = String(phone || '').replace(/\D/g, '');
+    return d.length >= 10 ? d : '';
+}
+
+function getFlorAntiLoopState(phone) {
+    const key = florAntiLoopPhoneKey(phone);
+    if (!key) return null;
+    let st = florAntiLoopByPhone.get(key);
+    if (!st) {
+        st = {
+            florOutboundWithoutRealData: 0,
+            rapidHits: 0,
+            botPatternHits: 0,
+            lastFlorOutboundAt: 0,
+            lastInboundAt: 0
+        };
+        florAntiLoopByPhone.set(key, st);
+    }
+    return st;
+}
+
+function resetFlorAntiLoopState(phone) {
+    const key = florAntiLoopPhoneKey(phone);
+    if (!key) return;
+    florAntiLoopByPhone.delete(key);
+}
+
+/** Datos / intención humana real (no autorespuesta genérica de otro bot). */
+function inboundHasRealUserSignal(text, hasMedia = false) {
+    if (hasMedia) return true;
+    const t = String(text || '').trim();
+    if (!t) return false;
+    if (typeof extractTravelDataFromText === 'function') {
+        const td = extractTravelDataFromText(t);
+        if (td && typeof td === 'object' && Object.keys(td).length > 0) return true;
+    }
+    if (/consulta desde checkin24hs\.com/i.test(t)) return true;
+    if (/\b(puyehue|corralco|huilo(\s*huilo)?|antilhue|lago\s*puelo|bariloche|san\s*mart[ií]n|villa\s*la\s*angostura|puerto\s*varas)\b/i.test(t)) return true;
+    if (/\b(me llamo|mi nombre es)\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]{2,}/i.test(t)) return true;
+    if (/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(t)) return true;
+    if (/\b(somos|vamos|viajamos|necesitamos?)\s+\d{1,2}\b/i.test(t)) return true;
+    if (/\b\d{1,2}\s*(noches?|adultos?|ni[nñ]os?|pax)\b/i.test(t)) return true;
+    if (/\b\d{1,2}[\/\-.]\d{1,2}([\/\-.]\d{2,4})?\b/.test(t)) return true;
+    return false;
+}
+
+/** Patrones típicos de otro bot / autorespuesta de negocio. */
+function scoreExternalBotMessage(text) {
+    const t = String(text || '').trim();
+    if (!t) return { score: 0, hits: [] };
+    const rules = [
+        { re: /\b(soy|somos)\s+(un\s+|el\s+|la\s+)?(asistente|bot|agente)\s*(virtual|autom[aá]tico|de\s+ia|de\s+inteligencia)?/i, w: 3 },
+        { re: /\basistente\s+virtual\b/i, w: 2 },
+        { re: /\b(chat\s*bot|chatbot|auto[- ]?reply|autorespuesta|mensaje\s+autom[aá]tico)\b/i, w: 3 },
+        { re: /\b(inteligencia\s+artificial|powered\s+by\s+(chatgpt|gpt|gemini|openai|claude)|generado\s+por\s+ia)\b/i, w: 3 },
+        { re: /\bno\s+soy\s+(una\s+)?persona(\s+real)?\b/i, w: 3 },
+        { re: /\b(este\s+)?(n[uú]mero|whatsapp|canal)\s+(es|est[aá])\s+(atendido|gestionado|operado)\s+(por|con)\s+(un\s+)?(bot|ia|asistente)/i, w: 3 },
+        { re: /\bmen[uú]\s+de\s+opciones\b|\bescrib[ií]\s*\d\s*para\b|\brespond[eé]\s+con\s+(el\s+)?(n[uú]mero|d[ií]gito)\b/i, w: 2 },
+        { re: /\bpara\s+(hablar|comunicarte|atenci[oó]n)\s+con\s+(un\s+)?(humano|asesor|operador)\b/i, w: 2 },
+        { re: /\bgracias\s+por\s+(contactar|escribir(nos)?|tu\s+mensaje).{0,100}(pronto|a\s+la\s+brevedad|en\s+breve).{0,60}(responder|contactar|atender)/i, w: 2 },
+        { re: /\b(horario\s+de\s+atenci[oó]n|fuera\s+de\s+horario).{0,40}(autom[aá]tic|bot|responderemos)/i, w: 2 },
+        { re: /\b(no\s+entiendo\s+tu\s+(consulta|mensaje)|no\s+pude\s+procesar).{0,50}(reformul|opciones|men[uú])/i, w: 2 },
+        { re: /\b(opci[oó]n\s*[1-9]|presion[aá]\s*[1-9]|digite\s*[1-9])\b/i, w: 1 },
+        { re: /\b(flor\s*ia|checkin\s*24)\b/i, w: 0 } // no puntuar menciones a nosotros
+    ];
+    let score = 0;
+    const hits = [];
+    for (const { re, w } of rules) {
+        if (w <= 0) continue;
+        if (re.test(t)) {
+            score += w;
+            hits.push(re.source.slice(0, 48));
+        }
+    }
+    // Texto largo, muy formal, sin datos de viaje y con varios signos de plantilla
+    if (t.length > 280 && !inboundHasRealUserSignal(t) && /(?:\n\s*[-•*]|\d[\).\]]\s+\S+){3,}/.test(t)) {
+        score += 2;
+        hits.push('menu_list_long');
+    }
+    return { score, hits };
+}
+
+function clearFlorPendingQueuesForPhone(phone, remoteJid) {
+    const digits = florAntiLoopPhoneKey(phone);
+    const jid = remoteJid ? String(remoteJid).trim() : '';
+    for (const [k, pending] of florPendingByUser.entries()) {
+        if (!pending) continue;
+        const samePhone = digits && florAntiLoopPhoneKey(pending.numero) === digits;
+        const sameJid = jid && (pending.remoteJid === jid || k === `jid:${jid}`);
+        if (samePhone || sameJid || (digits && k === `phone:${digits}`) || (digits && k === `phone:+${digits}`)) {
+            if (pending.timeoutId) {
+                try { clearTimeout(pending.timeoutId); } catch (_) { /* ignore */ }
+            }
+            florPendingByUser.delete(k);
+        }
+    }
+}
+
+/**
+ * Evalúa inbound anti-loop. Si debe cortar: pausa Flor en el chat y limpia cola.
+ * @returns {{ blocked: boolean, reason?: string }}
+ */
+async function evaluateFlorAntiLoopOnInbound({ phone, text, remoteJid = null, chatId = null, hasMedia = false }) {
+    if (!FLOR_ANTI_LOOP_ENABLED) return { blocked: false };
+    const key = florAntiLoopPhoneKey(phone);
+    if (!key) return { blocked: false };
+
+    const st = getFlorAntiLoopState(phone);
+    const now = Date.now();
+    const real = inboundHasRealUserSignal(text, hasMedia);
+    const bot = scoreExternalBotMessage(text);
+    const rapid = st.lastFlorOutboundAt > 0 && (now - st.lastFlorOutboundAt) <= FLOR_ANTI_LOOP_RAPID_MS;
+
+    st.lastInboundAt = now;
+
+    if (real) {
+        resetFlorAntiLoopState(phone);
+        return { blocked: false };
+    }
+
+    if (bot.score >= 3) {
+        st.botPatternHits += 1;
+    } else if (bot.score >= 2) {
+        st.botPatternHits += 1;
+    }
+
+    if (rapid) {
+        st.rapidHits += 1;
+    } else if (st.lastFlorOutboundAt > 0) {
+        st.rapidHits = Math.max(0, st.rapidHits - 1);
+    }
+
+    let reason = null;
+    if (bot.score >= 3 || st.botPatternHits >= 2) {
+        reason = `patron_bot score=${bot.score} hits=${st.botPatternHits}`;
+    } else if (st.florOutboundWithoutRealData >= FLOR_ANTI_LOOP_MAX_CONSECUTIVE) {
+        reason = `max_flor_sin_datos=${st.florOutboundWithoutRealData}`;
+    } else if (st.rapidHits >= FLOR_ANTI_LOOP_RAPID_HITS && st.florOutboundWithoutRealData >= 1) {
+        reason = `respuestas_rapidas=${st.rapidHits} sin_datos flor=${st.florOutboundWithoutRealData}`;
+    }
+
+    if (!reason) return { blocked: false };
+
+    clearFlorPendingQueuesForPhone(phone, remoteJid);
+    await setFlorPausedUntil(phone, FLOR_ANTI_LOOP_PAUSE_MINUTES, chatId || null);
+    resetFlorAntiLoopState(phone);
+    console.log(
+        `🛑 Flor ANTI-LOOP: pausa ${FLOR_ANTI_LOOP_PAUSE_MINUTES} min | phone=${phone} | ${reason}` +
+        (bot.hits.length ? ` | patterns=${bot.hits.slice(0, 3).join(',')}` : '')
+    );
+    return { blocked: true, reason };
+}
+
+/** Tras enviar respuesta de Flor: cuenta streak sin datos reales; si llega al tope, pausa. */
+async function recordFlorAntiLoopOutbound(phone, chatId = null, remoteJid = null) {
+    if (!FLOR_ANTI_LOOP_ENABLED) return { paused: false };
+    const key = florAntiLoopPhoneKey(phone);
+    if (!key) return { paused: false };
+    const st = getFlorAntiLoopState(phone);
+    st.lastFlorOutboundAt = Date.now();
+    st.florOutboundWithoutRealData += 1;
+
+    if (st.florOutboundWithoutRealData < FLOR_ANTI_LOOP_MAX_CONSECUTIVE) {
+        return { paused: false, streak: st.florOutboundWithoutRealData };
+    }
+
+    // Tras el N-ésimo mensaje sin datos reales: cortar ya (no esperar otro inbound).
+    clearFlorPendingQueuesForPhone(phone, remoteJid);
+    await setFlorPausedUntil(phone, FLOR_ANTI_LOOP_PAUSE_MINUTES, chatId || null);
+    const streak = st.florOutboundWithoutRealData;
+    resetFlorAntiLoopState(phone);
+    console.log(
+        `🛑 Flor ANTI-LOOP: tope ${FLOR_ANTI_LOOP_MAX_CONSECUTIVE} msgs consecutivos sin datos reales` +
+        ` (streak=${streak}) → pausa ${FLOR_ANTI_LOOP_PAUSE_MINUTES} min | phone=${phone}`
+    );
+    return { paused: true, streak };
+}
+
 function phoneDigitsRoughlyMatch(a, b) {
     const da = String(a || '').replace(/\D/g, '');
     const db = String(b || '').replace(/\D/g, '');
@@ -1414,6 +1608,11 @@ if (FLOR_DELAY_MS > 0) {
     console.log(`⏱️ Flor: delay ${FLOR_DELAY_MS}ms para agrupar mensajes. Usuario puede consultar las veces que quiera; 1 mensaje → 1 respuesta, varios en ${FLOR_DELAY_MS}ms → respuesta a todos.`);
 }
 console.log(`⏸️ Flor: silencio tras intervención humana = ${FLOR_SILENCE_MINUTES} min (env FLOR_SILENCE_MINUTES). Registro de ids salientes ${Math.round(FLOR_OUTBOUND_BAILEYS_ID_TTL_MS / 60000)} min (FLOR_OUTBOUND_ID_TTL_MS). Mín. tokens salida = ${FLOR_MAX_OUTPUT_TOKENS_MIN} (+ flor_ai_config / FLOR_MAX_OUTPUT_TOKENS).`);
+if (FLOR_ANTI_LOOP_ENABLED) {
+    console.log(`🛡️ Flor anti-loop: máx ${FLOR_ANTI_LOOP_MAX_CONSECUTIVE} msgs Flor sin datos reales; rápido≤${FLOR_ANTI_LOOP_RAPID_MS}ms×${FLOR_ANTI_LOOP_RAPID_HITS}; pausa ${FLOR_ANTI_LOOP_PAUSE_MINUTES} min (FLOR_ANTI_LOOP_*).`);
+} else {
+    console.log('🛡️ Flor anti-loop: DESACTIVADO (FLOR_ANTI_LOOP=0).');
+}
 console.log(`📤 WA salida: debounce ${WA_OUTBOUND_BUBBLE_DELAY_MS}ms entre burbujas (WA_OUTBOUND_BUBBLE_DELAY_MS), espera entrega ${WA_OUTBOUND_DELIVERY_WAIT_MS}ms (WA_OUTBOUND_DELIVERY_WAIT_MS), linkPreview desactivado en textos.`);
 console.log(`🛡️ Flor anti-spam: notify≤${Math.round(FLOR_INBOUND_MAX_AGE_MS_NOTIFY / 60000)}min, append≤${Math.round(FLOR_INBOUND_MAX_AGE_MS_APPEND / 60000)}min (FLOR_INBOUND_MAX_AGE_MS_*).`);
 console.log(`📤 Cola salida WA: ${WA_OUTBOUND_BUBBLE_DELAY_MS}ms entre mensajes. Flor solo texto: ${FLOR_TEXT_ONLY_OUTBOUND ? 'SÍ (sin img/preview)' : 'NO'}.`);
@@ -1440,8 +1639,8 @@ Usá **negritas** para resaltar: nombres de **Hoteles**, **Precios/Tarifas**, **
 **5. Misión y límites:**
 Responder dudas sobre hoteles y servicios. PROHIBIDO dar precios por noche o cotizar directamente. PROHIBIDO dar teléfonos de hoteles o datos de contacto externos. Solo información de servicios y direcciones.
 
-**6. Protocolo de tarifas e indecisión (UN DATO A LA VEZ — V4.4):**
-Si preguntan una promo: PRIMERO volcá nombre, precio, qué incluye y el rango COMPLETO de vigencia (desde–hasta) del campo promociones. PROHIBIDO inventar un mes (ej. noviembre) si el rango es más amplio. Recién al final UNA pregunta relajada sobre UN solo dato (preferí fecha): "¿Tenés alguna fecha en vista para ver si hay lugar?". PROHIBIDO pedir fechas+noches+pax juntos. Los demás datos se piden de a uno en mensajes siguientes. Si está indeciso de hotel: https://www.checkin24hs.com/. Si ya dio datos de viaje o pide asesor, confirmá el traspaso.
+**6. Protocolo de tarifas e indecisión (UN DATO A LA VEZ — V4.5):**
+Si preguntan una promo: PRIMERO presentá el hotel con bandera_emoji + link_google_maps en el MISMO párrafo ("El **Hotel X** 🇨🇱 está ubicado en https://maps…"). Luego volcá nombre de promo, precio, qué incluye y vigencia COMPLETA. PROHIBIDO inventar un mes. Al final UNA pregunta relajada sobre UN solo dato (preferí fecha). PROHIBIDO pedir fechas+noches+pax juntos. Si está indeciso de hotel: https://www.checkin24hs.com/. Si ya dio datos de viaje o pide asesor, confirmá el traspaso.
 
 **7. Protocolo de cierre y silencio:**
 Después de un mensaje manual del asesor, Flor debe guardar **45 minutos de silencio** en ese chat antes de volver a intervenir. No repetir bloques informativos que ya se enviaron.
@@ -1487,9 +1686,10 @@ const FLOR_REGLAS_PRIORIDAD = `
 **SALUDO:** Solo el primer mensaje de la conversación. Después, PROHIBIDO Hola/Buenas tardes. Directo al tema.
 **PROTOCOLO DE TARIFAS (V4.4):** Promo o precios: primero los datos de la ficha (incluye vigencia completa). Al final UNA pregunta relajada de UN dato ("¿Tenés alguna fecha en vista para ver si hay lugar?"). PROHIBIDO exigir fechas+noches+pax de entrada. Hand-off cuando ya dio datos suficientes.
 **PROTOCOLO DE INDECISIÓN (V4.2):** Si duda o no elige hotel: solo https://www.checkin24hs.com/ . Sin discursos.
-**FORMATO DE RESPUESTA (V4.2):** Texto corto, 1–2 emojis máx, negritas solo en hoteles/beneficios. Evitá listas largas y links de maps salvo que aporten en una sola línea.
+**FORMATO DE RESPUESTA (V4.5):** Texto corto, 1–2 emojis decorativos máx (+ bandera del hotel). Negritas en hoteles/beneficios.
+**GEO HOTEL (V4.5):** Al mencionar un hotel usá bandera_emoji + link_google_maps/ubicacion_maps EN EL MISMO PÁRRAFO: "El **Nombre** 🇨🇱 está ubicado en https://maps…". PROHIBIDO Maps como bloque aparte. No inventes banderas ni URLs: usá solo lo que devolvió consultarCatalogoHoteles.
 **CAMPAMENTOS DE MARKETING:** Si menciona campañas/descuentos, mencioná la promo en una frase y avanzá con una pregunta.
-**EMOJIS:** Máximo 1 o 2 por mensaje.`;
+**EMOJIS:** Máximo 1 o 2 decorativos por mensaje (la bandera del país del hotel no cuenta).`;
 
 // Protocolo de Ventas, Objeciones y Cierre (reglas comerciales inyectadas siempre; aplican a texto y audio).
 const FLOR_PROTOCOLO_VENTAS = `
@@ -1742,12 +1942,17 @@ const florAdReferralByPhone = new Map(); // phone -> { title, body, sourceUrl, .
 // Control repetición: "Temporada de Oportunidades" (y similares) se envía solo una vez por hotel por chat
 const florOportunidadesSentByPhone = new Map(); // phoneKey -> Set(hotelId o hotelName)
 
-const HOTELS_FLOR_SELECT = 'id, name, location, flor_info, status, promociones';
+const HOTELS_FLOR_SELECT = 'id, name, location, flor_info, status, promociones, pais, google_maps';
+const HOTELS_FLOR_SELECT_NO_GEO = 'id, name, location, flor_info, status, promociones';
 const HOTELS_FLOR_SELECT_LEGACY = 'id, name, location, flor_info, status';
 
 async function selectHotelsForFlor() {
     if (!supabase) return { data: [], error: new Error('no supabase') };
     let res = await supabase.from('hotels').select(HOTELS_FLOR_SELECT).order('name');
+    if (res.error && /pais|google_maps/i.test(String(res.error.message || ''))) {
+        console.warn('⚠️ hotels.pais/google_maps no disponible. Select sin columnas geo.');
+        res = await supabase.from('hotels').select(HOTELS_FLOR_SELECT_NO_GEO).order('name');
+    }
     if (res.error && /promociones/i.test(String(res.error.message || ''))) {
         console.warn('⚠️ hotels.promociones no existe aún (migración 069). Usando select legado.');
         res = await supabase.from('hotels').select(HOTELS_FLOR_SELECT_LEGACY).order('name');
@@ -1870,6 +2075,85 @@ function enrichHotelAccessFields(raw, fi, promociones) {
     return raw;
 }
 
+/** URL de Google Maps del hotel (dashboard: ubicacion_maps / google_maps / transport). */
+function resolveHotelMapsUrl(hotel, fi) {
+    const fi2 = fi || {};
+    const ordered = [
+        fi2.ubicacion_maps,
+        hotel && hotel.google_maps,
+        fi2.transport,
+        hotel && hotel.location
+    ];
+    for (const c of ordered) {
+        if (!c) continue;
+        const s = String(c).trim();
+        if (typeof esLinkMaps === 'function' && esLinkMaps(s)) {
+            return s.split(/\s+/)[0].replace(/[.,;)]+$/g, '');
+        }
+        const urls = extractHttpUrls(s);
+        const maps = urls.find((u) => typeof esLinkMaps === 'function' && esLinkMaps(u));
+        if (maps) return maps;
+    }
+    return '';
+}
+
+/** Bandera del país del hotel (desde hotels.pais + heurística de ubicación/nombre). */
+function banderaEmojiForHotel(pais, location, name) {
+    const norm = (s) => String(s || '')
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+    const p = norm(pais);
+    const blob = `${p} ${norm(location)} ${norm(name)}`;
+    if (p === 'chile' || /\bchile\b/.test(blob)
+        || /neltume|puerto varas|pucon|valdivia|futangue|puyehue|huilo|corralco|antilhue|malalcahuello|araucania|los rios|chilean/.test(blob)) {
+        return '🇨🇱';
+    }
+    if (p === 'argentina' || /\bargentina\b/.test(blob)
+        || /bariloche|mendoza|ushuaia|iguazu|calafate|salta|pinamar|el bolson|villa la angostura|san martin de los andes|patagonia argentina/.test(blob)) {
+        return '🇦🇷';
+    }
+    if (/dominicana|punta cana|bavaro|cap cana|dominican|republica dominicana/.test(blob)) return '🇩🇴';
+    if (/\bbrasil\b|\bbrazil\b|rio de janeiro|florianopolis|buzios|fortaleza|natal|maceio|porto de galinhas|gramado|sheraton grand rio/.test(blob)) {
+        return '🇧🇷';
+    }
+    if (/\buruguay\b|punta del este|colonia del sacramento|montevideo/.test(blob)) return '🇺🇾';
+    if (/\bperu\b|cusco|machu picchu|\blima\b/.test(blob)) return '🇵🇪';
+    if (/\bmexico\b|cancun|riviera maya|tulum|los cabos/.test(blob)) return '🇲🇽';
+    if (/\bespana\b|\bspain\b|madrid|barcelona|mallorca|ibiza/.test(blob)) return '🇪🇸';
+    if (/\bestados unidos\b|\busa\b|miami|orlando|new york/.test(blob)) return '🇺🇸';
+    return '';
+}
+
+/**
+ * País + bandera + Maps para que Flor integre en el mismo párrafo (no bloque aparte).
+ * Campos: pais, bandera_emoji, link_google_maps, ejemplo_mencion.
+ */
+function enrichHotelGeoFields(raw, hotel, fi) {
+    const mapsUrl = resolveHotelMapsUrl(hotel, fi);
+    const pais = (hotel && hotel.pais) || (fi && fi.pais) || '';
+    const bandera = banderaEmojiForHotel(pais, hotel && hotel.location, hotel && hotel.name);
+    if (pais) raw.pais = String(pais).trim();
+    if (bandera) raw.bandera_emoji = bandera;
+    if (mapsUrl) {
+        raw.ubicacion_maps = mapsUrl;
+        raw.link_google_maps = mapsUrl;
+    } else if (raw.ubicacion_maps && !(typeof esLinkMaps === 'function' && esLinkMaps(String(raw.ubicacion_maps)))) {
+        raw.ubicacion_texto = String(raw.ubicacion_maps);
+    }
+    const nombre = raw.nombre || (hotel && hotel.name) || 'Hotel';
+    if (bandera && mapsUrl) {
+        raw.ejemplo_mencion = `El **${nombre}** ${bandera} está ubicado en ${mapsUrl}`;
+        raw.formato_mencion_hotel =
+            'OBLIGATORIO: al nombrar este hotel, integrá bandera + link de Maps EN EL MISMO PÁRRAFO (URL completa clickeable; no bloque aparte ni lista solo de links). Ejemplo: ' +
+            raw.ejemplo_mencion;
+    } else if (bandera) {
+        raw.formato_mencion_hotel =
+            `Al mencionar este hotel usá **${nombre}** ${bandera}. No inventes link de Maps si link_google_maps está vacío.`;
+    }
+    return raw;
+}
+
 /** Obtener promociones activas por lista de hotel_id (tabla promotions del Dashboard). */
 async function obtenerPromocionesActivasPorHoteles(hotelIds) {
     if (!supabase || !Array.isArray(hotelIds) || hotelIds.length === 0) return [];
@@ -1921,7 +2205,7 @@ async function obtenerTodosLosHotelesParaTool() {
         }
         return active.slice(0, 15).map(hotel => {
             const fi = hotel.flor_info || {};
-            const ubicacionMaps = fi.ubicacion_maps || hotel.location || '';
+            const ubicacionMaps = resolveHotelMapsUrl(hotel, fi) || fi.ubicacion_maps || hotel.location || '';
             const payload = {
                 id: hotel.id,
                 nombre: hotel.name,
@@ -1954,7 +2238,11 @@ async function obtenerTodosLosHotelesParaTool() {
                 link_cotizacion: fi.link_cotizacion || 'https://cotizar.checkin24hs.com/',
                 promociones: mergePromocionesParaFlor(hotel, promosByHotel[hotel.id] || [])
             };
-            return enrichHotelAccessFields(payload, fi, payload.promociones);
+            return enrichHotelGeoFields(
+                enrichHotelAccessFields(payload, fi, payload.promociones),
+                hotel,
+                fi
+            );
         });
     } catch (e) {
         console.warn('⚠️ Error obteniendo todos los hoteles:', e?.message || e);
@@ -2056,7 +2344,7 @@ async function consultarCatalogoHotelesTool(ubicacion, hotel_especifico) {
     const list = sliceHoteles.map(hotel => {
         const fi = hotel.flor_info || {};
         const imgGeneral = fi.img_general || '';
-        const ubicacionMaps = fi.ubicacion_maps || hotel.location || '';
+        const ubicacionMaps = resolveHotelMapsUrl(hotel, fi) || fi.ubicacion_maps || hotel.location || '';
         const raw = {
             id: hotel.id,
             nombre: hotel.name,
@@ -2089,7 +2377,9 @@ async function consultarCatalogoHotelesTool(ubicacion, hotel_especifico) {
             link_cotizacion: fi.link_cotizacion || 'https://cotizar.checkin24hs.com/',
             promociones: mergePromocionesParaFlor(hotel, promosByHotel[hotel.id] || [])
         };
-        return sanitizarHotelParaGemini(enrichHotelAccessFields(raw, fi, raw.promociones));
+        return sanitizarHotelParaGemini(
+            enrichHotelGeoFields(enrichHotelAccessFields(raw, fi, raw.promociones), hotel, fi)
+        );
     });
     return { encontrado: true, varios, hoteles: list };
 }
@@ -6391,6 +6681,18 @@ async function connectToWhatsApp() {
                 continue;
             }
 
+            const antiLoopInbound = await evaluateFlorAntiLoopOnInbound({
+                phone: numero,
+                text: texto,
+                remoteJid,
+                chatId: savedChatIdInbound || null,
+                hasMedia: !!(tieneAudio || tieneImagen || tieneVideo || tieneDocumento)
+            });
+            if (antiLoopInbound.blocked) {
+                console.log(`🛑 Flor: inbound cortado por anti-loop (${antiLoopInbound.reason}) — sin Gemini`);
+                continue;
+            }
+
             if (!tryClaimFlorInbound(msg.key?.id, numero, remoteJid, texto, type)) {
                 console.log(`⏭️ Flor: mensaje entrante duplicado omitido (id=${msg.key?.id || 'n/a'}, numero=${numero})`);
                 continue;
@@ -6905,6 +7207,7 @@ async function connectToWhatsApp() {
                         usedAi,
                         responseTimeMs
                     });
+                    await recordFlorAntiLoopOutbound(p.numero, p.supabaseChatId || null, p.remoteJid);
                     if (florAskedForTravelData(respuestaFlor)) {
                         try {
                             await markAskedTravelDataForChat(p.supabaseChatId, p.numero, CONFIG.INSTANCE_NUMBER);
