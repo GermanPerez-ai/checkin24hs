@@ -3446,10 +3446,10 @@ function extractTravelDataFromText(text) {
         }
     }
 
-    // Fecha suelta: "a partir del 26 de diciembre" / "el 15 de enero"
+    // Fecha suelta: "19 de diciembre" / "el 15 de enero" / "a partir del 26 de diciembre"
     if (!out.check_in) {
         const namedM = t.match(new RegExp(
-            `(?:a\\s+partir\\s+del?|desde\\s+el|para\\s+el|el|del)\\s+(\\d{1,2})\\s+de\\s+(${monthRe})(?:\\s+de\\s+(\\d{2,4}))?`,
+            `(?:(?:a\\s+partir\\s+del?|desde\\s+el|para\\s+el|el|del)\\s+)?(\\d{1,2})\\s+de\\s+(${monthRe})(?:\\s+de\\s+(\\d{2,4}))?`,
             'i'
         ));
         if (namedM) {
@@ -3462,7 +3462,7 @@ function extractTravelDataFromText(text) {
         }
     }
 
-    // Mes aproximado sin día: "en enero" / "diciembre/enero"
+    // Mes aproximado sin día: "en enero" / "diciembre/enero" (solo si no hubo día+mes)
     if (!out.check_in && !out.date_note) {
         const approx = t.match(new RegExp(`\\b(${monthRe})(?:\\s*\\/?\\s*(${monthRe}))?\\b`, 'i'));
         if (approx && !/\bv[aá]lida\b|\bvigencia\b/i.test(t)) {
@@ -3611,15 +3611,20 @@ function stripFlorRedundantTravelAsks(text, session, userText) {
     const hasNights = sessionHasTravelNights(session, userText);
     const hasPax = sessionHasTravelPax(session, userText);
     if (hasDate) {
-        t = t.replace(/(?:\n+)?(?:¿\s*)?(?:Tenés|Tienes|Me\s+pas[aá]s|Podr[ií]as\s+(?:decir|indicar)|Decime)[^.?\n]{0,80}?fecha[^.?\n]{0,60}\?/gi, '').trim();
-        t = t.replace(/(?:\n+)?(?:¿\s*)?Tenés alguna fecha en vista[^.?\n]*\?/gi, '').trim();
-        t = t.replace(/(?:\n+)?(?:¿\s*)?Para\s+(?:orientarnos|cotizar)[^.?\n]{0,40}fecha[^.?\n]*\?/gi, '').trim();
+        // CTA exacto del servidor + variantes de Gemini
+        if (t.includes(FLOR_QUOTE_CLOSE_CTA)) {
+            t = t.split(FLOR_QUOTE_CLOSE_CTA).join('').trim();
+        }
+        t = t.replace(/\n*¿?\s*Ten[eé]s alguna fecha en vista[^\n?]*\??/gi, '').trim();
+        t = t.replace(/\n*¿?\s*(?:Tenés|Tienes|Me\s+pas[aá]s|Podr[ií]as\s+(?:decir|indicar)|Decime)[^\n?]{0,80}?fecha[^\n?]{0,80}\??/gi, '').trim();
+        t = t.replace(/\n*¿?\s*Para\s+(?:orientarnos|cotizar)[^\n?]{0,40}fecha[^\n?]{0,60}\??/gi, '').trim();
+        t = t.replace(/\n*¿?\s*(?:Me\s+)?(?:indic[aá]s|pas[aá]s|dec[ií]s)[^\n?]{0,40}(?:fecha|cu[aá]ndo)[^\n?]{0,40}\??/gi, '').trim();
     }
     if (hasNights) {
-        t = t.replace(/(?:\n+)?(?:¿\s*)?(?:Cu[aá]ntas?\s+noches|cu[aá]ntos?\s+d[ií]as)[^.?\n]{0,50}\?/gi, '').trim();
+        t = t.replace(/\n*¿?\s*(?:Cu[aá]ntas?\s+noches|cu[aá]ntos?\s+d[ií]as)[^\n?]{0,50}\??/gi, '').trim();
     }
     if (hasPax) {
-        t = t.replace(/(?:\n+)?(?:¿\s*)?(?:Cu[aá]ntas?\s+personas|cu[aá]ntos?\s+(?:van|viajan)|viajan\s+solo)[^.?\n]{0,60}\?/gi, '').trim();
+        t = t.replace(/\n*¿?\s*(?:Cu[aá]ntas?\s+personas|cu[aá]ntos?\s+(?:van|viajan)|viajan\s+solo)[^\n?]{0,60}\??/gi, '').trim();
     }
     return t.replace(/\n{3,}/g, '\n\n').trim();
 }
