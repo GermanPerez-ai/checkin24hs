@@ -3462,6 +3462,7 @@ class SupabaseClient {
             fecha_fin: d.fecha_fin,
             descripcion: p.descripcion || null,
             estado: p.estado || 'Activo',
+            source: p.source || null,
             fecha_creacion: p.fechaCreacion || p.fecha_creacion || new Date().toISOString(),
             updated_at: new Date().toISOString()
         };
@@ -3479,6 +3480,7 @@ class SupabaseClient {
             fechaFin: r.fecha_fin,
             descripcion: r.descripcion || '',
             estado: r.estado,
+            source: r.source || undefined,
             fechaCreacion: r.fecha_creacion
         };
     }
@@ -3504,6 +3506,18 @@ class SupabaseClient {
             fecha_fin_uso: this._flexiDateOptional(v.fechaFinUso || v.fecha_fin_uso),
             estado: v.estado || 'Activo',
             notas: v.notas || null,
+            pack_flexi: v.packFlexi != null ? parseInt(v.packFlexi, 10) : (v.pack_flexi != null ? parseInt(v.pack_flexi, 10) : null),
+            monto_senia_ars: v.montoPesosSenia != null ? parseInt(v.montoPesosSenia, 10) : (v.monto_senia_ars != null ? parseInt(v.monto_senia_ars, 10) : null),
+            source: v.source || null,
+            cliente_documento: v.clienteDocumento || v.cliente_documento || null,
+            codigo_tbk: v.codigoTbk || v.codigo_tbk || null,
+            numero_boleta: v.numeroBoleta || v.numero_boleta || null,
+            tipo_ticket: v.tipoTicket || v.tipo_ticket || null,
+            tipo_pago: v.tipoPago || v.tipo_pago || null,
+            pago_usd_1_estado: v.pagoUsd1Estado || v.pago_usd_1_estado || null,
+            pago_usd_2_estado: v.pagoUsd2Estado || v.pago_usd_2_estado || null,
+            orden_numero: v.ordenNumero || v.orden_numero || null,
+            cliente_ciudad: v.clienteCiudad || v.cliente_ciudad || null,
             captura_pago_url: cap,
             fecha_creacion: v.fechaCreacion || v.fecha_creacion || new Date().toISOString(),
             updated_at: new Date().toISOString()
@@ -3529,6 +3543,18 @@ class SupabaseClient {
             fechaFinUso: r.fecha_fin_uso,
             estado: r.estado,
             notas: r.notas || '',
+            packFlexi: r.pack_flexi != null ? parseInt(r.pack_flexi, 10) : undefined,
+            montoPesosSenia: r.monto_senia_ars != null ? parseInt(r.monto_senia_ars, 10) : undefined,
+            source: r.source || undefined,
+            clienteDocumento: r.cliente_documento || undefined,
+            codigoTbk: r.codigo_tbk || undefined,
+            numeroBoleta: r.numero_boleta || undefined,
+            tipoTicket: r.tipo_ticket || undefined,
+            tipoPago: r.tipo_pago || undefined,
+            pagoUsd1Estado: r.pago_usd_1_estado || undefined,
+            pagoUsd2Estado: r.pago_usd_2_estado || undefined,
+            ordenNumero: r.orden_numero || undefined,
+            clienteCiudad: r.cliente_ciudad || undefined,
             capturaPagoUrl: r.captura_pago_url || null,
             fechaCreacion: r.fecha_creacion
         };

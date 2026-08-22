@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-18T12:55:12Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 233; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-22T19:48:18Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 234; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">233</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">234</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -4333,6 +4333,39 @@
                             </div>
                         </div>
                     </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon" style="background-color: #673ab7;">
+                                <span class="material-icons">inventory_2</span>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="totalFlexiPacksSold">0</h3>
+                                <p>PACKs Flexi vendidos</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon" style="background-color: #00897b;">
+                                <span class="material-icons">groups</span>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="totalFlexiClients">0</h3>
+                                <p>Clientes únicos</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon" style="background-color: #5d4037;">
+                                <span class="material-icons">shopping_bag</span>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="totalFlexiMultiPackClients">0</h3>
+                                <p>Clientes con +1 PACK</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Info Card: Cómo funciona el Programa Flexi -->
@@ -4362,9 +4395,9 @@
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                         <h3 class="card-title" style="margin: 0;">📋 Programas Flexi Disponibles</h3>
                         <div style="display: flex; gap: 8px;">
-                            <button class="form-button secondary" onclick="openImportCorralcoFile()" title="Importar CSV local de Corralco">
+                            <button class="form-button secondary" onclick="openImportCorralcoFile()" title="Importar Excel o CSV del reporte FlexiPass Corralco">
                                 <span class="material-icons" style="vertical-align: middle; margin-right: 6px;">upload_file</span>
-                                Importar Corralco (CSV)
+                                Importar Corralco (Excel/CSV)
                             </button>
                         </div>
                     </div>
@@ -4385,7 +4418,7 @@
                             </tbody>
                         </table>
                     </div>
-                    <input type="file" id="corralcoCsvInput" accept=".csv,text/csv" style="display:none;" onchange="handleImportCorralcoFile(event)">
+                    <input type="file" id="corralcoCsvInput" accept=".csv,.xlsx,.xls,text/csv" style="display:none;" onchange="handleImportCorralcoFile(event)">
                     <input type="file" id="flexiVoucherCapturaPagoFile" accept="image/*" style="display:none;" onchange="handleFlexiVoucherCapturaFileFromDetail(event)">
                 </div>
 
@@ -4420,6 +4453,39 @@
                             </thead>
                             <tbody id="flexiVouchersTableBody">
                                 <!-- Los vouchers se cargarán dinámicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Resumen por cliente (PACKs Flexi) -->
+                <div class="activity-card" style="margin-top: 24px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+                        <h3 class="card-title" style="margin: 0;">👥 Resumen por cliente (PACKs Flexi)</h3>
+                        <input
+                            type="text"
+                            id="flexiClientSummarySearch"
+                            placeholder="Buscar cliente o email..."
+                            style="width: 280px; max-width: 100%; padding: 10px 15px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px;"
+                            onkeyup="filterFlexiClientSummary(this.value)"
+                        >
+                    </div>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 16px;">
+                            <thead>
+                                <tr style="background-color: #ede7f6; border-bottom: 2px solid #b39ddb;">
+                                    <th style="padding: 12px; text-align: left; font-weight: 500;">Cliente</th>
+                                    <th style="padding: 12px; text-align: left; font-weight: 500;">Email</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">PACKs</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Cupos totales</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Vouchers</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Seña total ARS</th>
+                                </tr>
+                            </thead>
+                            <tbody id="flexiClientSummaryTableBody">
+                                <tr>
+                                    <td colspan="6" style="text-align: center; padding: 24px; color: #666;">Importá el Excel de Corralco para ver el resumen por cliente.</td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
@@ -29523,6 +29589,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         updateFlexiStats();
         renderFlexiProgramsTable();
         renderFlexiVouchersTable();
+        renderFlexiClientSummaryTable();
         renderFlexiCanjesTable();
         checkExpiredVouchers();
         if (FLEXI_CORRALCO_SHEET.enabled) {
@@ -29620,6 +29687,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             const yyyy = m[3].length === 2 ? `20${m[3]}` : m[3];
             return `${yyyy}-${mm}-${dd}`;
         }
+        if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+        const serial = Number(v);
+        if (Number.isFinite(serial) && serial > 20000 && serial < 80000) {
+            const excelEpoch = new Date(1899, 11, 30);
+            const date = new Date(excelEpoch.getTime() + serial * 24 * 60 * 60 * 1000);
+            if (!isNaN(date.getTime())) return date.toISOString().slice(0, 10);
+        }
         const d = new Date(v);
         if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
         return '';
@@ -29655,17 +29729,17 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             const n = parseFloat(intPart + '.' + dec);
             return Number.isFinite(n) ? Math.round(n) : 0;
         }
-        if (lastDot > lastComma && lastDot !== -1) {
-            const intPart = s.slice(0, lastDot).replace(/,/g, '');
-            const decPart = s.slice(lastDot + 1).replace(/,/g, '');
-            const n = decPart ? parseFloat(intPart + '.' + decPart) : parseFloat(intPart);
-            return Number.isFinite(n) ? Math.round(n) : 0;
-        }
         if (s.includes('.') && !s.includes(',')) {
             const parts = s.split('.');
             if (parts.length > 1 && parts[parts.length - 1].length === 3 && parts[parts.length - 1].replace(/\D/g, '') === parts[parts.length - 1]) {
                 return parseInt(parts.join(''), 10) || 0;
             }
+        }
+        if (lastDot > lastComma && lastDot !== -1) {
+            const intPart = s.slice(0, lastDot).replace(/,/g, '');
+            const decPart = s.slice(lastDot + 1).replace(/,/g, '');
+            const n = decPart ? parseFloat(intPart + '.' + decPart) : parseFloat(intPart);
+            return Number.isFinite(n) ? Math.round(n) : 0;
         }
         const cleaned = s.replace(/\./g, '').replace(',', '.');
         const n = Number(cleaned);
@@ -29710,95 +29784,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 return o;
             });
 
-            const corralcoRows = dataRows.filter(r => {
-                const hotel = getCellByAliases(r, ['hotel', 'programa', 'destino']);
-                return /corralco/i.test(hotel || '');
-            });
+            const { rows: corralcoRows, skipped } = filterCorralcoImportRows(dataRows);
             if (!corralcoRows.length) return;
 
-            // Programa Corralco único desde sheet (estructura externa)
-            const first = corralcoRows[0];
-            const periodoTxt = getCellByAliases(first, ['periodo de uso', 'periodo', 'vigencia']);
-            const periodo = parsePeriodoUso(periodoTxt);
-            const program = {
-                id: 'GSHEET-CORRALCO',
-                hotelId: null,
-                hotelName: 'Corralco',
-                cuposPorVoucher: Math.max(
-                    1,
-                    Math.round(
-                        toNumber(
-                            getCellByAliases(first, ['cupos/voucher', 'cupos por voucher', 'cupos']),
-                            extractFirstInt(getCellByAliases(first, ['ipo ticket 2026', 'ticket', 'producto', 'tipo ticket']), 10)
-                        )
-                    )
-                ),
-                precioUSD: toNumber(getCellByAliases(first, ['precio usd', 'valor usd']), 0),
-                fechaInicio: periodo.inicio || parseDateMaybe(getCellByAliases(first, ['fecha inicio', 'inicio'])),
-                fechaFin: periodo.fin || parseDateMaybe(getCellByAliases(first, ['fecha fin', 'fin'])),
-                descripcion: 'Sincronizado desde Google Sheet Corralco',
-                estado: (getCellByAliases(first, ['estado']) || 'Activo'),
-                fechaCreacion: new Date().toISOString(),
-                source: 'gsheet-corralco'
-            };
-
-            const importedVouchers = [];
-            for (const r of corralcoRows) {
-                const codigo = getCellByAliases(r, ['codigo voucher', 'codigo', 'voucher', 'cod voucher']);
-                if (!codigo) continue;
-                const periodoRow = parsePeriodoUso(getCellByAliases(r, ['periodo de uso', 'periodo', 'vigencia']));
-                const montoRaw = getCellByAliases(r, ['monto', 'monto pago']);
-                const montoPesos = parseMontoPesosAR(montoRaw);
-                const seniaUnit = FLEXI_CORRALCO_SHEET.seniaPesosPorPack || 92000;
-                const packFlexi = inferPackFlexiFromMontoPesos(montoPesos, seniaUnit);
-                const ticketsPerPack = program.cuposPorVoucher || 1;
-                let cuposIniciales = packFlexi > 0
-                    ? packFlexi * ticketsPerPack
-                    : Math.max(1, Math.round(toNumber(getCellByAliases(r, ['cupos iniciales', 'cupos', 'cupos/voucher']), ticketsPerPack)));
-                let cuposDisponibles = Math.max(0, Math.round(toNumber(getCellByAliases(r, ['cupos disponibles', 'disponibles']), -1)));
-                if (cuposDisponibles < 0) {
-                    const est = getCellByAliases(r, ['estado']);
-                    cuposDisponibles = /usado|vencid|anulad/i.test(est) ? 0 : cuposIniciales;
-                }
-                const precioUsdRow = toNumber(getCellByAliases(r, ['precio usd', 'valor usd']), NaN);
-                importedVouchers.push({
-                    id: `GSHEET-${codigo.replace(/\s+/g, '').toUpperCase()}`,
-                    codigo: codigo,
-                    programaId: program.id,
-                    hotelId: null,
-                    hotelName: 'Corralco',
-                    clienteNombre: getCellByAliases(r, ['cliente', 'nombre cliente', 'pasajero']),
-                    clienteEmail: getCellByAliases(r, ['email', 'correo']),
-                    clienteTelefono: getCellByAliases(r, ['telefono', 'teléfono', 'celular']),
-                    cuposIniciales,
-                    cuposDisponibles,
-                    packFlexi: packFlexi || Math.max(1, Math.round(cuposIniciales / Math.max(1, ticketsPerPack))),
-                    montoPesosSenia: montoPesos || undefined,
-                    precioUSD: Number.isFinite(precioUsdRow) && precioUsdRow > 0 ? precioUsdRow : (program.precioUSD || 0),
-                    fechaVenta: parseDateMaybe(getCellByAliases(r, ['fecha venta', 'venta'])),
-                    fechaInicioUso: periodoRow.inicio || program.fechaInicio,
-                    fechaFinUso: periodoRow.fin || program.fechaFin,
-                    estado: getCellByAliases(r, ['estado']) || 'Activo',
-                    notas: 'Sincronizado desde Google Sheet Corralco.' + (montoPesos > 0
-                        ? ` Seña ${montoPesos.toLocaleString('es-AR')} ARS → ${packFlexi || Math.max(1, Math.round(cuposIniciales / Math.max(1, ticketsPerPack)))} PACK Flexi (${cuposIniciales} cupos).`
-                        : ''),
-                    fechaCreacion: new Date().toISOString(),
-                    source: 'gsheet-corralco'
-                });
-            }
-
+            const program = buildCorralcoProgramFromRows(corralcoRows, 'gsheet-corralco');
+            program.descripcion = 'Sincronizado desde Google Sheet Corralco';
+            const importedVouchers = buildCorralcoVouchersFromRows(corralcoRows, program, 'gsheet-corralco');
             if (!importedVouchers.length) return;
 
-            // Reemplazar solo datos originados por la sincronización de Corralco
-            flexiPrograms = (flexiPrograms || []).filter(p => p.source !== 'gsheet-corralco');
-            flexiPrograms.push(program);
-            const existingManual = (flexiVouchers || []).filter(v => v.source !== 'gsheet-corralco');
-            flexiVouchers = [...existingManual, ...importedVouchers];
-            saveFlexiDataToStorage();
-            updateFlexiStats();
-            renderFlexiProgramsTable();
-            renderFlexiVouchersTable();
-            if (!silent) showNotification(`✅ Corralco sincronizado (${importedVouchers.length} vouchers)`, 'success');
+            applyCorralcoImportResult(program, importedVouchers, 'gsheet-corralco', { skipped, silent });
         } catch (e) {
             console.warn('Flexi Corralco sync error:', e);
             if (!silent && !FLEXI_CORRALCO_SHEET.warned) {
@@ -29818,62 +29812,105 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }, FLEXI_CORRALCO_SHEET.pollMs);
     }
 
-    function openImportCorralcoFile() {
-        const inp = document.getElementById('corralcoCsvInput');
-        if (inp) {
-            inp.value = '';
-            inp.click();
-        }
+    function normalizeCorralcoRowObject(row) {
+        const o = {};
+        Object.keys(row || {}).forEach(k => {
+            o[normalizeHeader(k)] = row[k];
+        });
+        return o;
     }
 
-    function handleImportCorralcoFile(event) {
-        const file = event?.target?.files?.[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-            try {
-                const text = String(reader.result || '');
-                importFlexiCorralcoFromCsvText(text);
-            } catch (e) {
-                console.error('Import Corralco CSV error:', e);
-                showNotification('❌ Error al leer el archivo CSV de Corralco.', 'error');
-            }
-        };
-        reader.onerror = () => showNotification('❌ No se pudo leer el archivo.', 'error');
-        reader.readAsText(file, 'utf-8');
-    }
-
-    function importFlexiCorralcoFromCsvText(csvText) {
+    function csvRowsToCorralcoObjects(csvText) {
         const rawRows = parseCsv(String(csvText || ''));
-        if (!rawRows.length || rawRows.length < 2) {
-            showNotification('⚠️ El CSV está vacío o no tiene datos.', 'warning');
-            return;
-        }
-
+        if (!rawRows.length) return [];
         const headers = rawRows[0].map(h => normalizeHeader(h));
-        const dataRows = rawRows.slice(1).map(r => {
+        return rawRows.slice(1).map(r => {
             const o = {};
             headers.forEach((h, idx) => { o[h] = (r[idx] || '').trim(); });
             return o;
         });
+    }
 
-        let corralcoRows = dataRows.filter(r => {
-            const hotel = getCellByAliases(r, ['hotel', 'programa', 'destino']);
-            return /corralco/i.test(hotel || '');
-        });
-        // Si el CSV no trae columna hotel/programa (caso común del reporte del hotel),
-        // tomamos todas las filas con código como Corralco.
-        if (!corralcoRows.length) {
-            corralcoRows = dataRows.filter(r => {
-                const code = getCellByAliases(r, ['codigo voucher', 'codigo', 'voucher', 'cod voucher', 'codigo tkb', 'codigo ticket']);
-                return !!code;
-            });
-            if (!corralcoRows.length) {
-                showNotification('⚠️ No se encontraron filas importables (faltan códigos de voucher).', 'warning');
-                return;
-            }
+    function excelBufferToCorralcoObjects(arrayBuffer) {
+        if (typeof XLSX === 'undefined') {
+            throw new Error('XLSX no cargado');
         }
+        const wb = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
+        const sheetName = wb.SheetNames[0];
+        if (!sheetName) return [];
+        const json = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' });
+        return json.map(normalizeCorralcoRowObject);
+    }
 
+    function resolveCorralcoClienteNombre(r) {
+        return getCellByAliases(r, ['cliente', 'nombre cliente', 'pasajero', 'nombre apellidos', 'nombre_apellidos']) ||
+            [getCellByAliases(r, ['nombre']), getCellByAliases(r, ['apellidos'])].filter(Boolean).join(' ').trim();
+    }
+
+    function resolveCorralcoVoucherCodigo(r, rowIndex) {
+        const tbk = getCellByAliases(r, ['codigo tbk', 'codigo tkb', 'codigo voucher', 'codigo', 'voucher', 'cod voucher', 'codigo ticket']);
+        if (tbk) return `TBK-${String(tbk).replace(/\s+/g, '').toUpperCase()}`;
+        const boleta = getCellByAliases(r, ['n boleta', 'nº boleta', 'no boleta', 'boleta', 'n boleta']);
+        if (boleta) return `FP-BOL-${String(boleta).replace(/\s+/g, '')}`;
+        const numOrden = getCellByAliases(r, ['#', 'numero', 'n orden', 'id orden']);
+        if (numOrden && String(numOrden).trim()) return `FP-${String(numOrden).replace(/\s+/g, '').toUpperCase()}`;
+        const email = getCellByAliases(r, ['email', 'correo']).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10);
+        const fecha = parseDateMaybe(getCellByAliases(r, ['fecha venta', 'venta', 'fecha transaccion', 'fecha transacción'])) || 'NA';
+        return `FP-${email || 'CLI'}-${fecha}-${rowIndex + 1}`;
+    }
+
+    function corralcoRowDedupeKey(r) {
+        return [
+            resolveCorralcoVoucherCodigo(r, 0),
+            getCellByAliases(r, ['email', 'correo']).toLowerCase(),
+            getCellByAliases(r, ['#']),
+            getCellByAliases(r, ['codigo tbk', 'codigo tkb']),
+            getCellByAliases(r, ['n boleta', 'nº boleta', 'boleta']),
+            getCellByAliases(r, ['monto', 'monto pago']),
+            parseDateMaybe(getCellByAliases(r, ['fecha transaccion', 'fecha transacción', 'fecha venta', 'venta'])),
+            getCellByAliases(r, ['n tarjeta', 'nº tarjeta', 'tarjeta']),
+            getCellByAliases(r, ['hora transaccion', 'hora transacción'])
+        ].join('|');
+    }
+
+    function dedupeCorralcoRows(rows) {
+        const seen = new Set();
+        const out = [];
+        let skipped = 0;
+        for (const r of rows || []) {
+            const email = getCellByAliases(r, ['email', 'correo']);
+            const nombre = resolveCorralcoClienteNombre(r);
+            if (!email && !nombre) continue;
+            const key = corralcoRowDedupeKey(r);
+            if (seen.has(key)) {
+                skipped++;
+                continue;
+            }
+            seen.add(key);
+            out.push(r);
+        }
+        return { rows: out, skipped };
+    }
+
+    function filterCorralcoImportRows(dataRows) {
+        let corralcoRows = (dataRows || []).filter(r => {
+            const hotel = getCellByAliases(r, ['hotel', 'programa', 'destino']);
+            const tipo = getCellByAliases(r, ['tipo ticket 2026', 'tipo ticket', 'ticket', 'producto']);
+            return /corralco|flexipass|flexi pass|flexi/i.test(hotel || '') ||
+                /flexipass|flexi pass|flexi/i.test(tipo || '');
+        });
+        if (!corralcoRows.length) {
+            corralcoRows = (dataRows || []).filter(r => {
+                const code = resolveCorralcoVoucherCodigo(r, 0);
+                const email = getCellByAliases(r, ['email', 'correo']);
+                const nombre = resolveCorralcoClienteNombre(r);
+                return !!(code && (email || nombre));
+            });
+        }
+        return dedupeCorralcoRows(corralcoRows);
+    }
+
+    function buildCorralcoProgramFromRows(corralcoRows, sourceTag) {
         const first = corralcoRows[0];
         const existingCorralcoProgram = (flexiPrograms || []).find(p => /corralco/i.test(String(p.hotelName || '')));
         const periodoTxt = getCellByAliases(first, ['periodo de uso', 'periodo', 'vigencia']);
@@ -29883,34 +29920,42 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             Math.round(
                 toNumber(
                     getCellByAliases(first, ['cupos/voucher', 'cupos por voucher', 'cupos']),
-                    extractFirstInt(getCellByAliases(first, ['ipo ticket 2026', 'ticket', 'producto', 'tipo ticket']), existingCorralcoProgram?.cuposPorVoucher || 10)
+                    extractFirstInt(getCellByAliases(first, ['tipo ticket 2026', 'ticket', 'producto', 'tipo ticket']), existingCorralcoProgram?.cuposPorVoucher || 10)
                 )
             )
         );
         const defaultPrecio = toNumber(
             getCellByAliases(first, ['precio usd', 'valor usd']),
-            existingCorralcoProgram?.precioUSD || 0
+            existingCorralcoProgram?.precioUSD || 330
         );
-        const program = {
-            id: 'FILE-CORRALCO',
+        const fechasVenta = corralcoRows
+            .map(r => parseDateMaybe(getCellByAliases(r, ['fecha transaccion', 'fecha transacción', 'fecha venta', 'venta'])))
+            .filter(Boolean)
+            .sort();
+        return {
+            id: sourceTag === 'gsheet-corralco' ? 'GSHEET-CORRALCO' : 'FILE-CORRALCO',
             hotelId: null,
             hotelName: 'Corralco',
             cuposPorVoucher: defaultCupos,
             precioUSD: defaultPrecio,
-            fechaInicio: periodo.inicio || parseDateMaybe(getCellByAliases(first, ['fecha inicio', 'inicio'])) || existingCorralcoProgram?.fechaInicio || '',
-            fechaFin: periodo.fin || parseDateMaybe(getCellByAliases(first, ['fecha fin', 'fin'])) || existingCorralcoProgram?.fechaFin || '',
-            descripcion: 'Importado manualmente desde CSV Corralco',
+            fechaInicio: periodo.inicio || parseDateMaybe(getCellByAliases(first, ['fecha inicio', 'inicio'])) || fechasVenta[0] || existingCorralcoProgram?.fechaInicio || '2026-06-01',
+            fechaFin: periodo.fin || parseDateMaybe(getCellByAliases(first, ['fecha fin', 'fin'])) || fechasVenta[fechasVenta.length - 1] || existingCorralcoProgram?.fechaFin || '2026-09-30',
+            descripcion: 'Flexi Pass 10 tickets — Corralco ARG 2026',
             estado: /inactivo|vencid/i.test(getCellByAliases(first, ['estado'])) ? 'Inactivo' : 'Activo',
             fechaCreacion: new Date().toISOString(),
-            source: 'corralco-import-file'
+            source: sourceTag
         };
+    }
 
+    function buildCorralcoVouchersFromRows(corralcoRows, program, sourceTag) {
         const importedVouchers = [];
         const seniaUnit = FLEXI_CORRALCO_SHEET.seniaPesosPorPack || 92000;
-        const ticketsPerPackProg = program.cuposPorVoucher || 1;
-        for (const r of corralcoRows) {
-            const codigo = getCellByAliases(r, ['codigo voucher', 'codigo', 'voucher', 'cod voucher', 'codigo tkb', 'codigo ticket']);
-            if (!codigo) continue;
+        const ticketsPerPackProg = program.cuposPorVoucher || 10;
+        const idPrefix = sourceTag === 'gsheet-corralco' ? 'GSHEET' : 'FILE';
+
+        corralcoRows.forEach((r, rowIndex) => {
+            const codigo = resolveCorralcoVoucherCodigo(r, rowIndex);
+            if (!codigo) return;
             const periodoRow = parsePeriodoUso(getCellByAliases(r, ['periodo de uso', 'periodo', 'vigencia']));
             const montoRaw = getCellByAliases(r, ['monto', 'monto pago']);
             const montoPesos = parseMontoPesosAR(montoRaw);
@@ -29922,31 +29967,45 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     Math.round(
                         toNumber(
                             getCellByAliases(r, ['cupos iniciales', 'cupos', 'cupos/voucher']),
-                            extractFirstInt(getCellByAliases(r, ['ipo ticket 2026', 'ticket', 'producto', 'tipo ticket']), ticketsPerPackProg)
+                            extractFirstInt(getCellByAliases(r, ['tipo ticket 2026', 'ticket', 'producto', 'tipo ticket']), ticketsPerPackProg)
                         )
                     )
                 );
             let cuposDisponibles = Math.max(0, Math.round(toNumber(getCellByAliases(r, ['cupos disponibles', 'disponibles']), -1)));
             if (cuposDisponibles < 0) {
-                const estCol = getCellByAliases(r, ['estado']);
+                const estCol = getCellByAliases(r, ['estado', '2do pago 230 usd']);
                 cuposDisponibles = /usado|vencid|anulad/i.test(estCol) ? 0 : cuposIniciales;
             }
             const precioUsdRow = toNumber(getCellByAliases(r, ['precio usd', 'valor usd']), NaN);
-            const precioUSD = Number.isFinite(precioUsdRow) && precioUsdRow > 0 ? precioUsdRow : (program.precioUSD || 0);
+            const precioUSD = Number.isFinite(precioUsdRow) && precioUsdRow > 0 ? precioUsdRow : (program.precioUSD || 330);
             const packDisplay = packFlexi || Math.max(1, Math.round(cuposIniciales / Math.max(1, ticketsPerPackProg)));
+            const tipoTicket = getCellByAliases(r, ['tipo ticket 2026', 'tipo ticket', 'producto']);
+            const pago1 = getCellByAliases(r, ['1er pago 100 usd', '1er pago']);
+            const pago2 = getCellByAliases(r, ['2do pago 230 usd', '2do pago']);
+            const codigoTbkRaw = getCellByAliases(r, ['codigo tbk', 'codigo tkb']);
             const notasExtra = montoPesos > 0
                 ? ` Seña ${montoPesos.toLocaleString('es-AR')} ARS → ${packDisplay} PACK Flexi (${cuposIniciales} cupos).`
                 : '';
+            const notasTipo = tipoTicket ? ` Producto: ${tipoTicket}.` : '';
+            const notasPago = (pago1 || pago2) ? ` Pagos USD: 1°=${pago1 || '-'}, 2°=${pago2 || '-'}.` : '';
             importedVouchers.push({
-                id: `FILE-${codigo.replace(/\s+/g, '').toUpperCase()}`,
+                id: `${idPrefix}-${codigo.replace(/[^A-Z0-9\-]/gi, '').toUpperCase()}`,
                 codigo,
                 programaId: program.id,
                 hotelId: null,
                 hotelName: 'Corralco',
-                clienteNombre: getCellByAliases(r, ['cliente', 'nombre cliente', 'pasajero', 'nombre apellidos', 'nombre_apellidos']) ||
-                    [getCellByAliases(r, ['nombre']), getCellByAliases(r, ['apellidos'])].filter(Boolean).join(' ').trim(),
+                clienteNombre: resolveCorralcoClienteNombre(r),
                 clienteEmail: getCellByAliases(r, ['email', 'correo']),
                 clienteTelefono: getCellByAliases(r, ['telefono', 'teléfono', 'celular']),
+                clienteDocumento: getCellByAliases(r, ['id', 'documento', 'dni']) || undefined,
+                clienteCiudad: getCellByAliases(r, ['ciudad']) || undefined,
+                codigoTbk: codigoTbkRaw || undefined,
+                numeroBoleta: getCellByAliases(r, ['n boleta', 'nº boleta', 'boleta']) || undefined,
+                ordenNumero: getCellByAliases(r, ['#']) || undefined,
+                tipoTicket: tipoTicket || undefined,
+                tipoPago: getCellByAliases(r, ['tipo pago']) || undefined,
+                pagoUsd1Estado: pago1 || undefined,
+                pagoUsd2Estado: pago2 || undefined,
                 cuposIniciales,
                 cuposDisponibles,
                 packFlexi: packDisplay,
@@ -29956,26 +30015,96 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 fechaInicioUso: periodoRow.inicio || program.fechaInicio || '',
                 fechaFinUso: periodoRow.fin || program.fechaFin || '',
                 estado: /vencid|expirad|anulad/i.test(getCellByAliases(r, ['estado'])) ? 'Vencido' : 'Activo',
-                notas: 'Importado manualmente desde CSV Corralco.' + notasExtra,
+                notas: (sourceTag === 'gsheet-corralco' ? 'Sincronizado desde Google Sheet Corralco.' : 'Importado desde reporte FlexiPass Corralco.') + notasExtra + notasTipo + notasPago,
                 fechaCreacion: new Date().toISOString(),
-                source: 'corralco-import-file'
+                source: sourceTag
             });
-        }
+        });
+        return importedVouchers;
+    }
 
-        if (!importedVouchers.length) {
-            showNotification('⚠️ Se encontró Corralco pero sin códigos de voucher válidos.', 'warning');
-            return;
-        }
-
-        flexiPrograms = (flexiPrograms || []).filter(p => p.source !== 'corralco-import-file');
+    function applyCorralcoImportResult(program, importedVouchers, sourceTag, meta) {
+        const sourceFilter = sourceTag === 'gsheet-corralco' ? 'gsheet-corralco' : 'corralco-import-file';
+        flexiPrograms = (flexiPrograms || []).filter(p => p.source !== sourceFilter);
         flexiPrograms.push(program);
-        const keep = (flexiVouchers || []).filter(v => v.source !== 'corralco-import-file');
+        const keep = (flexiVouchers || []).filter(v => v.source !== sourceFilter);
         flexiVouchers = [...keep, ...importedVouchers];
         saveFlexiDataToStorage();
         updateFlexiStats();
         renderFlexiProgramsTable();
         renderFlexiVouchersTable();
-        showNotification(`✅ Corralco importado desde archivo (${importedVouchers.length} vouchers).`, 'success');
+        renderFlexiClientSummaryTable();
+        const packs = importedVouchers.reduce((s, v) => s + (v.packFlexi || 1), 0);
+        const dupMsg = meta?.skipped ? ` (${meta.skipped} filas duplicadas omitidas)` : '';
+        if (!meta?.silent) {
+            showNotification(`✅ Corralco importado: ${importedVouchers.length} vouchers, ${packs} PACKs Flexi${dupMsg}.`, 'success');
+        }
+    }
+
+    function importFlexiCorralcoFromRowObjects(dataRows, sourceTag) {
+        const { rows: corralcoRows, skipped } = filterCorralcoImportRows(dataRows);
+        if (!corralcoRows.length) {
+            showNotification('⚠️ No se encontraron filas importables (revisá email, nombre o códigos).', 'warning');
+            return;
+        }
+        const program = buildCorralcoProgramFromRows(corralcoRows, sourceTag);
+        const importedVouchers = buildCorralcoVouchersFromRows(corralcoRows, program, sourceTag);
+        if (!importedVouchers.length) {
+            showNotification('⚠️ Se encontraron filas pero sin vouchers válidos.', 'warning');
+            return;
+        }
+        applyCorralcoImportResult(program, importedVouchers, sourceTag, { skipped });
+    }
+
+    function openImportCorralcoFile() {
+        const inp = document.getElementById('corralcoCsvInput');
+        if (inp) {
+            inp.value = '';
+            inp.click();
+        }
+    }
+
+    function handleImportCorralcoFile(event) {
+        const file = event?.target?.files?.[0];
+        if (!file) return;
+        const name = String(file.name || '').toLowerCase();
+        const isExcel = /\.xlsx?$/.test(name);
+
+        if (isExcel) {
+            const reader = new FileReader();
+            reader.onload = () => {
+                try {
+                    importFlexiCorralcoFromRowObjects(excelBufferToCorralcoObjects(reader.result), 'corralco-import-file');
+                } catch (e) {
+                    console.error('Import Corralco Excel error:', e);
+                    showNotification('❌ Error al leer el Excel de Corralco.', 'error');
+                }
+            };
+            reader.onerror = () => showNotification('❌ No se pudo leer el archivo.', 'error');
+            reader.readAsArrayBuffer(file);
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                importFlexiCorralcoFromCsvText(String(reader.result || ''));
+            } catch (e) {
+                console.error('Import Corralco CSV error:', e);
+                showNotification('❌ Error al leer el archivo CSV de Corralco.', 'error');
+            }
+        };
+        reader.onerror = () => showNotification('❌ No se pudo leer el archivo.', 'error');
+        reader.readAsText(file, 'utf-8');
+    }
+
+    function importFlexiCorralcoFromCsvText(csvText) {
+        const dataRows = csvRowsToCorralcoObjects(csvText);
+        if (!dataRows.length) {
+            showNotification('⚠️ El CSV está vacío o no tiene datos.', 'warning');
+            return;
+        }
+        importFlexiCorralcoFromRowObjects(dataRows, 'corralco-import-file');
     }
 
     function flexiLoadFromLocalStorageOnly() {
@@ -30073,7 +30202,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             .then(() => console.log('☁️ Flexi sincronizado en Supabase'))
             .catch(err => {
                 console.warn('☁️ Error sync Flexi Supabase:', err);
-                showNotification('⚠️ Flexi guardado en el navegador; error al sincronizar con Supabase (revisá migración 042 y RLS).', 'warning');
+                showNotification('⚠️ Flexi guardado en el navegador; error al sincronizar con Supabase (revisá migraciones 042, 043 y 076).', 'warning');
             });
     }
 
@@ -30082,6 +30211,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         updateFlexiStats();
         renderFlexiProgramsTable();
         renderFlexiVouchersTable();
+        renderFlexiClientSummaryTable();
         renderFlexiCanjesTable();
         checkExpiredVouchers();
         showNotification('✅ Datos actualizados correctamente', 'success');
@@ -30097,8 +30227,19 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         // Contar vouchers por estado
         let active = 0, partial = 0, used = 0, expired = 0;
         let totalCuposDisponibles = 0;
+        let totalPacks = 0;
+        const clientsByEmail = {};
         
         flexiVouchers.forEach(v => {
+            const packs = v.packFlexi != null && v.packFlexi > 0
+                ? v.packFlexi
+                : Math.max(1, Math.round((v.cuposIniciales || 10) / 10));
+            totalPacks += packs;
+            const emailKey = String(v.clienteEmail || v.clienteNombre || v.id || '').toLowerCase().trim();
+            if (emailKey) {
+                if (!clientsByEmail[emailKey]) clientsByEmail[emailKey] = { packs: 0 };
+                clientsByEmail[emailKey].packs += packs;
+            }
             if (v.estado === 'Vencido' || v.fechaFinUso < today) {
                 expired++;
             } else if (v.cuposDisponibles === 0) {
@@ -30118,6 +30259,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         document.getElementById('usedFlexiVouchers').textContent = used;
         document.getElementById('expiredFlexiVouchers').textContent = expired;
         document.getElementById('totalCuposDisponibles').textContent = totalCuposDisponibles;
+        const packsEl = document.getElementById('totalFlexiPacksSold');
+        const clientsEl = document.getElementById('totalFlexiClients');
+        const multiEl = document.getElementById('totalFlexiMultiPackClients');
+        if (packsEl) packsEl.textContent = totalPacks;
+        if (clientsEl) clientsEl.textContent = Object.keys(clientsByEmail).length;
+        if (multiEl) multiEl.textContent = Object.values(clientsByEmail).filter(c => c.packs > 1).length;
     }
 
     // =====================================================
@@ -30542,6 +30689,70 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         showNotification('Captura eliminada.', 'info');
     }
 
+    function flexiEscapeHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function computeFlexiClientSummary() {
+        const byClient = {};
+        (flexiVouchers || []).forEach(v => {
+            const email = String(v.clienteEmail || '').trim();
+            const key = email.toLowerCase() || String(v.clienteNombre || v.id || '').toLowerCase();
+            if (!key) return;
+            if (!byClient[key]) {
+                byClient[key] = {
+                    nombre: v.clienteNombre || '—',
+                    email: email || '—',
+                    packs: 0,
+                    cupos: 0,
+                    vouchers: 0,
+                    seniaTotal: 0
+                };
+            }
+            const packs = v.packFlexi != null && v.packFlexi > 0
+                ? v.packFlexi
+                : Math.max(1, Math.round((v.cuposIniciales || 10) / 10));
+            byClient[key].packs += packs;
+            byClient[key].cupos += v.cuposIniciales || packs * 10;
+            byClient[key].vouchers += 1;
+            byClient[key].seniaTotal += Number(v.montoPesosSenia) || 0;
+        });
+        return Object.values(byClient).sort((a, b) => b.packs - a.packs || a.nombre.localeCompare(b.nombre, 'es'));
+    }
+
+    function renderFlexiClientSummaryTable() {
+        const tbody = document.getElementById('flexiClientSummaryTableBody');
+        if (!tbody) return;
+        const summary = computeFlexiClientSummary();
+        if (!summary.length) {
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:24px;color:#666;">No hay vouchers importados todavía.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = summary.map(row => `
+            <tr style="border-bottom: 1px solid #e0e0e0;" data-flexi-client-summary="1">
+                <td style="padding: 12px; font-weight: 500;">${flexiEscapeHtml(row.nombre)}</td>
+                <td style="padding: 12px; font-size: 13px; color: #555;">${flexiEscapeHtml(row.email)}</td>
+                <td style="padding: 12px; text-align: center; font-weight: bold; color: #673ab7;">${row.packs}</td>
+                <td style="padding: 12px; text-align: center;">${row.cupos}</td>
+                <td style="padding: 12px; text-align: center;">${row.vouchers}</td>
+                <td style="padding: 12px; text-align: center;">${row.seniaTotal > 0 ? '$' + row.seniaTotal.toLocaleString('es-AR') : '—'}</td>
+            </tr>
+        `).join('');
+    }
+
+    function filterFlexiClientSummary(searchTerm) {
+        const tbody = document.getElementById('flexiClientSummaryTableBody');
+        if (!tbody) return;
+        const term = String(searchTerm || '').toLowerCase();
+        tbody.querySelectorAll('tr[data-flexi-client-summary="1"]').forEach(row => {
+            row.style.display = row.textContent.toLowerCase().includes(term) ? '' : 'none';
+        });
+    }
+
     function renderFlexiVouchersTable() {
         const tbody = document.getElementById('flexiVouchersTableBody');
         if (!tbody) return;
@@ -30961,7 +31172,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     <div style="display: grid; gap: 8px;">
                         <div><strong>Nombre:</strong> ${voucher.clienteNombre}</div>
                         <div><strong>Email:</strong> ${voucher.clienteEmail}</div>
-                        <div><strong>Teléfono:</strong> ${voucher.clienteTelefono}</div>
+                        <div><strong>Teléfono:</strong> ${voucher.clienteTelefono || '—'}</div>
+                        ${voucher.clienteDocumento ? `<div><strong>Documento:</strong> ${voucher.clienteDocumento}</div>` : ''}
+                        ${voucher.clienteCiudad ? `<div><strong>Ciudad:</strong> ${voucher.clienteCiudad}</div>` : ''}
+                        ${voucher.codigoTbk ? `<div><strong>Código TBK:</strong> ${voucher.codigoTbk}</div>` : ''}
+                        ${voucher.numeroBoleta ? `<div><strong>Nº Boleta:</strong> ${voucher.numeroBoleta}</div>` : ''}
+                        ${voucher.tipoTicket ? `<div><strong>Producto:</strong> ${voucher.tipoTicket}</div>` : ''}
+                        ${(voucher.pagoUsd1Estado || voucher.pagoUsd2Estado) ? `<div><strong>Pagos USD:</strong> 1° ${voucher.pagoUsd1Estado || '—'} · 2° ${voucher.pagoUsd2Estado || '—'}</div>` : ''}
                     </div>
                     <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #c8e6c9;">
                         <strong style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
