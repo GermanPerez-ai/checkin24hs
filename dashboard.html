@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-22T21:35:28Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 236; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-22T21:40:10Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 237; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">236</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">237</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -29880,8 +29880,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         const pagoOk = /^ok$/i.test(getCellByAliases(r, ['1er pago 100 usd', '1er pago']));
         if (!isFlexiTipo) return false;
         if (montoRaw >= 85000) return true;
-        if (montoRaw > 0 && montoRaw < 1000) return false;
+        if (montoRaw > 0 && montoRaw < 1000) {
+            const tieneOrden = !!getCellByAliases(r, ['#', 'numero', 'n orden', 'id orden']);
+            if (pagoOk && (tieneOrden || hasTarjeta || nombre)) return true;
+            return false;
+        }
         if (hasTarjeta && pagoOk) return true;
+        if (pagoOk && nombre) return true;
         return false;
     }
 
@@ -30014,7 +30019,16 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 hotelId: null,
                 hotelName: 'Corralco',
                 clienteNombre: resolveCorralcoClienteNombre(r),
-                clienteEmail: getCellByAliases(r, ['email', 'correo']),
+                clienteEmail: (() => {
+                    let em = getCellByAliases(r, ['email', 'correo']);
+                    if (em && !em.includes('@')) {
+                        if (/hotmail\.com/i.test(em)) em = em.replace(/hotmail\.com/i, '@hotmail.com');
+                        else if (/gmail\.com/i.test(em)) em = em.replace(/gmail\.com/i, '@gmail.com');
+                        else if (/yahoo\.com/i.test(em)) em = em.replace(/yahoo\.com/i, '@yahoo.com');
+                        em = em.toLowerCase();
+                    }
+                    return em;
+                })(),
                 clienteTelefono: getCellByAliases(r, ['telefono', 'teléfono', 'celular']),
                 clienteDocumento: getCellByAliases(r, ['id', 'documento', 'dni']) || undefined,
                 clienteCiudad: getCellByAliases(r, ['ciudad']) || undefined,
