@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-22T21:16:14Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 235; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-22T21:35:28Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 236; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">235</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">236</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -29828,9 +29828,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         const rawRows = parseCsv(String(csvText || ''));
         if (!rawRows.length) return [];
         const headers = rawRows[0].map(h => normalizeHeader(h));
-        return rawRows.slice(1).map(r => {
+        return rawRows.slice(1).map((r, idx) => {
             const o = {};
-            headers.forEach((h, idx) => { o[h] = (r[idx] || '').trim(); });
+            headers.forEach((h, i) => { o[h] = (r[i] || '').trim(); });
+            o._importRowIndex = idx;
             return o;
         });
     }
@@ -29843,7 +29844,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         const sheetName = wb.SheetNames[0];
         if (!sheetName) return [];
         const json = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' });
-        return json.map(normalizeCorralcoRowObject);
+        return json.map((row, idx) => {
+            const o = normalizeCorralcoRowObject(row);
+            o._importRowIndex = idx;
+            return o;
+        });
     }
 
     function resolveCorralcoClienteNombre(r) {
@@ -29851,67 +29856,84 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             [getCellByAliases(r, ['nombre']), getCellByAliases(r, ['apellidos'])].filter(Boolean).join(' ').trim();
     }
 
+    function resolveCorralcoMontoPesos(r) {
+        const raw = getCellByAliases(r, ['monto', 'monto pago']);
+        let m = parseMontoPesosAR(raw);
+        const senia = FLEXI_CORRALCO_SHEET.seniaPesosPorPack || 92000;
+        if (m > 0 && m < 1000) return senia;
+        return m;
+    }
+
+    function rowHasValidFlexiTarjeta(r) {
+        const tarjeta = getCellByAliases(r, ['n tarjeta', 'nº tarjeta', 'tarjeta']);
+        return String(tarjeta || '').replace(/\D/g, '').length >= 4;
+    }
+
+    function isValidFlexiPurchaseRow(r) {
+        const email = getCellByAliases(r, ['email', 'correo']);
+        const nombre = resolveCorralcoClienteNombre(r);
+        if (!email && !nombre) return false;
+        const tipo = getCellByAliases(r, ['tipo ticket 2026', 'tipo ticket', 'ticket', 'producto']);
+        const isFlexiTipo = /flexipass|flexi pass|flexi/i.test(tipo || '');
+        const montoRaw = parseMontoPesosAR(getCellByAliases(r, ['monto', 'monto pago']));
+        const hasTarjeta = rowHasValidFlexiTarjeta(r);
+        const pagoOk = /^ok$/i.test(getCellByAliases(r, ['1er pago 100 usd', '1er pago']));
+        if (!isFlexiTipo) return false;
+        if (montoRaw >= 85000) return true;
+        if (montoRaw > 0 && montoRaw < 1000) return false;
+        if (hasTarjeta && pagoOk) return true;
+        return false;
+    }
+
     function resolveCorralcoVoucherCodigo(r, rowIndex) {
+        const ri = r._importRowIndex != null ? r._importRowIndex : rowIndex;
         const tbk = getCellByAliases(r, ['codigo tbk', 'codigo tkb', 'codigo voucher', 'codigo', 'voucher', 'cod voucher', 'codigo ticket']);
         if (tbk) return `TBK-${String(tbk).replace(/\s+/g, '').toUpperCase()}`;
         const boleta = getCellByAliases(r, ['n boleta', 'nº boleta', 'no boleta', 'boleta', 'n boleta']);
         if (boleta) return `FP-BOL-${String(boleta).replace(/\s+/g, '')}`;
         const numOrden = getCellByAliases(r, ['#', 'numero', 'n orden', 'id orden']);
         if (numOrden && String(numOrden).trim()) return `FP-${String(numOrden).replace(/\s+/g, '').toUpperCase()}`;
+        const tarjeta = getCellByAliases(r, ['n tarjeta', 'nº tarjeta', 'tarjeta']).replace(/\D/g, '').slice(-4);
         const email = getCellByAliases(r, ['email', 'correo']).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10);
         const fecha = parseDateMaybe(getCellByAliases(r, ['fecha venta', 'venta', 'fecha transaccion', 'fecha transacción'])) || 'NA';
-        return `FP-${email || 'CLI'}-${fecha}-${rowIndex + 1}`;
+        if (tarjeta) return `FP-${tarjeta}-${email || 'CLI'}-${fecha}`;
+        return `FP-${email || 'CLI'}-${fecha}-${ri + 1}`;
     }
 
-    function corralcoRowDedupeKey(r) {
+    function corralcoRowExactDuplicateKey(r) {
         return [
-            resolveCorralcoVoucherCodigo(r, 0),
+            resolveCorralcoClienteNombre(r),
             getCellByAliases(r, ['email', 'correo']).toLowerCase(),
             getCellByAliases(r, ['#']),
             getCellByAliases(r, ['codigo tbk', 'codigo tkb']),
             getCellByAliases(r, ['n boleta', 'nº boleta', 'boleta']),
             getCellByAliases(r, ['monto', 'monto pago']),
             parseDateMaybe(getCellByAliases(r, ['fecha transaccion', 'fecha transacción', 'fecha venta', 'venta'])),
+            getCellByAliases(r, ['hora transaccion', 'hora transacción']),
             getCellByAliases(r, ['n tarjeta', 'nº tarjeta', 'tarjeta']),
-            getCellByAliases(r, ['hora transaccion', 'hora transacción'])
+            getCellByAliases(r, ['tipo ticket 2026', 'tipo ticket', 'ticket', 'producto'])
         ].join('|');
     }
 
+    function corralcoRowDedupeKey(r) {
+        return corralcoRowExactDuplicateKey(r);
+    }
+
     function dedupeCorralcoRows(rows) {
-        const seen = new Set();
-        const out = [];
-        let skipped = 0;
-        for (const r of rows || []) {
-            const email = getCellByAliases(r, ['email', 'correo']);
-            const nombre = resolveCorralcoClienteNombre(r);
-            if (!email && !nombre) continue;
-            const key = corralcoRowDedupeKey(r);
-            if (seen.has(key)) {
-                skipped++;
-                continue;
-            }
-            seen.add(key);
-            out.push(r);
-        }
-        return { rows: out, skipped };
+        return { rows: rows || [], skipped: 0 };
     }
 
     function filterCorralcoImportRows(dataRows) {
-        let corralcoRows = (dataRows || []).filter(r => {
-            const hotel = getCellByAliases(r, ['hotel', 'programa', 'destino']);
-            const tipo = getCellByAliases(r, ['tipo ticket 2026', 'tipo ticket', 'ticket', 'producto']);
-            return /corralco|flexipass|flexi pass|flexi/i.test(hotel || '') ||
-                /flexipass|flexi pass|flexi/i.test(tipo || '');
+        let skippedInvalid = 0;
+        const corralcoRows = (dataRows || []).filter(r => {
+            if (!isValidFlexiPurchaseRow(r)) {
+                skippedInvalid++;
+                return false;
+            }
+            return true;
         });
-        if (!corralcoRows.length) {
-            corralcoRows = (dataRows || []).filter(r => {
-                const code = resolveCorralcoVoucherCodigo(r, 0);
-                const email = getCellByAliases(r, ['email', 'correo']);
-                const nombre = resolveCorralcoClienteNombre(r);
-                return !!(code && (email || nombre));
-            });
-        }
-        return dedupeCorralcoRows(corralcoRows);
+        const deduped = dedupeCorralcoRows(corralcoRows);
+        return { ...deduped, skippedInvalid };
     }
 
     function buildCorralcoProgramFromRows(corralcoRows, sourceTag) {
@@ -29954,7 +29976,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             if (!codigo) return;
             const periodoRow = parsePeriodoUso(getCellByAliases(r, ['periodo de uso', 'periodo', 'vigencia']));
             const montoRaw = getCellByAliases(r, ['monto', 'monto pago']);
-            const montoPesos = parseMontoPesosAR(montoRaw);
+            const montoPesos = resolveCorralcoMontoPesos(r);
             let packFlexi = inferPackFlexiFromMontoPesos(montoPesos, seniaUnit);
             let cuposIniciales = packFlexi > 0
                 ? packFlexi * ticketsPerPackProg
@@ -29986,7 +30008,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             const notasTipo = tipoTicket ? ` Producto: ${tipoTicket}.` : '';
             const notasPago = (pago1 || pago2) ? ` Pagos USD: 1°=${pago1 || '-'}, 2°=${pago2 || '-'}.` : '';
             importedVouchers.push({
-                id: `${idPrefix}-${codigo.replace(/[^A-Z0-9\-]/gi, '').toUpperCase()}`,
+                id: `${idPrefix}-${codigo.replace(/[^A-Z0-9\-]/gi, '').toUpperCase()}-R${rowIndex}`,
                 codigo,
                 programaId: program.id,
                 hotelId: null,
@@ -30032,9 +30054,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         renderFlexiVouchersTable();
         renderFlexiClientSummaryTable();
         const packs = importedVouchers.reduce((s, v) => s + (v.packFlexi || 1), 0);
-        const dupMsg = meta?.skipped ? ` (${meta.skipped} filas duplicadas omitidas)` : '';
+        const invMsg = meta?.skippedInvalid ? `, ${meta.skippedInvalid} sin venta válida (sin monto/tarjeta)` : '';
+        const dupMsg = meta?.skipped ? `, ${meta.skipped} duplicados exactos del Excel` : '';
         if (!meta?.silent) {
-            showNotification(`✅ Corralco importado: ${importedVouchers.length} vouchers, ${packs} PACKs Flexi${dupMsg}.`, 'success');
+            showNotification(`✅ Corralco importado: ${importedVouchers.length} FLEXi (${packs} PACKs)${dupMsg}${invMsg}.`, 'success');
         }
     }
 
@@ -30050,7 +30073,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             showNotification('⚠️ Se encontraron filas pero sin vouchers válidos.', 'warning');
             return;
         }
-        applyCorralcoImportResult(program, importedVouchers, sourceTag, { skipped });
+        applyCorralcoImportResult(program, importedVouchers, sourceTag, { skipped, skippedInvalid });
     }
 
     function openImportCorralcoFile() {
