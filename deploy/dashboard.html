@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-22T19:48:18Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 234; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-22T21:16:14Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 235; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">234</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">235</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -4274,7 +4274,7 @@
                             </div>
                             <div class="stat-info">
                                 <h3 id="totalFlexiVouchers">0</h3>
-                                <p>Vouchers Totales</p>
+                                <p>Compras registradas</p>
                             </div>
                         </div>
                     </div>
@@ -4444,7 +4444,7 @@
                                     <th style="padding: 12px; text-align: left; font-weight: 500;">Código Voucher</th>
                                     <th style="padding: 12px; text-align: left; font-weight: 500;">Cliente</th>
                                     <th style="padding: 12px; text-align: left; font-weight: 500;">Hotel</th>
-                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Cupos</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Cupos / tickets</th>
                                     <th style="padding: 12px; text-align: center; font-weight: 500;">Periodo de Uso</th>
                                     <th style="padding: 12px; text-align: center; font-weight: 500;">Estado</th>
                                     <th style="padding: 12px; text-align: center; font-weight: 500;" title="Captura / comprobante de pago">Pago</th>
@@ -4462,6 +4462,7 @@
                 <div class="activity-card" style="margin-top: 24px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
                         <h3 class="card-title" style="margin: 0;">👥 Resumen por cliente (PACKs Flexi)</h3>
+                        <span style="font-size: 13px; color: #666;">1 PACK = 10 cupos (tickets)</span>
                         <input
                             type="text"
                             id="flexiClientSummarySearch"
@@ -4477,8 +4478,8 @@
                                     <th style="padding: 12px; text-align: left; font-weight: 500;">Cliente</th>
                                     <th style="padding: 12px; text-align: left; font-weight: 500;">Email</th>
                                     <th style="padding: 12px; text-align: center; font-weight: 500;">PACKs</th>
-                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Cupos totales</th>
-                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Vouchers</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Cupos (tickets)</th>
+                                    <th style="padding: 12px; text-align: center; font-weight: 500;">Compras</th>
                                     <th style="padding: 12px; text-align: center; font-weight: 500;">Seña total ARS</th>
                                 </tr>
                             </thead>
@@ -29595,6 +29596,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         if (FLEXI_CORRALCO_SHEET.enabled) {
             startFlexiCorralcoPolling();
         }
+        if (normalizeAllFlexiVouchersCupos()) {
+            saveFlexiDataToStorage();
+        }
     }
 
     function getFlexiCorralcoCsvUrl() {
@@ -29915,15 +29919,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         const existingCorralcoProgram = (flexiPrograms || []).find(p => /corralco/i.test(String(p.hotelName || '')));
         const periodoTxt = getCellByAliases(first, ['periodo de uso', 'periodo', 'vigencia']);
         const periodo = parsePeriodoUso(periodoTxt);
-        const defaultCupos = Math.max(
-            1,
-            Math.round(
-                toNumber(
-                    getCellByAliases(first, ['cupos/voucher', 'cupos por voucher', 'cupos']),
-                    extractFirstInt(getCellByAliases(first, ['tipo ticket 2026', 'ticket', 'producto', 'tipo ticket']), existingCorralcoProgram?.cuposPorVoucher || 10)
-                )
-            )
-        );
+        const defaultCupos = 10;
         const defaultPrecio = toNumber(
             getCellByAliases(first, ['precio usd', 'valor usd']),
             existingCorralcoProgram?.precioUSD || 330
@@ -29972,13 +29968,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     )
                 );
             let cuposDisponibles = Math.max(0, Math.round(toNumber(getCellByAliases(r, ['cupos disponibles', 'disponibles']), -1)));
-            if (cuposDisponibles < 0) {
+            const packDisplay = packFlexi || Math.max(1, Math.round(cuposIniciales / Math.max(1, ticketsPerPackProg)));
+            cuposIniciales = packDisplay * ticketsPerPackProg;
+            if (cuposDisponibles < 0 || cuposDisponibles > cuposIniciales) {
                 const estCol = getCellByAliases(r, ['estado', '2do pago 230 usd']);
                 cuposDisponibles = /usado|vencid|anulad/i.test(estCol) ? 0 : cuposIniciales;
             }
             const precioUsdRow = toNumber(getCellByAliases(r, ['precio usd', 'valor usd']), NaN);
             const precioUSD = Number.isFinite(precioUsdRow) && precioUsdRow > 0 ? precioUsdRow : (program.precioUSD || 330);
-            const packDisplay = packFlexi || Math.max(1, Math.round(cuposIniciales / Math.max(1, ticketsPerPackProg)));
             const tipoTicket = getCellByAliases(r, ['tipo ticket 2026', 'tipo ticket', 'producto']);
             const pago1 = getCellByAliases(r, ['1er pago 100 usd', '1er pago']);
             const pago2 = getCellByAliases(r, ['2do pago 230 usd', '2do pago']);
@@ -30028,7 +30025,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         flexiPrograms = (flexiPrograms || []).filter(p => p.source !== sourceFilter);
         flexiPrograms.push(program);
         const keep = (flexiVouchers || []).filter(v => v.source !== sourceFilter);
-        flexiVouchers = [...keep, ...importedVouchers];
+        flexiVouchers = [...keep, ...importedVouchers.map(v => normalizeFlexiVoucherCupos(v))];
         saveFlexiDataToStorage();
         updateFlexiStats();
         renderFlexiProgramsTable();
@@ -30208,6 +30205,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
     async function refreshFlexiData() {
         await loadFlexiDataFromStorage();
+        if (normalizeAllFlexiVouchersCupos()) {
+            saveFlexiDataToStorage();
+        }
         updateFlexiStats();
         renderFlexiProgramsTable();
         renderFlexiVouchersTable();
@@ -30231,9 +30231,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         const clientsByEmail = {};
         
         flexiVouchers.forEach(v => {
-            const packs = v.packFlexi != null && v.packFlexi > 0
-                ? v.packFlexi
-                : Math.max(1, Math.round((v.cuposIniciales || 10) / 10));
+            const packs = getFlexiVoucherPackCount(v);
             totalPacks += packs;
             const emailKey = String(v.clienteEmail || v.clienteNombre || v.id || '').toLowerCase().trim();
             if (emailKey) {
@@ -30574,12 +30572,64 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         return (flexiPrograms || []).find(p => p.id === voucher.programaId) || null;
     }
 
-    function formatFlexiCuposPackLabel(voucher) {
+    function getFlexiCuposPerPack(voucher) {
         const prog = getFlexiProgramByVoucher(voucher);
-        const perPack = Math.max(1, prog?.cuposPorVoucher || 10);
-        const packs = voucher.packFlexi != null && voucher.packFlexi > 0
-            ? voucher.packFlexi
-            : Math.max(1, Math.round((voucher.cuposIniciales || 0) / perPack));
+        const fromProgram = parseInt(prog?.cuposPorVoucher, 10);
+        if (fromProgram >= 10) return fromProgram;
+        return 10;
+    }
+
+    function getFlexiVoucherPackCount(voucher) {
+        const perPack = getFlexiCuposPerPack(voucher);
+        if (voucher.packFlexi != null && voucher.packFlexi > 0) return voucher.packFlexi;
+        const cupos = parseInt(voucher.cuposIniciales, 10) || 0;
+        if (cupos >= perPack) return Math.max(1, Math.round(cupos / perPack));
+        return 1;
+    }
+
+    function getFlexiVoucherCuposTotales(voucher) {
+        const perPack = getFlexiCuposPerPack(voucher);
+        const packs = getFlexiVoucherPackCount(voucher);
+        const cupos = parseInt(voucher.cuposIniciales, 10) || 0;
+        if (cupos >= packs * perPack) return cupos;
+        return packs * perPack;
+    }
+
+    function normalizeFlexiVoucherCupos(voucher) {
+        if (!voucher) return voucher;
+        const perPack = getFlexiCuposPerPack(voucher);
+        const packs = getFlexiVoucherPackCount(voucher);
+        const expectedCupos = packs * perPack;
+        const ci = parseInt(voucher.cuposIniciales, 10) || 0;
+        const cd = parseInt(voucher.cuposDisponibles, 10);
+        if (ci < expectedCupos) {
+            const ratio = ci > 0 && cd >= 0 ? cd / ci : 1;
+            voucher.cuposIniciales = expectedCupos;
+            voucher.cuposDisponibles = Math.min(expectedCupos, Math.max(0, Math.round(expectedCupos * ratio)));
+        }
+        voucher.packFlexi = packs;
+        return voucher;
+    }
+
+    function normalizeAllFlexiVouchersCupos() {
+        let changed = false;
+        (flexiVouchers || []).forEach(v => {
+            const before = `${v.cuposIniciales}|${v.cuposDisponibles}|${v.packFlexi}`;
+            normalizeFlexiVoucherCupos(v);
+            const after = `${v.cuposIniciales}|${v.cuposDisponibles}|${v.packFlexi}`;
+            if (before !== after) changed = true;
+        });
+        (flexiPrograms || []).forEach(p => {
+            if (/corralco|flexi/i.test(String(p.hotelName || '')) && parseInt(p.cuposPorVoucher, 10) < 10) {
+                p.cuposPorVoucher = 10;
+                changed = true;
+            }
+        });
+        return changed;
+    }
+
+    function formatFlexiCuposPackLabel(voucher) {
+        const packs = getFlexiVoucherPackCount(voucher);
         return packs === 1 ? '1 PACK Flexi' : `${packs} PACK Flexi`;
     }
 
@@ -30709,16 +30759,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     email: email || '—',
                     packs: 0,
                     cupos: 0,
-                    vouchers: 0,
+                    compras: 0,
                     seniaTotal: 0
                 };
             }
-            const packs = v.packFlexi != null && v.packFlexi > 0
-                ? v.packFlexi
-                : Math.max(1, Math.round((v.cuposIniciales || 10) / 10));
+            const packs = getFlexiVoucherPackCount(v);
+            const cupos = getFlexiVoucherCuposTotales(v);
             byClient[key].packs += packs;
-            byClient[key].cupos += v.cuposIniciales || packs * 10;
-            byClient[key].vouchers += 1;
+            byClient[key].cupos += cupos;
+            byClient[key].compras += 1;
             byClient[key].seniaTotal += Number(v.montoPesosSenia) || 0;
         });
         return Object.values(byClient).sort((a, b) => b.packs - a.packs || a.nombre.localeCompare(b.nombre, 'es'));
@@ -30737,8 +30786,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 <td style="padding: 12px; font-weight: 500;">${flexiEscapeHtml(row.nombre)}</td>
                 <td style="padding: 12px; font-size: 13px; color: #555;">${flexiEscapeHtml(row.email)}</td>
                 <td style="padding: 12px; text-align: center; font-weight: bold; color: #673ab7;">${row.packs}</td>
-                <td style="padding: 12px; text-align: center;">${row.cupos}</td>
-                <td style="padding: 12px; text-align: center;">${row.vouchers}</td>
+                <td style="padding: 12px; text-align: center; font-weight: bold; color: #00897b;">${row.cupos}</td>
+                <td style="padding: 12px; text-align: center; color: #666;">${row.compras}</td>
                 <td style="padding: 12px; text-align: center;">${row.seniaTotal > 0 ? '$' + row.seniaTotal.toLocaleString('es-AR') : '—'}</td>
             </tr>
         `).join('');
