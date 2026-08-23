@@ -3636,8 +3636,9 @@ class SupabaseClient {
     }
 
     /** Upsert masivo (órden: programas → vouchers → canjes por FKs). */
-    async syncFlexiData(programs, vouchers, canjes) {
+    async syncFlexiData(programs, vouchers, canjes, opts = {}) {
         if (!this.isInitialized()) return;
+        const replaceAll = !!(opts && opts.replaceAll);
         let pRows = (programs || []).map(p => this._flexiProgramToRow(p));
         pRows = this._dedupeFlexiRowsByKey(pRows, 'id');
         let vRows = (vouchers || []).map(v => this._flexiVoucherToRow(v)).filter(row => row.codigo);
@@ -3645,6 +3646,25 @@ class SupabaseClient {
         vRows = this._dedupeFlexiRowsByKey(vRows, 'codigo');
         let cRows = (canjes || []).map(c => this._flexiCanjeToRow(c));
         cRows = this._dedupeFlexiRowsByKey(cRows, 'id');
+
+        // Reemplazo total (import Excel): borrar canjes/vouchers/programas viejos antes de upsert
+        if (replaceAll) {
+            const { error: delC } = await this.client.from('flexi_canjes').delete().neq('id', '__none__');
+            if (delC) {
+                console.error('flexi_canjes delete-all', delC.message, delC.code);
+                throw delC;
+            }
+            const { error: delV } = await this.client.from('flexi_vouchers').delete().neq('id', '__none__');
+            if (delV) {
+                console.error('flexi_vouchers delete-all', delV.message, delV.code);
+                throw delV;
+            }
+            const { error: delP } = await this.client.from('flexi_programs').delete().neq('id', '__none__');
+            if (delP) {
+                console.error('flexi_programs delete-all', delP.message, delP.code);
+                throw delP;
+            }
+        }
 
         if (pRows.length) {
             const { error } = await this.client.from('flexi_programs').upsert(pRows, { onConflict: 'id' });

@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-23T18:02:37Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 239; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-23T18:32:26Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 241; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">239</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">241</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -30034,11 +30034,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         )
                     )
                 );
-            let cuposDisponibles = Math.max(0, Math.round(toNumber(getCellByAliases(r, ['cupos disponibles', 'disponibles']), -1)));
+            // Vacío ≠ 0: Number('') === 0 en JS y marcaba todos como "Completamente Usados"
+            const cuposDispRaw = getCellByAliases(r, ['cupos disponibles', 'disponibles']);
+            let cuposDisponibles = cuposDispRaw === ''
+                ? -1
+                : Math.max(0, Math.round(toNumber(cuposDispRaw, -1)));
             const packDisplay = packFlexi || Math.max(1, Math.round(cuposIniciales / Math.max(1, ticketsPerPackProg)));
             cuposIniciales = packDisplay * ticketsPerPackProg;
             if (cuposDisponibles < 0 || cuposDisponibles > cuposIniciales) {
-                const estCol = getCellByAliases(r, ['estado', '2do pago 230 usd']);
+                const estCol = getCellByAliases(r, ['estado']);
                 cuposDisponibles = /usado|vencid|anulad/i.test(estCol) ? 0 : cuposIniciales;
             }
             const precioUsdRow = toNumber(getCellByAliases(r, ['precio usd', 'valor usd']), NaN);
@@ -30101,16 +30105,20 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         flexiPrograms = [program];
         flexiVouchers = importedVouchers.map(v => normalizeFlexiVoucherCupos(v));
         flexiCanjes = [];
-        saveFlexiDataToStorage();
+        saveFlexiDataToStorage({ replaceAll: true });
         updateFlexiStats();
         renderFlexiProgramsTable();
         renderFlexiVouchersTable();
         renderFlexiClientSummaryTable();
         renderFlexiCanjesTable();
         const packs = importedVouchers.reduce((s, v) => s + (v.packFlexi || 1), 0);
+        const activos = flexiVouchers.filter(v => (v.cuposDisponibles || 0) > 0).length;
         const invMsg = meta?.skippedInvalid ? `, ${meta.skippedInvalid} omitidas` : '';
         if (!meta?.silent) {
-            showNotification(`✅ Lista Flexi reemplazada: ${importedVouchers.length} FLEXi / ${packs} PACKs${invMsg}.`, 'success');
+            showNotification(
+                `✅ Lista Flexi reemplazada: ${importedVouchers.length} FLEXi / ${packs} PACKs (${activos} activos)${invMsg}.`,
+                'success'
+            );
         }
     }
 
@@ -30263,23 +30271,23 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         flexiLoadFromLocalStorageOnly();
     }
 
-    function saveFlexiDataToStorage() {
+    function saveFlexiDataToStorage(opts) {
         try {
             localStorage.setItem('flexi_programs', JSON.stringify(flexiPrograms));
             localStorage.setItem('flexi_vouchers', JSON.stringify(flexiVouchers));
             localStorage.setItem('flexi_canjes', JSON.stringify(flexiCanjes));
             console.log('💾 Datos Flexi guardados (local)');
-            flexiPersistToSupabase();
+            flexiPersistToSupabase(opts);
         } catch (error) {
             console.error('❌ Error guardando datos Flexi:', error);
         }
     }
 
-    function flexiPersistToSupabase() {
+    function flexiPersistToSupabase(opts) {
         const sb = window.supabaseClient;
         if (!sb || typeof sb.isInitialized !== 'function' || !sb.isInitialized() || typeof sb.syncFlexiData !== 'function') return;
-        Promise.resolve(sb.syncFlexiData(flexiPrograms, flexiVouchers, flexiCanjes))
-            .then(() => console.log('☁️ Flexi sincronizado en Supabase'))
+        Promise.resolve(sb.syncFlexiData(flexiPrograms, flexiVouchers, flexiCanjes, opts || {}))
+            .then(() => console.log('☁️ Flexi sincronizado en Supabase', opts?.replaceAll ? '(reemplazo total)' : ''))
             .catch(err => {
                 console.warn('☁️ Error sync Flexi Supabase:', err);
                 showNotification('⚠️ Flexi guardado en el navegador; error al sincronizar con Supabase (revisá migraciones 042, 043 y 076).', 'warning');
@@ -30721,6 +30729,20 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         (flexiPrograms || []).forEach(p => {
             if (/corralco|flexi/i.test(String(p.hotelName || '')) && parseInt(p.cuposPorVoucher, 10) < 10) {
                 p.cuposPorVoucher = 10;
+                changed = true;
+            }
+        });
+        // Reparar import viejo: cupos en 0 sin ningún canje real → restaurar disponibles
+        const canjeIds = new Set(
+            (flexiCanjes || [])
+                .filter(c => c && c.estado !== 'Anulado')
+                .map(c => String(c.voucherId || c.voucher_id || ''))
+        );
+        (flexiVouchers || []).forEach(v => {
+            const cd = parseInt(v.cuposDisponibles, 10);
+            const ci = parseInt(v.cuposIniciales, 10) || 0;
+            if (cd === 0 && ci > 0 && v.estado !== 'Vencido' && !canjeIds.has(String(v.id))) {
+                v.cuposDisponibles = ci;
                 changed = true;
             }
         });
