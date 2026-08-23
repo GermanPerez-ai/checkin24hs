@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-23T17:19:43Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 238; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-23T18:02:37Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 239; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">238</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">239</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -4406,9 +4406,9 @@
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                         <h3 class="card-title" style="margin: 0;">📋 Programas Flexi Disponibles</h3>
                         <div style="display: flex; gap: 8px;">
-                            <button class="form-button secondary" onclick="openImportCorralcoFile()" title="Importar Excel o CSV del reporte FlexiPass Corralco">
+                            <button class="form-button secondary" onclick="openImportCorralcoFile()" title="Reemplaza todos los Flexi con el Excel/CSV nuevo">
                                 <span class="material-icons" style="vertical-align: middle; margin-right: 6px;">upload_file</span>
-                                Importar Corralco (Excel/CSV)
+                                Reemplazar lista Flexi (Excel)
                             </button>
                         </div>
                     </div>
@@ -29852,9 +29852,26 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             throw new Error('XLSX no cargado');
         }
         const wb = XLSX.read(arrayBuffer, { type: 'array', cellDates: true });
-        const sheetName = wb.SheetNames[0];
-        if (!sheetName) return [];
-        const json = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' });
+        if (!wb.SheetNames.length) return [];
+
+        // Preferir hoja con columna CODIGO (lista limpia ULTIMOFLEXIPASS Hoja2)
+        let bestName = wb.SheetNames[0];
+        let bestScore = -1;
+        for (const name of wb.SheetNames) {
+            const json = XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '' });
+            if (!json.length) continue;
+            const headers = Object.keys(json[0] || {}).map(h => normalizeHeader(h));
+            const hasCodigo = headers.some(h => h === 'codigo' || h.includes('codigo flexi'));
+            const hasFlexi = headers.some(h => h.includes('tipo ticket') || h.includes('flexi'));
+            const score = (hasCodigo ? 1000 : 0) + (hasFlexi ? 100 : 0) + json.length;
+            if (score > bestScore) {
+                bestScore = score;
+                bestName = name;
+            }
+        }
+
+        const json = XLSX.utils.sheet_to_json(wb.Sheets[bestName], { defval: '' });
+        console.log(`📥 Flexi Excel: usando hoja "${bestName}" (${json.length} filas)`);
         return json.map((row, idx) => {
             const o = normalizeCorralcoRowObject(row);
             o._importRowIndex = idx;
@@ -29884,26 +29901,38 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         const email = getCellByAliases(r, ['email', 'correo']);
         const nombre = resolveCorralcoClienteNombre(r);
         if (!email && !nombre) return false;
+        const codigoLista = getCellByAliases(r, ['codigo', 'codigo flexi', 'cod flexi']);
+        if (/^flexi/i.test(codigoLista || '')) return true;
         const tipo = getCellByAliases(r, ['tipo ticket 2026', 'tipo ticket', 'ticket', 'producto']);
         const isFlexiTipo = /flexipass|flexi pass|flexi/i.test(tipo || '');
         const montoRaw = parseMontoPesosAR(getCellByAliases(r, ['monto', 'monto pago']));
         const hasTarjeta = rowHasValidFlexiTarjeta(r);
         const pagoOk = /^ok$/i.test(getCellByAliases(r, ['1er pago 100 usd', '1er pago']));
-        if (!isFlexiTipo) return false;
-        if (montoRaw >= 85000) return true;
-        if (montoRaw > 0 && montoRaw < 1000) {
-            const tieneOrden = !!getCellByAliases(r, ['#', 'numero', 'n orden', 'id orden']);
-            if (pagoOk && (tieneOrden || hasTarjeta || nombre)) return true;
+        if (isFlexiTipo) {
+            if (montoRaw >= 85000) return true;
+            if (montoRaw > 0 && montoRaw < 1000) {
+                const tieneOrden = !!getCellByAliases(r, ['#', 'numero', 'n orden', 'id orden']);
+                if (pagoOk && (tieneOrden || hasTarjeta || nombre)) return true;
+                return false;
+            }
+            if (hasTarjeta && pagoOk) return true;
+            if (pagoOk && nombre) return true;
+            if (montoRaw > 0 || hasTarjeta) return true;
             return false;
         }
-        if (hasTarjeta && pagoOk) return true;
-        if (pagoOk && nombre) return true;
+        // Filas sin tipo (ej. JOAQUIN MORENO) pero con venta real
+        if (nombre && (montoRaw >= 85000 || (montoRaw > 0 && montoRaw < 1000)) && (hasTarjeta || pagoOk)) return true;
+        if (nombre && hasTarjeta && montoRaw > 0) return true;
         return false;
     }
 
     function resolveCorralcoVoucherCodigo(r, rowIndex) {
         const ri = r._importRowIndex != null ? r._importRowIndex : rowIndex;
-        const tbk = getCellByAliases(r, ['codigo tbk', 'codigo tkb', 'codigo voucher', 'codigo', 'voucher', 'cod voucher', 'codigo ticket']);
+        const codigoLista = getCellByAliases(r, ['codigo', 'codigo flexi', 'cod flexi']);
+        if (/^flexi/i.test(String(codigoLista || '').trim())) {
+            return String(codigoLista).trim().toUpperCase();
+        }
+        const tbk = getCellByAliases(r, ['codigo tbk', 'codigo tkb', 'codigo voucher', 'voucher', 'cod voucher', 'codigo ticket']);
         if (tbk) return `TBK-${String(tbk).replace(/\s+/g, '').toUpperCase()}`;
         const boleta = getCellByAliases(r, ['n boleta', 'nº boleta', 'no boleta', 'boleta', 'n boleta']);
         if (boleta) return `FP-BOL-${String(boleta).replace(/\s+/g, '')}`;
@@ -30068,26 +30097,25 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     }
 
     function applyCorralcoImportResult(program, importedVouchers, sourceTag, meta) {
-        const sourceFilter = sourceTag === 'gsheet-corralco' ? 'gsheet-corralco' : 'corralco-import-file';
-        flexiPrograms = (flexiPrograms || []).filter(p => p.source !== sourceFilter);
-        flexiPrograms.push(program);
-        const keep = (flexiVouchers || []).filter(v => v.source !== sourceFilter);
-        flexiVouchers = [...keep, ...importedVouchers.map(v => normalizeFlexiVoucherCupos(v))];
+        // Reemplazo total: borra Flexi y canjes anteriores; carga la lista nueva
+        flexiPrograms = [program];
+        flexiVouchers = importedVouchers.map(v => normalizeFlexiVoucherCupos(v));
+        flexiCanjes = [];
         saveFlexiDataToStorage();
         updateFlexiStats();
         renderFlexiProgramsTable();
         renderFlexiVouchersTable();
         renderFlexiClientSummaryTable();
+        renderFlexiCanjesTable();
         const packs = importedVouchers.reduce((s, v) => s + (v.packFlexi || 1), 0);
-        const invMsg = meta?.skippedInvalid ? `, ${meta.skippedInvalid} sin venta válida (sin monto/tarjeta)` : '';
-        const dupMsg = meta?.skipped ? `, ${meta.skipped} duplicados exactos del Excel` : '';
+        const invMsg = meta?.skippedInvalid ? `, ${meta.skippedInvalid} omitidas` : '';
         if (!meta?.silent) {
-            showNotification(`✅ Corralco importado: ${importedVouchers.length} FLEXi (${packs} PACKs)${dupMsg}${invMsg}.`, 'success');
+            showNotification(`✅ Lista Flexi reemplazada: ${importedVouchers.length} FLEXi / ${packs} PACKs${invMsg}.`, 'success');
         }
     }
 
     function importFlexiCorralcoFromRowObjects(dataRows, sourceTag) {
-        const { rows: corralcoRows, skipped } = filterCorralcoImportRows(dataRows);
+        const { rows: corralcoRows, skipped, skippedInvalid } = filterCorralcoImportRows(dataRows);
         if (!corralcoRows.length) {
             showNotification('⚠️ No se encontraron filas importables (revisá email, nombre o códigos).', 'warning');
             return;
@@ -30102,6 +30130,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     }
 
     function openImportCorralcoFile() {
+        const prev = (flexiVouchers || []).length;
+        if (prev > 0) {
+            const ok = confirm(
+                `Esto ELIMINA los ${prev} Flexi actuales (y sus canjes) y carga la lista nueva del Excel.\n\nArchivo esperado: ULTIMOFLEXIPASS ARG. 2026.xlsx\n\n¿Continuar?`
+            );
+            if (!ok) return;
+        }
         const inp = document.getElementById('corralcoCsvInput');
         if (inp) {
             inp.value = '';
