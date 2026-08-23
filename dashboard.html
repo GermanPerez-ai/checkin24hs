@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-22T21:40:10Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 237; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-23T17:19:43Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 238; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">237</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">238</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -4329,7 +4329,18 @@
                             </div>
                             <div class="stat-info">
                                 <h3 id="totalCuposDisponibles">0</h3>
-                                <p>Cupos Disponibles</p>
+                                <p>Cupos disponibles</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon" style="background-color: #1565c0;">
+                                <span class="material-icons">confirmation_number</span>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="totalFlexiCuposVendidos">0</h3>
+                                <p>Cupos vendidos (×10)</p>
                             </div>
                         </div>
                     </div>
@@ -4340,7 +4351,7 @@
                             </div>
                             <div class="stat-info">
                                 <h3 id="totalFlexiPacksSold">0</h3>
-                                <p>PACKs Flexi vendidos</p>
+                                <p>Total Flexi vendidos</p>
                             </div>
                         </div>
                     </div>
@@ -29587,6 +29598,9 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         if (FLEXI_CORRALCO_SHEET.enabled) {
             await syncFlexiCorralcoFromSheet({ silent: true });
         }
+        if (normalizeAllFlexiVouchersCupos()) {
+            saveFlexiDataToStorage();
+        }
         updateFlexiStats();
         renderFlexiProgramsTable();
         renderFlexiVouchersTable();
@@ -29595,9 +29609,6 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         checkExpiredVouchers();
         if (FLEXI_CORRALCO_SHEET.enabled) {
             startFlexiCorralcoPolling();
-        }
-        if (normalizeAllFlexiVouchersCupos()) {
-            saveFlexiDataToStorage();
         }
     }
 
@@ -30265,11 +30276,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         let active = 0, partial = 0, used = 0, expired = 0;
         let totalCuposDisponibles = 0;
         let totalPacks = 0;
+        let totalCuposVendidos = 0;
         const clientsByEmail = {};
         
         flexiVouchers.forEach(v => {
             const packs = getFlexiVoucherPackCount(v);
             totalPacks += packs;
+            totalCuposVendidos += getFlexiVoucherCuposTotales(v);
             const emailKey = String(v.clienteEmail || v.clienteNombre || v.id || '').toLowerCase().trim();
             if (emailKey) {
                 if (!clientsByEmail[emailKey]) clientsByEmail[emailKey] = { packs: 0 };
@@ -30295,9 +30308,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         document.getElementById('expiredFlexiVouchers').textContent = expired;
         document.getElementById('totalCuposDisponibles').textContent = totalCuposDisponibles;
         const packsEl = document.getElementById('totalFlexiPacksSold');
+        const cuposVendidosEl = document.getElementById('totalFlexiCuposVendidos');
         const clientsEl = document.getElementById('totalFlexiClients');
         const multiEl = document.getElementById('totalFlexiMultiPackClients');
         if (packsEl) packsEl.textContent = totalPacks;
+        if (cuposVendidosEl) cuposVendidosEl.textContent = totalCuposVendidos;
         if (clientsEl) clientsEl.textContent = Object.keys(clientsByEmail).length;
         if (multiEl) multiEl.textContent = Object.values(clientsByEmail).filter(c => c.packs > 1).length;
     }
@@ -30645,15 +30660,27 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             voucher.cuposDisponibles = Math.min(expectedCupos, Math.max(0, Math.round(expectedCupos * ratio)));
         }
         voucher.packFlexi = packs;
+
+        // Seña mal importada del Excel (ej. 92 en vez de 92.000)
+        const seniaUnit = FLEXI_CORRALCO_SHEET.seniaPesosPorPack || 92000;
+        let senia = Number(voucher.montoPesosSenia);
+        if (!Number.isFinite(senia) || senia <= 0) {
+            senia = Number(voucher.monto_senia_ars);
+        }
+        if (Number.isFinite(senia) && senia > 0 && senia < 1000) {
+            voucher.montoPesosSenia = seniaUnit * Math.max(1, packs);
+        } else if (Number.isFinite(senia) && senia > 0) {
+            voucher.montoPesosSenia = Math.round(senia);
+        }
         return voucher;
     }
 
     function normalizeAllFlexiVouchersCupos() {
         let changed = false;
         (flexiVouchers || []).forEach(v => {
-            const before = `${v.cuposIniciales}|${v.cuposDisponibles}|${v.packFlexi}`;
+            const before = `${v.cuposIniciales}|${v.cuposDisponibles}|${v.packFlexi}|${v.montoPesosSenia}`;
             normalizeFlexiVoucherCupos(v);
-            const after = `${v.cuposIniciales}|${v.cuposDisponibles}|${v.packFlexi}`;
+            const after = `${v.cuposIniciales}|${v.cuposDisponibles}|${v.packFlexi}|${v.montoPesosSenia}`;
             if (before !== after) changed = true;
         });
         (flexiPrograms || []).forEach(p => {
@@ -31226,45 +31253,100 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     function viewVoucherDetail(voucherId) {
         const voucher = flexiVouchers.find(v => v.id === voucherId);
         if (!voucher) return;
-        
+        normalizeFlexiVoucherCupos(voucher);
+
         const canjesDelVoucher = flexiCanjes.filter(c => c.voucherId === voucherId);
-        
+        const esc = (s) => flexiEscapeHtml(s == null ? '' : s);
+        const seniaVal = voucher.montoPesosSenia != null && voucher.montoPesosSenia > 0
+            ? Number(voucher.montoPesosSenia)
+            : '';
+        const packsVal = getFlexiVoucherPackCount(voucher);
+
         const content = document.getElementById('voucherDetailContent');
         content.innerHTML = `
-            <div style="display: grid; gap: 20px;">
-                <!-- Información del Voucher -->
+            <form id="editFlexiVoucherForm" onsubmit="saveEditFlexiVoucher(event); return false;" style="display: grid; gap: 20px;">
+                <input type="hidden" id="editFlexiVoucherId" value="${esc(voucher.id)}">
+
                 <div style="background: #f3e5f5; padding: 20px; border-radius: 12px;">
                     <h3 style="margin: 0 0 16px 0; color: #7b1fa2;">
-                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">card_giftcard</span>
-                        ${voucher.codigo}
+                        <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">edit</span>
+                        Editar voucher ${esc(voucher.codigo)}
                     </h3>
                     <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
-                        <div><strong>Hotel:</strong> ${voucher.hotelName}</div>
-                        <div><strong>Estado:</strong> ${getEstadoBadge(voucher)}</div>
-                        <div><strong>Cupos:</strong> <span style="font-weight: bold; color: ${voucher.cuposDisponibles > 0 ? '#4caf50' : '#f44336'};">${voucher.cuposDisponibles}/${voucher.cuposIniciales}</span> <span style="font-size: 12px; color: #666;">(${formatFlexiCuposPackLabel(voucher)})</span></div>
-                        ${(voucher.montoPesosSenia != null && voucher.montoPesosSenia > 0) ? `<div><strong>Seña abonada:</strong> $${Number(voucher.montoPesosSenia).toLocaleString('es-AR')} ARS</div>` : ''}
-                        ${(voucher.precioUSD != null && Number(voucher.precioUSD) > 0) ? `<div><strong>Precio (USD):</strong> $${Number(voucher.precioUSD).toLocaleString()} USD</div>` : ''}
-                        <div><strong>Periodo de Uso:</strong> ${formatFlexiDateRange(voucher.fechaInicioUso, voucher.fechaFinUso)}</div>
-                        <div><strong>Fecha de Venta:</strong> ${formatFlexiDate(voucher.fechaVenta)}</div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:#666;margin-bottom:4px;">Código</label>
+                            <input id="editFlexiCodigo" value="${esc(voucher.codigo)}" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:#666;margin-bottom:4px;">Estado</label>
+                            <select id="editFlexiEstado" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+                                ${['Activo','Parcial','Usado','Vencido'].map(e =>
+                                    `<option value="${e}" ${voucher.estado === e ? 'selected' : ''}>${e}</option>`
+                                ).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:#666;margin-bottom:4px;">PACKs Flexi</label>
+                            <input type="number" min="1" id="editFlexiPacks" value="${packsVal}" onchange="onEditFlexiPacksChanged()" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:#666;margin-bottom:4px;">Seña ARS</label>
+                            <input type="number" min="0" step="1" id="editFlexiSenia" value="${seniaVal === '' ? 92000 : seniaVal}" placeholder="92000" style="width:100%;padding:10px;border:2px solid #ce93d8;border-radius:8px;background:#fff;">
+                            <small style="color:#7b1fa2;">1 PACK = $92.000 · Escribí 92000 (no 92)</small>
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:#666;margin-bottom:4px;">Cupos iniciales</label>
+                            <input type="number" min="0" id="editFlexiCuposIniciales" value="${esc(voucher.cuposIniciales)}" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:#666;margin-bottom:4px;">Cupos disponibles</label>
+                            <input type="number" min="0" id="editFlexiCuposDisponibles" value="${esc(voucher.cuposDisponibles)}" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:#666;margin-bottom:4px;">Precio USD</label>
+                            <input type="number" min="0" step="0.01" id="editFlexiPrecioUsd" value="${voucher.precioUSD != null ? esc(voucher.precioUSD) : ''}" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:#666;margin-bottom:4px;">Fecha venta</label>
+                            <input type="date" id="editFlexiFechaVenta" value="${esc(voucher.fechaVenta || '')}" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:#666;margin-bottom:4px;">Inicio uso</label>
+                            <input type="date" id="editFlexiFechaInicio" value="${esc(voucher.fechaInicioUso || '')}" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:#666;margin-bottom:4px;">Fin uso</label>
+                            <input type="date" id="editFlexiFechaFin" value="${esc(voucher.fechaFinUso || '')}" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+                        </div>
                     </div>
                 </div>
-                
-                <!-- Información del Cliente -->
+
                 <div style="background: #e8f5e9; padding: 20px; border-radius: 12px;">
                     <h3 style="margin: 0 0 16px 0; color: #2e7d32;">
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">person</span>
                         Cliente
                     </h3>
-                    <div style="display: grid; gap: 8px;">
-                        <div><strong>Nombre:</strong> ${voucher.clienteNombre}</div>
-                        <div><strong>Email:</strong> ${voucher.clienteEmail}</div>
-                        <div><strong>Teléfono:</strong> ${voucher.clienteTelefono || '—'}</div>
-                        ${voucher.clienteDocumento ? `<div><strong>Documento:</strong> ${voucher.clienteDocumento}</div>` : ''}
-                        ${voucher.clienteCiudad ? `<div><strong>Ciudad:</strong> ${voucher.clienteCiudad}</div>` : ''}
-                        ${voucher.codigoTbk ? `<div><strong>Código TBK:</strong> ${voucher.codigoTbk}</div>` : ''}
-                        ${voucher.numeroBoleta ? `<div><strong>Nº Boleta:</strong> ${voucher.numeroBoleta}</div>` : ''}
-                        ${voucher.tipoTicket ? `<div><strong>Producto:</strong> ${voucher.tipoTicket}</div>` : ''}
-                        ${(voucher.pagoUsd1Estado || voucher.pagoUsd2Estado) ? `<div><strong>Pagos USD:</strong> 1° ${voucher.pagoUsd1Estado || '—'} · 2° ${voucher.pagoUsd2Estado || '—'}</div>` : ''}
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">
+                        <div style="grid-column: 1 / -1;">
+                            <label style="display:block;font-size:12px;color:#666;margin-bottom:4px;">Nombre</label>
+                            <input id="editFlexiClienteNombre" value="${esc(voucher.clienteNombre || '')}" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:#666;margin-bottom:4px;">Email</label>
+                            <input type="email" id="editFlexiClienteEmail" value="${esc(voucher.clienteEmail || '')}" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:#666;margin-bottom:4px;">Teléfono</label>
+                            <input id="editFlexiClienteTelefono" value="${esc(voucher.clienteTelefono || '')}" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:#666;margin-bottom:4px;">Documento</label>
+                            <input id="editFlexiClienteDocumento" value="${esc(voucher.clienteDocumento || '')}" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:12px;color:#666;margin-bottom:4px;">Ciudad</label>
+                            <input id="editFlexiClienteCiudad" value="${esc(voucher.clienteCiudad || '')}" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;">
+                        </div>
                     </div>
                     <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #c8e6c9;">
                         <strong style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
@@ -31272,19 +31354,23 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         </strong>
                         ${voucher.capturaPagoUrl ? `
                         <div style="margin-bottom: 12px;">
-                            <a href="${String(voucher.capturaPagoUrl).replace(/"/g, '&quot;')}" target="_blank" rel="noopener" style="font-size: 13px;">Abrir imagen en pestaña nueva</a>
-                            <div style="margin-top: 8px;"><img src="${String(voucher.capturaPagoUrl).replace(/"/g, '&quot;')}" alt="Comprobante" style="max-width: 100%; max-height: 320px; border-radius: 8px; border: 1px solid #e0e0e0; cursor: zoom-in;" onclick="window.open(this.src,'_blank')"></div>
-                        </div>` : '<p style="color: #666; margin: 0 0 10px 0; font-size: 13px;">Aún no hay comprobante cargado.</p>'}
+                            <a href="${String(voucher.capturaPagoUrl).replace(/"/g, '&quot;')}" target="_blank" rel="noopener" style="font-size: 13px;">Abrir imagen</a>
+                            <div style="margin-top: 8px;"><img src="${String(voucher.capturaPagoUrl).replace(/"/g, '&quot;')}" alt="Comprobante" style="max-width: 100%; max-height: 220px; border-radius: 8px; border: 1px solid #e0e0e0;"></div>
+                        </div>` : '<p style="color: #666; margin: 0 0 10px 0; font-size: 13px;">Sin comprobante cargado.</p>'}
                         <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                            <button type="button" class="form-button" style="background: #2e7d32; color: white; padding: 8px 14px; font-size: 13px;" onclick="triggerFlexiVoucherCapturaFromDetail(event, '${voucher.id}')">
-                                <span class="material-icons" style="font-size: 18px; vertical-align: middle;">add_photo_alternate</span> ${voucher.capturaPagoUrl ? 'Reemplazar imagen' : 'Subir imagen'}
+                            <button type="button" class="form-button" style="background: #2e7d32; color: white; padding: 8px 14px; font-size: 13px;" onclick="triggerFlexiVoucherCapturaFromDetail(event, '${esc(voucher.id)}')">
+                                <span class="material-icons" style="font-size: 18px; vertical-align: middle;">add_photo_alternate</span> ${voucher.capturaPagoUrl ? 'Reemplazar' : 'Subir'}
                             </button>
-                            ${voucher.capturaPagoUrl ? `<button type="button" class="form-button secondary" style="padding: 8px 14px; font-size: 13px;" onclick="removeFlexiVoucherCapturaPago('${voucher.id}')">Quitar</button>` : ''}
+                            ${voucher.capturaPagoUrl ? `<button type="button" class="form-button secondary" style="padding: 8px 14px; font-size: 13px;" onclick="removeFlexiVoucherCapturaPago('${esc(voucher.id)}')">Quitar</button>` : ''}
                         </div>
                     </div>
                 </div>
-                
-                <!-- Historial de Canjes -->
+
+                <div>
+                    <label style="display:block;font-size:12px;color:#666;margin-bottom:4px;">Notas</label>
+                    <textarea id="editFlexiNotas" rows="3" style="width:100%;padding:10px;border:2px solid #e0e0e0;border-radius:8px;resize:vertical;">${esc(voucher.notas || '')}</textarea>
+                </div>
+
                 <div style="background: #fff3e0; padding: 20px; border-radius: 12px;">
                     <h3 style="margin: 0 0 16px 0; color: #e65100;">
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">history</span>
@@ -31306,26 +31392,95 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                                         <td style="padding: 8px;">${formatFlexiDateRange(c.checkIn, c.checkOut)}</td>
                                         <td style="padding: 8px; text-align: center;">${c.personas}</td>
                                         <td style="padding: 8px; text-align: center;">${c.cuposUsados}</td>
-                                        <td style="padding: 8px; text-align: center;">
-                                            ${c.estado === 'Confirmado' ? '✅' : c.estado === 'Anulado' ? '❌' : '🚫'}
-                                            ${c.estado}
-                                        </td>
+                                        <td style="padding: 8px; text-align: center;">${esc(c.estado)}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
                         </table>
-                    ` : '<p style="color: #666; margin: 0;">No hay canjes registrados para este voucher.</p>'}
+                    ` : '<p style="color: #666; margin: 0;">No hay canjes registrados.</p>'}
                 </div>
-                
-                ${voucher.notas ? `
-                <div style="background: #f5f5f5; padding: 16px; border-radius: 8px;">
-                    <strong>Notas:</strong> ${voucher.notas}
+
+                <div style="display: flex; gap: 12px; justify-content: flex-end; flex-wrap: wrap;">
+                    <button type="button" class="form-button secondary" onclick="closeVoucherDetailModal()">Cancelar</button>
+                    <button type="submit" class="form-button" style="background: #7b1fa2; color: white;">
+                        <span class="material-icons" style="font-size: 18px; vertical-align: middle;">save</span>
+                        Guardar cambios
+                    </button>
                 </div>
-                ` : ''}
-            </div>
+            </form>
         `;
-        
+
         document.getElementById('voucherDetailModal').style.display = 'flex';
+    }
+
+    function onEditFlexiPacksChanged() {
+        const packs = Math.max(1, parseInt(document.getElementById('editFlexiPacks')?.value, 10) || 1);
+        const cuposInit = document.getElementById('editFlexiCuposIniciales');
+        const cuposDisp = document.getElementById('editFlexiCuposDisponibles');
+        const seniaEl = document.getElementById('editFlexiSenia');
+        const expected = packs * 10;
+        if (cuposInit) cuposInit.value = expected;
+        if (cuposDisp) cuposDisp.value = expected;
+        if (seniaEl) {
+            const current = parseInt(seniaEl.value, 10) || 0;
+            if (current < 1000 || current === 92000 || current % 92000 === 0) {
+                seniaEl.value = packs * 92000;
+            }
+        }
+    }
+
+    function saveEditFlexiVoucher(event) {
+        if (event) event.preventDefault();
+        const id = document.getElementById('editFlexiVoucherId')?.value;
+        const voucher = flexiVouchers.find(v => v.id === id);
+        if (!voucher) {
+            showNotification('⚠️ No se encontró el voucher', 'warning');
+            return;
+        }
+
+        const packs = Math.max(1, parseInt(document.getElementById('editFlexiPacks')?.value, 10) || 1);
+        let senia = parseInt(document.getElementById('editFlexiSenia')?.value, 10);
+        if (!Number.isFinite(senia) || senia < 0) senia = 0;
+        if (senia > 0 && senia < 1000) {
+            senia = (FLEXI_CORRALCO_SHEET.seniaPesosPorPack || 92000) * packs;
+        }
+
+        let cuposIniciales = parseInt(document.getElementById('editFlexiCuposIniciales')?.value, 10);
+        let cuposDisponibles = parseInt(document.getElementById('editFlexiCuposDisponibles')?.value, 10);
+        const perPack = getFlexiCuposPerPack(voucher);
+        if (!Number.isFinite(cuposIniciales) || cuposIniciales <= 0) {
+            cuposIniciales = packs * perPack;
+        }
+        if (!Number.isFinite(cuposDisponibles) || cuposDisponibles < 0) {
+            cuposDisponibles = cuposIniciales;
+        }
+        if (cuposDisponibles > cuposIniciales) cuposDisponibles = cuposIniciales;
+
+        voucher.codigo = String(document.getElementById('editFlexiCodigo')?.value || voucher.codigo).trim();
+        voucher.estado = document.getElementById('editFlexiEstado')?.value || voucher.estado;
+        voucher.packFlexi = packs;
+        voucher.montoPesosSenia = senia || undefined;
+        voucher.cuposIniciales = cuposIniciales;
+        voucher.cuposDisponibles = cuposDisponibles;
+        const precioUsd = parseFloat(document.getElementById('editFlexiPrecioUsd')?.value);
+        voucher.precioUSD = Number.isFinite(precioUsd) ? precioUsd : voucher.precioUSD;
+        voucher.fechaVenta = document.getElementById('editFlexiFechaVenta')?.value || '';
+        voucher.fechaInicioUso = document.getElementById('editFlexiFechaInicio')?.value || '';
+        voucher.fechaFinUso = document.getElementById('editFlexiFechaFin')?.value || '';
+        voucher.clienteNombre = String(document.getElementById('editFlexiClienteNombre')?.value || '').trim();
+        voucher.clienteEmail = String(document.getElementById('editFlexiClienteEmail')?.value || '').trim();
+        voucher.clienteTelefono = String(document.getElementById('editFlexiClienteTelefono')?.value || '').trim();
+        voucher.clienteDocumento = String(document.getElementById('editFlexiClienteDocumento')?.value || '').trim() || undefined;
+        voucher.clienteCiudad = String(document.getElementById('editFlexiClienteCiudad')?.value || '').trim() || undefined;
+        voucher.notas = String(document.getElementById('editFlexiNotas')?.value || '').trim();
+
+        normalizeFlexiVoucherCupos(voucher);
+        saveFlexiDataToStorage();
+        updateFlexiStats();
+        renderFlexiVouchersTable();
+        renderFlexiClientSummaryTable();
+        showNotification('✅ Voucher actualizado', 'success');
+        viewVoucherDetail(voucher.id);
     }
 
     function closeVoucherDetailModal() {
@@ -31336,7 +31491,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
     // EXPORTAR DATOS
     // =====================================================
 
-    function exportFlexiVouchers() {
+    function exportFlexiVouchers_PLACEHOLDER_REMOVE() {
         if (flexiVouchers.length === 0) {
             showNotification('⚠️ No hay vouchers para exportar', 'warning');
             return;
