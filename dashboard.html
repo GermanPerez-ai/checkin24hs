@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-23T18:32:26Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 241; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-23T18:46:39Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 242; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">241</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">242</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -29599,7 +29599,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             await syncFlexiCorralcoFromSheet({ silent: true });
         }
         if (normalizeAllFlexiVouchersCupos()) {
-            saveFlexiDataToStorage();
+            void saveFlexiDataToStorage().catch(err => console.warn('Flexi normalize save:', err));
         }
         updateFlexiStats();
         renderFlexiProgramsTable();
@@ -29807,7 +29807,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             const importedVouchers = buildCorralcoVouchersFromRows(corralcoRows, program, 'gsheet-corralco');
             if (!importedVouchers.length) return;
 
-            applyCorralcoImportResult(program, importedVouchers, 'gsheet-corralco', { skipped, silent });
+            await applyCorralcoImportResult(program, importedVouchers, 'gsheet-corralco', { skipped, silent });
         } catch (e) {
             console.warn('Flexi Corralco sync error:', e);
             if (!silent && !FLEXI_CORRALCO_SHEET.warned) {
@@ -30100,12 +30100,29 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         return importedVouchers;
     }
 
-    function applyCorralcoImportResult(program, importedVouchers, sourceTag, meta) {
+    async function applyCorralcoImportResult(program, importedVouchers, sourceTag, meta) {
         // Reemplazo total: borra Flexi y canjes anteriores; carga la lista nueva
         flexiPrograms = [program];
         flexiVouchers = importedVouchers.map(v => normalizeFlexiVoucherCupos(v));
         flexiCanjes = [];
-        saveFlexiDataToStorage({ replaceAll: true });
+        try {
+            localStorage.setItem('flexi_import_expected', String(importedVouchers.length));
+            await saveFlexiDataToStorage({ replaceAll: true });
+            const sb = window.supabaseClient;
+            if (sb && typeof sb.isInitialized === 'function' && sb.isInitialized() && typeof sb.getFlexiVouchers === 'function') {
+                const cloud = await sb.getFlexiVouchers();
+                if (cloud.length !== importedVouchers.length) {
+                    showNotification(
+                        `⚠️ Importó ${importedVouchers.length} FLEXi pero Supabase tiene ${cloud.length}. Revisá permisos DELETE/INSERT en flexi_vouchers.`,
+                        'warning'
+                    );
+                }
+            }
+        } catch (err) {
+            console.error('Flexi import save error:', err);
+            showNotification('❌ Error al guardar la lista Flexi en Supabase: ' + (err?.message || err), 'error');
+            return;
+        }
         updateFlexiStats();
         renderFlexiProgramsTable();
         renderFlexiVouchersTable();
@@ -30122,7 +30139,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
     }
 
-    function importFlexiCorralcoFromRowObjects(dataRows, sourceTag) {
+    async function importFlexiCorralcoFromRowObjects(dataRows, sourceTag) {
         const { rows: corralcoRows, skipped, skippedInvalid } = filterCorralcoImportRows(dataRows);
         if (!corralcoRows.length) {
             showNotification('⚠️ No se encontraron filas importables (revisá email, nombre o códigos).', 'warning');
@@ -30134,14 +30151,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             showNotification('⚠️ Se encontraron filas pero sin vouchers válidos.', 'warning');
             return;
         }
-        applyCorralcoImportResult(program, importedVouchers, sourceTag, { skipped, skippedInvalid });
+        await applyCorralcoImportResult(program, importedVouchers, sourceTag, { skipped, skippedInvalid });
     }
 
     function openImportCorralcoFile() {
         const prev = (flexiVouchers || []).length;
         if (prev > 0) {
             const ok = confirm(
-                `Esto ELIMINA los ${prev} Flexi actuales (y sus canjes) y carga la lista nueva del Excel.\n\nArchivo esperado: ULTIMOFLEXIPASS ARG. 2026.xlsx\n\n¿Continuar?`
+                `Esto ELIMINA los ${prev} Flexi actuales (y sus canjes) y carga la lista nueva del Excel.\n\nArchivo: ULTIMOFLEXIPASS ARG. 2026.xlsx (Hoja2 → ~112 FLEXi)\n\n¿Continuar?`
             );
             if (!ok) return;
         }
@@ -30160,9 +30177,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
         if (isExcel) {
             const reader = new FileReader();
-            reader.onload = () => {
+            reader.onload = async () => {
                 try {
-                    importFlexiCorralcoFromRowObjects(excelBufferToCorralcoObjects(reader.result), 'corralco-import-file');
+                    showNotification('⏳ Importando lista Flexi desde Excel…', 'info');
+                    await importFlexiCorralcoFromRowObjects(excelBufferToCorralcoObjects(reader.result), 'corralco-import-file');
                 } catch (e) {
                     console.error('Import Corralco Excel error:', e);
                     showNotification('❌ Error al leer el Excel de Corralco.', 'error');
@@ -30174,9 +30192,10 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         const reader = new FileReader();
-        reader.onload = () => {
+        reader.onload = async () => {
             try {
-                importFlexiCorralcoFromCsvText(String(reader.result || ''));
+                showNotification('⏳ Importando lista Flexi desde CSV…', 'info');
+                await importFlexiCorralcoFromCsvText(String(reader.result || ''));
             } catch (e) {
                 console.error('Import Corralco CSV error:', e);
                 showNotification('❌ Error al leer el archivo CSV de Corralco.', 'error');
@@ -30186,13 +30205,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         reader.readAsText(file, 'utf-8');
     }
 
-    function importFlexiCorralcoFromCsvText(csvText) {
+    async function importFlexiCorralcoFromCsvText(csvText) {
         const dataRows = csvRowsToCorralcoObjects(csvText);
         if (!dataRows.length) {
             showNotification('⚠️ El CSV está vacío o no tiene datos.', 'warning');
             return;
         }
-        importFlexiCorralcoFromRowObjects(dataRows, 'corralco-import-file');
+        await importFlexiCorralcoFromRowObjects(dataRows, 'corralco-import-file');
     }
 
     function flexiLoadFromLocalStorageOnly() {
@@ -30234,25 +30253,6 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     flexiPrograms = Array.isArray(p) ? p : [];
                     flexiVouchers = Array.isArray(v) ? v : [];
                     flexiCanjes = Array.isArray(c) ? c : [];
-                    try {
-                        const mergeById = (cloud, localArr, idKey) => {
-                            const ids = new Set((cloud || []).map(x => String(x[idKey])));
-                            const out = [...(cloud || [])];
-                            for (const row of localArr || []) {
-                                if (row && row[idKey] != null && !ids.has(String(row[idKey]))) out.push(row);
-                            }
-                            return out;
-                        };
-                        const lp = localStorage.getItem('flexi_programs');
-                        const lv = localStorage.getItem('flexi_vouchers');
-                        const lc = localStorage.getItem('flexi_canjes');
-                        const localP = lp ? JSON.parse(lp) : [];
-                        const localV = lv ? JSON.parse(lv) : [];
-                        const localC = lc ? JSON.parse(lc) : [];
-                        flexiPrograms = mergeById(flexiPrograms, localP, 'id');
-                        flexiVouchers = mergeById(flexiVouchers, localV, 'id');
-                        flexiCanjes = mergeById(flexiCanjes, localC, 'id');
-                    } catch (e) { /* ignore merge */ }
                     mirrorLocal();
                     console.log(`☁️ Flexi desde Supabase: ${flexiPrograms.length} programas, ${flexiVouchers.length} vouchers, ${flexiCanjes.length} canjes`);
                     return;
@@ -30271,27 +30271,32 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         flexiLoadFromLocalStorageOnly();
     }
 
-    function saveFlexiDataToStorage(opts) {
+    async function saveFlexiDataToStorage(opts) {
         try {
             localStorage.setItem('flexi_programs', JSON.stringify(flexiPrograms));
             localStorage.setItem('flexi_vouchers', JSON.stringify(flexiVouchers));
             localStorage.setItem('flexi_canjes', JSON.stringify(flexiCanjes));
             console.log('💾 Datos Flexi guardados (local)');
-            flexiPersistToSupabase(opts);
+            await flexiPersistToSupabase(opts);
         } catch (error) {
             console.error('❌ Error guardando datos Flexi:', error);
+            throw error;
         }
     }
 
-    function flexiPersistToSupabase(opts) {
+    async function flexiPersistToSupabase(opts) {
         const sb = window.supabaseClient;
         if (!sb || typeof sb.isInitialized !== 'function' || !sb.isInitialized() || typeof sb.syncFlexiData !== 'function') return;
-        Promise.resolve(sb.syncFlexiData(flexiPrograms, flexiVouchers, flexiCanjes, opts || {}))
-            .then(() => console.log('☁️ Flexi sincronizado en Supabase', opts?.replaceAll ? '(reemplazo total)' : ''))
-            .catch(err => {
-                console.warn('☁️ Error sync Flexi Supabase:', err);
+        try {
+            await sb.syncFlexiData(flexiPrograms, flexiVouchers, flexiCanjes, opts || {});
+            console.log('☁️ Flexi sincronizado en Supabase', opts?.replaceAll ? '(reemplazo total)' : '');
+        } catch (err) {
+            console.warn('☁️ Error sync Flexi Supabase:', err);
+            if (!opts?.replaceAll) {
                 showNotification('⚠️ Flexi guardado en el navegador; error al sincronizar con Supabase (revisá migraciones 042, 043 y 076).', 'warning');
-            });
+            }
+            throw err;
+        }
     }
 
     async function refreshFlexiData() {
