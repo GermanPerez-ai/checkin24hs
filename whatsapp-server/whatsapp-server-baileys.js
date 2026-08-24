@@ -5787,6 +5787,133 @@ function fromMeMessageHasRenderableContent(msg) {
     );
 }
 
+/** Texto plano de un mensaje saliente Baileys (para detectar saludos Meta). */
+function extractBaileysOutboundPlainText(msg) {
+    let m = unwrapBaileysInnerMessage(msg?.message) || msg?.message;
+    if (!m) return '';
+    return String(
+        m.conversation ||
+        m.extendedTextMessage?.text ||
+        m.imageMessage?.caption ||
+        m.videoMessage?.caption ||
+        ''
+    ).trim();
+}
+
+/**
+ * Saludos / respuestas automáticas de WhatsApp Business o Meta Ads (Instant Reply).
+ * NO son un asesor humano: no deben activar el Protocolo de Silencio.
+ */
+function isMetaOrBusinessAutoOutbound(text) {
+    const t = String(text || '').trim();
+    if (!t) return false;
+    if (/saludo\s+autom[aá]tico/i.test(t)) return true;
+    if (/respuesta\s+(autom[aá]tica|instant[aá]nea)/i.test(t)) return true;
+    if (/mensaje\s+(de\s+)?bienvenida\s+autom[aá]tico/i.test(t)) return true;
+    if (/instant\s+reply|away\s+message|greeting\s+message/i.test(t)) return true;
+    // Plantilla típica Meta CTWA / Business greeting
+    if (/¿c[oó]mo\s+podemos\s+ayudarte\?/i.test(t) && /te\s+enviaremos\s+informaci[oó]n/i.test(t)) return true;
+    if (/^¡?\s*hola!\s*¿c[oó]mo\s+podemos\s+ayudarte\?/i.test(t) && t.length < 220) return true;
+    return false;
+}
+
+async function lastOutboundIsMetaBusinessAuto(chatId) {
+    if (!supabase || !chatId) return false;
+    try {
+        const run = async (col) => {
+            let res = await supabase
+                .from('whatsapp_messages')
+                .select('message, is_from_flor, is_from_me, sent_at')
+                .eq(col, chatId)
+                .eq('is_from_me', true)
+                .order('sent_at', { ascending: false })
+                .limit(6);
+            if (res.error && String(res.error.message || '').includes('is_from_flor')) {
+                res = await supabase
+                    .from('whatsapp_messages')
+                    .select('message, is_from_me, sent_at')
+                    .eq(col, chatId)
+                    .eq('is_from_me', true)
+                    .order('sent_at', { ascending: false })
+                    .limit(6);
+            }
+            return res;
+        };
+        let res = await run('chat_id');
+        if (res.error || !res.data?.length) res = await run('conversation_id');
+        if (res.error || !res.data?.length) return false;
+        for (const row of res.data) {
+            if (row.is_from_flor === true) continue;
+            return isMetaOrBusinessAutoOutbound(row.message || '');
+        }
+        return false;
+    } catch (_) {
+        return false;
+    }
+}
+
+/** Libera pausa si solo la provocó un saludo automático de Meta/Business (o CTWA sin respuesta Flor). */
+async function releaseFlorPauseIfMetaAutoGreeting(phone, chatId, instanceNumber, inboundText = '') {
+    const inst = instanceNumber || CONFIG.INSTANCE_NUMBER || 1;
+    let shouldRelease = await lastOutboundIsMetaBusinessAuto(chatId);
+
+    if (!shouldRelease && supabase && chatId) {
+        try {
+            const sess = await findWhatsAppChatSession(phone, inst, chatId);
+            const paused = !!(sess && sess.flor_paused_until && new Date(sess.flor_paused_until).getTime() > Date.now());
+            const hasAd = !!(sess && sess.travel_data && sess.travel_data.ad_referral);
+            let florOut = 0;
+            if (paused && (hasAd || inboundHasRealUserSignal(inboundText, false))) {
+                const runCount = async (col) => {
+                    const res = await supabase
+                        .from('whatsapp_messages')
+                        .select('id', { count: 'exact', head: true })
+                        .eq(col, chatId)
+                        .eq('is_from_flor', true);
+                    return res.error ? null : (res.count || 0);
+                };
+                florOut = (await runCount('chat_id'));
+                if (florOut == null) florOut = (await runCount('conversation_id')) || 0;
+                // Lead de anuncio / primera consulta real, Flor nunca habló → el "humano" fue el saludo Meta
+                if (florOut === 0 && (hasAd || inboundHasRealUserSignal(inboundText, false))) {
+                    shouldRelease = true;
+                    console.log(
+                        `🔓 Flor: silencio fantasma post-CTWA/saludo Meta (ad=${hasAd ? 'sí' : 'no'}, florOut=0) chat=${chatId}`
+                    );
+                }
+            }
+        } catch (e) {
+            console.warn('⚠️ releaseFlorPause CTWA check:', e?.message || e);
+        }
+    }
+
+    if (!shouldRelease) return false;
+    try {
+        if (phone) {
+            const digits = String(phone).replace(/\D/g, '');
+            if (digits) florPauseMemoryUntil.delete(digits);
+            florPauseMemoryUntil.delete(String(phone));
+            if (digits) florPauseMemoryUntil.delete('+' + digits);
+        }
+        if (supabase && chatId) {
+            await supabase
+                .from('whatsapp_chats')
+                .update({
+                    flor_paused_until: null,
+                    last_human_outbound_at: null,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', String(chatId))
+                .eq('whatsapp_instance', inst);
+        }
+        console.log(`🔓 Flor: silencio liberado (saludo automático Meta/Business) chat=${chatId} phone=${phone || '—'}`);
+        return true;
+    } catch (e) {
+        console.warn('⚠️ releaseFlorPauseIfMetaAutoGreeting:', e?.message || e);
+        return false;
+    }
+}
+
 /** WhatsApp suele truncar ~4096 caracteres; enviar en partes si hace falta. */
 async function enviarTextoWhatsAppEnPartes(sock, remoteJid, texto) {
     const max = 4090;
@@ -6567,6 +6694,15 @@ async function connectToWhatsApp() {
                 if (!fromMeMessageHasRenderableContent(msg)) {
                     continue;
                 }
+                // Saludo automático Meta Ads / WhatsApp Business ≠ asesor humano
+                const outTextMeta = extractBaileysOutboundPlainText(msg);
+                if (isMetaOrBusinessAutoOutbound(outTextMeta)) {
+                    console.log(
+                        `⏭️ Flor: saludo/respuesta automática Meta/Business — no Protocolo Silencio | ` +
+                        `"${outTextMeta.slice(0, 80)}${outTextMeta.length > 80 ? '…' : ''}"`
+                    );
+                    continue;
+                }
                 if (remoteJidOut) {
                     const jidLocal = String(remoteJidOut).replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '').trim().split(':')[0];
                     let resolved = resolvePhoneForFlorPauseFromOutgoing(sock, msg);
@@ -6886,8 +7022,18 @@ async function connectToWhatsApp() {
 
             const silenceInbound = await assertFlorSilenceProtocolDbOnly(numero, CONFIG.INSTANCE_NUMBER, savedChatIdInbound || null);
             if (silenceInbound.blocked) {
-                console.log(`🛑 Flor: inbound ignorado (Protocolo Silencio DB ${silenceInbound.reason?.source || 'active'})`);
-                continue;
+                const released = savedChatIdInbound
+                    ? await releaseFlorPauseIfMetaAutoGreeting(
+                        numero,
+                        savedChatIdInbound,
+                        CONFIG.INSTANCE_NUMBER,
+                        texto
+                    )
+                    : false;
+                if (!released) {
+                    console.log(`🛑 Flor: inbound ignorado (Protocolo Silencio DB ${silenceInbound.reason?.source || 'active'})`);
+                    continue;
+                }
             }
 
             const antiLoopInbound = await evaluateFlorAntiLoopOnInbound({
