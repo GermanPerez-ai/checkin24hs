@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sync IMAP (Dovecot LOGIN) → Supabase. Confirmaciones Huilo y Corralco."""
+"""Sync IMAP (Dovecot LOGIN) → Supabase. Huilo, Corralco, Puyehue y Aguas Calientes."""
 from __future__ import annotations
 
 import argparse
@@ -19,6 +19,7 @@ from pathlib import Path
 
 from parse_corralco import looks_corralco, parse_corralco_confirmations
 from parse_huilo import parse_huilo_confirmations, strip_html
+from parse_puyehue import looks_puyehue, parse_puyehue_mail
 
 DIR = Path(__file__).resolve().parent
 
@@ -144,11 +145,19 @@ def connect_imap():
 
 
 def find_hotel(key: str = "huilo"):
-    key = (key or "huilo").lower()
+    key = (key or "huilo").lower().replace("_web", "")
     if key == "corralco":
         q = "hotels?select=id,name&name.ilike.*corralco*&limit=8"
         fallback = "Hotel Corralco Resort"
         token = "corralco"
+    elif key == "puyehue":
+        q = "hotels?select=id,name&name.ilike.*puyehue*&limit=8"
+        fallback = "Hotel Termas de Puyehue"
+        token = "puyehue"
+    elif key == "aguas_calientes":
+        q = "hotels?select=id,name&name.ilike.*aguas*calientes*&limit=8"
+        fallback = "Cabañas Termas de Aguas Calientes"
+        token = "aguas calientes"
     else:
         q = "hotels?select=id,name&or=(name.ilike.*huilo*,name.ilike.*Huilo*)&limit=5"
         fallback = "Huilo Huilo"
@@ -189,8 +198,8 @@ def upsert_reservation(parsed, hotel, agent_name: str):
     row = {
         "reservation_code": parsed["reservation_code"],
         "client_name": parsed["client_name"],
-        "client_email": "",
-        "client_phone": "",
+        "client_email": parsed.get("client_email") or "",
+        "client_phone": parsed.get("client_phone") or "",
         "hotel_id": hotel.get("id"),
         "hotel_name": hotel.get("name"),
         "check_in": parsed["check_in"],
@@ -210,6 +219,28 @@ def upsert_reservation(parsed, hotel, agent_name: str):
         raise
 
 
+def patch_reservation_agent(reservation_code: str, agent_name: str):
+    if not reservation_code or not agent_name:
+        return None
+    q = (
+        "reservations?reservation_code=eq."
+        + urllib.parse.quote(str(reservation_code).strip(), safe="")
+        + "&select=id,reservation_code,agent_name"
+    )
+    existing = sb("GET", q)
+    if not isinstance(existing, list) or not existing:
+        return None
+    row_id = existing[0].get("id")
+    if not row_id:
+        return None
+    path = "reservations?id=eq." + urllib.parse.quote(str(row_id), safe="")
+    return sb(
+        "PATCH",
+        path,
+        {"agent_name": agent_name, "updated_at": dt.datetime.utcnow().isoformat() + "Z"},
+    )
+
+
 def parse_reservation_mail(from_addr, subject, text, html, msg_dt):
     mail = {
         "from": from_addr,
@@ -221,6 +252,11 @@ def parse_reservation_mail(from_addr, subject, text, html, msg_dt):
     blob = f"{from_addr} {subject} {text[:2000]} {(html or '')[:500]}".lower()
     if re.search(r"undeliverable|propuesta comercial|jahuel|delivery status", subject, re.I):
         return None, []
+    if looks_puyehue(from_addr, subject, f"{text}\n{html or ''}"):
+        row = parse_puyehue_mail(mail)
+        if row:
+            return row.get("hotel_key") or "puyehue", [row]
+        return "puyehue", []
     is_corralco = looks_corralco(from_addr, subject, f"{text}\n{html or ''}")
     is_huilo = "huilohuilo.com" in from_addr.lower() or "huilo" in subject.lower()
     if is_corralco and not is_huilo:
@@ -235,8 +271,29 @@ def parse_reservation_mail(from_addr, subject, text, html, msg_dt):
     return None, []
 
 
-def agent_for(hotel_key: str) -> str:
-    return "Email Corralco" if hotel_key == "corralco" else "Email Huilo"
+def agent_for(hotel_key: str, parsed: dict | None = None, pending_agent: str = "") -> str:
+    if pending_agent:
+        return pending_agent
+    if parsed and parsed.get("kind") == "agency":
+        return parsed.get("agent_name") or ""
+    is_web = bool((parsed or {}).get("is_web")) or str(hotel_key or "").endswith("_web")
+    hk = (hotel_key or "").replace("_web", "")
+    if is_web:
+        if hk == "aguas_calientes":
+            return "Ventas Web Aguas Calientes"
+        if hk == "puyehue":
+            return "Ventas Web Puyehue"
+    if hk == "corralco":
+        return "Email Corralco"
+    if hk == "puyehue":
+        return "Email Puyehue"
+    if hk == "aguas_calientes":
+        return "Email Aguas Calientes"
+    return "Email Huilo"
+
+
+def hotel_lookup_key(hotel_key: str) -> str:
+    return (hotel_key or "huilo").replace("_web", "")
 
 
 def main():
@@ -262,13 +319,19 @@ def main():
     hotels = {
         "huilo": {"id": None, "name": "Huilo Huilo"},
         "corralco": {"id": None, "name": "Hotel Corralco Resort"},
+        "puyehue": {"id": None, "name": "Hotel Termas de Puyehue"},
+        "aguas_calientes": {"id": None, "name": "Cabañas Termas de Aguas Calientes"},
     }
     if not args.dry_run:
-        hotels["huilo"] = find_hotel("huilo")
-        hotels["corralco"] = find_hotel("corralco")
-    print(f"🏨 Huilo: {hotels['huilo']['name']} | Corralco: {hotels['corralco']['name']}")
+        for hk in list(hotels.keys()):
+            hotels[hk] = find_hotel(hk)
+    print(
+        f"🏨 Huilo: {hotels['huilo']['name']} | Corralco: {hotels['corralco']['name']} | "
+        f"Puyehue: {hotels['puyehue']['name']} | Aguas Cal.: {hotels['aguas_calientes']['name']}"
+    )
 
-    stats = {"scanned": 0, "parsed": 0, "imported": 0, "skipped": 0, "errors": 0}
+    stats = {"scanned": 0, "parsed": 0, "imported": 0, "agents": 0, "skipped": 0, "errors": 0}
+    pending_agents: dict[str, str] = {}
     client = connect_imap()
     try:
         typ, _ = client.select(MAILBOX, readonly=True)
@@ -325,30 +388,67 @@ def main():
 
             stats["parsed"] += len(parsed_list)
             for parsed in parsed_list:
+                kind = parsed.get("kind", "client")
+                code = parsed.get("reservation_code", "")
+                if kind == "agency":
+                    pending_agents[code] = parsed.get("agent_name") or ""
+                    print(f"👤 [{hotel_key}] agente {code} → {pending_agents[code]}")
+                    if args.dry_run:
+                        continue
+                    try:
+                        if patch_reservation_agent(code, pending_agents[code]):
+                            stats["agents"] += 1
+                        mark_imported(
+                            {
+                                "message_id": message_id,
+                                "reservation_code": code,
+                                "hotel_key": hotel_key,
+                                "subject": subject,
+                                "from_addr": from_addr,
+                                "status": "imported",
+                            }
+                        )
+                    except Exception as e:
+                        stats["errors"] += 1
+                        print(f"❌ Error agente {code}: {e}")
+                    continue
+
+                agent_name = agent_for(hotel_key, parsed, pending_agents.get(code, ""))
                 print(
                     f"✅ [{hotel_key}] {parsed['reservation_code']} | {parsed['client_name']} | "
-                    f"{parsed['check_in']}→{parsed['check_out']} | {parsed['currency']} {parsed['total_amount']}"
+                    f"{parsed['check_in']}→{parsed['check_out']} | {parsed.get('currency', 'USD')} "
+                    f"{parsed['total_amount']} | {agent_name}"
                 )
             if args.dry_run:
                 continue
-            hotel = hotels.get(hotel_key) or hotels["huilo"]
+            lookup = hotel_lookup_key(hotel_key)
+            hotel = hotels.get(lookup) or hotels["huilo"]
             try:
                 for parsed in parsed_list:
-                    upsert_reservation(parsed, hotel, agent_for(hotel_key))
+                    if parsed.get("kind") == "agency":
+                        continue
+                    code = parsed.get("reservation_code", "")
+                    agent_name = agent_for(hotel_key, parsed, pending_agents.get(code, ""))
+                    upsert_reservation(parsed, hotel, agent_name)
                     stats["imported"] += 1
-                mark_imported(
-                    {
-                        "message_id": message_id,
-                        "reservation_code": " | ".join(p["reservation_code"] for p in parsed_list),
-                        "hotel_key": hotel_key,
-                        "subject": subject,
-                        "from_addr": from_addr,
-                        "status": "imported",
-                    }
-                )
+                client_codes = [
+                    p["reservation_code"] for p in parsed_list if p.get("kind") != "agency"
+                ]
+                if client_codes:
+                    mark_imported(
+                        {
+                            "message_id": message_id,
+                            "reservation_code": " | ".join(client_codes),
+                            "hotel_key": hotel_key,
+                            "subject": subject,
+                            "from_addr": from_addr,
+                            "status": "imported",
+                        }
+                    )
             except Exception as e:
                 stats["errors"] += 1
-                print(f"❌ Error importando {parsed_list[0]['reservation_code']}: {e}")
+                first = next((p for p in parsed_list if p.get("kind") != "agency"), parsed_list[0])
+                print(f"❌ Error importando {first.get('reservation_code')}: {e}")
     finally:
         try:
             client.logout()
@@ -358,7 +458,8 @@ def main():
     print("———")
     print(
         f"Listo. scanned={stats['scanned']} parsed={stats['parsed']} "
-        f"imported={stats['imported']} skipped={stats['skipped']} errors={stats['errors']}"
+        f"imported={stats['imported']} agents={stats['agents']} "
+        f"skipped={stats['skipped']} errors={stats['errors']}"
     )
 
 
