@@ -215,10 +215,10 @@ const FLOR_ANTI_LOOP_MAX_CONSECUTIVE = Math.max(1, parseInt(process.env.FLOR_ANT
 const FLOR_ANTI_LOOP_RAPID_MS = Math.max(500, parseInt(process.env.FLOR_ANTI_LOOP_RAPID_MS || '4000', 10) || 4000);
 /** Hits rápidos consecutivos sin datos reales para pausar (aunque aún no llegue al máx. de Flor). */
 const FLOR_ANTI_LOOP_RAPID_HITS = Math.max(1, parseInt(process.env.FLOR_ANTI_LOOP_RAPID_HITS || '2', 10) || 2);
-/** Minutos de pausa al detectar loop con otro bot (default 24h). */
+/** Minutos de pausa al detectar loop con otro bot (default 60; antes 1440 cortaba chats reales). */
 const FLOR_ANTI_LOOP_PAUSE_MINUTES = Math.max(
-    FLOR_SILENCE_MINUTES,
-    parseInt(process.env.FLOR_ANTI_LOOP_PAUSE_MINUTES || '1440', 10) || 1440
+    15,
+    parseInt(process.env.FLOR_ANTI_LOOP_PAUSE_MINUTES || '60', 10) || 60
 );
 
 /** Pausa mínima entre burbujas salientes (cola de salida). Default 3s — evita "Esperando mensaje". */
@@ -1138,6 +1138,8 @@ function inboundHasRealUserSignal(text, hasMedia = false) {
     }
     if (/consulta desde checkin24hs\.com/i.test(t)) return true;
     if (/\b(puyehue|corralco|huilo(\s*huilo)?|antilhue|lago\s*puelo|bariloche|san\s*mart[ií]n|villa\s*la\s*angostura|puerto\s*varas)\b/i.test(t)) return true;
+    // Catálogo / intención comercial (no es bot genérico)
+    if (/\b(qu[eé]\s+hoteles?|hoteles?\s+(ten[eé]s|tienen|trabajan|ofrecen)|info\s+(de|del|sobre)|m[aá]s\s+info|pasame\s+info|2\s*x\s*1|promo(ci[oó]n)?)\b/i.test(t)) return true;
     if (/\b(me llamo|mi nombre es)\s+[A-ZÁÉÍÓÚÑa-záéíóúñ]{2,}/i.test(t)) return true;
     if (/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(t)) return true;
     if (/\b(somos|vamos|viajamos|necesitamos?)\s+\d{1,2}\b/i.test(t)) return true;
@@ -1244,7 +1246,7 @@ async function evaluateFlorAntiLoopOnInbound({ phone, text, remoteJid = null, ch
     if (!reason) return { blocked: false };
 
     clearFlorPendingQueuesForPhone(phone, remoteJid);
-    await setFlorPausedUntil(phone, FLOR_ANTI_LOOP_PAUSE_MINUTES, chatId || null);
+    await setFlorPausedUntil(phone, FLOR_ANTI_LOOP_PAUSE_MINUTES, chatId || null, null, { markAsHuman: false });
     resetFlorAntiLoopState(phone);
     console.log(
         `🛑 Flor ANTI-LOOP: pausa ${FLOR_ANTI_LOOP_PAUSE_MINUTES} min | phone=${phone} | ${reason}` +
@@ -1268,7 +1270,7 @@ async function recordFlorAntiLoopOutbound(phone, chatId = null, remoteJid = null
 
     // Tras el N-ésimo mensaje sin datos reales: cortar ya (no esperar otro inbound).
     clearFlorPendingQueuesForPhone(phone, remoteJid);
-    await setFlorPausedUntil(phone, FLOR_ANTI_LOOP_PAUSE_MINUTES, chatId || null);
+    await setFlorPausedUntil(phone, FLOR_ANTI_LOOP_PAUSE_MINUTES, chatId || null, null, { markAsHuman: false });
     const streak = st.florOutboundWithoutRealData;
     resetFlorAntiLoopState(phone);
     console.log(
@@ -3772,8 +3774,9 @@ async function florMiddlewareSilenceBlocked(phone, instanceNumber, chatIdOptiona
  * @param {number} minutes - Minutos de pausa (ej: 10)
  * @param {string} [chatIdOptional] - Si viene del dashboard con chat_id, actualizar por id para no fallar con LID
  * @param {string} [lidDigitsForRowMatch] - JID local @lid (solo dígitos): la fila en Supabase a menudo tiene phone=LID; sin esto el UPDATE por +549 no pega y Flor sigue respondiendo.
+ * @param {{ markAsHuman?: boolean }} [opts] - Si markAsHuman=false (anti-loop), no toca last_human_outbound_at.
  */
-async function setFlorPausedUntil(phone, minutes, chatIdOptional = null, lidDigitsForRowMatch = null) {
+async function setFlorPausedUntil(phone, minutes, chatIdOptional = null, lidDigitsForRowMatch = null, opts = {}) {
     const lidClean = lidDigitsForRowMatch ? String(lidDigitsForRowMatch).replace(/\D/g, '') : '';
     if (phone) florPauseMemoryTouch(phone);
     if (lidClean.length >= 10) florPauseMemoryTouchMany('+' + lidClean);
@@ -3783,11 +3786,14 @@ async function setFlorPausedUntil(phone, minutes, chatIdOptional = null, lidDigi
         const nowIso = new Date().toISOString();
         const until = new Date(Date.now() + minutes * 60 * 1000).toISOString();
         const instance = CONFIG.INSTANCE_NUMBER || 1;
+        const markAsHuman = opts?.markAsHuman !== false;
         const updates = {
             flor_paused_until: until,
-            last_human_outbound_at: nowIso,
             updated_at: nowIso
         };
+        if (markAsHuman) {
+            updates.last_human_outbound_at = nowIso;
+        }
 
         const mergeMatchKeys = () => {
             const s = new Set();
@@ -5566,6 +5572,21 @@ async function resolveFlorSendJid(sock, p) {
             console.warn('⚠️ resolveFlorSendJid onWhatsApp:', e?.message || e);
         }
     }
+    // Nunca preferir @lid puro: el cliente queda en "Esperando mensaje"
+    if (fb && String(fb).includes('@lid')) {
+        const lidD = String(fb).replace(/@lid.*/i, '').replace(/\D/g, '');
+        if (lidD.length >= 10) {
+            const fromDb = await resolvePausePhoneViaSupabaseLid(lidD);
+            if (fromDb) {
+                const d = fromDb.replace(/\D/g, '');
+                console.log(`📤 Envío Flor: fallback final LID→Supabase → ${d}@s.whatsapp.net`);
+                return `${d}@s.whatsapp.net`;
+            }
+        }
+        console.warn(`⚠️ resolveFlorSendJid: fb es @lid (${fb}) sin PN — riesgo Esperando mensaje`);
+    }
+    if (fb && !String(fb).includes('@lid')) return fb;
+    if (rj && !String(rj).includes('@lid')) return rj;
     return fb || rj;
 }
 
