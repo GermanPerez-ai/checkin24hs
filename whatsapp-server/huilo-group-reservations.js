@@ -106,8 +106,10 @@ async function findHuiloHotel(supabase) {
         .or('name.ilike.*huilo*,name.ilike.*Huilo*')
         .limit(8);
     const list = data || [];
-    const preferred =
-        list.find((h) => /huilo/i.test(h.name || '') && !/pack/i.test(h.name || '')) || list[0];
+    const preferred = list.find(
+        (h) => /huilo/i.test(h.name || '') && !/pack/i.test(h.name || '') && !/caba[nñ]a del lago|puerto varas/i.test(h.name || '')
+    );
+    // Nunca usar list[0] sin match (evita hotel fantasma)
     const value = preferred
         ? { id: preferred.id || null, name: preferred.name || 'Hotel Huilo-Huilo' }
         : { id: null, name: 'Hotel Huilo-Huilo' };

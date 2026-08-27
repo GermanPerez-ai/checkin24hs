@@ -144,36 +144,101 @@ def connect_imap():
     return client
 
 
+# IDs canónicos (catálogo Checkin24hs). Evitan el bug histórico:
+# query ilike fallida → data[0] → "Hotel Cabaña Del Lago Puerto Varas".
+# IDs opcionales vía env (si el UUID está mal, _hotel_by_id falla y se usa ilike).
+# No hardcodear Puyehue: un UUID inventado rompe el FK reservations_hotel_id_fkey.
+HOTEL_IDS = {
+    "corralco": env("HOTEL_ID_CORRALCO", "42f41707-866d-4afc-a2af-2a1012c6950c"),
+    "puyehue": env("HOTEL_ID_PUYEHUE", ""),
+    "aguas_calientes": env("HOTEL_ID_AGUAS_CALIENTES", ""),
+    "huilo": env("HOTEL_ID_HUILO", ""),
+}
+FORBIDDEN_HOTEL_SUBSTR = (
+    "cabaña del lago",
+    "cabana del lago",
+)
+
+
+def _is_forbidden_hotel_name(name: str) -> bool:
+    n = (name or "").lower()
+    if any(s in n for s in FORBIDDEN_HOTEL_SUBSTR):
+        return True
+    if "puerto varas" in n and "puyehue" not in n and "corralco" not in n and "huilo" not in n:
+        return True
+    return False
+
+
+def _hotel_name_ok(name: str, tokens: list[str]) -> bool:
+    n = (name or "").lower()
+    if not n or "pack" in n or _is_forbidden_hotel_name(n):
+        return False
+    return all(t in n for t in tokens)
+
+
+def _hotel_by_id(hotel_id: str) -> dict | None:
+    hid = (hotel_id or "").strip()
+    if not hid:
+        return None
+    q = "hotels?select=id,name&id=eq." + urllib.parse.quote(hid, safe="") + "&limit=1"
+    data = sb("GET", q)
+    if isinstance(data, list) and data:
+        row = data[0]
+        name = row.get("name") or ""
+        if _is_forbidden_hotel_name(name):
+            return None
+        return {"id": row.get("id"), "name": name}
+    return None
+
+
 def find_hotel(key: str = "huilo"):
+    """Resuelve hotel por ID canónico + nombre. Nunca usa data[0] ni Cabaña Del Lago."""
     key = (key or "huilo").lower().replace("_web", "")
     if key == "corralco":
-        q = "hotels?select=id,name&name.ilike.*corralco*&limit=8"
-        fallback = "Hotel Corralco Resort"
-        token = "corralco"
+        patterns = ["*corralco*"]
+        fallback = "Corralco"
+        tokens_list = [["corralco"]]
     elif key == "puyehue":
-        q = "hotels?select=id,name&name.ilike.*puyehue*&limit=8"
-        fallback = "Hotel Termas de Puyehue"
-        token = "puyehue"
+        patterns = ["*puyehue*", "*termas*puyehue*"]
+        fallback = "Hotel Termas Puyehue Wellness & Spa Resort"
+        tokens_list = [["puyehue"], ["termas", "puyehue"]]
     elif key == "aguas_calientes":
-        q = "hotels?select=id,name&name.ilike.*aguas*calientes*&limit=8"
+        patterns = ["*aguas*calientes*", "*aguas calientes*"]
         fallback = "Cabañas Termas de Aguas Calientes"
-        token = "aguas calientes"
+        tokens_list = [["aguas", "calientes"]]
     else:
-        q = "hotels?select=id,name&or=(name.ilike.*huilo*,name.ilike.*Huilo*)&limit=5"
+        patterns = ["*huilo*"]
         fallback = "Huilo Huilo"
-        token = "huilo"
-    data = sb("GET", q)
-    if not isinstance(data, list) or not data:
-        return {"id": None, "name": fallback}
-    preferred = next(
-        (
-            h
-            for h in data
-            if token in (h.get("name") or "").lower() and "pack" not in (h.get("name") or "").lower()
-        ),
-        data[0],
-    )
-    return {"id": preferred.get("id"), "name": preferred.get("name") or fallback}
+        tokens_list = [["huilo"]]
+
+    # 1) ID fijo (más confiable que ilike)
+    by_id = _hotel_by_id(HOTEL_IDS.get(key) or "")
+    if by_id:
+        return by_id
+
+    # 2) Búsqueda por nombre
+    candidates: list[dict] = []
+    seen_ids: set[str] = set()
+    for pat in patterns:
+        q = "hotels?select=id,name&name.ilike." + urllib.parse.quote(pat, safe="") + "&limit=20"
+        data = sb("GET", q)
+        if not isinstance(data, list):
+            continue
+        for h in data:
+            hid = str(h.get("id") or "")
+            if hid and hid in seen_ids:
+                continue
+            if hid:
+                seen_ids.add(hid)
+            candidates.append(h)
+
+    for tokens in tokens_list:
+        preferred = next((h for h in candidates if _hotel_name_ok(h.get("name") or "", tokens)), None)
+        if preferred:
+            return {"id": preferred.get("id"), "name": preferred.get("name") or fallback}
+
+    print(f"⚠️ find_hotel({key}): sin match confiable en catálogo → fallback '{fallback}' (id=null)")
+    return {"id": None, "name": fallback}
 
 
 def already_imported(message_id: str, retry_skipped: bool = False) -> bool:
@@ -195,6 +260,18 @@ def mark_imported(row: dict):
 
 
 def upsert_reservation(parsed, hotel, agent_name: str):
+    hotel = dict(hotel or {})
+    # Red de seguridad: nunca persistir Cabaña Del Lago / Puerto Varas fantasma
+    if _is_forbidden_hotel_name(hotel.get("name") or ""):
+        lookup = hotel_lookup_key(parsed.get("hotel_key") or "puyehue")
+        print(
+            f"⛔ Hotel prohibido '{hotel.get('name')}' en upsert "
+            f"{parsed.get('reservation_code')} → re-resolviendo ({lookup})"
+        )
+        hotel = find_hotel(lookup)
+    if _is_forbidden_hotel_name(hotel.get("name") or ""):
+        # Sin UUID inventado: FK hotels exige id real o null
+        hotel = {"id": None, "name": hotel.get("name") or "Hotel (revisar)"}
     row = {
         "reservation_code": parsed["reservation_code"],
         "client_name": parsed["client_name"],
@@ -319,7 +396,7 @@ def main():
     hotels = {
         "huilo": {"id": None, "name": "Huilo Huilo"},
         "corralco": {"id": None, "name": "Hotel Corralco Resort"},
-        "puyehue": {"id": None, "name": "Hotel Termas de Puyehue"},
+        "puyehue": {"id": None, "name": "Hotel Termas Puyehue Wellness & Spa Resort"},
         "aguas_calientes": {"id": None, "name": "Cabañas Termas de Aguas Calientes"},
     }
     if not args.dry_run:
@@ -329,6 +406,9 @@ def main():
         f"🏨 Huilo: {hotels['huilo']['name']} | Corralco: {hotels['corralco']['name']} | "
         f"Puyehue: {hotels['puyehue']['name']} | Aguas Cal.: {hotels['aguas_calientes']['name']}"
     )
+    if not args.dry_run:
+        for hk, h in hotels.items():
+            print(f"   · {hk}: id={h.get('id') or 'NULL'} name={h.get('name')}")
 
     stats = {"scanned": 0, "parsed": 0, "imported": 0, "agents": 0, "skipped": 0, "errors": 0}
     pending_agents: dict[str, str] = {}

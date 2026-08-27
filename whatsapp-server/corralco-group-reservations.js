@@ -100,8 +100,10 @@ async function findCorralcoHotel(supabase) {
     if (hotelCache.value && Date.now() - hotelCache.at < 10 * 60 * 1000) return hotelCache.value;
     const { data } = await supabase.from('hotels').select('id,name').ilike('name', '%corralco%').limit(8);
     const list = data || [];
-    const preferred =
-        list.find((h) => /corralco/i.test(h.name || '') && !/pack/i.test(h.name || '')) || list[0];
+    const preferred = list.find(
+        (h) => /corralco/i.test(h.name || '') && !/pack/i.test(h.name || '') && !/caba[nñ]a del lago|puerto varas/i.test(h.name || '')
+    );
+    // Nunca usar list[0] si no matchea Corralco (evita Hotel Cabaña Del Lago Puerto Varas)
     const value = preferred
         ? { id: preferred.id || null, name: preferred.name || 'Hotel Corralco Resort' }
         : { id: null, name: 'Hotel Corralco Resort' };
