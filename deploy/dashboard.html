@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-29T15:01:17Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 244; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-29T15:17:56Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 246; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">244</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">246</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -17736,6 +17736,121 @@ Ej:
             return `https://checkin24hs.com/promo/${encodeURIComponent(slug)}`;
         }
 
+        var LANDING_PROMOS_BUCKET = 'landing-promos';
+
+        async function uploadLandingPromoImageFile(slug, file) {
+            const client = window.supabaseClient && window.supabaseClient.client;
+            if (!client || !client.storage) throw new Error('Storage no disponible');
+            if (!file) throw new Error('Elegí un archivo de imagen');
+            const safeSlug = slugifyLandingText(slug) || 'promo';
+            let ext = (file.name || '').split('.').pop() || 'jpg';
+            if (!/^(jpe?g|png|webp|gif)$/i.test(ext)) ext = 'jpg';
+            const fileName = `landing/${safeSlug}-${Date.now()}.${ext.toLowerCase()}`;
+            const { error: upErr } = await client.storage
+                .from(LANDING_PROMOS_BUCKET)
+                .upload(fileName, file, { upsert: true, contentType: file.type || 'image/jpeg' });
+            if (upErr) {
+                const msg = String(upErr.message || upErr);
+                if (/bucket|not found|does not exist/i.test(msg)) {
+                    throw new Error('Bucket "landing-promos" no existe. Ejecutá 078_storage_landing_promos.sql o crealo en Storage (público).');
+                }
+                throw upErr;
+            }
+            const { data: urlData } = client.storage.from(LANDING_PROMOS_BUCKET).getPublicUrl(fileName);
+            return urlData.publicUrl;
+        }
+
+        async function setLandingPromoHeroImage(slug, imageUrl) {
+            if (!window.supabaseClient || !window.supabaseClient.isInitialized || !window.supabaseClient.isInitialized()) {
+                throw new Error('Supabase no inicializado');
+            }
+            const client = window.supabaseClient.client;
+            const { data, error } = await client
+                .from('landing_promos')
+                .update({ imagen_hero: imageUrl, updated_at: new Date().toISOString() })
+                .eq('slug', slug)
+                .select()
+                .single();
+            if (error) throw error;
+            return data;
+        }
+
+        /** Modal: subir/cambiar imagen hero de una landing ya creada. */
+        function showLandingPromoImageModal(slug, currentImageUrl, publicUrl) {
+            const existing = document.getElementById('landing-promo-image-modal');
+            if (existing) existing.remove();
+
+            const modal = document.createElement('div');
+            modal.id = 'landing-promo-image-modal';
+            modal.className = 'modal';
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;z-index:1100;';
+            const safeSlugAttr = String(slug || '').replace(/"/g, '&quot;');
+            const preview = currentImageUrl
+                ? `<img id="landingPromoImgPreview" src="${String(currentImageUrl).replace(/"/g, '&quot;')}" alt="" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;background:#eee;">`
+                : `<div id="landingPromoImgPreview" style="width:100%;height:160px;border-radius:8px;background:#e8eef7;display:flex;align-items:center;justify-content:center;color:#666;">Sin imagen aún</div>`;
+
+            modal.innerHTML = `
+                <div style="background:#fff;border-radius:12px;padding:24px;width:min(480px,94vw);max-height:90vh;overflow:auto;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                        <h2 style="margin:0;color:#003580;font-size:1.15rem;">🌐 Imagen de la landing</h2>
+                        <button type="button" onclick="this.closest('.modal').remove()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#666;">&times;</button>
+                    </div>
+                    <p style="margin:0 0 12px;color:#666;font-size:0.9rem;">Subí la foto del hero (JPG/PNG/WebP). Se guarda en Storage y en la landing.</p>
+                    <div style="margin-bottom:12px;">${preview}</div>
+                    <p style="margin:0 0 8px;font-size:0.85rem;word-break:break-all;"><strong>URL:</strong> <a href="${String(publicUrl || '').replace(/"/g, '&quot;')}" target="_blank" rel="noopener">${String(publicUrl || '').replace(/</g, '')}</a></p>
+                    <input type="file" id="landingPromoImageFile" accept="image/jpeg,image/png,image/webp,image/gif" style="width:100%;margin-bottom:12px;">
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button type="button" id="landingPromoUploadBtn" style="background:#003580;color:#fff;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;font-weight:600;">Subir imagen</button>
+                        <button type="button" onclick="this.closest('.modal').remove()" style="background:#eee;color:#333;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;">Listo</button>
+                    </div>
+                    <p id="landingPromoUploadStatus" style="margin:10px 0 0;font-size:0.85rem;color:#666;"></p>
+                </div>
+            `;
+            document.body.appendChild(modal);
+            modal.addEventListener('click', function (e) {
+                if (e.target === modal) modal.remove();
+            });
+
+            const btn = modal.querySelector('#landingPromoUploadBtn');
+            const statusEl = modal.querySelector('#landingPromoUploadStatus');
+            const fileInput = modal.querySelector('#landingPromoImageFile');
+            btn.addEventListener('click', async function () {
+                const file = fileInput && fileInput.files && fileInput.files[0];
+                if (!file) {
+                    statusEl.textContent = 'Elegí un archivo primero.';
+                    statusEl.style.color = '#c62828';
+                    return;
+                }
+                btn.disabled = true;
+                statusEl.textContent = 'Subiendo…';
+                statusEl.style.color = '#666';
+                try {
+                    const url = await uploadLandingPromoImageFile(slug, file);
+                    await setLandingPromoHeroImage(slug, url);
+                    const prev = modal.querySelector('#landingPromoImgPreview');
+                    if (prev) {
+                        if (prev.tagName === 'IMG') {
+                            prev.src = url;
+                        } else {
+                            prev.outerHTML = `<img id="landingPromoImgPreview" src="${url.replace(/"/g, '&quot;')}" alt="" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;background:#eee;">`;
+                        }
+                    }
+                    statusEl.textContent = 'Imagen actualizada.';
+                    statusEl.style.color = '#2e7d32';
+                    if (typeof showNotification === 'function') showNotification('✅ Imagen de landing actualizada', 'success');
+                } catch (e) {
+                    console.error(e);
+                    statusEl.textContent = (e && e.message) ? e.message : String(e);
+                    statusEl.style.color = '#c62828';
+                } finally {
+                    btn.disabled = false;
+                }
+            });
+            void safeSlugAttr;
+        }
+
+        window.showLandingPromoImageModal = showLandingPromoImageModal;
+
         /** Crea/actualiza landing /promo/:slug desde una promo del módulo Hoteles → Promociones. */
         async function createLandingWebFromPromotion(hotelId, promotionId) {
             try {
@@ -17803,11 +17918,13 @@ Ej:
                 };
 
                 const saved = await upsertLandingPromoRow(row);
-                const finalUrl = landingPublicUrl(saved.slug || slug);
+                const finalSlug = saved.slug || slug;
+                const finalUrl = landingPublicUrl(finalSlug);
                 try { await navigator.clipboard.writeText(finalUrl); } catch (_) {}
                 const msg = `Landing lista: ${finalUrl}` + (navigator.clipboard ? ' (URL copiada)' : '');
                 if (typeof showNotification === 'function') showNotification('✅ ' + msg, 'success');
                 else alert('✅ ' + msg);
+                showLandingPromoImageModal(finalSlug, saved.imagen_hero || row.imagen_hero, finalUrl);
                 return saved;
             } catch (e) {
                 console.error('createLandingWebFromPromotion', e);
