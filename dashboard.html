@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-23T18:46:39Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 242; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-29T15:01:17Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 244; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">242</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">244</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -6098,7 +6098,11 @@ Ej:
                                 <label class="form-label">🏷️ Promociones vigentes (Flor lee este campo)</label>
                                 <textarea class="form-input" id="editHotelFlorPromociones" rows="5"
                                     placeholder="Una promo por línea: Nombre | Precio | Detalle | Hasta (YYYY-MM-DD)&#10;Ej: Flexi Pass 10 días | 330 USD | Transferible, válido toda la temporada | 2026-09-30&#10;Ej: 2x1 Spa | | 2x1 en tratamientos | 2026-08-31"></textarea>
-                                <small style="color:#6a1b9a;">No mezclar con programas. Flor usa solo estas ofertas (Flexi Pass, 2x1, etc.).</small>
+                                <small style="color:#6a1b9a; display:block; margin-bottom:8px;">No mezclar con programas. Flor usa solo estas ofertas (Flexi Pass, 2x1, etc.).</small>
+                                <button type="button" class="form-button" style="background:#003580;color:#fff;" onclick="createLandingWebsFromHotelFlorPromos()">
+                                    🌐 Crear landings web desde estas promos
+                                </button>
+                                <small style="color:#666; display:block; margin-top:6px;">Publica páginas en checkin24hs.com/promo/... para Brevo (WhatsApp + email).</small>
                             </div>
                         </div>
                     </div>
@@ -15794,9 +15798,10 @@ Ej:
                                     ${promo.travelStartDate ? `<div><strong>Viaje desde:</strong> ${new Date(promo.travelStartDate).toLocaleDateString()}</div>` : ''}
                                     ${promo.travelEndDate ? `<div><strong>Viaje hasta:</strong> ${new Date(promo.travelEndDate).toLocaleDateString()}</div>` : ''}
                                 </div>
-                                <div style="display: flex; gap: 8px;">
+                                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                                     <button onclick="editHotelPromotion('${promo.hotelId}')" style="background: #2196f3; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">✏️ Editar</button>
                                     <button onclick="viewHotelPromotion('${promo.hotelId}')" style="background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">👁️ Ver</button>
+                                    <button onclick="createLandingWebFromPromotion('${promo.hotelId}', '${promo.id}')" style="background: #003580; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">🌐 Landing web</button>
                                     <button onclick="deletePromotion('${promo.hotelId}', '${promo.id}')" style="background: #f44336; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">🗑️ Eliminar</button>
                                 </div>
                             </div>
@@ -16145,8 +16150,9 @@ Ej:
                                         ${promo.travelStartDate ? `<div><strong>Viaje desde:</strong> ${new Date(promo.travelStartDate).toLocaleDateString()}</div>` : ''}
                                         ${promo.travelEndDate ? `<div><strong>Viaje hasta:</strong> ${new Date(promo.travelEndDate).toLocaleDateString()}</div>` : ''}
                                     </div>
-                                    <div style="display: flex; gap: 8px;">
+                                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                                         <button onclick="editSpecificPromotion('${hotel.id}', '${promo.id}')" style="background: #2196f3; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">✏️ Editar</button>
+                                        <button onclick="createLandingWebFromPromotion('${hotel.id}', '${promo.id}')" style="background: #003580; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">🌐 Landing web</button>
                                         <button onclick="deletePromotion('${hotel.id}', '${promo.id}')" style="background: #f44336; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">🗑️ Eliminar</button>
                                     </div>
                                 </div>
@@ -17683,6 +17689,202 @@ Ej:
                 hasta: String(p.hasta || p.end_date || '').trim().slice(0, 10),
                 activa: p.activa !== false
             };
+        }
+
+        function slugifyLandingText(text) {
+            return String(text || '')
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-+|-+$/g, '')
+                .slice(0, 48) || 'promo';
+        }
+
+        function buildLandingPromoSlug(hotelName, promoName, promoId) {
+            const base = slugifyLandingText([hotelName, promoName].filter(Boolean).join('-'));
+            const short = String(promoId || '').replace(/-/g, '').slice(0, 8);
+            return short ? `${base}-${short}` : base;
+        }
+
+        function hotelHeroImageUrl(hotel) {
+            if (!hotel) return null;
+            const main = hotel.imagen_principal || hotel.image || null;
+            if (main) return String(main);
+            const gal = hotel.galeria_fotos || hotel.images || hotel.photos;
+            if (Array.isArray(gal) && gal[0]) return String(gal[0]);
+            return null;
+        }
+
+        async function upsertLandingPromoRow(row) {
+            if (!window.supabaseClient || !window.supabaseClient.isInitialized || !window.supabaseClient.isInitialized()) {
+                throw new Error('Supabase no inicializado. Recargá el dashboard.');
+            }
+            const client = window.supabaseClient.client;
+            if (!client) throw new Error('Cliente Supabase no disponible');
+            const payload = Object.assign({}, row, { updated_at: new Date().toISOString() });
+            const { data, error } = await client
+                .from('landing_promos')
+                .upsert(payload, { onConflict: 'slug' })
+                .select()
+                .single();
+            if (error) throw error;
+            return data;
+        }
+
+        function landingPublicUrl(slug) {
+            return `https://checkin24hs.com/promo/${encodeURIComponent(slug)}`;
+        }
+
+        /** Crea/actualiza landing /promo/:slug desde una promo del módulo Hoteles → Promociones. */
+        async function createLandingWebFromPromotion(hotelId, promotionId) {
+            try {
+                if (!hotelId || !promotionId) {
+                    throw new Error('Falta hotel o promoción');
+                }
+                let hotel = null;
+                if (window.supabaseClient && window.supabaseClient.getHotelById) {
+                    try { hotel = await window.supabaseClient.getHotelById(hotelId); } catch (_) {}
+                }
+                if (!hotel && window.supabaseClient && window.supabaseClient.getHotels) {
+                    const hotels = await window.supabaseClient.getHotels();
+                    hotel = (hotels || []).find((h) => String(h.id) === String(hotelId));
+                }
+                if (!hotel) {
+                    const local = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                    hotel = local.find((h) => String(h.id) === String(hotelId));
+                }
+                if (!hotel) throw new Error('Hotel no encontrado');
+
+                let promos = [];
+                if (window.supabaseClient && window.supabaseClient.getPromotions) {
+                    promos = await window.supabaseClient.getPromotions(hotelId);
+                }
+                if (!promos || !promos.length) {
+                    promos = JSON.parse(localStorage.getItem(`promotions_${hotelId}`) || '[]');
+                }
+                const promo = (promos || []).find((p) => String(p.id) === String(promotionId));
+                if (!promo) throw new Error('Promoción no encontrada');
+
+                const titulo = String(promo.name || promo.type || 'Oferta especial').trim();
+                const precioNum = promo.promotionalPrice || promo.price;
+                let precioTexto = '';
+                if (promo.discount) precioTexto = `${promo.discount}% de descuento`;
+                if (precioNum) precioTexto = precioTexto ? `${precioTexto} · desde $${precioNum}` : `Desde $${precioNum}`;
+                if (!precioTexto) precioTexto = 'Consultá valor actualizado por WhatsApp';
+
+                const slug = buildLandingPromoSlug(hotel.name, titulo, promo.id);
+                const url = landingPublicUrl(slug);
+                const beneficios = [
+                    'Asesoría personalizada sin compromiso',
+                    'Confirmación rápida por WhatsApp',
+                    'Atención Checkin24hs de punta a punta'
+                ].join('\n');
+                const cuerpo = String(promo.description || '').trim()
+                    || 'Escribinos por WhatsApp y te armamos fechas, habitación y presupuesto.';
+
+                const row = {
+                    slug,
+                    titulo,
+                    subtitulo: `Reservá ${hotel.name} con Checkin24hs.`,
+                    hotel_nombre: hotel.name || null,
+                    hotel_id: hotel.id || null,
+                    badge: 'Oferta Checkin24hs',
+                    precio_texto: precioTexto,
+                    beneficios,
+                    cuerpo,
+                    imagen_hero: hotelHeroImageUrl(hotel),
+                    imagen_hero_mobile: null,
+                    cta_whatsapp: 'Quiero esta promo por WhatsApp',
+                    mensaje_whatsapp: `Hola, vi la promo en ${url} y quiero más info de ${hotel.name}`,
+                    vigencia_hasta: promo.endDate ? String(promo.endDate).slice(0, 10) : null,
+                    activo: true,
+                    orden: 1
+                };
+
+                const saved = await upsertLandingPromoRow(row);
+                const finalUrl = landingPublicUrl(saved.slug || slug);
+                try { await navigator.clipboard.writeText(finalUrl); } catch (_) {}
+                const msg = `Landing lista: ${finalUrl}` + (navigator.clipboard ? ' (URL copiada)' : '');
+                if (typeof showNotification === 'function') showNotification('✅ ' + msg, 'success');
+                else alert('✅ ' + msg);
+                return saved;
+            } catch (e) {
+                console.error('createLandingWebFromPromotion', e);
+                const err = (e && e.message) ? e.message : String(e);
+                const hint = /landing_promos|relation|does not exist/i.test(err)
+                    ? ' ¿Ejecutaste 077_landing_promos.sql en Supabase?'
+                    : '';
+                if (typeof showNotification === 'function') showNotification('❌ ' + err + hint, 'error');
+                else alert('❌ ' + err + hint);
+            }
+        }
+
+        /** Crea landings desde el textarea de promociones Flor del hotel en edición. */
+        async function createLandingWebsFromHotelFlorPromos() {
+            try {
+                const hotelId = typeof currentEditingHotelId !== 'undefined' ? currentEditingHotelId : null;
+                if (!hotelId) {
+                    throw new Error('Abrí un hotel en edición primero');
+                }
+                const text = document.getElementById('editHotelFlorPromociones')?.value || '';
+                const list = typeof parseHotelPromocionesFromForm === 'function'
+                    ? parseHotelPromocionesFromForm(text)
+                    : [];
+                if (!list.length) throw new Error('No hay promociones en el campo (una por línea)');
+
+                let hotel = null;
+                if (window.supabaseClient && window.supabaseClient.getHotelById) {
+                    try { hotel = await window.supabaseClient.getHotelById(hotelId); } catch (_) {}
+                }
+                if (!hotel) throw new Error('Hotel no encontrado');
+
+                const created = [];
+                for (let i = 0; i < list.length; i++) {
+                    const p = list[i];
+                    if (!p || p.activa === false) continue;
+                    const titulo = p.nombre;
+                    const slug = buildLandingPromoSlug(hotel.name, titulo, `${hotelId}-${i}`);
+                    const url = landingPublicUrl(slug);
+                    const row = {
+                        slug,
+                        titulo,
+                        subtitulo: `Reservá ${hotel.name} con Checkin24hs.`,
+                        hotel_nombre: hotel.name || null,
+                        hotel_id: hotel.id || null,
+                        badge: 'Oferta Checkin24hs',
+                        precio_texto: p.precio || 'Consultá valor actualizado por WhatsApp',
+                        beneficios: [
+                            'Asesoría personalizada sin compromiso',
+                            'Confirmación rápida por WhatsApp',
+                            'Atención Checkin24hs de punta a punta'
+                        ].join('\n'),
+                        cuerpo: p.detalle || 'Escribinos por WhatsApp y te armamos la mejor opción.',
+                        imagen_hero: hotelHeroImageUrl(hotel),
+                        imagen_hero_mobile: null,
+                        cta_whatsapp: 'Quiero esta promo por WhatsApp',
+                        mensaje_whatsapp: `Hola, vi la promo en ${url} y quiero más info de ${hotel.name}`,
+                        vigencia_hasta: p.hasta || null,
+                        activo: true,
+                        orden: i + 1
+                    };
+                    created.push(await upsertLandingPromoRow(row));
+                }
+                if (!created.length) throw new Error('Ninguna promo activa para publicar');
+                const firstUrl = landingPublicUrl(created[0].slug);
+                try { await navigator.clipboard.writeText(firstUrl); } catch (_) {}
+                const msg = `${created.length} landing(s) creada(s). Ej: ${firstUrl}`;
+                if (typeof showNotification === 'function') showNotification('✅ ' + msg, 'success');
+                else alert('✅ ' + msg);
+            } catch (e) {
+                console.error('createLandingWebsFromHotelFlorPromos', e);
+                const err = (e && e.message) ? e.message : String(e);
+                const hint = /landing_promos|relation|does not exist/i.test(err)
+                    ? ' ¿Ejecutaste 077_landing_promos.sql en Supabase?'
+                    : '';
+                if (typeof showNotification === 'function') showNotification('❌ ' + err + hint, 'error');
+                else alert('❌ ' + err + hint);
+            }
         }
 
         // Función para editar hotel
@@ -20598,9 +20800,10 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                                     ${promo.travelStartDate ? `<div><strong>Viaje desde:</strong> ${new Date(promo.travelStartDate).toLocaleDateString()}</div>` : ''}
                                     ${promo.travelEndDate ? `<div><strong>Viaje hasta:</strong> ${new Date(promo.travelEndDate).toLocaleDateString()}</div>` : ''}
                                 </div>
-                                <div style="display: flex; gap: 8px;">
+                                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                                     <button onclick="editSpecificPromotion('${promo.hotelId}', '${promo.id}')" style="background: #2196f3; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">✏️ Editar</button>
                                     <button onclick="viewHotelPromotion('${promo.hotelId}')" style="background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">👁️ Ver</button>
+                                    <button onclick="createLandingWebFromPromotion('${promo.hotelId}', '${promo.id}')" style="background: #003580; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">🌐 Landing web</button>
                                     <button onclick="deletePromotion('${promo.hotelId}', '${promo.id}')" style="background: #f44336; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">🗑️ Eliminar</button>
                                 </div>
                             </div>
