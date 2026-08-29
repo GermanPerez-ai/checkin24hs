@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-29T20:05:46Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 250; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-29T20:39:22Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 252; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">250</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">252</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -8999,7 +8999,7 @@ Ej:
             `;
             
             document.body.appendChild(modal);
-            modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+            // Formulario: no cerrar al click afuera (evita perder cambios)
         }
         
         // Guardado rápido (modal dinámico simplificado, sin ficha Flor)
@@ -12159,7 +12159,7 @@ Ej:
                     console.log('ℹ️ Cotización sin promoción seleccionada');
                 }
                 
-                // Cerrar modal al hacer clic fuera
+                // Cerrar modal al hacer clic fuera (solo lectura / detalle)
                 modal.addEventListener('click', function(e) {
                     if (e.target === modal) {
                         modal.remove();
@@ -12790,8 +12790,8 @@ Ej:
                     updateQuotesStats();
                 }
                 
-                // Cerrar modal
-                const modal = document.querySelector('.modal');
+                // Cerrar modal de detalle de cotización
+                const modal = document.getElementById('viewQuoteModal');
                 if (modal) modal.remove();
                 
                 if (typeof showNotification === 'function') {
@@ -13260,11 +13260,12 @@ Ej:
             
             // Crear modal de edición
             const modal = document.createElement('div');
+            modal.id = 'edit-quote-form-modal';
             modal.className = 'modal';
             modal.style.display = 'flex';
             modal.innerHTML = `
                 <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
-                    <span class="close" onclick="this.parentElement.parentElement.remove()">&times;</span>
+                    <span class="close" onclick="if(confirm('¿Cerrar sin guardar?')) document.getElementById('edit-quote-form-modal')?.remove()">&times;</span>
                     <h2>✏️ Editar y Cotizar</h2>
                     
                     <div style="margin-bottom: 20px; padding: 15px; background: #e3f2fd; border-radius: 8px;">
@@ -13332,7 +13333,7 @@ Ej:
                         </div>
                         
                         <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
-                            <button type="button" class="form-button secondary" onclick="this.closest('.modal').remove()">Cancelar</button>
+                            <button type="button" class="form-button secondary" onclick="if(confirm('¿Cerrar sin guardar?')) document.getElementById('edit-quote-form-modal')?.remove()">Cancelar</button>
                             <button type="submit" class="form-button" style="background: #25d366; color: white;">
                                 <span class="material-icons" style="vertical-align: middle; margin-right: 5px;">send</span>
                                 Guardar y Enviar al Cliente
@@ -13346,13 +13347,7 @@ Ej:
             
             // Calcular tarifa final inicial
             calculateEditQuoteFinalTariff();
-            
-            // Cerrar modal al hacer clic fuera
-            modal.addEventListener('click', function(e) {
-                if (e.target === modal) {
-                    modal.remove();
-                }
-            });
+            // Formulario: no cerrar al click afuera
         }
         
         // Función para calcular tarifa final en el modal de edición
@@ -13495,8 +13490,8 @@ Ej:
                     updateQuotesStats();
                 }
                 
-                // Cerrar modal
-                const modal = document.querySelector('.modal');
+                // Cerrar modal de edición de cotización
+                const modal = document.getElementById('edit-quote-form-modal');
                 if (modal) modal.remove();
                 
                 // Intentar enviar al cliente por WhatsApp
@@ -13650,8 +13645,8 @@ Ej:
             loadQuotesTable();
             updateQuotesStats();
             
-            // Cerrar modal actual
-            const modal = document.querySelector('.modal');
+            // Cerrar modal actual de cotización (detalle o edición)
+            const modal = document.getElementById('viewQuoteModal') || document.getElementById('edit-quote-form-modal');
             if (modal) modal.remove();
             
             // Validar que la cotización tenga un hotel válido antes de permitir enviar
@@ -13766,7 +13761,7 @@ Ej:
             alert('✅ Cotización marcada como procesada');
             
             // Cerrar modal si está abierto
-            const modal = document.querySelector('.modal');
+            const modal = document.getElementById('viewQuoteModal') || document.getElementById('edit-quote-form-modal');
             if (modal) modal.remove();
         }
         
@@ -13802,7 +13797,7 @@ Ej:
             alert('✅ Cotización eliminada');
             
             // Cerrar modal si está abierto
-            const modal = document.querySelector('.modal');
+            const modal = document.getElementById('viewQuoteModal') || document.getElementById('edit-quote-form-modal');
             if (modal) modal.remove();
         }
         
@@ -16070,9 +16065,11 @@ Ej:
                         }, 100);
                     }
                     
-                    // Cerrar modal si existe
-                    const modal = document.querySelector('.modal');
-                    if (modal) modal.remove();
+                    // Cerrar solo el modal de crear/editar promoción (no otros .modal del DOM)
+                    const createModal = document.getElementById('create-promotion-form-modal');
+                    if (createModal) createModal.remove();
+                    const editPromoModal = document.getElementById('edit-promotion-form-modal');
+                    if (editPromoModal) editPromoModal.remove();
                     
             } catch (error) {
                 console.error('❌ Error inesperado creando promoción:', error);
@@ -16456,14 +16453,13 @@ Ej:
                 return;
             }
             
-            // Cerrar el modal de edición actual si existe
-            const editModal = document.querySelector('.modal');
-            if (editModal) {
-                editModal.remove();
-            }
+            // Cerrar solo un formulario de edición previo (no tocar otros .modal del HTML)
+            const existingEdit = document.getElementById('edit-promotion-form-modal');
+            if (existingEdit) existingEdit.remove();
             
             // Crear modal de edición con formulario
             const modal = document.createElement('div');
+            modal.id = 'edit-promotion-form-modal';
             modal.className = 'modal';
             modal.style.cssText = `
                 position: fixed;
@@ -16479,10 +16475,10 @@ Ej:
             `;
             
             modal.innerHTML = `
-                <div style="background: white; border-radius: 12px; padding: 24px; max-width: 90%; max-height: 90%; overflow-y: auto; width: 800px;">
+                <div style="background: white; border-radius: 12px; padding: 24px; max-width: 90%; max-height: 90%; overflow-y: auto; width: 800px;" onclick="event.stopPropagation()">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                         <h2 style="margin: 0; color: #333;">✏️ Editar Promoción - ${hotel.name}</h2>
-                        <button onclick="this.closest('.modal').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
+                        <button type="button" onclick="if(confirm('¿Cerrar sin guardar? Se perderán los cambios.')) document.getElementById('edit-promotion-form-modal')?.remove()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
                     </div>
                     
                     <form id="editPromotionForm" style="display: grid; gap: 16px;">
@@ -16562,8 +16558,8 @@ Ej:
                         </div>
                         
                         <div style="display: flex; gap: 12px; justify-content: flex-end;">
-                            <button type="button" onclick="this.closest('.modal').remove()" style="background: #6c757d; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer;">Cancelar</button>
-                            <button type="submit" style="background: #2196f3; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer;">Guardar Cambios</button>
+                            <button type="button" onclick="if(confirm('¿Cerrar sin guardar? Se perderán los cambios.')) document.getElementById('edit-promotion-form-modal')?.remove()" style="background: #6c757d; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer;">Cancelar</button>
+                            <button type="submit" id="editPromotionSubmitBtn" style="background: #2196f3; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer;">Guardar Cambios</button>
                         </div>
                     </form>
                 </div>
@@ -16576,16 +16572,23 @@ Ej:
             if (form) {
                 form.addEventListener('submit', async function(e) {
                     e.preventDefault();
-                    await saveEditedPromotion(hotelId, promotionId);
+                    const submitBtn = modal.querySelector('#editPromotionSubmitBtn');
+                    const prevLabel = submitBtn ? submitBtn.textContent : '';
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.textContent = 'Guardando…';
+                    }
+                    try {
+                        await saveEditedPromotion(hotelId, promotionId);
+                    } finally {
+                        if (submitBtn && document.body.contains(submitBtn)) {
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = prevLabel || 'Guardar Cambios';
+                        }
+                    }
                 });
             }
-            
-            // Cerrar modal al hacer clic fuera
-            modal.addEventListener('click', function(e) {
-                if (e.target === modal) {
-                    modal.remove();
-                }
-            });
+            // No cerrar al click afuera: evita perder cambios sin querer
         }
         
         // Función para guardar promoción editada
@@ -16748,27 +16751,26 @@ Ej:
                     }
                 }
                 
-                // Cerrar modal de edición
-                const editModal = document.querySelector('.modal');
-                if (editModal) {
-                    editModal.remove();
-                }
+                // Cerrar el modal de edición por id (querySelector('.modal') apunta a modales ocultos del HTML)
+                const editModal = document.getElementById('edit-promotion-form-modal');
+                if (editModal) editModal.remove();
                 
-                // Recargar promociones en el modal principal si está abierto
-                const promotionsModal = document.getElementById('promotions-modal');
-                if (promotionsModal) {
-                    const filter = document.getElementById('promotionHotelFilter');
-                    if (filter) {
-                        await filterPromotionsByHotel(filter.value || '');
-                    }
-                } else {
-                    // Si no hay modal principal, recargar contenido de promociones
-                    const promotionsContent = document.getElementById('promotions-tab-content');
-                    if (promotionsContent && promotionsContent.style.display !== 'none') {
-                        await loadHotelPromotionsContent();
+                // Recargar listados (sin bloquear el cierre del formulario)
+                try {
+                    const promotionsModal = document.getElementById('promotions-modal');
+                    if (promotionsModal) {
+                        const filter = document.getElementById('promotionHotelFilter');
+                        if (filter) {
+                            await filterPromotionsByHotel(filter.value || '');
+                        }
                     } else {
-                        await showHotelPromotions();
+                        const promotionsContent = document.getElementById('promotions-tab-content');
+                        if (promotionsContent && promotionsContent.style.display !== 'none') {
+                            await loadHotelPromotionsContent();
+                        }
                     }
+                } catch (reloadErr) {
+                    console.warn('⚠️ Promo guardada; error al refrescar listado:', reloadErr);
                 }
                 
             } catch (error) {
@@ -16837,11 +16839,9 @@ Ej:
                     alert(successMsg);
                 }
                 
-                // Cerrar modal de edición si está abierto
-                const editModal = document.querySelector('.modal');
-                if (editModal) {
-                    editModal.remove();
-                }
+                // Cerrar solo el formulario de edición de promoción
+                const editModal = document.getElementById('edit-promotion-form-modal');
+                if (editModal) editModal.remove();
                 
                 // Recargar promociones activas
                 const activeContent = document.getElementById('active-promotions-content') || 
@@ -16859,12 +16859,9 @@ Ej:
                         await filterPromotionsByHotel(filter.value || '');
                     }
                 } else {
-                    // Si no hay modal principal, recargar contenido de promociones
                     const promotionsContent = document.getElementById('promotions-tab-content');
                     if (promotionsContent && promotionsContent.style.display !== 'none') {
                         await loadHotelPromotionsContent();
-                    } else {
-                        await showHotelPromotions();
                     }
                 }
             } catch (error) {
@@ -17900,7 +17897,7 @@ Ej:
             `;
             document.body.appendChild(modal);
             modal.addEventListener('click', function (e) {
-                if (e.target === modal) modal.remove();
+                // Solo cerrar con X / Listo; no al click afuera (evita cancelar una subida en curso)
             });
 
             const statusEl = modal.querySelector('#landingPromoUploadStatus');
@@ -21115,6 +21112,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             const hotels = JSON.parse(modal.dataset.hotels || '[]');
             
             const createModal = document.createElement('div');
+            createModal.id = 'create-promotion-form-modal';
             createModal.className = 'modal';
             createModal.style.cssText = `
                 position: fixed;
@@ -21130,10 +21128,10 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             `;
             
             createModal.innerHTML = `
-                <div style="background: white; border-radius: 12px; padding: 24px; max-width: 90%; max-height: 90%; overflow-y: auto; width: 800px;">
+                <div style="background: white; border-radius: 12px; padding: 24px; max-width: 90%; max-height: 90%; overflow-y: auto; width: 800px;" onclick="event.stopPropagation()">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                         <h2 style="margin: 0; color: #333;">➕ Crear Nueva Promoción</h2>
-                        <button onclick="this.closest('.modal').remove()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
+                        <button type="button" onclick="if(confirm('¿Cerrar sin guardar? Se perderán los cambios.')) document.getElementById('create-promotion-form-modal')?.remove()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
                     </div>
                     
                     <form id="createPromotionFormModal" style="display: grid; gap: 16px;">
@@ -21205,8 +21203,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         </div>
                         
                         <div style="display: flex; gap: 12px; justify-content: flex-end;">
-                            <button type="button" onclick="this.closest('.modal').remove()" style="background: #6c757d; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer;">Cancelar</button>
-                            <button type="submit" style="background: #4caf50; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer;">Crear Promoción</button>
+                            <button type="button" onclick="if(confirm('¿Cerrar sin guardar? Se perderán los cambios.')) document.getElementById('create-promotion-form-modal')?.remove()" style="background: #6c757d; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer;">Cancelar</button>
+                            <button type="submit" id="createPromotionSubmitBtn" style="background: #4caf50; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer;">Crear Promoción</button>
                         </div>
                     </form>
                 </div>
@@ -21219,22 +21217,29 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             if (form) {
                 form.addEventListener('submit', async function(e) {
                     e.preventDefault();
-                    await createHotelPromotion();
-                    createModal.remove();
-                    // Recargar promociones en el modal principal
-                    const filter = document.getElementById('promotionHotelFilter');
-                    if (filter) {
-                        await filterPromotionsByHotel(filter.value || '');
+                    const submitBtn = createModal.querySelector('#createPromotionSubmitBtn');
+                    const prevLabel = submitBtn ? submitBtn.textContent : '';
+                    if (submitBtn) {
+                        submitBtn.disabled = true;
+                        submitBtn.textContent = 'Guardando…';
+                    }
+                    try {
+                        await createHotelPromotion();
+                        const stillOpen = document.getElementById('create-promotion-form-modal');
+                        if (stillOpen) stillOpen.remove();
+                        const filter = document.getElementById('promotionHotelFilter');
+                        if (filter) {
+                            await filterPromotionsByHotel(filter.value || '');
+                        }
+                    } finally {
+                        if (submitBtn && document.body.contains(submitBtn)) {
+                            submitBtn.disabled = false;
+                            submitBtn.textContent = prevLabel || 'Crear Promoción';
+                        }
                     }
                 });
             }
-            
-            // Cerrar modal al hacer clic fuera
-            createModal.addEventListener('click', function(e) {
-                if (e.target === createModal) {
-                    createModal.remove();
-                }
-            });
+            // No cerrar al click afuera: evita perder datos del formulario
         }
         
         // Actualizar editHotelPromotion para aceptar promotionId opcional
@@ -22787,7 +22792,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             `;
             
             document.body.appendChild(modal);
-            modal.addEventListener('click', (e) => { if (e.target === modal) modal.remove(); });
+            // Formulario: no cerrar al click afuera (evita perder cambios)
         }
         
         async function saveUserChanges(event, userId) {
