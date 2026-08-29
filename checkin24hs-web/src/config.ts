@@ -29,7 +29,7 @@ export function buildCotizadorUrl(params: {
 /** WhatsApp con mensaje prellenado: SOLO nombre del producto (sin pax/fechas). */
 export function buildWhatsAppConsultaUrl(
   tituloProducto?: string,
-  tipo: 'hotel' | 'pack' | 'general' = 'hotel'
+  tipo: 'hotel' | 'pack' | 'general' | 'promo' = 'hotel'
 ): string {
   const number = String(WHATSAPP_NUMBER || '').replace(/\D/g, '');
   const name = String(tituloProducto || '')
@@ -41,6 +41,10 @@ export function buildWhatsAppConsultaUrl(
   if (!isGeneric) {
     if (tipo === 'pack') {
       text = `Hola, tengo una consulta desde checkin24hs.com, quiero más info del pack ${name}`;
+    } else if (tipo === 'promo') {
+      text = name.startsWith('Hola')
+        ? name
+        : `Hola, vi la promo en checkin24hs.com y quiero info: ${name}`;
     } else if (tipo === 'general') {
       text = `Hola, tengo una consulta desde checkin24hs.com, sobre: ${name}`;
     } else {
@@ -48,5 +52,12 @@ export function buildWhatsAppConsultaUrl(
     }
   }
   // encodeURIComponent: espacios → %20, acentos y comas correctos en cualquier dispositivo
+  return `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
+}
+
+/** WhatsApp con texto libre (landings de promo). */
+export function buildWhatsAppTextUrl(mensaje: string): string {
+  const number = String(WHATSAPP_NUMBER || '').replace(/\D/g, '');
+  const text = String(mensaje || '').trim() || 'Hola, tengo una consulta desde checkin24hs.com';
   return `https://wa.me/${number}?text=${encodeURIComponent(text)}`;
 }

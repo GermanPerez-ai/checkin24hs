@@ -1,0 +1,126 @@
+.main {
+  padding: 32px 0 64px;
+}
+
+.wrap {
+  max-width: 960px;
+}
+
+.brand {
+  margin: 0 0 6px;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--primary);
+}
+
+.title {
+  margin: 0 0 10px;
+  font-size: clamp(1.6rem, 4vw, 2.1rem);
+  font-weight: 800;
+  color: var(--text);
+}
+
+.lead {
+  margin: 0 0 28px;
+  max-width: 48ch;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.state {
+  color: var(--text-muted);
+}
+
+.grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 20px;
+}
+
+@media (min-width: 700px) {
+  .grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.item {
+  margin: 0;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  text-decoration: none !important;
+  color: inherit;
+  box-shadow: var(--card-shadow);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.card:hover {
+  box-shadow: var(--card-shadow-hover);
+  transform: translateY(-2px);
+}
+
+.thumb {
+  height: 160px;
+  background:
+    linear-gradient(135deg, #003580 0%, #0047a0 100%);
+  background-size: cover;
+  background-position: center;
+}
+
+.cardBody {
+  padding: 16px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 6px;
+}
+
+.badge {
+  align-self: flex-start;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(201, 162, 39, 0.2);
+  color: #7a6200;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.cardTitle {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--text);
+}
+
+.hotel {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.price {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.cta {
+  margin-top: auto;
+  padding-top: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--primary);
+}

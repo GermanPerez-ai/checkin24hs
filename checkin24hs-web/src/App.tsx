@@ -6,6 +6,8 @@ import { NovedadDetail } from './pages/NovedadDetail';
 import { DestinoPais } from './pages/DestinoPais';
 import { Packs } from './pages/Packs';
 import { PackDetail } from './pages/PackDetail';
+import { Promos } from './pages/Promos';
+import { PromoDetail } from './pages/PromoDetail';
 import { TrackPageview } from './components/TrackPageview';
 import './index.css';
 
@@ -20,6 +22,8 @@ function App() {
         <Route path="/internacionales" element={<DestinoPais />} />
         <Route path="/packs" element={<Packs />} />
         <Route path="/pack/:slug" element={<PackDetail />} />
+        <Route path="/promos" element={<Promos />} />
+        <Route path="/promo/:slug" element={<PromoDetail />} />
         <Route path="/hotel/:slug" element={<HotelDetail />} />
         <Route path="/novedad/:slugOrId" element={<NovedadDetail />} />
       </Routes>

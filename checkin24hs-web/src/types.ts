@@ -142,6 +142,29 @@ export interface Novedad {
   etiqueta_boton?: string | null;
 }
 
+/** Landing de venta en /promo/:slug (mailing Brevo → web). */
+export interface LandingPromo {
+  id: string;
+  slug: string;
+  titulo: string;
+  subtitulo: string | null;
+  hotel_nombre: string | null;
+  hotel_id: string | null;
+  badge: string | null;
+  precio_texto: string | null;
+  beneficios: string | null;
+  cuerpo: string | null;
+  imagen_hero: string | null;
+  imagen_hero_mobile: string | null;
+  cta_whatsapp: string;
+  mensaje_whatsapp: string | null;
+  vigencia_hasta: string | null;
+  activo: boolean;
+  orden: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export type TestimonioFuente =
   | 'instagram'
   | 'facebook'
