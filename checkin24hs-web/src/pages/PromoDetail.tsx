@@ -154,7 +154,18 @@ export function PromoDetail() {
       <Header />
       <main className={styles.main}>
         <section className={styles.hero} aria-label="Oferta">
-          {heroSrc ? (
+          {promo.video_hero ? (
+            <video
+              className={styles.heroBg}
+              src={promo.video_hero}
+              poster={heroSrc || undefined}
+              muted
+              loop
+              playsInline
+              autoPlay
+              aria-hidden
+            />
+          ) : heroSrc ? (
             <img src={heroSrc} alt="" className={styles.heroBg} />
           ) : (
             <div className={styles.heroFallback} aria-hidden />

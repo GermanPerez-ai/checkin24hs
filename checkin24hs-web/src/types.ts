@@ -156,6 +156,8 @@ export interface LandingPromo {
   cuerpo: string | null;
   imagen_hero: string | null;
   imagen_hero_mobile: string | null;
+  /** Video de fondo del hero (MP4/WebM); imagen_hero actúa como poster. */
+  video_hero?: string | null;
   cta_whatsapp: string;
   mensaje_whatsapp: string | null;
   vigencia_hasta: string | null;

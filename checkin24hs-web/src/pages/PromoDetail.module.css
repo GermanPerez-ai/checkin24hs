@@ -43,6 +43,12 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  pointer-events: none;
+}
+
+video.heroBg {
+  /* Evita controles nativos; autoplay muted loop */
+  background: #001a40;
 }
 
 .heroFallback {
