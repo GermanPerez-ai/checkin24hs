@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-29T18:29:09Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 248; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-29T20:05:46Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 250; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">248</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">250</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -17738,53 +17738,82 @@ Ej:
 
         var LANDING_PROMOS_BUCKET = 'landing-promos';
 
-        async function uploadLandingPromoImageFile(slug, file) {
-            const client = window.supabaseClient && window.supabaseClient.client;
-            if (!client || !client.storage) throw new Error('Storage no disponible');
+        function getLandingStorageAuth() {
+            const cfg = window.SUPABASE_CONFIG || {};
+            const url = (cfg.url || '').replace(/\/$/, '');
+            const key = cfg.anonKey || '';
+            if (!url || !key) throw new Error('Supabase no configurado');
+            return { url, key };
+        }
+
+        /** Subida a Storage con progreso real (XHR). onProgress(pct 0-100). */
+        async function uploadLandingFileWithProgress(fileName, file, contentType, onProgress) {
+            const { url, key } = getLandingStorageAuth();
+            let bearer = key;
+            try {
+                const client = window.supabaseClient && window.supabaseClient.client;
+                if (client && client.auth && client.auth.getSession) {
+                    const sess = await client.auth.getSession();
+                    const tok = sess && sess.data && sess.data.session && sess.data.session.access_token;
+                    if (tok) bearer = tok;
+                }
+            } catch (_) {}
+            const objectPath = fileName.split('/').map(encodeURIComponent).join('/');
+            const endpoint = url + '/storage/v1/object/' + LANDING_PROMOS_BUCKET + '/' + objectPath + '?upsert=true';
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', endpoint, true);
+                xhr.setRequestHeader('Authorization', 'Bearer ' + bearer);
+                xhr.setRequestHeader('apikey', key);
+                xhr.setRequestHeader('x-upsert', 'true');
+                if (contentType) xhr.setRequestHeader("Content-Type", contentType);
+                xhr.upload.onprogress = function (ev) {
+                    if (!ev.lengthComputable || typeof onProgress !== "function") return;
+                    const pct = Math.min(100, Math.round((ev.loaded / ev.total) * 100));
+                    onProgress(pct, ev.loaded, ev.total);
+                };
+                xhr.onload = function () {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        const publicUrl = url + '/storage/v1/object/public/' + LANDING_PROMOS_BUCKET + '/' + objectPath;
+                        resolve(publicUrl);
+                        return;
+                    }
+                    let msg = 'Error subiendo archivo (HTTP ' + xhr.status + ')';
+                    try {
+                        const j = JSON.parse(xhr.responseText || '{}');
+                        msg = j.message || j.error || msg;
+                    } catch (_) {}
+                    if (/bucket|not found|does not exist/i.test(msg) || xhr.status === 404) {
+                        msg = 'Bucket "landing-promos" no existe. Creálo en Storage (público).';
+                    }
+                    reject(new Error(msg));
+                };
+                xhr.onerror = function () { reject(new Error('Error de red al subir')); };
+                xhr.send(file);
+            });
+        }
+
+        async function uploadLandingPromoImageFile(slug, file, onProgress) {
             if (!file) throw new Error('Elegí un archivo de imagen');
             const safeSlug = slugifyLandingText(slug) || 'promo';
             let ext = (file.name || '').split('.').pop() || 'jpg';
-            if (!/^(jpe?g|png|webp|gif)$/i.test(ext)) ext = 'jpg';
-            const fileName = `landing/${safeSlug}-${Date.now()}.${ext.toLowerCase()}`;
-            const { error: upErr } = await client.storage
-                .from(LANDING_PROMOS_BUCKET)
-                .upload(fileName, file, { upsert: true, contentType: file.type || 'image/jpeg' });
-            if (upErr) {
-                const msg = String(upErr.message || upErr);
-                if (/bucket|not found|does not exist/i.test(msg)) {
-                    throw new Error('Bucket "landing-promos" no existe. Ejecutá 078_storage_landing_promos.sql o crealo en Storage (público).');
-                }
-                throw upErr;
-            }
-            const { data: urlData } = client.storage.from(LANDING_PROMOS_BUCKET).getPublicUrl(fileName);
-            return urlData.publicUrl;
+            if (!/^(jpe?g|png|webp|gif)$/i.test(ext)) ext = "jpg";
+            const fileName = 'landing/' + safeSlug + '-' + Date.now() + '.' + ext.toLowerCase();
+            return uploadLandingFileWithProgress(fileName, file, file.type || 'image/jpeg', onProgress);
         }
 
-        async function uploadLandingPromoVideoFile(slug, file) {
-            const client = window.supabaseClient && window.supabaseClient.client;
-            if (!client || !client.storage) throw new Error('Storage no disponible');
+        async function uploadLandingPromoVideoFile(slug, file, onProgress) {
             if (!file) throw new Error('Elegí un archivo de video');
             const maxMb = 12;
             if (file.size > maxMb * 1024 * 1024) {
-                throw new Error(`El video pesa más de ${maxMb} MB. Comprimilo (ideal 3–5 MB, máx ~8 MB).`);
+                throw new Error('El video pesa más de ' + maxMb + ' MB. Comprimilo (ideal 3–5 MB, máx ~8 MB).');
             }
             const safeSlug = slugifyLandingText(slug) || 'promo';
             let ext = (file.name || '').split('.').pop() || 'mp4';
-            if (!/^(mp4|webm|mov)$/i.test(ext)) ext = 'mp4';
-            const fileName = `landing/${safeSlug}-video-${Date.now()}.${ext.toLowerCase()}`;
+            if (!/^(mp4|webm|mov)$/i.test(ext)) ext = "mp4";
+            const fileName = 'landing/' + safeSlug + '-video-' + Date.now() + '.' + ext.toLowerCase();
             const contentType = file.type || (ext === 'webm' ? 'video/webm' : 'video/mp4');
-            const { error: upErr } = await client.storage
-                .from(LANDING_PROMOS_BUCKET)
-                .upload(fileName, file, { upsert: true, contentType });
-            if (upErr) {
-                const msg = String(upErr.message || upErr);
-                if (/bucket|not found|does not exist/i.test(msg)) {
-                    throw new Error('Bucket "landing-promos" no existe. Creálo en Storage (público).');
-                }
-                throw upErr;
-            }
-            const { data: urlData } = client.storage.from(LANDING_PROMOS_BUCKET).getPublicUrl(fileName);
-            return urlData.publicUrl;
+            return uploadLandingFileWithProgress(fileName, file, contentType, onProgress);
         }
 
         async function setLandingPromoHeroImage(slug, imageUrl) {
@@ -17857,6 +17886,15 @@ Ej:
                         <button type="button" id="landingPromoUploadVideoBtn" style="background:#6a1b9a;color:#fff;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;font-weight:600;">Subir video</button>
                         <button type="button" onclick="this.closest('.modal').remove()" style="background:#eee;color:#333;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;">Listo</button>
                     </div>
+                    <div id="landingPromoProgressWrap" style="display:none;margin-top:14px;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                            <span id="landingPromoProgressLabel" style="font-size:0.85rem;color:#666;">Subiendo…</span>
+                            <strong id="landingPromoProgressPct" style="font-size:0.95rem;color:#003580;">0%</strong>
+                        </div>
+                        <div style="height:10px;background:#e8eef7;border-radius:999px;overflow:hidden;">
+                            <div id="landingPromoProgressBar" style="height:100%;width:0%;background:linear-gradient(90deg,#003580,#1976d2);transition:width 0.15s ease;"></div>
+                        </div>
+                    </div>
                     <p id="landingPromoUploadStatus" style="margin:10px 0 0;font-size:0.85rem;color:#666;"></p>
                 </div>
             `;
@@ -17870,6 +17908,23 @@ Ej:
             const vidBtn = modal.querySelector('#landingPromoUploadVideoBtn');
             const fileInput = modal.querySelector('#landingPromoImageFile');
             const videoInput = modal.querySelector('#landingPromoVideoFile');
+            const progressWrap = modal.querySelector('#landingPromoProgressWrap');
+            const progressBar = modal.querySelector('#landingPromoProgressBar');
+            const progressPct = modal.querySelector('#landingPromoProgressPct');
+            const progressLabel = modal.querySelector('#landingPromoProgressLabel');
+
+            function setUploadProgress(pct, label) {
+                if (progressWrap) progressWrap.style.display = 'block';
+                const p = Math.max(0, Math.min(100, Math.round(pct || 0)));
+                if (progressBar) progressBar.style.width = p + '%';
+                if (progressPct) progressPct.textContent = p + '%';
+                if (progressLabel && label) progressLabel.textContent = label;
+            }
+            function hideUploadProgress() {
+                if (progressWrap) progressWrap.style.display = 'none';
+                if (progressBar) progressBar.style.width = '0%';
+                if (progressPct) progressPct.textContent = '0%';
+            }
 
             function setPreviewVideo(url, poster) {
                 const html = `<video id="landingPromoMediaPreview" src="${String(url).replace(/"/g, '&quot;')}" ${poster ? `poster="${String(poster).replace(/"/g, '&quot;')}"` : ''} muted loop playsinline autoplay style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;background:#111;"></video>`;
@@ -17891,10 +17946,15 @@ Ej:
                     return;
                 }
                 imgBtn.disabled = true;
+                vidBtn.disabled = true;
                 statusEl.textContent = 'Subiendo imagen…';
                 statusEl.style.color = '#666';
+                setUploadProgress(0, 'Subiendo imagen…');
                 try {
-                    const url = await uploadLandingPromoImageFile(slug, file);
+                    const url = await uploadLandingPromoImageFile(slug, file, function (pct) {
+                        setUploadProgress(pct, 'Subiendo imagen…');
+                    });
+                    setUploadProgress(100, 'Guardando…');
                     await setLandingPromoHeroImage(slug, url);
                     const prev = modal.querySelector('#landingPromoMediaPreview');
                     if (prev && prev.tagName === 'VIDEO') {
@@ -17902,15 +17962,18 @@ Ej:
                     } else {
                         setPreviewImage(url);
                     }
+                    setUploadProgress(100, 'Listo');
                     statusEl.textContent = 'Imagen actualizada.';
                     statusEl.style.color = '#2e7d32';
                     if (typeof showNotification === 'function') showNotification('✅ Imagen de landing actualizada', 'success');
                 } catch (e) {
                     console.error(e);
+                    hideUploadProgress();
                     statusEl.textContent = (e && e.message) ? e.message : String(e);
                     statusEl.style.color = '#c62828';
                 } finally {
                     imgBtn.disabled = false;
+                    vidBtn.disabled = false;
                 }
             });
 
@@ -17922,21 +17985,29 @@ Ej:
                     return;
                 }
                 vidBtn.disabled = true;
-                statusEl.textContent = 'Subiendo video… (puede tardar)';
+                imgBtn.disabled = true;
+                statusEl.textContent = 'Subiendo video…';
                 statusEl.style.color = '#666';
+                setUploadProgress(0, 'Subiendo video…');
                 try {
-                    const url = await uploadLandingPromoVideoFile(slug, file);
+                    const url = await uploadLandingPromoVideoFile(slug, file, function (pct) {
+                        setUploadProgress(pct, 'Subiendo video…');
+                    });
+                    setUploadProgress(100, 'Guardando…');
                     await setLandingPromoHeroVideo(slug, url);
                     setPreviewVideo(url, currentImageUrl || '');
+                    setUploadProgress(100, 'Listo');
                     statusEl.textContent = 'Video actualizado. Se reproduce en loop en la landing.';
                     statusEl.style.color = '#2e7d32';
                     if (typeof showNotification === 'function') showNotification('✅ Video de landing actualizado', 'success');
                 } catch (e) {
                     console.error(e);
+                    hideUploadProgress();
                     statusEl.textContent = (e && e.message) ? e.message : String(e);
                     statusEl.style.color = '#c62828';
                 } finally {
                     vidBtn.disabled = false;
+                    imgBtn.disabled = false;
                 }
             });
         }
