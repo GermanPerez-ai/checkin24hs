@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-29T20:39:22Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 252; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-29T21:02:01Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 254; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">252</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">254</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -16755,6 +16755,25 @@ Ej:
                 const editModal = document.getElementById('edit-promotion-form-modal');
                 if (editModal) editModal.remove();
                 
+                // Si ya existe landing web para esta promo, sincronizar contenido (título, precio, vigencia…)
+                try {
+                    let hotelForSync = null;
+                    if (window.supabaseClient && window.supabaseClient.getHotelById) {
+                        try { hotelForSync = await window.supabaseClient.getHotelById(hotelId); } catch (_) {}
+                    }
+                    if (!hotelForSync) {
+                        const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                        hotelForSync = hotels.find((h) => String(h.id) === String(hotelId));
+                    }
+                    const promoForSync = Object.assign({ id: promotionId }, updateData);
+                    const synced = await syncLandingWebFromPromotion(hotelForSync, promoForSync);
+                    if (synced && typeof showNotification === 'function') {
+                        showNotification('🌐 Landing web actualizada: /promo/' + synced.slug, 'info');
+                    }
+                } catch (syncErr) {
+                    console.warn('⚠️ Promo guardada; landing web no sincronizada:', syncErr);
+                }
+                
                 // Recargar listados (sin bloquear el cierre del formulario)
                 try {
                     const promotionsModal = document.getElementById('promotions-modal');
@@ -16797,7 +16816,7 @@ Ej:
                 return;
             }
             
-            const confirmMsg = '¿Estás seguro de que quieres eliminar esta promoción?';
+            const confirmMsg = '¿Eliminar esta promoción del dashboard?\n\nSi tiene landing en checkin24hs.com/promo/… también se ocultará de la web.';
             if (!confirm(confirmMsg)) {
                 return;
             }
@@ -16812,6 +16831,14 @@ Ej:
                         console.warn('⚠️ Error eliminando promoción de Supabase:', supabaseError);
                         // Continuar con localStorage como fallback
                     }
+                }
+
+                // Ocultar landings web ligadas (activo=false) — no quedan en /promos
+                try {
+                    const n = await deactivateLandingWebForPromotion(promotionId, { hardDelete: false });
+                    if (n > 0) console.log('🌐 Landings web desactivadas:', n);
+                } catch (landErr) {
+                    console.warn('⚠️ No se pudo desactivar landing web:', landErr);
                 }
                 
                 // Eliminar de localStorage también
@@ -17704,6 +17731,10 @@ Ej:
             return short ? `${base}-${short}` : base;
         }
 
+        function landingPromoIdShort(promoId) {
+            return String(promoId || '').replace(/-/g, '').slice(0, 8);
+        }
+
         function hotelHeroImageUrl(hotel) {
             if (!hotel) return null;
             const main = hotel.imagen_principal || hotel.image || null;
@@ -17713,6 +17744,76 @@ Ej:
             return null;
         }
 
+        async function findLandingPromoForPromotion(promotionId) {
+            if (!promotionId || !window.supabaseClient || !window.supabaseClient.client) return null;
+            const client = window.supabaseClient.client;
+            try {
+                const { data: bySource, error: srcErr } = await client
+                    .from('landing_promos')
+                    .select('*')
+                    .eq('source_promotion_id', promotionId)
+                    .maybeSingle();
+                if (!srcErr && bySource) return bySource;
+            } catch (_) {}
+            const short = landingPromoIdShort(promotionId);
+            if (!short || short.length < 6) return null;
+            try {
+                const { data: list } = await client
+                    .from('landing_promos')
+                    .select('*')
+                    .ilike('slug', '%-' + short);
+                const rows = list || [];
+                const exact = rows.find((r) => String(r.slug || '').endsWith('-' + short));
+                return exact || rows[0] || null;
+            } catch (_) {
+                return null;
+            }
+        }
+
+        function buildLandingFieldsFromPromotion(hotel, promo, existing) {
+            const titulo = String(promo.name || promo.type || 'Oferta especial').trim();
+            const precioNum = promo.promotionalPrice || promo.price;
+            let precioTexto = '';
+            if (promo.discount) precioTexto = `${promo.discount}% de descuento`;
+            if (precioNum) precioTexto = precioTexto ? `${precioTexto} · desde $${precioNum}` : `Desde $${precioNum}`;
+            if (!precioTexto) precioTexto = 'Consultá valor actualizado por WhatsApp';
+            const slug = (existing && existing.slug)
+                ? existing.slug
+                : buildLandingPromoSlug(hotel.name, titulo, promo.id);
+            const url = landingPublicUrl(slug);
+            const cuerpo = String(promo.description || '').trim()
+                || (existing && existing.cuerpo)
+                || 'Escribinos por WhatsApp y te armamos fechas, habitación y presupuesto.';
+            const beneficios = (existing && existing.beneficios)
+                || [
+                    'Asesoría personalizada sin compromiso',
+                    'Confirmación rápida por WhatsApp',
+                    'Atención Checkin24hs de punta a punta'
+                ].join('\n');
+            const activo = promo.status === 'paused' || promo.status === 'inactive' ? false : true;
+            return {
+                slug,
+                titulo,
+                subtitulo: (existing && existing.subtitulo) || `Reservá ${hotel.name} con Checkin24hs.`,
+                hotel_nombre: hotel.name || null,
+                hotel_id: hotel.id || null,
+                source_promotion_id: promo.id || null,
+                badge: (existing && existing.badge) || 'Oferta Checkin24hs',
+                precio_texto: precioTexto,
+                beneficios,
+                cuerpo,
+                imagen_hero: (existing && existing.imagen_hero) || hotelHeroImageUrl(hotel),
+                imagen_hero_mobile: existing ? existing.imagen_hero_mobile : null,
+                video_hero: existing ? existing.video_hero : null,
+                cta_whatsapp: (existing && existing.cta_whatsapp) || 'Quiero esta promo por WhatsApp',
+                mensaje_whatsapp: (existing && existing.mensaje_whatsapp)
+                    || `Hola, vi la promo en ${url} y quiero más info de ${hotel.name}`,
+                vigencia_hasta: promo.endDate ? String(promo.endDate).slice(0, 10) : null,
+                activo,
+                orden: existing && existing.orden != null ? existing.orden : 1
+            };
+        }
+
         async function upsertLandingPromoRow(row) {
             if (!window.supabaseClient || !window.supabaseClient.isInitialized || !window.supabaseClient.isInitialized()) {
                 throw new Error('Supabase no inicializado. Recargá el dashboard.');
@@ -17720,13 +17821,111 @@ Ej:
             const client = window.supabaseClient.client;
             if (!client) throw new Error('Cliente Supabase no disponible');
             const payload = Object.assign({}, row, { updated_at: new Date().toISOString() });
-            const { data, error } = await client
+            // Si no existe la columna source_promotion_id aún, reintentar sin ella
+            let { data, error } = await client
                 .from('landing_promos')
                 .upsert(payload, { onConflict: 'slug' })
                 .select()
                 .single();
+            if (error && /source_promotion_id|column/i.test(String(error.message || ''))) {
+                const { source_promotion_id, ...rest } = payload;
+                ({ data, error } = await client
+                    .from('landing_promos')
+                    .upsert(rest, { onConflict: 'slug' })
+                    .select()
+                    .single());
+            }
             if (error) throw error;
             return data;
+        }
+
+        /** Actualiza landing existente o crea una nueva ligada a la promo del dashboard. */
+        async function syncLandingWebFromPromotion(hotel, promo) {
+            if (!hotel || !promo || !promo.id) return null;
+            const existing = await findLandingPromoForPromotion(promo.id);
+            if (!existing) return null; // solo sync si ya hubo landing (no crea al editar)
+            const fields = buildLandingFieldsFromPromotion(hotel, promo, existing);
+            const client = window.supabaseClient.client;
+            const payload = Object.assign({}, fields, { updated_at: new Date().toISOString() });
+            delete payload.slug; // no renombrar URL ya compartida
+            let { data, error } = await client
+                .from('landing_promos')
+                .update(payload)
+                .eq('id', existing.id)
+                .select()
+                .single();
+            if (error && /source_promotion_id|column/i.test(String(error.message || ''))) {
+                const { source_promotion_id, ...rest } = payload;
+                ({ data, error } = await client
+                    .from('landing_promos')
+                    .update(rest)
+                    .eq('id', existing.id)
+                    .select()
+                    .single());
+            }
+            if (error) throw error;
+            await deactivateDuplicateLandingsForPromotion(promo.id, data.id);
+            return data;
+        }
+
+        /** Desactiva landings duplicadas del mismo promo id (renombres viejos). */
+        async function deactivateDuplicateLandingsForPromotion(promotionId, keepId) {
+            if (!promotionId || !keepId || !window.supabaseClient || !window.supabaseClient.client) return;
+            const client = window.supabaseClient.client;
+            const short = landingPromoIdShort(promotionId);
+            if (!short) return;
+            try {
+                const { data: list } = await client
+                    .from('landing_promos')
+                    .select('id, slug')
+                    .ilike('slug', '%-' + short);
+                for (const r of (list || [])) {
+                    if (r.id === keepId) continue;
+                    if (!String(r.slug || '').endsWith('-' + short)) continue;
+                    await client
+                        .from('landing_promos')
+                        .update({ activo: false, updated_at: new Date().toISOString() })
+                        .eq('id', r.id);
+                }
+            } catch (e) {
+                console.warn('No se pudieron desactivar landings duplicadas:', e);
+            }
+        }
+
+        /** Desactiva (o borra) landings web ligadas a una promo del dashboard. */
+        async function deactivateLandingWebForPromotion(promotionId, { hardDelete = false } = {}) {
+            if (!promotionId || !window.supabaseClient || !window.supabaseClient.client) return 0;
+            const client = window.supabaseClient.client;
+            let count = 0;
+            const existing = await findLandingPromoForPromotion(promotionId);
+            const ids = new Set();
+            if (existing && existing.id) ids.add(existing.id);
+            // Por si hubo renombres: varias landings con el mismo sufijo de id
+            const short = landingPromoIdShort(promotionId);
+            if (short) {
+                try {
+                    const { data: list } = await client
+                        .from('landing_promos')
+                        .select('id, slug')
+                        .ilike('slug', '%-' + short);
+                    (list || []).forEach((r) => {
+                        if (String(r.slug || '').endsWith('-' + short)) ids.add(r.id);
+                    });
+                } catch (_) {}
+            }
+            for (const id of ids) {
+                if (hardDelete) {
+                    const { error } = await client.from('landing_promos').delete().eq('id', id);
+                    if (!error) count += 1;
+                } else {
+                    const { error } = await client
+                        .from('landing_promos')
+                        .update({ activo: false, updated_at: new Date().toISOString() })
+                        .eq('id', id);
+                    if (!error) count += 1;
+                }
+            }
+            return count;
         }
 
         function landingPublicUrl(slug) {
@@ -18041,44 +18240,19 @@ Ej:
                 const promo = (promos || []).find((p) => String(p.id) === String(promotionId));
                 if (!promo) throw new Error('Promoción no encontrada');
 
-                const titulo = String(promo.name || promo.type || 'Oferta especial').trim();
-                const precioNum = promo.promotionalPrice || promo.price;
-                let precioTexto = '';
-                if (promo.discount) precioTexto = `${promo.discount}% de descuento`;
-                if (precioNum) precioTexto = precioTexto ? `${precioTexto} · desde $${precioNum}` : `Desde $${precioNum}`;
-                if (!precioTexto) precioTexto = 'Consultá valor actualizado por WhatsApp';
-
-                const slug = buildLandingPromoSlug(hotel.name, titulo, promo.id);
-                const url = landingPublicUrl(slug);
-                const beneficios = [
-                    'Asesoría personalizada sin compromiso',
-                    'Confirmación rápida por WhatsApp',
-                    'Atención Checkin24hs de punta a punta'
-                ].join('\n');
-                const cuerpo = String(promo.description || '').trim()
-                    || 'Escribinos por WhatsApp y te armamos fechas, habitación y presupuesto.';
-
-                const row = {
-                    slug,
-                    titulo,
-                    subtitulo: `Reservá ${hotel.name} con Checkin24hs.`,
-                    hotel_nombre: hotel.name || null,
-                    hotel_id: hotel.id || null,
-                    badge: 'Oferta Checkin24hs',
-                    precio_texto: precioTexto,
-                    beneficios,
-                    cuerpo,
-                    imagen_hero: hotelHeroImageUrl(hotel),
-                    imagen_hero_mobile: null,
-                    cta_whatsapp: 'Quiero esta promo por WhatsApp',
-                    mensaje_whatsapp: `Hola, vi la promo en ${url} y quiero más info de ${hotel.name}`,
-                    vigencia_hasta: promo.endDate ? String(promo.endDate).slice(0, 10) : null,
-                    activo: true,
-                    orden: 1
-                };
+                const existing = await findLandingPromoForPromotion(promo.id);
+                const fields = buildLandingFieldsFromPromotion(hotel, promo, existing);
+                const row = Object.assign({}, fields);
+                // Al crear desde cero, imagen del hotel si no hay media previa
+                if (!existing) {
+                    row.imagen_hero = hotelHeroImageUrl(hotel);
+                }
 
                 const saved = await upsertLandingPromoRow(row);
-                const finalSlug = saved.slug || slug;
+                if (saved && saved.id && promo.id) {
+                    await deactivateDuplicateLandingsForPromotion(promo.id, saved.id);
+                }
+                const finalSlug = saved.slug || row.slug;
                 const finalUrl = landingPublicUrl(finalSlug);
                 try { await navigator.clipboard.writeText(finalUrl); } catch (_) {}
                 const msg = `Landing lista: ${finalUrl}` + (navigator.clipboard ? ' (URL copiada)' : '');
@@ -18168,6 +18342,122 @@ Ej:
 
         window.createLandingWebFromPromotion = createLandingWebFromPromotion;
         window.createLandingWebsFromHotelFlorPromos = createLandingWebsFromHotelFlorPromos;
+
+        /** Lista landings de checkin24hs.com/promo (tabla landing_promos) para activar/borrar huérfanas. */
+        async function showLandingPromosManagerModal() {
+            const existing = document.getElementById('landing-promos-manager-modal');
+            if (existing) existing.remove();
+
+            if (!window.supabaseClient || !window.supabaseClient.client) {
+                alert('Supabase no disponible');
+                return;
+            }
+            const client = window.supabaseClient.client;
+            let rows = [];
+            try {
+                const { data, error } = await client
+                    .from('landing_promos')
+                    .select('*')
+                    .order('activo', { ascending: false })
+                    .order('updated_at', { ascending: false });
+                if (error) throw error;
+                rows = data || [];
+            } catch (e) {
+                alert('Error cargando landings: ' + (e.message || e));
+                return;
+            }
+
+            const modal = document.createElement('div');
+            modal.id = 'landing-promos-manager-modal';
+            modal.className = 'modal';
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;z-index:1105;';
+            const activeCount = rows.filter((r) => r.activo).length;
+            const listHtml = rows.length === 0
+                ? '<p style="color:#666;text-align:center;padding:24px;">No hay landings en landing_promos.</p>'
+                : rows.map((r) => {
+                    const url = landingPublicUrl(r.slug);
+                    const vig = r.vigencia_hasta || '—';
+                    const src = r.source_promotion_id
+                        ? String(r.source_promotion_id).slice(0, 8) + '…'
+                        : 'sin vínculo';
+                    return `
+                      <div style="border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:10px;background:${r.activo ? '#f8fff8' : '#fafafa'};">
+                        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:flex-start;">
+                          <div style="flex:1;min-width:200px;">
+                            <strong style="color:#003580;">${String(r.titulo || '').replace(/</g, '')}</strong>
+                            <div style="font-size:0.85rem;color:#666;margin-top:4px;">${String(r.hotel_nombre || '').replace(/</g, '')}</div>
+                            <div style="font-size:0.8rem;margin-top:6px;word-break:break-all;">
+                              <a href="${url}" target="_blank" rel="noopener">/promo/${String(r.slug || '').replace(/</g, '')}</a>
+                            </div>
+                            <div style="font-size:0.75rem;color:#888;margin-top:4px;">
+                              ${r.activo ? '🟢 Activa' : '⚪ Inactiva'} · vigencia: ${vig} · promo: ${src}
+                            </div>
+                          </div>
+                          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                            <button type="button" data-land-toggle="${r.id}" data-activo="${r.activo ? '1' : '0'}" style="background:${r.activo ? '#ff9800' : '#4caf50'};color:#fff;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;font-size:0.85rem;">
+                              ${r.activo ? 'Ocultar web' : 'Publicar'}
+                            </button>
+                            <button type="button" data-land-media="${String(r.slug).replace(/"/g, '')}" data-img="${String(r.imagen_hero || '').replace(/"/g, '&quot;')}" data-vid="${String(r.video_hero || '').replace(/"/g, '&quot;')}" style="background:#003580;color:#fff;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;font-size:0.85rem;">Media</button>
+                            <button type="button" data-land-del="${r.id}" style="background:#f44336;color:#fff;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;font-size:0.85rem;">Borrar</button>
+                          </div>
+                        </div>
+                      </div>`;
+                }).join('');
+
+            modal.innerHTML = `
+              <div style="background:#fff;border-radius:12px;padding:24px;width:min(720px,94vw);max-height:90vh;overflow:auto;" onclick="event.stopPropagation()">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                  <h2 style="margin:0;color:#003580;font-size:1.15rem;">🌐 Landings en la web</h2>
+                  <button type="button" id="landingMgrClose" style="background:none;border:none;font-size:24px;cursor:pointer;color:#666;">&times;</button>
+                </div>
+                <p style="margin:0 0 16px;color:#666;font-size:0.9rem;">
+                  Esto es lo que ve checkin24hs.com/promos (${activeCount} activas / ${rows.length} total).
+                  Borrar u ocultar acá saca la promo de la web aunque ya no exista en el dashboard.
+                </p>
+                <div id="landingMgrList">${listHtml}</div>
+              </div>`;
+            document.body.appendChild(modal);
+            modal.querySelector('#landingMgrClose').onclick = () => modal.remove();
+
+            modal.querySelectorAll('[data-land-toggle]').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    const id = btn.getAttribute('data-land-toggle');
+                    const wasOn = btn.getAttribute('data-activo') === '1';
+                    const { error } = await client
+                        .from('landing_promos')
+                        .update({ activo: !wasOn, updated_at: new Date().toISOString() })
+                        .eq('id', id);
+                    if (error) {
+                        alert(error.message || String(error));
+                        return;
+                    }
+                    modal.remove();
+                    showLandingPromosManagerModal();
+                });
+            });
+            modal.querySelectorAll('[data-land-del]').forEach((btn) => {
+                btn.addEventListener('click', async () => {
+                    if (!confirm('¿Borrar esta landing de la web? No se puede deshacer.')) return;
+                    const id = btn.getAttribute('data-land-del');
+                    const { error } = await client.from('landing_promos').delete().eq('id', id);
+                    if (error) {
+                        alert(error.message || String(error));
+                        return;
+                    }
+                    modal.remove();
+                    showLandingPromosManagerModal();
+                });
+            });
+            modal.querySelectorAll('[data-land-media]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const slug = btn.getAttribute('data-land-media');
+                    const img = (btn.getAttribute('data-img') || '').replace(/&quot;/g, '"');
+                    const vid = (btn.getAttribute('data-vid') || '').replace(/&quot;/g, '"');
+                    showLandingPromoImageModal(slug, img || null, landingPublicUrl(slug), vid || null);
+                });
+            });
+        }
+        window.showLandingPromosManagerModal = showLandingPromosManagerModal;
 
         // Función para editar hotel
         async function editHotel(hotelId) {
@@ -20905,6 +21195,9 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                             </button>
                             <button onclick="showCreatePromotionForm()" style="background: #4caf50; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; font-size: 0.95rem; white-space: nowrap;">
                                 ➕ Nueva Promoción
+                            </button>
+                            <button type="button" onclick="showLandingPromosManagerModal()" style="background: #003580; color: white; border: none; padding: 12px 20px; border-radius: 4px; cursor: pointer; font-size: 0.95rem; white-space: nowrap;">
+                                🌐 Landings web
                             </button>
                         </div>
                     </div>

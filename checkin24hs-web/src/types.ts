@@ -150,6 +150,8 @@ export interface LandingPromo {
   subtitulo: string | null;
   hotel_nombre: string | null;
   hotel_id: string | null;
+  /** Promo del dashboard (tabla promotions) que originó esta landing. */
+  source_promotion_id?: string | null;
   badge: string | null;
   precio_texto: string | null;
   beneficios: string | null;
