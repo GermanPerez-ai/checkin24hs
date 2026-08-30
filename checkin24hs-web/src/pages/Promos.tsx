@@ -57,14 +57,26 @@ export function Promos() {
             {promos.map((p) => (
               <li key={p.id} className={styles.item}>
                 <Link to={`/promo/${encodeURIComponent(p.slug)}`} className={styles.card}>
-                  <div
-                    className={styles.thumb}
-                    style={
-                      p.imagen_hero
-                        ? { backgroundImage: `url(${p.imagen_hero})` }
-                        : undefined
-                    }
-                  />
+                  <div className={styles.thumb}>
+                    {p.video_hero ? (
+                      <video
+                        className={styles.thumbMedia}
+                        src={p.video_hero}
+                        poster={p.imagen_hero || undefined}
+                        muted
+                        loop
+                        playsInline
+                        autoPlay
+                        aria-hidden
+                      />
+                    ) : p.imagen_hero ? (
+                      <img
+                        className={styles.thumbMedia}
+                        src={p.imagen_hero}
+                        alt=""
+                      />
+                    ) : null}
+                  </div>
                   <div className={styles.cardBody}>
                     {p.badge && <span className={styles.badge}>{p.badge}</span>}
                     <h2 className={styles.cardTitle}>{p.titulo}</h2>

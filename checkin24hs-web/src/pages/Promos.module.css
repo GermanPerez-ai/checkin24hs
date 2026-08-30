@@ -70,10 +70,18 @@
 
 .thumb {
   height: 160px;
-  background:
-    linear-gradient(135deg, #003580 0%, #0047a0 100%);
-  background-size: cover;
-  background-position: center;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #003580 0%, #0047a0 100%);
+}
+
+.thumbMedia {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .cardBody {

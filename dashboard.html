@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-29T21:02:01Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 254; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-30T00:17:08Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 257; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">254</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">257</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -15614,6 +15614,22 @@ Ej:
             });
         }
         
+        // Fechas DATE (YYYY-MM-DD) sin timezone: new Date('2026-09-02') = UTC → en AR muestra el día anterior.
+        function parsePromoDateLocal(isoDate) {
+            const s = String(isoDate || '').slice(0, 10);
+            const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+            if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+            const d = new Date(s.includes('T') ? s : s + 'T12:00:00');
+            return Number.isNaN(d.getTime()) ? null : d;
+        }
+        function formatPromoDateLocal(isoDate) {
+            if (!isoDate) return '';
+            const d = parsePromoDateLocal(isoDate);
+            if (!d) return String(isoDate).slice(0, 10);
+            return d.toLocaleDateString('es-AR');
+        }
+        window.formatPromoDateLocal = formatPromoDateLocal;
+
         // Función para cargar y mostrar promociones activas (en sección)
         async function loadActivePromotions() {
             const activeContent = document.getElementById('active-promotions-content');
@@ -15700,10 +15716,10 @@ Ej:
                     hotelPromotions.forEach(promo => {
                         // Filtrar solo promociones activas
                         if (promo.status === 'active' || promo.status === undefined) {
-                            const startDate = new Date(promo.startDate);
+                            const startDate = parsePromoDateLocal(promo.startDate) || new Date(promo.startDate);
                             startDate.setHours(0, 0, 0, 0);
                             
-                            const endDate = new Date(promo.endDate);
+                            const endDate = parsePromoDateLocal(promo.endDate) || new Date(promo.endDate);
                             endDate.setHours(23, 59, 59, 999); // Fin del día
                             
                             // Verificar que la promoción aún no haya terminado (mostrar incluso si no ha comenzado)
@@ -15788,15 +15804,16 @@ Ej:
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; font-size: 0.9rem;">
                                     ${promo.discount ? `<div><strong>Descuento:</strong> ${promo.discount}%</div>` : ''}
                                     ${promo.price || promo.promotionalPrice ? `<div><strong>Precio Promocional:</strong> $${promo.price || promo.promotionalPrice || ''}</div>` : ''}
-                                    <div><strong>Inicio:</strong> ${new Date(promo.startDate).toLocaleDateString()}</div>
-                                    <div><strong>Fin:</strong> ${new Date(promo.endDate).toLocaleDateString()}</div>
-                                    ${promo.travelStartDate ? `<div><strong>Viaje desde:</strong> ${new Date(promo.travelStartDate).toLocaleDateString()}</div>` : ''}
-                                    ${promo.travelEndDate ? `<div><strong>Viaje hasta:</strong> ${new Date(promo.travelEndDate).toLocaleDateString()}</div>` : ''}
+                                    <div><strong>Inicio:</strong> ${formatPromoDateLocal(promo.startDate)}</div>
+                                    <div><strong>Fin:</strong> ${formatPromoDateLocal(promo.endDate)}</div>
+                                    ${promo.travelStartDate ? `<div><strong>Viaje desde:</strong> ${formatPromoDateLocal(promo.travelStartDate)}</div>` : ''}
+                                    ${promo.travelEndDate ? `<div><strong>Viaje hasta:</strong> ${formatPromoDateLocal(promo.travelEndDate)}</div>` : ''}
                                 </div>
                                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                                     <button onclick="editHotelPromotion('${promo.hotelId}')" style="background: #2196f3; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">✏️ Editar</button>
                                     <button onclick="viewHotelPromotion('${promo.hotelId}')" style="background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">👁️ Ver</button>
                                     <button onclick="createLandingWebFromPromotion('${promo.hotelId}', '${promo.id}')" style="background: #003580; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">🌐 Landing web</button>
+                                    <button onclick="openLandingMediaForPromotion('${promo.hotelId}', '${promo.id}')" style="background: #6a1b9a; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">🖼 Media</button>
                                     <button onclick="deletePromotion('${promo.hotelId}', '${promo.id}')" style="background: #f44336; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">🗑️ Eliminar</button>
                                 </div>
                             </div>
@@ -16123,9 +16140,9 @@ Ej:
                             ${existingPromotions.map((promo, index) => {
                                 const today = new Date();
                                 today.setHours(0, 0, 0, 0);
-                                const startDate = new Date(promo.startDate);
+                                const startDate = parsePromoDateLocal(promo.startDate) || new Date(promo.startDate);
                                 startDate.setHours(0, 0, 0, 0);
-                                const endDate = new Date(promo.endDate);
+                                const endDate = parsePromoDateLocal(promo.endDate) || new Date(promo.endDate);
                                 endDate.setHours(23, 59, 59, 999);
                                 const isCurrentlyActive = today >= startDate && today <= endDate;
                                 const isProgrammed = today < startDate;
@@ -16142,14 +16159,15 @@ Ej:
                                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; font-size: 0.85rem; color: #666;">
                                         ${promo.discount ? `<div><strong>Descuento:</strong> ${promo.discount}%</div>` : ''}
                                         ${promo.price || promo.promotionalPrice ? `<div><strong>Precio Promocional:</strong> $${promo.price || promo.promotionalPrice || ''}</div>` : ''}
-                                        <div><strong>Inicio:</strong> ${new Date(promo.startDate).toLocaleDateString()}</div>
-                                        <div><strong>Fin:</strong> ${new Date(promo.endDate).toLocaleDateString()}</div>
-                                        ${promo.travelStartDate ? `<div><strong>Viaje desde:</strong> ${new Date(promo.travelStartDate).toLocaleDateString()}</div>` : ''}
-                                        ${promo.travelEndDate ? `<div><strong>Viaje hasta:</strong> ${new Date(promo.travelEndDate).toLocaleDateString()}</div>` : ''}
+                                        <div><strong>Inicio:</strong> ${formatPromoDateLocal(promo.startDate)}</div>
+                                        <div><strong>Fin:</strong> ${formatPromoDateLocal(promo.endDate)}</div>
+                                        ${promo.travelStartDate ? `<div><strong>Viaje desde:</strong> ${formatPromoDateLocal(promo.travelStartDate)}</div>` : ''}
+                                        ${promo.travelEndDate ? `<div><strong>Viaje hasta:</strong> ${formatPromoDateLocal(promo.travelEndDate)}</div>` : ''}
                                     </div>
                                     <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                                         <button onclick="editSpecificPromotion('${hotel.id}', '${promo.id}')" style="background: #2196f3; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">✏️ Editar</button>
                                         <button onclick="createLandingWebFromPromotion('${hotel.id}', '${promo.id}')" style="background: #003580; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">🌐 Landing web</button>
+                                        <button onclick="openLandingMediaForPromotion('${hotel.id}', '${promo.id}')" style="background: #6a1b9a; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">🖼 Media</button>
                                         <button onclick="deletePromotion('${hotel.id}', '${promo.id}')" style="background: #f44336; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">🗑️ Eliminar</button>
                                     </div>
                                 </div>
@@ -17945,48 +17963,64 @@ Ej:
         /** Subida a Storage con progreso real (XHR). onProgress(pct 0-100). */
         async function uploadLandingFileWithProgress(fileName, file, contentType, onProgress) {
             const { url, key } = getLandingStorageAuth();
-            let bearer = key;
-            try {
-                const client = window.supabaseClient && window.supabaseClient.client;
-                if (client && client.auth && client.auth.getSession) {
-                    const sess = await client.auth.getSession();
-                    const tok = sess && sess.data && sess.data.session && sess.data.session.access_token;
-                    if (tok) bearer = tok;
-                }
-            } catch (_) {}
+            // Importante: policies de storage suelen ser TO anon.
+            // Si mandamos el JWT de sesión (authenticated) el upload falla con RLS.
+            const bearer = key;
             const objectPath = fileName.split('/').map(encodeURIComponent).join('/');
             const endpoint = url + '/storage/v1/object/' + LANDING_PROMOS_BUCKET + '/' + objectPath + '?upsert=true';
-            return new Promise((resolve, reject) => {
-                const xhr = new XMLHttpRequest();
-                xhr.open('POST', endpoint, true);
-                xhr.setRequestHeader('Authorization', 'Bearer ' + bearer);
-                xhr.setRequestHeader('apikey', key);
-                xhr.setRequestHeader('x-upsert', 'true');
-                if (contentType) xhr.setRequestHeader("Content-Type", contentType);
-                xhr.upload.onprogress = function (ev) {
-                    if (!ev.lengthComputable || typeof onProgress !== "function") return;
-                    const pct = Math.min(100, Math.round((ev.loaded / ev.total) * 100));
-                    onProgress(pct, ev.loaded, ev.total);
-                };
-                xhr.onload = function () {
-                    if (xhr.status >= 200 && xhr.status < 300) {
-                        const publicUrl = url + '/storage/v1/object/public/' + LANDING_PROMOS_BUCKET + '/' + objectPath;
-                        resolve(publicUrl);
-                        return;
+            try {
+                const publicUrl = await new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', endpoint, true);
+                    xhr.setRequestHeader('Authorization', 'Bearer ' + bearer);
+                    xhr.setRequestHeader('apikey', key);
+                    xhr.setRequestHeader('x-upsert', 'true');
+                    if (contentType) xhr.setRequestHeader("Content-Type", contentType);
+                    xhr.upload.onprogress = function (ev) {
+                        if (!ev.lengthComputable || typeof onProgress !== "function") return;
+                        const pct = Math.min(100, Math.round((ev.loaded / ev.total) * 100));
+                        onProgress(pct, ev.loaded, ev.total);
+                    };
+                    xhr.onload = function () {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            const publicUrl = url + '/storage/v1/object/public/' + LANDING_PROMOS_BUCKET + '/' + objectPath;
+                            resolve(publicUrl);
+                            return;
+                        }
+                        let msg = 'Error subiendo archivo (HTTP ' + xhr.status + ')';
+                        try {
+                            const j = JSON.parse(xhr.responseText || '{}');
+                            msg = j.message || j.error || msg;
+                        } catch (_) {}
+                        if (/bucket|not found|does not exist/i.test(msg) || xhr.status === 404) {
+                            msg = 'Bucket "landing-promos" no existe. Creálo en Storage (público).';
+                        }
+                        reject(new Error(msg));
+                    };
+                    xhr.onerror = function () { reject(new Error('Error de red al subir')); };
+                    xhr.send(file);
+                });
+                return publicUrl;
+            } catch (xhrErr) {
+                // Fallback: SDK de Supabase (sin barra de progreso fina)
+                console.warn('XHR upload falló, intento con SDK:', xhrErr);
+                if (typeof onProgress === 'function') onProgress(50);
+                const client = window.supabaseClient && window.supabaseClient.client;
+                if (!client || !client.storage) throw xhrErr;
+                const { error: upErr } = await client.storage
+                    .from(LANDING_PROMOS_BUCKET)
+                    .upload(fileName, file, { upsert: true, contentType: contentType || file.type || undefined });
+                if (upErr) {
+                    const msg = String(upErr.message || upErr);
+                    if (/bucket|not found|does not exist|row-level security|policy/i.test(msg)) {
+                        throw new Error('No se pudo subir al bucket "landing-promos". Revisá Storage (público) y policies (078/081).');
                     }
-                    let msg = 'Error subiendo archivo (HTTP ' + xhr.status + ')';
-                    try {
-                        const j = JSON.parse(xhr.responseText || '{}');
-                        msg = j.message || j.error || msg;
-                    } catch (_) {}
-                    if (/bucket|not found|does not exist/i.test(msg) || xhr.status === 404) {
-                        msg = 'Bucket "landing-promos" no existe. Creálo en Storage (público).';
-                    }
-                    reject(new Error(msg));
-                };
-                xhr.onerror = function () { reject(new Error('Error de red al subir')); };
-                xhr.send(file);
-            });
+                    throw upErr;
+                }
+                const { data: urlData } = client.storage.from(LANDING_PROMOS_BUCKET).getPublicUrl(fileName);
+                if (typeof onProgress === 'function') onProgress(100);
+                return urlData.publicUrl;
+            }
         }
 
         async function uploadLandingPromoImageFile(slug, file, onProgress) {
@@ -18047,40 +18081,55 @@ Ej:
             return data;
         }
 
-        /** Modal: subir/cambiar imagen o video hero de una landing. */
+        /** Modal: subir/cambiar imagen y/o video hero de una landing. */
         function showLandingPromoImageModal(slug, currentImageUrl, publicUrl, currentVideoUrl) {
             const existing = document.getElementById('landing-promo-image-modal');
             if (existing) existing.remove();
+
+            let liveImage = currentImageUrl || null;
+            let liveVideo = currentVideoUrl || null;
 
             const modal = document.createElement('div');
             modal.id = 'landing-promo-image-modal';
             modal.className = 'modal';
             modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;z-index:1100;';
-            const imgEsc = String(currentImageUrl || '').replace(/"/g, '&quot;');
-            const vidEsc = String(currentVideoUrl || '').replace(/"/g, '&quot;');
-            const preview = currentVideoUrl
-                ? `<video id="landingPromoMediaPreview" src="${vidEsc}" ${currentImageUrl ? `poster="${imgEsc}"` : ''} muted loop playsinline autoplay style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;background:#111;"></video>`
-                : currentImageUrl
-                ? `<img id="landingPromoMediaPreview" src="${imgEsc}" alt="" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;background:#eee;">`
-                : `<div id="landingPromoMediaPreview" style="width:100%;height:160px;border-radius:8px;background:#e8eef7;display:flex;align-items:center;justify-content:center;color:#666;">Sin media aún</div>`;
+
+            function renderPreviewHtml() {
+                if (liveVideo) {
+                    const poster = liveImage ? ` poster="${String(liveImage).replace(/"/g, '&quot;')}"` : '';
+                    return `<video id="landingPromoMediaPreview" src="${String(liveVideo).replace(/"/g, '&quot;')}"${poster} muted loop playsinline autoplay style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;background:#111;"></video>`;
+                }
+                if (liveImage) {
+                    return `<img id="landingPromoMediaPreview" src="${String(liveImage).replace(/"/g, '&quot;')}" alt="" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;background:#eee;">`;
+                }
+                return `<div id="landingPromoMediaPreview" style="width:100%;height:160px;border-radius:8px;background:#e8eef7;display:flex;align-items:center;justify-content:center;color:#666;">Sin media aún</div>`;
+            }
 
             modal.innerHTML = `
-                <div style="background:#fff;border-radius:12px;padding:24px;width:min(520px,94vw);max-height:90vh;overflow:auto;">
+                <div style="background:#fff;border-radius:12px;padding:24px;width:min(520px,94vw);max-height:90vh;overflow:auto;" onclick="event.stopPropagation()">
                     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
                         <h2 style="margin:0;color:#003580;font-size:1.15rem;">🌐 Media del hero</h2>
                         <button type="button" onclick="this.closest('.modal').remove()" style="background:none;border:none;font-size:24px;cursor:pointer;color:#666;">&times;</button>
                     </div>
-                    <p style="margin:0 0 12px;color:#666;font-size:0.9rem;">Imagen (JPG/PNG) y/o video de fondo (MP4, 3–8 MB, 6–15 s). El video va muted en loop.</p>
-                    <div style="margin-bottom:12px;">${preview}</div>
+                    <p style="margin:0 0 12px;color:#666;font-size:0.9rem;">Podés usar <strong>imagen</strong>, <strong>video</strong>, o ambos (el video usa la imagen como poster; la lista /promos usa la imagen).</p>
+                    <div id="landingPromoPreviewWrap" style="margin-bottom:12px;">${renderPreviewHtml()}</div>
                     <p style="margin:0 0 12px;font-size:0.85rem;word-break:break-all;"><strong>URL:</strong> <a href="${String(publicUrl || '').replace(/"/g, '&quot;')}" target="_blank" rel="noopener">${String(publicUrl || '').replace(/</g, '')}</a></p>
-                    <label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.9rem;">Imagen (poster / fallback)</label>
-                    <input type="file" id="landingPromoImageFile" accept="image/jpeg,image/png,image/webp,image/gif" style="width:100%;margin-bottom:10px;">
-                    <button type="button" id="landingPromoUploadBtn" style="background:#003580;color:#fff;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;font-weight:600;margin-bottom:16px;">Subir imagen</button>
-                    <label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.9rem;">Video de fondo (opcional)</label>
-                    <input type="file" id="landingPromoVideoFile" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" style="width:100%;margin-bottom:10px;">
+                    <div style="background:#f5f8fc;border-radius:8px;padding:10px 12px;margin-bottom:14px;font-size:0.82rem;color:#444;">
+                        <div id="landingPromoImgStatus">🖼 Imagen: ${liveImage ? 'sí' : 'no'}</div>
+                        <div id="landingPromoVidStatus" style="margin-top:4px;">🎬 Video: ${liveVideo ? 'sí' : 'no'}</div>
+                    </div>
+                    <label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.9rem;">Imagen (poster / tarjeta / fallback)</label>
+                    <input type="file" id="landingPromoImageFile" accept="image/jpeg,image/png,image/webp,image/gif" style="width:100%;margin-bottom:8px;">
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+                        <button type="button" id="landingPromoUploadBtn" style="background:#003580;color:#fff;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;font-weight:600;">Subir imagen</button>
+                        <button type="button" id="landingPromoClearImgBtn" style="background:#eee;color:#333;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;">Quitar imagen</button>
+                    </div>
+                    <label style="display:block;font-weight:600;margin-bottom:4px;font-size:0.9rem;">Video de fondo (opcional, MP4 3–8 MB)</label>
+                    <input type="file" id="landingPromoVideoFile" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" style="width:100%;margin-bottom:8px;">
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
                         <button type="button" id="landingPromoUploadVideoBtn" style="background:#6a1b9a;color:#fff;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;font-weight:600;">Subir video</button>
-                        <button type="button" onclick="this.closest('.modal').remove()" style="background:#eee;color:#333;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;">Listo</button>
+                        <button type="button" id="landingPromoClearVidBtn" style="background:#eee;color:#333;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;">Quitar video</button>
+                        <button type="button" onclick="this.closest('.modal').remove()" style="background:#003580;color:#fff;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;font-weight:600;">Listo</button>
                     </div>
                     <div id="landingPromoProgressWrap" style="display:none;margin-top:14px;">
                         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
@@ -18095,19 +18144,27 @@ Ej:
                 </div>
             `;
             document.body.appendChild(modal);
-            modal.addEventListener('click', function (e) {
-                // Solo cerrar con X / Listo; no al click afuera (evita cancelar una subida en curso)
-            });
 
             const statusEl = modal.querySelector('#landingPromoUploadStatus');
             const imgBtn = modal.querySelector('#landingPromoUploadBtn');
             const vidBtn = modal.querySelector('#landingPromoUploadVideoBtn');
+            const clearImgBtn = modal.querySelector('#landingPromoClearImgBtn');
+            const clearVidBtn = modal.querySelector('#landingPromoClearVidBtn');
             const fileInput = modal.querySelector('#landingPromoImageFile');
             const videoInput = modal.querySelector('#landingPromoVideoFile');
             const progressWrap = modal.querySelector('#landingPromoProgressWrap');
             const progressBar = modal.querySelector('#landingPromoProgressBar');
             const progressPct = modal.querySelector('#landingPromoProgressPct');
             const progressLabel = modal.querySelector('#landingPromoProgressLabel');
+
+            function refreshMeta() {
+                const imgSt = modal.querySelector('#landingPromoImgStatus');
+                const vidSt = modal.querySelector('#landingPromoVidStatus');
+                if (imgSt) imgSt.textContent = '🖼 Imagen: ' + (liveImage ? 'sí (se usa en /promos y como poster)' : 'no');
+                if (vidSt) vidSt.textContent = '🎬 Video: ' + (liveVideo ? 'sí (hero de /promo/…)' : 'no');
+                const wrap = modal.querySelector('#landingPromoPreviewWrap');
+                if (wrap) wrap.innerHTML = renderPreviewHtml();
+            }
 
             function setUploadProgress(pct, label) {
                 if (progressWrap) progressWrap.style.display = 'block';
@@ -18121,17 +18178,8 @@ Ej:
                 if (progressBar) progressBar.style.width = '0%';
                 if (progressPct) progressPct.textContent = '0%';
             }
-
-            function setPreviewVideo(url, poster) {
-                const html = `<video id="landingPromoMediaPreview" src="${String(url).replace(/"/g, '&quot;')}" ${poster ? `poster="${String(poster).replace(/"/g, '&quot;')}"` : ''} muted loop playsinline autoplay style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;background:#111;"></video>`;
-                const prev = modal.querySelector('#landingPromoMediaPreview');
-                if (prev) prev.outerHTML = html;
-            }
-            function setPreviewImage(url) {
-                const html = `<img id="landingPromoMediaPreview" src="${String(url).replace(/"/g, '&quot;')}" alt="" style="width:100%;max-height:220px;object-fit:cover;border-radius:8px;background:#eee;">`;
-                const prev = modal.querySelector('#landingPromoMediaPreview');
-                if (prev && prev.tagName === 'VIDEO') return;
-                if (prev) prev.outerHTML = html;
+            function setBusy(busy) {
+                [imgBtn, vidBtn, clearImgBtn, clearVidBtn].forEach((b) => { if (b) b.disabled = !!busy; });
             }
 
             imgBtn.addEventListener('click', async function () {
@@ -18141,8 +18189,7 @@ Ej:
                     statusEl.style.color = '#c62828';
                     return;
                 }
-                imgBtn.disabled = true;
-                vidBtn.disabled = true;
+                setBusy(true);
                 statusEl.textContent = 'Subiendo imagen…';
                 statusEl.style.color = '#666';
                 setUploadProgress(0, 'Subiendo imagen…');
@@ -18152,14 +18199,12 @@ Ej:
                     });
                     setUploadProgress(100, 'Guardando…');
                     await setLandingPromoHeroImage(slug, url);
-                    const prev = modal.querySelector('#landingPromoMediaPreview');
-                    if (prev && prev.tagName === 'VIDEO') {
-                        prev.setAttribute('poster', url);
-                    } else {
-                        setPreviewImage(url);
-                    }
+                    liveImage = url;
+                    refreshMeta();
                     setUploadProgress(100, 'Listo');
-                    statusEl.textContent = 'Imagen actualizada.';
+                    statusEl.textContent = liveVideo
+                        ? 'Imagen guardada (poster del video + tarjeta en /promos).'
+                        : 'Imagen guardada. Ya se ve en la landing y en /promos.';
                     statusEl.style.color = '#2e7d32';
                     if (typeof showNotification === 'function') showNotification('✅ Imagen de landing actualizada', 'success');
                 } catch (e) {
@@ -18168,8 +18213,7 @@ Ej:
                     statusEl.textContent = (e && e.message) ? e.message : String(e);
                     statusEl.style.color = '#c62828';
                 } finally {
-                    imgBtn.disabled = false;
-                    vidBtn.disabled = false;
+                    setBusy(false);
                 }
             });
 
@@ -18180,8 +18224,7 @@ Ej:
                     statusEl.style.color = '#c62828';
                     return;
                 }
-                vidBtn.disabled = true;
-                imgBtn.disabled = true;
+                setBusy(true);
                 statusEl.textContent = 'Subiendo video…';
                 statusEl.style.color = '#666';
                 setUploadProgress(0, 'Subiendo video…');
@@ -18191,9 +18234,12 @@ Ej:
                     });
                     setUploadProgress(100, 'Guardando…');
                     await setLandingPromoHeroVideo(slug, url);
-                    setPreviewVideo(url, currentImageUrl || '');
+                    liveVideo = url;
+                    refreshMeta();
                     setUploadProgress(100, 'Listo');
-                    statusEl.textContent = 'Video actualizado. Se reproduce en loop en la landing.';
+                    statusEl.textContent = liveImage
+                        ? 'Video guardado (usa la imagen como poster).'
+                        : 'Video guardado. Tip: subí también una imagen para la tarjeta en /promos.';
                     statusEl.style.color = '#2e7d32';
                     if (typeof showNotification === 'function') showNotification('✅ Video de landing actualizado', 'success');
                 } catch (e) {
@@ -18202,13 +18248,82 @@ Ej:
                     statusEl.textContent = (e && e.message) ? e.message : String(e);
                     statusEl.style.color = '#c62828';
                 } finally {
-                    vidBtn.disabled = false;
-                    imgBtn.disabled = false;
+                    setBusy(false);
                 }
             });
+
+            clearImgBtn.addEventListener('click', async function () {
+                if (!liveImage) {
+                    statusEl.textContent = 'No hay imagen para quitar.';
+                    statusEl.style.color = '#666';
+                    return;
+                }
+                if (!confirm('¿Quitar la imagen del hero?')) return;
+                setBusy(true);
+                try {
+                    await setLandingPromoHeroImage(slug, null);
+                    liveImage = null;
+                    refreshMeta();
+                    statusEl.textContent = 'Imagen quitada.';
+                    statusEl.style.color = '#2e7d32';
+                } catch (e) {
+                    statusEl.textContent = (e && e.message) ? e.message : String(e);
+                    statusEl.style.color = '#c62828';
+                } finally {
+                    setBusy(false);
+                }
+            });
+
+            clearVidBtn.addEventListener('click', async function () {
+                if (!liveVideo) {
+                    statusEl.textContent = 'No hay video para quitar.';
+                    statusEl.style.color = '#666';
+                    return;
+                }
+                if (!confirm('¿Quitar el video del hero?')) return;
+                setBusy(true);
+                try {
+                    await setLandingPromoHeroVideo(slug, null);
+                    liveVideo = null;
+                    refreshMeta();
+                    statusEl.textContent = 'Video quitado. Queda la imagen (si hay).';
+                    statusEl.style.color = '#2e7d32';
+                } catch (e) {
+                    statusEl.textContent = (e && e.message) ? e.message : String(e);
+                    statusEl.style.color = '#c62828';
+                } finally {
+                    setBusy(false);
+                }
+            });
+
+            refreshMeta();
+        }
+
+        /** Abre el modal de media para una promo del dashboard (si ya tiene landing). */
+        async function openLandingMediaForPromotion(hotelId, promotionId) {
+            try {
+                let landing = await findLandingPromoForPromotion(promotionId);
+                if (!landing) {
+                    // Crear/actualizar landing y abrir media
+                    await createLandingWebFromPromotion(hotelId, promotionId);
+                    return;
+                }
+                showLandingPromoImageModal(
+                    landing.slug,
+                    landing.imagen_hero || null,
+                    landingPublicUrl(landing.slug),
+                    landing.video_hero || null
+                );
+            } catch (e) {
+                console.error(e);
+                const err = (e && e.message) ? e.message : String(e);
+                if (typeof showNotification === 'function') showNotification('❌ ' + err, 'error');
+                else alert('❌ ' + err);
+            }
         }
 
         window.showLandingPromoImageModal = showLandingPromoImageModal;
+        window.openLandingMediaForPromotion = openLandingMediaForPromotion;
 
         /** Crea/actualiza landing /promo/:slug desde una promo del módulo Hoteles → Promociones. */
         async function createLandingWebFromPromotion(hotelId, promotionId) {
@@ -21291,11 +21406,11 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 hotelPromotions.forEach(promo => {
                     try {
                         if (promo.status === 'active' || promo.status === undefined) {
-                            const endDate = new Date(promo.endDate);
+                            const endDate = parsePromoDateLocal(promo.endDate) || new Date(promo.endDate);
                             endDate.setHours(23, 59, 59, 999);
                             
                             if (today <= endDate) {
-                                const startDate = new Date(promo.startDate);
+                                const startDate = parsePromoDateLocal(promo.startDate) || new Date(promo.startDate);
                                 startDate.setHours(0, 0, 0, 0);
                                 const isCurrentlyActive = today >= startDate && today <= endDate;
                                 
@@ -21370,15 +21485,16 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; font-size: 0.9rem;">
                                     ${promo.discount ? `<div><strong>Descuento:</strong> ${promo.discount}%</div>` : ''}
                                     ${promo.price || promo.promotionalPrice ? `<div><strong>Precio Promocional:</strong> $${promo.price || promo.promotionalPrice || ''}</div>` : ''}
-                                    <div><strong>Inicio:</strong> ${new Date(promo.startDate).toLocaleDateString()}</div>
-                                    <div><strong>Fin:</strong> ${new Date(promo.endDate).toLocaleDateString()}</div>
-                                    ${promo.travelStartDate ? `<div><strong>Viaje desde:</strong> ${new Date(promo.travelStartDate).toLocaleDateString()}</div>` : ''}
-                                    ${promo.travelEndDate ? `<div><strong>Viaje hasta:</strong> ${new Date(promo.travelEndDate).toLocaleDateString()}</div>` : ''}
+                                    <div><strong>Inicio:</strong> ${formatPromoDateLocal(promo.startDate)}</div>
+                                    <div><strong>Fin:</strong> ${formatPromoDateLocal(promo.endDate)}</div>
+                                    ${promo.travelStartDate ? `<div><strong>Viaje desde:</strong> ${formatPromoDateLocal(promo.travelStartDate)}</div>` : ''}
+                                    ${promo.travelEndDate ? `<div><strong>Viaje hasta:</strong> ${formatPromoDateLocal(promo.travelEndDate)}</div>` : ''}
                                 </div>
                                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                                     <button onclick="editSpecificPromotion('${promo.hotelId}', '${promo.id}')" style="background: #2196f3; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">✏️ Editar</button>
                                     <button onclick="viewHotelPromotion('${promo.hotelId}')" style="background: #4caf50; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">👁️ Ver</button>
                                     <button onclick="createLandingWebFromPromotion('${promo.hotelId}', '${promo.id}')" style="background: #003580; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">🌐 Landing web</button>
+                                    <button onclick="openLandingMediaForPromotion('${promo.hotelId}', '${promo.id}')" style="background: #6a1b9a; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">🖼 Media</button>
                                     <button onclick="deletePromotion('${promo.hotelId}', '${promo.id}')" style="background: #f44336; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9rem;">🗑️ Eliminar</button>
                                 </div>
                             </div>
