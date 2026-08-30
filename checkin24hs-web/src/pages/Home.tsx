@@ -10,7 +10,6 @@ import { Novedades } from '../components/Novedades';
 import { Testimonios } from '../components/Testimonios';
 import { Institucional } from '../components/Institucional';
 import { WhatsAppCta } from '../components/WhatsAppCta';
-import { Newsletter } from '../components/Newsletter';
 import { BannerPromos } from '../components/BannerPromos';
 import { Footer } from '../components/Footer';
 import { useFlorContext } from '../context/FlorContext';
@@ -85,7 +84,6 @@ export function Home() {
       <Header />
       <main>
         <HeroHome />
-        <Newsletter />
         <BannerPromos />
         <SelectorDestinos />
         <AlojamientosCarousel

@@ -7,7 +7,6 @@ type PromosBanner = {
   imagen_url: string | null;
   imagen_url_mobile: string | null;
   texto_boton: string | null;
-  titulo: string | null;
 };
 
 function useIsMobile() {
@@ -32,7 +31,7 @@ export function BannerPromos() {
     let cancelled = false;
     void supabase
       .from('slider_ofertas')
-      .select('imagen_url, imagen_url_mobile, texto_boton, titulo')
+      .select('imagen_url, imagen_url_mobile, texto_boton')
       .eq('tipo_link', 'promos')
       .eq('activo', true)
       .order('orden', { ascending: true })
@@ -54,25 +53,19 @@ export function BannerPromos() {
     '';
   if (!src) return null;
 
-  const title = banner.titulo?.trim() || 'Más ofertas vigentes';
   const btn = banner.texto_boton?.trim() || 'Ofertas';
 
   return (
-    <section className={styles.section} aria-label="Banner de Promos">
+    <section className={styles.section} aria-label="Promos">
       <div className="container">
-        <div
+        <Link
+          to="/promos"
           className={styles.media}
           style={{ backgroundImage: `url(${src})` }}
         >
-          <div className={styles.overlay} />
-          <div className={styles.inner}>
-            <p className={styles.label}>Checkin24hs</p>
-            <h2 className={styles.title}>{title}</h2>
-            <Link to="/promos" className={styles.btn}>
-              {btn}
-            </Link>
-          </div>
-        </div>
+          <span className={styles.overlay} aria-hidden />
+          <span className={styles.btn}>{btn}</span>
+        </Link>
       </div>
     </section>
   );
