@@ -74,8 +74,15 @@ video.heroBg {
   position: relative;
   z-index: 1;
   padding-top: 72px;
-  padding-bottom: 40px;
+  /* Sube el bloque: más aire abajo (sticky WhatsApp en mobile + borde del hero) */
+  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
   color: #fff;
+}
+
+@media (max-width: 767px) {
+  .heroContent {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 .brand {
@@ -119,7 +126,8 @@ video.heroBg {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: 28px;
+  margin-top: 22px;
+  margin-bottom: 8px;
 }
 
 .btnWa,
@@ -208,20 +216,45 @@ video.heroBg {
 }
 
 .benefits {
+  list-style: none;
   margin: 0;
-  padding: 0 0 0 1.15rem;
-  line-height: 1.7;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .benefits li {
-  margin-bottom: 8px;
+  margin: 0;
+  padding: 10px 14px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--primary);
+  background: linear-gradient(90deg, #e8eef8 0%, #f5f8fc 100%);
+  border-left: 3px solid var(--accent-gold, #c9a227);
+  border-radius: 8px;
+  box-shadow: 0 1px 0 rgba(0, 53, 128, 0.06);
 }
 
 .cuerpo {
   margin: 0;
-  line-height: 1.7;
+  font-size: 0.95rem;
+  line-height: 1.4;
   color: var(--text);
   white-space: pre-line;
+}
+
+.cuerpo a {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+
+.cuerpo a:hover {
+  color: var(--primary-light, #0047a0);
 }
 
 .waBlock {

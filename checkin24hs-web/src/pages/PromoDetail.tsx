@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { buildWhatsAppConsultaUrl, buildWhatsAppTextUrl } from '../config';
 import { formatPromoVigencia, promoBeneficiosList, promoVigente } from '../lib/promos';
@@ -10,6 +10,37 @@ import styles from './PromoDetail.module.css';
 
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+/** Convierte URLs del cuerpo de la promo en links clickeables. */
+function linkifyPromoCuerpo(text: string): ReactNode[] {
+  const re = /(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+)/gi;
+  const nodes: ReactNode[] = [];
+  let last = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > last) {
+      nodes.push(text.slice(last, match.index));
+    }
+    let raw = match[0];
+    let trailing = '';
+    const trailMatch = raw.match(/[.,;:!?)\]}>]+$/);
+    if (trailMatch) {
+      trailing = trailMatch[0];
+      raw = raw.slice(0, -trailing.length);
+    }
+    const href = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+    nodes.push(
+      <a key={`l${key++}`} href={href} target="_blank" rel="noopener noreferrer">
+        {raw}
+      </a>
+    );
+    if (trailing) nodes.push(trailing);
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) nodes.push(text.slice(last));
+  return nodes;
 }
 
 function useIsMobile() {
@@ -219,9 +250,9 @@ export function PromoDetail() {
           )}
 
           {promo.cuerpo && (
-            <section className={styles.section} aria-label="Detalle">
-              <h2 className={styles.sectionTitle}>Cómo funciona</h2>
-              <p className={styles.cuerpo}>{promo.cuerpo}</p>
+            <section className={styles.section} aria-label="Detalle de la oferta">
+              <h2 className={styles.sectionTitle}>Detalle de la oferta</h2>
+              <p className={styles.cuerpo}>{linkifyPromoCuerpo(promo.cuerpo)}</p>
             </section>
           )}
 

@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-30T00:17:08Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 257; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-30T14:40:56Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 259; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">257</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">259</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -18025,15 +18025,29 @@ Ej:
 
         async function uploadLandingPromoImageFile(slug, file, onProgress) {
             if (!file) throw new Error('Elegí un archivo de imagen');
+            const mime = String(file.type || '').toLowerCase();
+            const name = String(file.name || '').toLowerCase();
+            if (mime.startsWith('video/') || /\.(mp4|webm|mov|m4v)$/i.test(name)) {
+                throw new Error('Ese archivo es un video. Usá el botón «Subir video» (no Imagen).');
+            }
+            if (mime && !mime.startsWith('image/')) {
+                throw new Error('El archivo no es una imagen válida (JPG/PNG/WebP).');
+            }
             const safeSlug = slugifyLandingText(slug) || 'promo';
             let ext = (file.name || '').split('.').pop() || 'jpg';
             if (!/^(jpe?g|png|webp|gif)$/i.test(ext)) ext = "jpg";
             const fileName = 'landing/' + safeSlug + '-' + Date.now() + '.' + ext.toLowerCase();
-            return uploadLandingFileWithProgress(fileName, file, file.type || 'image/jpeg', onProgress);
+            const contentType = (mime && mime.startsWith('image/')) ? mime : (file.type || 'image/jpeg');
+            return uploadLandingFileWithProgress(fileName, file, contentType, onProgress);
         }
 
         async function uploadLandingPromoVideoFile(slug, file, onProgress) {
             if (!file) throw new Error('Elegí un archivo de video');
+            const mime = String(file.type || '').toLowerCase();
+            const name = String(file.name || '').toLowerCase();
+            if (mime.startsWith('image/') || /\.(jpe?g|png|webp|gif)$/i.test(name)) {
+                throw new Error('Ese archivo es una imagen. Usá el botón «Subir imagen» (no Video).');
+            }
             const maxMb = 12;
             if (file.size > maxMb * 1024 * 1024) {
                 throw new Error('El video pesa más de ' + maxMb + ' MB. Comprimilo (ideal 3–5 MB, máx ~8 MB).');
@@ -18042,7 +18056,9 @@ Ej:
             let ext = (file.name || '').split('.').pop() || 'mp4';
             if (!/^(mp4|webm|mov)$/i.test(ext)) ext = "mp4";
             const fileName = 'landing/' + safeSlug + '-video-' + Date.now() + '.' + ext.toLowerCase();
-            const contentType = file.type || (ext === 'webm' ? 'video/webm' : 'video/mp4');
+            const contentType = (mime && mime.startsWith('video/'))
+                ? mime
+                : (file.type || (ext === 'webm' ? 'video/webm' : 'video/mp4'));
             return uploadLandingFileWithProgress(fileName, file, contentType, onProgress);
         }
 
