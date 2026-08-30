@@ -20,7 +20,9 @@ export function SliderOfertas() {
       .eq('activo', true)
       .order('orden', { ascending: true })
       .then(({ data, error }) => {
-        if (!error && data?.length) setSlides(data);
+        if (!error && data?.length) {
+          setSlides(data.filter((s) => s.tipo_link !== 'promos'));
+        }
         setLoading(false);
       });
   }, []);

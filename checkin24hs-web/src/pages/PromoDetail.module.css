@@ -273,76 +273,86 @@ video.heroBg {
   max-width: 420px;
 }
 
-.emailBlock {
-  padding: 36px 0 16px;
+/* Reemplaza el bloque de suscripción (~280–320px): banner imagen + CTA a /promos */
+.morePromos {
+  padding: 28px 0 8px;
 }
 
-.emailLead {
-  margin: 0 0 18px;
-  max-width: 48ch;
-  color: var(--text-muted);
-}
-
-.emailForm {
+.morePromosMedia {
+  position: relative;
+  min-height: 220px;
+  border-radius: 14px;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse at 25% 30%, rgba(201, 162, 39, 0.35), transparent 55%),
+    linear-gradient(135deg, #002a66 0%, #003580 50%, #001a40 100%);
+  background-size: cover;
+  background-position: center;
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-width: 420px;
+  align-items: flex-end;
 }
 
-.input {
+.morePromosOverlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 26, 64, 0.15) 0%,
+    rgba(0, 26, 64, 0.55) 45%,
+    rgba(0, 26, 64, 0.88) 100%
+  );
+}
+
+.morePromosInner {
+  position: relative;
+  z-index: 1;
+  padding: 22px 20px 24px;
   width: 100%;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 1rem;
-  background: #fff;
-}
-
-.input:focus {
-  outline: 2px solid var(--primary);
-  outline-offset: 1px;
-}
-
-.btnSubmit {
-  padding: 14px 18px;
-  border: none;
-  border-radius: 8px;
-  background: var(--primary);
   color: #fff;
-  font-size: 1rem;
+}
+
+.morePromosLabel {
+  margin: 0 0 6px;
+  font-size: 0.85rem;
   font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.9;
 }
 
-.btnSubmit:hover:not(:disabled) {
-  background: var(--primary-light);
+.morePromosTitle {
+  margin: 0 0 16px;
+  font-size: clamp(1.25rem, 3.5vw, 1.6rem);
+  font-weight: 800;
+  line-height: 1.2;
 }
 
-.btnSubmit:disabled {
-  opacity: 0.7;
-  cursor: wait;
-}
-
-.success {
-  margin: 0;
-  padding: 14px;
+.morePromosBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 28px;
   border-radius: 8px;
-  background: #e8f5e9;
-  color: #1b5e20;
-  font-weight: 600;
-  max-width: 420px;
+  background: var(--accent-gold, #c9a227);
+  color: #1a1200 !important;
+  font-size: 1rem;
+  font-weight: 800;
+  text-decoration: none !important;
+  letter-spacing: 0.02em;
 }
 
-.error {
-  margin: 10px 0 0;
-  color: #c62828;
-  font-size: 0.9rem;
+.morePromosBtn:hover {
+  filter: brightness(1.06);
+  text-decoration: none !important;
 }
 
-.privacy {
-  margin: 12px 0 0;
-  font-size: 0.8rem;
-  color: var(--text-muted);
+@media (min-width: 768px) {
+  .morePromosMedia {
+    min-height: 280px;
+  }
+  .morePromosInner {
+    padding: 28px 28px 32px;
+  }
 }
 
 .more {

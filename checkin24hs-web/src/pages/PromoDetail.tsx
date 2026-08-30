@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { buildWhatsAppConsultaUrl, buildWhatsAppTextUrl } from '../config';
 import { formatPromoVigencia, promoBeneficiosList, promoVigente } from '../lib/promos';
@@ -7,10 +7,6 @@ import type { LandingPromo } from '../types';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import styles from './PromoDetail.module.css';
-
-function isValidEmail(email: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
 
 /** Convierte URLs del cuerpo de la promo en links clickeables. */
 function linkifyPromoCuerpo(text: string): ReactNode[] {
@@ -58,11 +54,13 @@ function useIsMobile() {
 export function PromoDetail() {
   const { slug } = useParams<{ slug: string }>();
   const [promo, setPromo] = useState<LandingPromo | null>(null);
+  const [promosBanner, setPromosBanner] = useState<{
+    imagen_url: string | null;
+    imagen_url_mobile: string | null;
+    texto_boton: string | null;
+    titulo: string | null;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [email, setEmail] = useState('');
-  const [nombre, setNombre] = useState('');
-  const [status, setStatus] = useState<'idle' | 'loading' | 'ok' | 'dup' | 'error'>('idle');
-  const [errorMsg, setErrorMsg] = useState('');
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -88,6 +86,24 @@ export function PromoDetail() {
     };
   }, [slug]);
 
+  useEffect(() => {
+    if (!supabase) return;
+    let cancelled = false;
+    void supabase
+      .from('slider_ofertas')
+      .select('imagen_url, imagen_url_mobile, texto_boton, titulo')
+      .eq('tipo_link', 'promos')
+      .eq('activo', true)
+      .order('orden', { ascending: true })
+      .limit(1)
+      .then(({ data }) => {
+        if (!cancelled) setPromosBanner((data && data[0]) || null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const beneficios = useMemo(() => promoBeneficiosList(promo?.beneficios), [promo?.beneficios]);
   const vigente = promo ? promoVigente(promo) : false;
   const vigenciaLabel = formatPromoVigencia(promo?.vigencia_hasta ?? null);
@@ -103,46 +119,6 @@ export function PromoDetail() {
       'promo'
     );
   }, [promo]);
-
-  async function onSubmitEmail(e: FormEvent) {
-    e.preventDefault();
-    const value = email.trim().toLowerCase();
-    if (!isValidEmail(value)) {
-      setStatus('error');
-      setErrorMsg('Ingresá un email válido.');
-      return;
-    }
-    if (!supabase || !promo) {
-      setStatus('error');
-      setErrorMsg('No se pudo conectar. Probá más tarde.');
-      return;
-    }
-    setStatus('loading');
-    setErrorMsg('');
-    const origen = `promo:${promo.slug}`;
-    const row: { email: string; origen: string; activo: boolean; nombre?: string } = {
-      email: value,
-      origen,
-      activo: true,
-    };
-    const nom = nombre.trim();
-    if (nom) row.nombre = nom;
-    const { error } = await supabase.from('newsletter_subscribers').insert([row]);
-    if (error) {
-      const code = (error as { code?: string }).code;
-      const msg = String(error.message || '').toLowerCase();
-      if (code === '23505' || msg.includes('duplicate') || msg.includes('unique')) {
-        setStatus('dup');
-        return;
-      }
-      setStatus('error');
-      setErrorMsg('No se pudo suscribir. Probá de nuevo.');
-      return;
-    }
-    setEmail('');
-    setNombre('');
-    setStatus('ok');
-  }
 
   if (loading) {
     return (
@@ -180,6 +156,16 @@ export function PromoDetail() {
     promo.imagen_hero_mobile ||
     '';
 
+  const bannerFromSite =
+    (isMobile && promosBanner?.imagen_url_mobile) ||
+    promosBanner?.imagen_url ||
+    promosBanner?.imagen_url_mobile ||
+    '';
+  const bannerSrc =
+    bannerFromSite || promo.imagen_hero || promo.imagen_hero_mobile || '';
+  const bannerBtn = promosBanner?.texto_boton?.trim() || 'Ofertas';
+  const bannerTitle = promosBanner?.titulo?.trim() || 'Más ofertas vigentes';
+
   return (
     <>
       <Header />
@@ -216,9 +202,9 @@ export function PromoDetail() {
               >
                 {promo.cta_whatsapp || 'Consultar por WhatsApp'}
               </a>
-              <a href="#suscribir" className={styles.btnEmail}>
-                Recibir ofertas por email
-              </a>
+              <Link to="/promos" className={styles.btnEmail}>
+                Ofertas
+              </Link>
             </div>
           </div>
         </section>
@@ -271,69 +257,21 @@ export function PromoDetail() {
             </a>
           </section>
 
-          <section id="suscribir" className={styles.emailBlock} aria-label="Suscripción email">
-            <h2 className={styles.sectionTitle}>Recibí esta promo y las próximas</h2>
-            <p className={styles.emailLead}>
-              Dejanos tu email y te avisamos cuando haya tarifas especiales en hoteles como este.
-            </p>
-            {status === 'ok' || status === 'dup' ? (
-              <p className={styles.success} role="status">
-                {status === 'ok'
-                  ? '¡Listo! Ya estás en la lista de ofertas.'
-                  : 'Ese email ya está suscripto. ¡Gracias!'}
-              </p>
-            ) : (
-              <form className={styles.emailForm} onSubmit={onSubmitEmail} noValidate>
-                <label className={styles.srOnly} htmlFor="promo-nombre">
-                  Nombre
-                </label>
-                <input
-                  id="promo-nombre"
-                  type="text"
-                  name="nombre"
-                  autoComplete="name"
-                  placeholder="Tu nombre (opcional)"
-                  value={nombre}
-                  onChange={(ev) => setNombre(ev.target.value)}
-                  className={styles.input}
-                  disabled={status === 'loading'}
-                />
-                <label className={styles.srOnly} htmlFor="promo-email">
-                  Email
-                </label>
-                <input
-                  id="promo-email"
-                  type="email"
-                  name="email"
-                  autoComplete="email"
-                  placeholder="Tu e-mail"
-                  value={email}
-                  onChange={(ev) => {
-                    setEmail(ev.target.value);
-                    if (status === 'error') setStatus('idle');
-                  }}
-                  className={styles.input}
-                  disabled={status === 'loading'}
-                  required
-                />
-                <button type="submit" className={styles.btnSubmit} disabled={status === 'loading'}>
-                  {status === 'loading' ? 'Enviando…' : 'Quiero recibir ofertas'}
-                </button>
-              </form>
-            )}
-            {status === 'error' && errorMsg && (
-              <p className={styles.error} role="alert">
-                {errorMsg}
-              </p>
-            )}
-            <p className={styles.privacy}>
-              Podés darte de baja cuando quieras. No compartimos tu email.
-            </p>
+          <section className={styles.morePromos} aria-label="Más ofertas">
+            <div
+              className={styles.morePromosMedia}
+              style={bannerSrc ? { backgroundImage: `url(${bannerSrc})` } : undefined}
+            >
+              <div className={styles.morePromosOverlay} />
+              <div className={styles.morePromosInner}>
+                <p className={styles.morePromosLabel}>Checkin24hs</p>
+                <h2 className={styles.morePromosTitle}>{bannerTitle}</h2>
+                <Link to="/promos" className={styles.morePromosBtn}>
+                  {bannerBtn}
+                </Link>
+              </div>
+            </div>
           </section>
-
-          <p className={styles.more}>
-            <Link to="/promos">Ver todas las promos vigentes</Link>
-          </p>
         </div>
 
         <div className={styles.stickyBar}>

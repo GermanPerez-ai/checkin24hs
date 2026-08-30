@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-30T14:40:56Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 259; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-30T15:47:04Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 261; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">259</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">261</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -2705,7 +2705,7 @@
             <!-- Banners del sitio (Slider Home checkin24hs.com) -->
             <div id="banners-section" style="display: none;">
                 <h2 class="page-title">🖼️ Banners del sitio (checkin24hs.com)</h2>
-                <p style="color: #666; margin-bottom: 16px;">Los slides del carrusel de la Home se gestionan aquí. Subí imagen desktop (1200×400) y opcional mobile (1080×1350).</p>
+                <p style="color: #666; margin-bottom: 16px;">Carrusel de la Home y el <strong>banner de Promos</strong> (bloque de imagen + botón Ofertas en cada landing /promo/…). Desktop ~1200×400; mobile opcional.</p>
                 <div style="margin-bottom: 16px;">
                     <button class="form-button" onclick="openBannerModal()">
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">add</span>
@@ -2916,14 +2916,15 @@
                     </div>
                     <div class="form-section" style="margin-bottom: 12px;">
                         <label>Tipo de enlace</label>
-                        <select id="bannerTipoLink" style="width: 100%; padding: 8px;">
+                        <select id="bannerTipoLink" style="width: 100%; padding: 8px;" onchange="window.onBannerTipoLinkChange && window.onBannerTipoLinkChange()">
                             <option value="url">URL (interno o externo)</option>
                             <option value="hotel">Hotel (slug o ID)</option>
                             <option value="flor">Flor IA (abre el chat)</option>
+                            <option value="promos">Banner de Promos (landings /promo)</option>
                         </select>
                     </div>
-                    <div class="form-section" style="margin-bottom: 12px;">
-                        <label>Link destino (URL, /ruta, o #flor si tipo Flor)</label>
+                    <div class="form-section" style="margin-bottom: 12px;" id="bannerLinkDestinoWrap">
+                        <label id="bannerLinkDestinoLabel">Link destino (URL, /ruta, o #flor si tipo Flor)</label>
                         <input type="text" id="bannerLinkDestino" placeholder="Ej. /hotel/bariloche o https://... o #flor" style="width: 100%; padding: 8px; box-sizing: border-box;">
                     </div>
                     <div class="form-section" style="margin-bottom: 12px;">
@@ -2931,7 +2932,7 @@
                         <input type="number" id="bannerOrden" value="0" min="0" style="width: 100%; padding: 8px; box-sizing: border-box;">
                     </div>
                     <div class="form-section" style="margin-bottom: 12px;">
-                        <label><input type="checkbox" id="bannerActivo" checked> Activo (visible en el carrusel)</label>
+                        <label id="bannerActivoLabel"><input type="checkbox" id="bannerActivo" checked> Activo (visible en el carrusel o en landings promo)</label>
                     </div>
                     <div class="form-section" style="margin-bottom: 12px;">
                         <label>Imagen desktop (1200×400)</label>
@@ -2973,12 +2974,44 @@
                         }
                         emptyMsg.style.display = 'none';
                         tbody.innerHTML = list.map(function(b) {
-                            var tipo = (b.tipo_link || 'url') === 'flor' ? 'Flor IA' : ((b.tipo_link || 'url') === 'hotel' ? 'Hotel' : 'URL');
+                            var t = b.tipo_link || 'url';
+                            var tipo = t === 'flor' ? 'Flor IA' : (t === 'hotel' ? 'Hotel' : (t === 'promos' ? 'Banner de Promos' : 'URL'));
                             return '<tr><td>' + (b.orden != null ? b.orden : 0) + '</td><td>' + (b.titulo || '-') + '</td><td>' + (b.texto_boton || '-') + '</td><td>' + tipo + '</td><td style="text-align:center">' + (b.activo ? 'Sí' : 'No') + '</td><td style="text-align:center"><button class="form-button secondary" style="padding:4px 10px;font-size:0.85rem" onclick="window.editBanner(\'' + b.id + '\')">Editar</button> <button class="form-button" style="padding:4px 10px;font-size:0.85rem;background:#c62828" onclick="window.deleteBanner(\'' + b.id + '\')">Eliminar</button></td></tr>';
                         }).join('');
                     } catch (e) {
                         tbody.innerHTML = '<tr><td colspan="6" style="padding:16px;color:#c00;">Error: ' + (e.message || e) + '. ¿Ejecutaste el SQL 025_slider_ofertas_completo.sql en Supabase?</td></tr>';
                         emptyMsg.style.display = 'none';
+                    }
+                };
+
+                window.onBannerTipoLinkChange = function() {
+                    var tipo = document.getElementById('bannerTipoLink').value || 'url';
+                    var linkLabel = document.getElementById('bannerLinkDestinoLabel');
+                    var linkInput = document.getElementById('bannerLinkDestino');
+                    var wrap = document.getElementById('bannerLinkDestinoWrap');
+                    if (tipo === 'promos') {
+                        if (!document.getElementById('bannerTitulo').value.trim()) {
+                            document.getElementById('bannerTitulo').value = 'Banner de Promos';
+                        }
+                        if (!document.getElementById('bannerTextoBoton').value.trim()) {
+                            document.getElementById('bannerTextoBoton').value = 'Ofertas';
+                        }
+                        linkInput.value = '/promos';
+                        linkInput.readOnly = true;
+                        if (linkLabel) linkLabel.textContent = 'Link destino (fijo: /promos — banner en landings)';
+                        if (wrap) wrap.style.opacity = '0.75';
+                    } else if (tipo === 'flor') {
+                        linkInput.value = '#flor';
+                        linkInput.readOnly = true;
+                        if (linkLabel) linkLabel.textContent = 'Link destino (#flor — abre el chat)';
+                        if (wrap) wrap.style.opacity = '0.75';
+                    } else {
+                        linkInput.readOnly = false;
+                        if (linkLabel) linkLabel.textContent = 'Link destino (URL, /ruta, o #flor si tipo Flor)';
+                        if (wrap) wrap.style.opacity = '1';
+                        if (linkInput.value === '/promos' || linkInput.value === '#flor') {
+                            linkInput.value = '';
+                        }
                     }
                 };
 
@@ -2989,6 +3022,7 @@
                     document.getElementById('bannerTextoBoton').value = '';
                     document.getElementById('bannerTipoLink').value = 'url';
                     document.getElementById('bannerLinkDestino').value = '';
+                    document.getElementById('bannerLinkDestino').readOnly = false;
                     document.getElementById('bannerOrden').value = '0';
                     document.getElementById('bannerActivo').checked = true;
                     document.getElementById('bannerImagenDesktop').value = '';
@@ -3007,8 +3041,18 @@
                                 document.getElementById('bannerActivo').checked = b.activo !== false;
                                 if (b.imagen_url) document.getElementById('bannerImagenDesktopUrl').textContent = '(actual: ' + b.imagen_url.substring(0,50) + '...)';
                                 if (b.imagen_url_mobile) document.getElementById('bannerImagenMobileUrl').textContent = '(actual: ' + b.imagen_url_mobile.substring(0,50) + '...)';
+                                if (window.onBannerTipoLinkChange) window.onBannerTipoLinkChange();
+                                // Restaurar valores guardados (onchange puede limpiar link)
+                                document.getElementById('bannerTitulo').value = b.titulo || '';
+                                document.getElementById('bannerTextoBoton').value = b.texto_boton || '';
+                                document.getElementById('bannerLinkDestino').value = b.link_destino || (b.tipo_link === 'promos' ? '/promos' : (b.tipo_link === 'flor' ? '#flor' : ''));
+                                if (b.tipo_link === 'promos' || b.tipo_link === 'flor') {
+                                    document.getElementById('bannerLinkDestino').readOnly = true;
+                                }
                             }
                         });
+                    } else if (window.onBannerTipoLinkChange) {
+                        window.onBannerTipoLinkChange();
                     }
                     document.getElementById('bannerModal').style.display = 'block';
                 };
@@ -3045,6 +3089,11 @@
                     var tipoLink = document.getElementById('bannerTipoLink').value || 'url';
                     var linkDestino = document.getElementById('bannerLinkDestino').value.trim();
                     if (tipoLink === 'flor') linkDestino = '#flor';
+                    if (tipoLink === 'promos') {
+                        linkDestino = '/promos';
+                        if (!titulo) titulo = 'Banner de Promos';
+                        if (!textoBoton) textoBoton = 'Ofertas';
+                    }
                     var orden = parseInt(document.getElementById('bannerOrden').value, 10) || 0;
                     var activo = document.getElementById('bannerActivo').checked;
                     var fileDesktop = document.getElementById('bannerImagenDesktop').files[0];
