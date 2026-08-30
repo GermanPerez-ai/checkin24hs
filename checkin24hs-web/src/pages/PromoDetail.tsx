@@ -54,12 +54,6 @@ function useIsMobile() {
 export function PromoDetail() {
   const { slug } = useParams<{ slug: string }>();
   const [promo, setPromo] = useState<LandingPromo | null>(null);
-  const [promosBanner, setPromosBanner] = useState<{
-    imagen_url: string | null;
-    imagen_url_mobile: string | null;
-    texto_boton: string | null;
-    titulo: string | null;
-  } | null>(null);
   const [loading, setLoading] = useState(true);
   const isMobile = useIsMobile();
 
@@ -85,24 +79,6 @@ export function PromoDetail() {
       cancelled = true;
     };
   }, [slug]);
-
-  useEffect(() => {
-    if (!supabase) return;
-    let cancelled = false;
-    void supabase
-      .from('slider_ofertas')
-      .select('imagen_url, imagen_url_mobile, texto_boton, titulo')
-      .eq('tipo_link', 'promos')
-      .eq('activo', true)
-      .order('orden', { ascending: true })
-      .limit(1)
-      .then(({ data }) => {
-        if (!cancelled) setPromosBanner((data && data[0]) || null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const beneficios = useMemo(() => promoBeneficiosList(promo?.beneficios), [promo?.beneficios]);
   const vigente = promo ? promoVigente(promo) : false;
@@ -155,16 +131,6 @@ export function PromoDetail() {
     promo.imagen_hero ||
     promo.imagen_hero_mobile ||
     '';
-
-  const bannerFromSite =
-    (isMobile && promosBanner?.imagen_url_mobile) ||
-    promosBanner?.imagen_url ||
-    promosBanner?.imagen_url_mobile ||
-    '';
-  const bannerSrc =
-    bannerFromSite || promo.imagen_hero || promo.imagen_hero_mobile || '';
-  const bannerBtn = promosBanner?.texto_boton?.trim() || 'Ofertas';
-  const bannerTitle = promosBanner?.titulo?.trim() || 'Más ofertas vigentes';
 
   return (
     <>
@@ -255,22 +221,6 @@ export function PromoDetail() {
             >
               {promo.cta_whatsapp || 'Consultar por WhatsApp'}
             </a>
-          </section>
-
-          <section className={styles.morePromos} aria-label="Más ofertas">
-            <div
-              className={styles.morePromosMedia}
-              style={bannerSrc ? { backgroundImage: `url(${bannerSrc})` } : undefined}
-            >
-              <div className={styles.morePromosOverlay} />
-              <div className={styles.morePromosInner}>
-                <p className={styles.morePromosLabel}>Checkin24hs</p>
-                <h2 className={styles.morePromosTitle}>{bannerTitle}</h2>
-                <Link to="/promos" className={styles.morePromosBtn}>
-                  {bannerBtn}
-                </Link>
-              </div>
-            </div>
           </section>
         </div>
 

@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-30T15:47:04Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 261; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-08-30T16:15:18Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 262; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">261</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">262</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -2705,7 +2705,7 @@
             <!-- Banners del sitio (Slider Home checkin24hs.com) -->
             <div id="banners-section" style="display: none;">
                 <h2 class="page-title">🖼️ Banners del sitio (checkin24hs.com)</h2>
-                <p style="color: #666; margin-bottom: 16px;">Carrusel de la Home y el <strong>banner de Promos</strong> (bloque de imagen + botón Ofertas en cada landing /promo/…). Desktop ~1200×400; mobile opcional.</p>
+                <p style="color: #666; margin-bottom: 16px;">Carrusel de la Home (tipos URL/Hotel/Flor) y el <strong>banner de Promos</strong> (bloque debajo del newsletter en la Home, enlace a /promos). Desktop ~1200×400; mobile opcional.</p>
                 <div style="margin-bottom: 16px;">
                     <button class="form-button" onclick="openBannerModal()">
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">add</span>
@@ -2920,7 +2920,7 @@
                             <option value="url">URL (interno o externo)</option>
                             <option value="hotel">Hotel (slug o ID)</option>
                             <option value="flor">Flor IA (abre el chat)</option>
-                            <option value="promos">Banner de Promos (landings /promo)</option>
+                            <option value="promos">Banner de Promos (Home → /promos)</option>
                         </select>
                     </div>
                     <div class="form-section" style="margin-bottom: 12px;" id="bannerLinkDestinoWrap">
