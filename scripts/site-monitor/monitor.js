@@ -11,8 +11,11 @@
  *   node scripts/site-monitor/monitor.js --dry-run
  *
  * Variables:
- *   MONITOR_ALERT_PHONE, WHATSAPP_API_URL, MONITOR_WEB_URL, ...
+ *   MONITOR_ALERT_PHONE, WHATSAPP_API_URL (envío de alertas, normalmente L1)
+ *   WHATSAPP2_API_URL, WHATSAPP3_API_URL, WHATSAPP4_API_URL (health L2–L4)
+ *   MONITOR_WEB_URL, MONITOR_DASHBOARD_URL, MONITOR_COTIZADOR_URL
  *   SUPABASE_URL / SUPABASE_ANON_KEY  (visitas + chats + SLA)
+ *   MONITOR_CRYPTO_ISSUES_MAX (default 80) — alerta si florSessionCryptoIssuesLastWindow supera el umbral
  *
  * Preferí RPC whatsapp_ops_daily_stats (migración 067); si falta, calcula SLA en cliente.
  */
@@ -21,6 +24,29 @@ const WEB_URL = (process.env.MONITOR_WEB_URL || 'https://www.checkin24hs.com').r
 const DASHBOARD_URL = (process.env.MONITOR_DASHBOARD_URL || 'https://dashboard.checkin24hs.com').replace(/\/$/, '');
 const COTIZADOR_URL = (process.env.MONITOR_COTIZADOR_URL || 'https://cotizar.checkin24hs.com').replace(/\/$/, '');
 const WA_API = (process.env.WHATSAPP_API_URL || 'https://whatsapp.checkin24hs.com').replace(/\/$/, '');
+/** Health de cada línea (L1 usa WHATSAPP_API_URL; L2–L4 tienen URL propia). */
+const WA_LINE_APIS = [
+  { line: 1, label: 'L1', url: WA_API },
+  {
+    line: 2,
+    label: 'L2',
+    url: (process.env.WHATSAPP2_API_URL || 'https://whatsapp2.checkin24hs.com').replace(/\/$/, ''),
+  },
+  {
+    line: 3,
+    label: 'L3',
+    url: (process.env.WHATSAPP3_API_URL || 'https://whatsapp3.checkin24hs.com').replace(/\/$/, ''),
+  },
+  {
+    line: 4,
+    label: 'L4',
+    url: (process.env.WHATSAPP4_API_URL || 'https://whatsapp4.checkin24hs.com').replace(/\/$/, ''),
+  },
+];
+const CRYPTO_ISSUES_MAX = Math.max(
+  10,
+  parseInt(process.env.MONITOR_CRYPTO_ISSUES_MAX || '80', 10) || 80
+);
 const SUPABASE_URL = (process.env.SUPABASE_URL || 'https://lmoeuyasuvoqhtvhkyia.supabase.co').replace(/\/$/, '');
 const SUPABASE_ANON_KEY =
   process.env.SUPABASE_ANON_KEY ||
@@ -552,6 +578,14 @@ async function fetchCheck(name, url, opts = {}) {
         issues.push(`WhatsApp status="${json.whatsapp}" (esperado open/connected)`);
       }
     }
+    if (json && opts.maxCryptoIssues != null) {
+      const n = Number(json.florSessionCryptoIssuesLastWindow || 0);
+      if (Number.isFinite(n) && n > opts.maxCryptoIssues) {
+        issues.push(
+          `sesión inestable: ${n} errores cripto en ventana (umbral ${opts.maxCryptoIssues}) — suele indicar desconexión/sesión corrupta`
+        );
+      }
+    }
     if (opts.maxMs && ms > opts.maxMs) {
       issues.push(`lento ${ms}ms (umbral ${opts.maxMs}ms)`);
     }
@@ -564,6 +598,13 @@ async function fetchCheck(name, url, opts = {}) {
       ms,
       issues,
       hint: opts.hint || null,
+      meta: json
+        ? {
+            whatsapp: json.whatsapp || null,
+            instance: json.instance || null,
+            cryptoIssues: Number(json.florSessionCryptoIssuesLastWindow || 0) || 0,
+          }
+        : null,
     };
   } catch (e) {
     return {
@@ -574,6 +615,7 @@ async function fetchCheck(name, url, opts = {}) {
       ms: Date.now() - started,
       issues: [e.name === 'AbortError' ? `timeout ${TIMEOUT_MS}ms` : (e.message || String(e))],
       hint: opts.hint || null,
+      meta: null,
     };
   } finally {
     clearTimeout(timer);
@@ -591,8 +633,17 @@ function ideasFromResults(results, visitStats, waStats) {
   if (failed.some((r) => r.name.startsWith('Dashboard'))) {
     ideas.push('Revisar servicio dashboard en EasyPanel y que el HTML/BUILD esté al día.');
   }
-  if (failed.some((r) => r.name.includes('WhatsApp'))) {
-    ideas.push('WhatsApp caído o desconectado: mirar sesión Baileys/QR y reiniciar whatsapp si hace falta.');
+  if (failed.some((r) => /WhatsApp L\d/.test(r.name) || r.name.includes('WhatsApp health'))) {
+    ideas.push(
+      'WhatsApp caído/desconectado: mirar /api/status de esa línea, QR en Dashboard → Flor → WhatsApp, y `docker service update --force checkin24hs_whatsappN`.'
+    );
+  } else if (failed.some((r) => r.name.includes('WhatsApp'))) {
+    ideas.push('WhatsApp caído o desconectado: mirar sesión Baileys/QR y reiniciar el servicio de esa línea.');
+  }
+  if (failed.some((r) => r.name.includes('actividad'))) {
+    ideas.push(
+      'Línea sin actividad con otras activas: Flor no recibe o WA desconectado. Revisar logs: `docker service logs checkin24hs_whatsappN --tail 100`.'
+    );
   }
   if (failed.some((r) => r.name.startsWith('Cotizador'))) {
     ideas.push('Revisar servicio cotizador en EasyPanel (tráfico de conversión).');
@@ -735,10 +786,112 @@ function formatWaDayBlock(label, stats) {
   }
 
   const silent = stats.lines.filter((L) => L.new_chats === 0 && L.inbound === 0).map((L) => L.line);
+  const activeCount = stats.lines.filter((L) => L.new_chats > 0 || L.inbound > 0).length;
   if (silent.length && silent.length < 4) {
-    lines.push(`   · Sin actividad: L${silent.join(', L')}`);
+    const mark = activeCount > 0 ? '⚠️' : '·';
+    lines.push(
+      `   ${mark} Sin actividad: L${silent.join(', L')}` +
+        (activeCount > 0 ? ' (otras líneas sí — posible falla)' : '')
+    );
   }
   return lines;
+}
+
+/** Hora Argentina 0–23 */
+function arHourNow() {
+  const h = new Date().toLocaleString('en-GB', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    hour: '2-digit',
+    hour12: false,
+  });
+  return parseInt(h, 10) || 0;
+}
+
+/**
+ * Si una línea no tiene msgs hoy y otras sí, verificamos /api/status.
+ * Solo falla (alerta) si está disconnected / Flor off / AUTO_REPLY off.
+ * Evita falsos positivos cuando una línea simplemente no recibió leads aún.
+ */
+async function appendSilentLineFailures(results, waStats) {
+  const today = waStats?.today;
+  if (!today?.lines?.length) return;
+  const hour = arHourNow();
+  if (hour < 8 || hour >= 23) return;
+
+  const active = today.lines.filter((L) => L.new_chats > 0 || L.inbound > 0);
+  const silent = today.lines.filter((L) => L.new_chats === 0 && L.inbound === 0);
+  if (!active.length || !silent.length) return;
+
+  for (const L of silent) {
+    const alreadyHealthFail = results.some(
+      (r) => !r.ok && (r.name === `WhatsApp L${L.line}` || r.name === `WhatsApp L${L.line} actividad`)
+    );
+    if (alreadyHealthFail) continue;
+
+    const api = WA_LINE_APIS.find((x) => x.line === L.line);
+    if (!api) continue;
+
+    let statusJson = null;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), Math.min(TIMEOUT_MS, 10000));
+      const res = await fetch(`${api.url}/api/status`, {
+        headers: { Accept: 'application/json', 'User-Agent': 'Checkin24hs-SiteMonitor/1.0' },
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      statusJson = await res.json();
+    } catch (e) {
+      results.push({
+        name: `WhatsApp L${L.line} actividad`,
+        url: `${api.url}/api/status`,
+        ok: false,
+        status: 0,
+        ms: 0,
+        issues: [
+          `Sin actividad hoy y /api/status no responde (${e.name === 'AbortError' ? 'timeout' : e.message || e}) — no puede recibir/contestar chats`,
+        ],
+        hint:
+          L.line === 4
+            ? 'Reparar: bash scripts/reparar_whatsapp_linea_servidor.sh 4'
+            : `docker service logs checkin24hs_whatsapp${L.line === 1 ? '' : L.line} --tail 80`,
+      });
+      continue;
+    }
+
+    const wa = String(statusJson?.whatsapp || statusJson?.connection || '').toLowerCase();
+    const connected = statusJson?.connected === true || wa === 'connected' || wa === 'open';
+    const florOff = statusJson?.flor && String(statusJson.flor).toLowerCase() !== 'active';
+    const autoOff = statusJson?.autoReply === false;
+
+    if (connected && !florOff && !autoOff) {
+      // Línea sana pero sin leads — solo info en digest, no alerta
+      console.log(
+        `ℹ️ L${L.line} sin actividad hoy pero status OK (connected) — no se alerta`
+      );
+      continue;
+    }
+
+    const issues = [
+      `Sin actividad hoy mientras L${active.map((a) => a.line).join(', L')} sí reciben`,
+    ];
+    if (!connected) issues.push(`WhatsApp desconectado (status="${statusJson?.whatsapp || 'unknown'}")`);
+    if (florOff) issues.push(`Flor="${statusJson.flor}" (debería ser active)`);
+    if (autoOff) issues.push('AUTO_REPLY=false');
+
+    results.push({
+      name: `WhatsApp L${L.line} actividad`,
+      url: `${api.url}/api/status`,
+      ok: false,
+      status: 200,
+      ms: 0,
+      issues,
+      hint:
+        L.line === 4
+          ? 'Reparar L4: bash scripts/reparar_whatsapp_linea_servidor.sh 4 y escanear QR si hace falta.'
+          : `Revisar ${api.url}/api/status y logs del servicio.`,
+    });
+  }
 }
 
 function formatWhatsApp(results, visitStats, waStats) {
@@ -846,7 +999,9 @@ async function main() {
   console.log(`   Web: ${WEB_URL}`);
   console.log(`   Dashboard: ${DASHBOARD_URL}`);
   console.log(`   Cotizador: ${COTIZADOR_URL}`);
-  console.log(`   WA API: ${WA_API}`);
+  console.log(`   WA alertas (send): ${WA_API}`);
+  console.log(`   WA health líneas: ${WA_LINE_APIS.map((x) => `${x.label}=${x.url}`).join(' | ')}`);
+  console.log(`   Umbral cripto sesión: ${CRYPTO_ISSUES_MAX}`);
 
   const results = [
     await fetchCheck('Web home', `${WEB_URL}/`, {
@@ -862,25 +1017,30 @@ async function main() {
       maxMs: 10000,
       hint: 'Servicio cotizador en EasyPanel.',
     }),
-    await fetchCheck('WhatsApp health', `${WA_API}/api/health`, {
-      accept: 'application/json',
-      expectJsonKeys: ['status', 'whatsapp'],
-      expectWhatsappOpen: true,
-      maxMs: 5000,
-      hint: 'Desde tu PC usá --dry-run. En producción: WHATSAPP_API_URL=http://checkin24hs_whatsapp:3001',
-    }),
   ];
 
-  const failed = results.filter((r) => !r.ok);
-  for (const r of results) {
-    console.log(
-      `${r.ok ? '✅' : '❌'} ${r.name}: status=${r.status} ${r.ms}ms${r.issues.length ? ' — ' + r.issues.join('; ') : ''}`
+  for (const line of WA_LINE_APIS) {
+    results.push(
+      await fetchCheck(`WhatsApp ${line.label}`, `${line.url}/api/health`, {
+        accept: 'application/json',
+        expectJsonKeys: ['status', 'whatsapp'],
+        expectWhatsappOpen: true,
+        maxCryptoIssues: CRYPTO_ISSUES_MAX,
+        maxMs: 8000,
+        hint:
+          line.line === 1
+            ? 'En Swarm: WHATSAPP_API_URL=http://checkin24hs_whatsapp:3001'
+            : `Desconectado o colgado: curl ${line.url}/api/status · force servicio checkin24hs_whatsapp${line.line === 1 ? '' : line.line}`,
+      })
     );
   }
 
   let visitStats = null;
   let waStats = null;
-  if (DIGEST || failed.length > 0 || !ONLY_FAILURES) {
+  // Stats siempre si hay digest o para evaluar silencio anómalo
+  const needStats = DIGEST || !ONLY_FAILURES;
+  const failedHealth = results.filter((r) => !r.ok);
+  if (needStats || failedHealth.length > 0) {
     visitStats = await fetchVisitStats();
     if (visitStats.error) console.warn('⚠️ Visitas:', visitStats.error);
     else {
@@ -912,6 +1072,19 @@ async function main() {
         }
       }
     }
+  }
+
+  // Siempre evaluar silencio anómalo (aunque ONLY_FAILURES) para alertar L4 “sin actividad”
+  if (!waStats) {
+    waStats = await fetchWhatsappChatStats();
+  }
+  await appendSilentLineFailures(results, waStats);
+
+  const failed = results.filter((r) => !r.ok);
+  for (const r of results) {
+    console.log(
+      `${r.ok ? '✅' : '❌'} ${r.name}: status=${r.status} ${r.ms}ms${r.issues.length ? ' — ' + r.issues.join('; ') : ''}`
+    );
   }
 
   const shouldNotify = DIGEST || failed.length > 0 || !ONLY_FAILURES;
