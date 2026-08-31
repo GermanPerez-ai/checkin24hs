@@ -1,33 +1,51 @@
 #!/usr/bin/env bash
 # Reparar una línea WhatsApp (default 4) cuando está desconectada / sin responder.
+#
 # Uso en el servidor:
 #   bash scripts/reparar_whatsapp_linea_servidor.sh 4
+#   bash scripts/reparar_whatsapp_linea_servidor.sh 4 --reset-auth   # borra sesión + fuerza QR nuevo
 #
-# 1) Fuerza recreate del servicio Swarm
-# 2) Muestra health/status
-# 3) Si sigue close: hay que escanear QR (Dashboard → Flor IA → WhatsApp → Línea N)
-#    o abrir https://whatsappN.checkin24hs.com/qr
+# --reset-auth: limpia /app/auth_info_baileys_N (volumen) y recrea el servicio.
+# Usalo cuando hay bucle 428 / Connection Closed / crypto issues altos sin QR.
 
 set -euo pipefail
-LINE="${1:-4}"
-if ! [[ "$LINE" =~ ^[1-4]$ ]]; then
-  echo "Uso: bash scripts/reparar_whatsapp_linea_servidor.sh [1|2|3|4]"
-  exit 1
-fi
+
+LINE="4"
+RESET_AUTH=0
+for arg in "$@"; do
+  case "$arg" in
+    --reset-auth|--reset|--wipe) RESET_AUTH=1 ;;
+    [1-4]) LINE="$arg" ;;
+    -h|--help)
+      echo "Uso: bash scripts/reparar_whatsapp_linea_servidor.sh [1|2|3|4] [--reset-auth]"
+      exit 0
+      ;;
+    *)
+      echo "Arg desconocido: $arg"
+      echo "Uso: bash scripts/reparar_whatsapp_linea_servidor.sh [1|2|3|4] [--reset-auth]"
+      exit 1
+      ;;
+  esac
+done
 
 if [[ "$LINE" == "1" ]]; then
   SVC="checkin24hs_whatsapp"
   HOST="https://whatsapp.checkin24hs.com"
   PORT=3001
+  VOLUME="whatsapp-auth"
 else
   SVC="checkin24hs_whatsapp${LINE}"
   HOST="https://whatsapp${LINE}.checkin24hs.com"
   PORT=$((3000 + LINE))
+  VOLUME="whatsapp${LINE}-auth"
 fi
+
+AUTH_DIR="/app/auth_info_baileys_${LINE}"
 
 echo "=== Reparar WhatsApp Línea $LINE ==="
 echo "Servicio: $SVC"
 echo "URL: $HOST"
+echo "Reset auth: $RESET_AUTH"
 echo
 
 echo "1) Estado actual (público):"
@@ -37,42 +55,76 @@ curl -sS --max-time 20 -H 'Accept: application/json' "$HOST/api/status" || echo 
 echo
 echo
 
-echo "2) Force update del servicio..."
-docker service update --force "$SVC"
-echo "   Esperando 25s a que arranque..."
-sleep 25
+if [[ "$RESET_AUTH" -eq 1 ]]; then
+  echo "2) Limpiando sesión Baileys ($AUTH_DIR)..."
+  CID="$(docker ps --filter "name=${SVC}" --format '{{.ID}}' | head -1 || true)"
+  if [[ -n "${CID:-}" ]]; then
+    echo "   Contenedor: $CID"
+    docker exec "$CID" sh -c "rm -rf ${AUTH_DIR}/* ${AUTH_DIR}/.[!.]* 2>/dev/null; ls -la ${AUTH_DIR} 2>/dev/null || true" || true
+    echo "   ✅ Contenido de auth borrado en el volumen montado"
+  else
+    echo "   ⚠️ No hay contenedor corriendo; intento borrar vía volumen con contenedor efímero..."
+    docker run --rm -v "${VOLUME}:${AUTH_DIR}" alpine:3.20 sh -c "rm -rf ${AUTH_DIR}/* ${AUTH_DIR}/.[!.]* 2>/dev/null; ls -la ${AUTH_DIR} || true" || true
+  fi
+  echo
+  echo "3) Force update del servicio (debe generar QR nuevo)..."
+else
+  echo "2) Force update del servicio (sin borrar sesión)..."
+fi
 
-echo "3) Réplicas:"
+docker service update --force "$SVC"
+echo "   Esperando 30s a que arranque..."
+sleep 30
+
+echo
+echo "4) Réplicas:"
 docker service ls | grep -E "whatsapp|NAME" || true
 echo
 
-echo "4) Health post-restart:"
-for i in 1 2 3 4 5; do
+echo "5) Health / status post-restart:"
+CONNECTED=0
+for i in 1 2 3 4 5 6; do
   if OUT=$(curl -sS --max-time 15 "$HOST/api/health" 2>/dev/null); then
-    echo "$OUT"
+    echo "health: $OUT"
     if echo "$OUT" | grep -qE '"whatsapp":"(open|connected)"'; then
       echo "✅ Línea $LINE conectada."
-      exit 0
-    fi
-    if echo "$OUT" | grep -qE '"whatsapp":"(close|connecting)"'; then
-      echo "⚠️ Servicio vivo pero WhatsApp aún no open. Puede necesitar QR."
+      CONNECTED=1
       break
     fi
   else
-    echo "   intento $i: sin respuesta todavía..."
+    echo "   intento $i health: sin respuesta todavía..."
   fi
   sleep 5
 done
 
+ST=$(curl -sS --max-time 20 -H 'Accept: application/json' "$HOST/api/status" 2>/dev/null || true)
+echo "status: ${ST:-(vacío)}"
+if echo "$ST" | grep -q '"qrCode":"http'; then
+  echo "📱 Hay QR en /api/status — abrí $HOST/qr o Dashboard → Flor → WhatsApp → Línea $LINE"
+elif echo "$ST" | grep -qE '"connected":true'; then
+  CONNECTED=1
+fi
+
 echo
-echo "5) Últimos logs (buscar QR / logged out / conflict):"
-docker service logs "$SVC" --tail 60 2>&1 | tail -60 || true
+echo "6) Últimos logs:"
+docker service logs "$SVC" --tail 40 2>&1 | tail -40 || true
 echo
-echo "=== Si sigue disconnected ==="
-echo "1. Abrí Dashboard → Flor IA → pestaña WhatsApp → tarjeta Línea $LINE"
-echo "2. O en el navegador: $HOST/qr  (Accept HTML) / $HOST/api/qr"
-echo "3. Escaneá el QR con el celular de esa línea."
-echo "4. Verificá: curl -s $HOST/api/status"
-echo "5. Sync env Flor si hace falta: bash scripts/sincronizar_env_whatsapp_lineas_servidor.sh $LINE"
+
+if [[ "$CONNECTED" -eq 1 ]]; then
+  echo "✅ Listo: Línea $LINE en open/connected."
+  exit 0
+fi
+
+echo "=== Siguiente paso obligatorio: escanear QR ==="
+echo "1. En el celular de L$LINE: WhatsApp → Dispositivos vinculados → desvincular sesiones viejas de Checkin si hay."
+echo "2. Abrí: $HOST/qr   (o Dashboard → Flor IA → WhatsApp → Línea $LINE)"
+echo "3. Vincular dispositivo y escanear YA (QR caduca en ~1–2 min)."
+echo "4. No cierres WhatsApp 1–2 minutos."
+echo "5. Verificá: curl -s $HOST/api/status"
 echo
-echo "Puerto interno Swarm: $PORT · servicio $SVC"
+if [[ "$RESET_AUTH" -eq 0 ]]; then
+  echo "Si sigue en close/428/crash sin QR, corré de nuevo CON reset:"
+  echo "  bash scripts/reparar_whatsapp_linea_servidor.sh $LINE --reset-auth"
+fi
+echo
+echo "Puerto interno Swarm: $PORT · volumen típico: $VOLUME · servicio $SVC"
