@@ -200,6 +200,61 @@ let phoneName = null;
 let qrExpirationTimer = null; // Timer para detectar QR expirado
 let isSyncingAppState = false; // Flag para indicar si se está sincronizando el app state
 
+/**
+ * Anti-duplicado de sesión Baileys:
+ * - Sin esto, cada connection.close programa otro connectToWhatsApp() mientras el socket viejo
+ *   sigue vivo → 2 WebSockets con la misma auth → Bad MAC / "Esperando mensaje" en el móvil.
+ */
+let waConnectGeneration = 0;
+let waReconnectTimer = null;
+let waIsConnecting = false;
+
+function clearWaReconnectTimer() {
+    if (waReconnectTimer) {
+        clearTimeout(waReconnectTimer);
+        waReconnectTimer = null;
+    }
+}
+
+function scheduleWaReconnect(delayMs, reason) {
+    clearWaReconnectTimer();
+    const genAtSchedule = waConnectGeneration;
+    const delay = Math.max(0, Number(delayMs) || 0);
+    console.log(`🔄 Reconexión programada en ${delay}ms (${reason}) gen=${genAtSchedule}`);
+    waReconnectTimer = setTimeout(() => {
+        waReconnectTimer = null;
+        if (genAtSchedule !== waConnectGeneration) {
+            console.log(`⏭️ Reconexión cancelada (gen obsoleta ${genAtSchedule}≠${waConnectGeneration})`);
+            return;
+        }
+        connectToWhatsApp().catch((err) => {
+            console.error('❌ Error en reconexión programada:', err?.message || err);
+            scheduleWaReconnect(30000, 'reintento tras fallo de connectToWhatsApp');
+        });
+    }, delay);
+}
+
+async function safeEndWhatsAppSocket(reason) {
+    const s = sock;
+    sock = null;
+    if (!s) return;
+    try {
+        if (s.ev && typeof s.ev.removeAllListeners === 'function') {
+            s.ev.removeAllListeners();
+        }
+    } catch (_) { /* ignore */ }
+    try {
+        if (s.ws && typeof s.ws.close === 'function') s.ws.close();
+    } catch (_) { /* ignore */ }
+    try {
+        await Promise.race([
+            Promise.resolve(typeof s.end === 'function' ? s.end() : undefined).catch(() => {}),
+            new Promise((r) => setTimeout(r, 2000))
+        ]);
+    } catch (_) { /* ignore */ }
+    console.log(`🔌 Socket anterior cerrado (${reason || 'cleanup'})`);
+}
+
 // Delay antes de que Flor responda (ms). El usuario puede hacer todas las consultas que quiera en la misma conversación.
 // Si en esos 5s llega 1 solo mensaje → Flor responde esa consulta y queda atenta a la siguiente.
 // Si llegan varios en ese lapso → se acumulan y Flor responde a todos juntos. Sin límite de consultas por usuario.
@@ -6266,9 +6321,21 @@ async function guardarMensaje(numero, mensaje, esEnviado = false, respuestaFlor 
 // ===== FUNCIÓN PARA CONECTAR WHATSAPP =====
 
 async function connectToWhatsApp() {
+    if (waIsConnecting) {
+        console.warn('⚠️ connectToWhatsApp ya en curso — se omite llamada duplicada');
+        return;
+    }
+    waIsConnecting = true;
+    const myGen = ++waConnectGeneration;
+    clearWaReconnectTimer();
+
+    try {
+    await safeEndWhatsAppSocket('antes de nueva conexión');
+
     const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, `auth_info_baileys_${CONFIG.INSTANCE_NUMBER}`));
     
-    const { version } = await fetchLatestBaileysVersion();
+    const { version, isLatest } = await fetchLatestBaileysVersion();
+    console.log(`📦 Baileys WA Web version=[${version.join('.')}] isLatest=${isLatest} | connect gen=${myGen}`);
     
     sock = makeWASocket({
         logger: createFlorBaileysLogger(),
@@ -6276,26 +6343,29 @@ async function connectToWhatsApp() {
         version,
         browser: ['Chrome', 'Desktop', '1.0.0'],
         
-        // MODO PASIVO
-        passive: true, // Usar valores más estándar
-        qrTimeout: 120000, // 120 segundos (2 minutos) para generar QR - más tiempo para escanear
-        connectTimeoutMs: 300000, // 300 segundos (5 minutos) - AUMENTADO para dar más tiempo a la autenticación
-        defaultQueryTimeoutMs: 60000, // 180 segundos (3 minutos) - AUMENTADO para queries
-        keepAliveIntervalMs: 10000, // 20 segundos - REDUCIDO para mantener conexión más activa
-        markOnlineOnConnect: true, // Marcar como online al conectar
-        generateHighQualityLinkPreview: false, // Desactivar previews para mejor rendimiento
-        syncFullHistory: false, // No sincronizar historial completo
-        retryRequestDelayMs: 500, // 500ms - AUMENTADO para dar más tiempo entre reintentos
-        maxMsgRetryCount: 3, // Máximo de reintentos para mensajes
-        shouldSyncHistoryMessage: () => false, // No sincronizar historial
-        shouldSyncAppState: () => false, // NO sincronizar app state (modo pasivo)
-        shouldIgnoreJid: () => false, // No ignorar ningún JID
+        // Companion device (no usurpa el primario del celular)
+        passive: true,
+        qrTimeout: 120000,
+        connectTimeoutMs: 300000,
+        defaultQueryTimeoutMs: 60000,
+        keepAliveIntervalMs: 10000,
+        markOnlineOnConnect: true,
+        generateHighQualityLinkPreview: false,
+        syncFullHistory: false,
+        retryRequestDelayMs: 500,
+        maxMsgRetryCount: 5,
+        shouldSyncHistoryMessage: () => false,
+        shouldSyncAppState: () => false,
+        shouldIgnoreJid: () => false,
         getMessage: getFlorMessageForBaileysRetry,
-        // Optimizar sincronización del app state para evitar timeouts
-        appStateSyncTimeoutMs: 0, // 5 minutos - AUMENTADO para dar más tiempo a la sincronización
-        // Nota: La sincronización del app state es necesaria para WhatsApp
-        // Los timeouts aumentados deberían dar suficiente tiempo para completar la autenticación
+        appStateSyncTimeoutMs: 0,
     });
+
+    if (myGen !== waConnectGeneration) {
+        console.warn('⚠️ Socket creado con gen obsoleta — cerrando');
+        await safeEndWhatsAppSocket('gen obsoleta post-makeWASocket');
+        return;
+    }
 
     // Distinguir eco fromMe de Flor/API (mismo message id) vs humano escribiendo desde el celular
     const _origSendMessage = sock.sendMessage.bind(sock);
@@ -6327,6 +6397,10 @@ async function connectToWhatsApp() {
 
     // Manejar eventos de conexión
     sock.ev.on('connection.update', async (update) => {
+        if (myGen !== waConnectGeneration) {
+            console.log(`⏭️ connection.update ignorado (socket gen=${myGen} actual=${waConnectGeneration})`);
+            return;
+        }
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
@@ -6420,24 +6494,11 @@ async function connectToWhatsApp() {
             if (statusCode === 515) {
                 console.log('ℹ️ Error 515: Restart required (normal después del pairing)');
                 console.log('💡 El teléfono está autenticando, esperando antes de reconectar...');
-                console.log('🔄 Reconectando automáticamente en 10 segundos...');
-                // No limpiar sesión, solo reconectar
-                // Dar más tiempo al teléfono para completar la autenticación
                 io.emit('connection', { status: 'close' });
                 if (shouldReconnect) {
-                    setTimeout(() => {
-                        console.log('🔄 Iniciando reconexión después de restart required...');
-                        connectToWhatsApp().catch(err => {
-                            console.error('❌ Error en reconexión:', err);
-                            // Reintentar después de 30 segundos si falla
-                            setTimeout(() => {
-                                console.log('🔄 Reintentando reconexión después de error 515...');
-                                connectToWhatsApp().catch(e => console.error('❌ Error en reintento:', e));
-                            }, 30000);
-                        });
-                    }, 10000); // Aumentado a 10 segundos para dar tiempo al teléfono
+                    scheduleWaReconnect(10000, '515 restart required');
                 }
-                return; // Salir temprano, no procesar más
+                return;
             }
             
             // Detectar si el error es "device_removed" o conflicto de sesión
@@ -6477,41 +6538,17 @@ async function connectToWhatsApp() {
                         console.log('🔄 Reconectando sin limpiar sesión (puede ser solo un timeout de sincronización)...');
                         
                         // Reconectar sin limpiar sesión si estamos sincronizando
-                        if (sock) {
-                            try {
-                                sock.end().catch(() => {});
-                                sock = null;
-                            } catch (e) {}
-                        }
-                        
-                        // Reconectar después de un tiempo
-                        setTimeout(() => {
-                            console.log('🔄 Reconectando después de error durante sincronización...');
-                            connectToWhatsApp().catch(err => {
-                                console.error('❌ Error reconectando:', err);
-                            });
-                        }, 5000);
-                        
-                        return; // Salir sin limpiar sesión
+                        await safeEndWhatsAppSocket('error durante sync app state');
+                        scheduleWaReconnect(5000, 'error durante sync (sin wipe auth)');
+                        return;
                     }
                 }
                 
                 console.log('⚠️ Sesión conflictiva detectada. Cerrando socket y limpiando sesión...');
                 
-                // Cerrar el socket actual antes de limpiar
-                if (sock) {
-                    try {
-                        console.log('🔌 Cerrando socket actual...');
-                        await sock.end();
-                        sock = null;
-                        console.log('✅ Socket cerrado correctamente');
-                        connectionTimestamp = null; // Resetear timestamp de conexión
-                        isSyncingAppState = false; // Resetear flag de sincronización
-                    } catch (closeError) {
-                        console.error('⚠️ Error cerrando socket (puede estar ya cerrado):', closeError.message);
-                        sock = null;
-                    }
-                }
+                await safeEndWhatsAppSocket('device_removed / 401');
+                connectionTimestamp = null;
+                isSyncingAppState = false;
                 
                 // Esperar un momento para que el socket se cierre completamente
                 await new Promise(resolve => setTimeout(resolve, 1000));
@@ -6551,25 +6588,10 @@ async function connectToWhatsApp() {
                     console.error('❌ Error limpiando sesión:', cleanError);
                 }
                 
-                // Forzar reconexión después de limpiar sesión por device_removed
                 console.log('🔄 Forzando reconexión después de limpiar sesión...');
                 io.emit('connection', { status: 'close' });
-                
-                // Reconectar después de 10 segundos (dar tiempo para que se cierre todo)
-                setTimeout(() => {
-                    console.log('🔄 Iniciando reconexión después de device_removed...');
-                    connectToWhatsApp().catch(err => {
-                        console.error('❌ Error en reconexión después de device_removed:', err);
-                        // Reintentar después de 30 segundos si falla
-                        setTimeout(() => {
-                            console.log('🔄 Reintentando reconexión después de error...');
-                            connectToWhatsApp().catch(e => console.error('❌ Error en reintento:', e));
-                        }, 30000);
-                    });
-                }, 10000);
-                
-                return; // Salir temprano después de limpiar sesión y programar reconexión
-            }
+                scheduleWaReconnect(10000, 'device_removed / 401 tras wipe auth');
+                return;
             
             io.emit('connection', { status: 'close' });
 
@@ -6584,31 +6606,17 @@ async function connectToWhatsApp() {
                 if (isConflict440) {
                     console.error('❌ CONFLICTO 440: Otro proceso/contenedor está usando la misma sesión WhatsApp. Detené duplicados (docker ps | grep whatsapp) y esperá 90 segundos.');
                 }
-                console.log('🔄 Reconectando...');
-                // Delay según tipo de error
-                // 440 conflict: 90 segundos - dar tiempo a que el proceso duplicado termine
-                // 401/device_removed: 10 segundos
-                // 428: 5 segundos
+                // Cerrar socket actual ANTES de reprogramar (evita 2 WebSockets = Esperando mensaje)
+                await safeEndWhatsAppSocket(`connection.close status=${statusCode}`);
                 let reconnectDelay = 3000;
                 if (isConflict440) {
-                    reconnectDelay = 90000; // 90 segundos para 440
+                    reconnectDelay = 90000;
                 } else if (isDeviceRemoved || statusCode === 401) {
                     reconnectDelay = 10000;
                 } else if (statusCode === 428) {
                     reconnectDelay = 5000;
                 }
-                
-                setTimeout(() => {
-                    console.log('🔄 Iniciando reconexión...');
-                    connectToWhatsApp().catch(err => {
-                        console.error('❌ Error en reconexión:', err);
-                        // Reintentar después de 30 segundos si falla
-                        setTimeout(() => {
-                            console.log('🔄 Reintentando reconexión después de error...');
-                            connectToWhatsApp().catch(e => console.error('❌ Error en reintento:', e));
-                        }, 30000);
-                    });
-                }, reconnectDelay);
+                scheduleWaReconnect(reconnectDelay, `connection.close status=${statusCode}`);
             }
         } else if (connection === 'open') {
             connectionStatus = 'open';
@@ -6666,6 +6674,12 @@ async function connectToWhatsApp() {
 
     // Manejar mensajes recibidos
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
+        // Cedé el event loop para que keepAlive/ACK de Baileys no se atrasen bajo pico de tráfico
+        await new Promise((r) => setImmediate(r));
+        if (myGen !== waConnectGeneration) {
+            console.log(`⏭️ messages.upsert ignorado (socket gen=${myGen} actual=${waConnectGeneration})`);
+            return;
+        }
         console.log(`📨 Evento messages.upsert recibido - type: ${type}, cantidad: ${messages?.length || 0}`);
         
         // Procesar 'notify' (tiempo real) Y 'append' (mensajes offline/buffer al reconectar; anuncios pueden venir por append)
@@ -7620,6 +7634,12 @@ async function connectToWhatsApp() {
             }
         }
     });
+    } catch (connectErr) {
+        console.error('❌ connectToWhatsApp falló:', connectErr?.message || connectErr);
+        scheduleWaReconnect(15000, 'fallo en connectToWhatsApp');
+    } finally {
+        waIsConnecting = false;
+    }
 }
 
 // ===== API ENDPOINTS =====
@@ -8655,11 +8675,51 @@ async function start() {
 // Manejar cierre limpio
 process.on('SIGINT', () => {
     console.log('\n🛑 Cerrando servidor...');
+    clearWaReconnectTimer();
+    waConnectGeneration++;
     if (sock) {
         sock.end();
     }
     process.exit(0);
 });
+
+process.on('SIGTERM', () => {
+    console.log('\n🛑 SIGTERM — cerrando WhatsApp limpio...');
+    clearWaReconnectTimer();
+    waConnectGeneration++;
+    Promise.resolve(safeEndWhatsAppSocket('SIGTERM')).finally(() => process.exit(0));
+});
+
+/** No matar el proceso por Boom "Connection Closed" (428): Swarm reinicia → 2 sockets → Esperando mensaje */
+process.on('uncaughtException', (err) => {
+    const code = err?.output?.statusCode;
+    const msg = String(err?.message || err || '');
+    if (code === 428 || /Connection Closed|Precondition Required/i.test(msg)) {
+        console.error('⚠️ uncaughtException Baileys (proceso vivo):', msg);
+        scheduleWaReconnect(5000, 'uncaughtException Connection Closed');
+        return;
+    }
+    console.error('💥 uncaughtException fatal:', err);
+    process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+    const msg = String(reason?.message || reason || '');
+    const code = reason?.output?.statusCode;
+    if (code === 428 || /Connection Closed|Precondition Required/i.test(msg)) {
+        console.error('⚠️ unhandledRejection Baileys (proceso vivo):', msg);
+        scheduleWaReconnect(5000, 'unhandledRejection Connection Closed');
+        return;
+    }
+    console.error('⚠️ unhandledRejection:', reason);
+});
+
+try {
+    const baileysPkg = require('@whiskeysockets/baileys/package.json');
+    console.log(`📦 @whiskeysockets/baileys instalado: v${baileysPkg.version}`);
+} catch (_) {
+    console.log('📦 @whiskeysockets/baileys: (no se pudo leer package.json)');
+}
 
 // Iniciar
 start();
