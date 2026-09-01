@@ -6592,7 +6592,8 @@ async function connectToWhatsApp() {
                 io.emit('connection', { status: 'close' });
                 scheduleWaReconnect(10000, 'device_removed / 401 tras wipe auth');
                 return;
-            
+            }
+
             io.emit('connection', { status: 'close' });
 
             console.log('🔍 Verificando si debe reconectar...');
