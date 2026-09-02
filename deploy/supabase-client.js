@@ -2645,6 +2645,237 @@ class SupabaseClient {
         }
     }
 
+    /**
+     * Importación masiva de contactos (CSV/JSON del dashboard).
+     * - Deduplica dentro del archivo (email o teléfono)
+     * - Crea en Supabase los que no existen
+     * - Actualiza nombre/teléfono/email faltantes de los que ya existen
+     */
+    async importUsersBulk(rawUsers, { onProgress } = {}) {
+        const normalizePhone = (p) => String(p || '').replace(/\D/g, '');
+        const isBadName = (n) => {
+            const s = String(n || '').trim();
+            if (!s) return true;
+            if (/e\+/i.test(s)) return true;
+            // Notación científica / solo dígitos largos (teléfono mal pegado como nombre)
+            if (/^[\d,.\s+eE-]+$/.test(s) && s.replace(/\D/g, '').length >= 8) return true;
+            return false;
+        };
+        const pickName = (rawName, phone, email) => {
+            const n = String(rawName || '').trim();
+            if (!isBadName(n)) return n;
+            if (phone) return phone;
+            if (email) return String(email).split('@')[0];
+            return 'Sin nombre';
+        };
+
+        // 1) Normalizar + dedupe dentro del archivo
+        const byKey = new Map();
+        let invalid = 0;
+        for (const u of rawUsers || []) {
+            const email = String(u.email || u.correo || '').toLowerCase().trim();
+            const phone = normalizePhone(u.phone || u.telefono || u.tel || '');
+            if (!email && !phone) {
+                invalid++;
+                continue;
+            }
+            const name = pickName(u.name || u.nombre || '', phone, email);
+            const key = email ? `e:${email}` : `p:${phone}`;
+            if (byKey.has(key)) {
+                const prev = byKey.get(key);
+                if (isBadName(prev.name) && !isBadName(name)) prev.name = name;
+                if (!prev.email && email) prev.email = email;
+                if (!prev.phone && phone) prev.phone = phone;
+                continue;
+            }
+            byKey.set(key, {
+                name,
+                email: email || null,
+                phone: phone || null
+            });
+        }
+        const list = [...byKey.values()];
+
+        if (!this.isInitialized()) {
+            let inserted = 0;
+            let updated = 0;
+            for (let i = 0; i < list.length; i++) {
+                const before = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]').length;
+                this.upsertUserLocal(list[i]);
+                const after = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]').length;
+                if (after > before) inserted++;
+                else updated++;
+                if (onProgress && (i % 50 === 0 || i === list.length - 1)) {
+                    onProgress({ phase: 'local', done: i + 1, total: list.length, inserted, updated });
+                }
+            }
+            return {
+                inserted,
+                updated,
+                unchanged: 0,
+                invalid,
+                duplicatesInFile: (rawUsers || []).length - invalid - list.length,
+                errors: [],
+                totalProcessed: list.length
+            };
+        }
+
+        // 2) Cargar existentes una sola vez
+        if (typeof onProgress === 'function') {
+            onProgress({ phase: 'load', done: 0, total: list.length, inserted: 0, updated: 0 });
+        }
+        const existing = await this.getUsers();
+        const emailMap = new Map();
+        const phoneMap = new Map();
+        for (const u of existing || []) {
+            if (u.email) emailMap.set(String(u.email).toLowerCase().trim(), u);
+            const p = normalizePhone(u.phone);
+            if (p) {
+                phoneMap.set(p, u);
+                if (p.length >= 10) {
+                    const last10 = p.slice(-10);
+                    if (!phoneMap.has(`L10:${last10}`)) phoneMap.set(`L10:${last10}`, u);
+                }
+            }
+        }
+
+        const toInsert = [];
+        const toUpdate = [];
+        let unchanged = 0;
+
+        for (const row of list) {
+            let found = null;
+            if (row.email) found = emailMap.get(row.email) || null;
+            if (!found && row.phone) {
+                found = phoneMap.get(row.phone) || null;
+                if (!found && row.phone.length >= 10) {
+                    found = phoneMap.get(`L10:${row.phone.slice(-10)}`) || null;
+                }
+            }
+
+            if (found) {
+                const updates = {
+                    last_activity: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                    is_active: true,
+                    status: 'active'
+                };
+                let changed = false;
+
+                if (row.name && !isBadName(row.name) && row.name !== found.name) {
+                    updates.name = row.name;
+                    changed = true;
+                } else if ((!found.name || isBadName(found.name)) && row.name) {
+                    updates.name = row.name;
+                    changed = true;
+                }
+
+                if (row.email && !found.email) {
+                    updates.email = row.email;
+                    changed = true;
+                }
+
+                const foundPhone = normalizePhone(found.phone);
+                if (row.phone && foundPhone !== row.phone) {
+                    // Completar o normalizar teléfono si falta / distinto formato del mismo número
+                    if (!foundPhone || (row.phone.length >= 10 && foundPhone.slice(-10) === row.phone.slice(-10))) {
+                        updates.phone = row.phone;
+                        changed = true;
+                    } else if (!foundPhone) {
+                        updates.phone = row.phone;
+                        changed = true;
+                    }
+                }
+
+                if (!found.tipo_cuenta || found.tipo_cuenta === 'cliente_reserva') {
+                    // No pisar tipos especiales; marcar importados si vacío
+                    if (!found.tipo_cuenta) {
+                        updates.tipo_cuenta = 'importado';
+                        changed = true;
+                    }
+                }
+
+                // Siempre tocar last_activity en matches para "actualizar" la base
+                toUpdate.push({ id: found.id, updates, changed });
+            } else {
+                toInsert.push({
+                    name: row.name,
+                    email: row.email,
+                    phone: row.phone,
+                    status: 'active',
+                    is_active: true,
+                    last_activity: new Date().toISOString(),
+                    rewards_points: 0,
+                    tipo_cuenta: 'importado'
+                });
+            }
+        }
+
+        const errors = [];
+        let inserted = 0;
+        let updated = 0;
+
+        // 3) Inserts en lotes
+        const insertChunk = 150;
+        for (let i = 0; i < toInsert.length; i += insertChunk) {
+            const batch = toInsert.slice(i, i + insertChunk);
+            const { data, error } = await this.client.from('users').insert(batch).select('id');
+            if (error) {
+                for (const row of batch) {
+                    const { error: e2 } = await this.client.from('users').insert([row]);
+                    if (e2) errors.push(e2.message || String(e2));
+                    else inserted++;
+                }
+            } else {
+                inserted += (data || batch).length;
+            }
+            if (typeof onProgress === 'function') {
+                onProgress({
+                    phase: 'insert',
+                    done: Math.min(i + insertChunk, toInsert.length),
+                    total: toInsert.length,
+                    inserted,
+                    updated
+                });
+            }
+        }
+
+        // 4) Updates en lotes paralelos
+        const updateChunk = 40;
+        for (let i = 0; i < toUpdate.length; i += updateChunk) {
+            const batch = toUpdate.slice(i, i + updateChunk);
+            await Promise.all(batch.map(async ({ id, updates, changed }) => {
+                const { error } = await this.client.from('users').update(updates).eq('id', id);
+                if (error) errors.push(error.message || String(error));
+                else if (changed) updated++;
+                else unchanged++;
+            }));
+            if (typeof onProgress === 'function') {
+                onProgress({
+                    phase: 'update',
+                    done: Math.min(i + updateChunk, toUpdate.length),
+                    total: toUpdate.length,
+                    inserted,
+                    updated
+                });
+            }
+        }
+
+        // Contar como actualizados también los solo-touch de actividad si el usuario pidió "actualizar"
+        // (changed=false → unchanged). OK.
+
+        return {
+            inserted,
+            updated,
+            unchanged,
+            invalid,
+            duplicatesInFile: Math.max(0, (rawUsers || []).length - invalid - list.length),
+            errors: errors.slice(0, 25),
+            totalProcessed: list.length,
+            existingInDb: (existing || []).length
+        };
+    }
+
     // Crear o actualizar usuario (upsert con lógica de deduplicación)
     async upsertUser(userData) {
         const email = userData.email?.trim().toLowerCase() || '';

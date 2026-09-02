@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-08-30T16:25:01Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 263; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-09-02T16:43:09Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 264; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2243,7 +2243,7 @@
     <!-- showSection ya está definido en la línea 6 del head -->
     
     <!-- Supabase: config inline en DASHBOARD_CONFIG (head). Client: -->
-    <script src="/supabase-client.js?v=3.2.4" onerror="console.warn('supabase-client.js no encontrado');"></script>
+    <script src="/supabase-client.js?v=3.2.5" onerror="console.warn('supabase-client.js no encontrado');"></script>
     
     <!-- showSection ya está definido en la línea 6 del head -->
     
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">263</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">264</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -6846,13 +6846,16 @@ Ej:
                     Importa usuarios desde un archivo CSV o JSON. Los campos requeridos son: <strong>nombre</strong> y <strong>teléfono</strong> (o <strong>email</strong>).
                 </p>
                 
-                <div style="padding: 15px; background: #fff3cd; border-radius: 8px; margin-bottom: 15px;">
-                    <p style="margin: 0; color: #856404; font-size: 0.9rem;">
-                        <strong>⚠️ Validación de duplicados:</strong><br>
-                        • Si el usuario tiene email: se mantiene el que se creó primero<br>
-                        • Si el usuario no tiene email: se valida por teléfono y se mantiene el que ya estaba
+                <div style="padding: 15px; background: #e8f5e9; border-radius: 8px; margin-bottom: 15px;">
+                    <p style="margin: 0; color: #2e7d32; font-size: 0.9rem;">
+                        <strong>✅ Importación a Supabase (crear + actualizar):</strong><br>
+                        • Contactos nuevos se crean en la base<br>
+                        • Si ya existen (mismo email o teléfono), se actualizan nombre/datos faltantes<br>
+                        • Filas vacías o sin email/teléfono se omiten<br>
+                        • Listas grandes (~30.000) pueden tardar varios minutos — no cierres la pestaña
                     </p>
                 </div>
+                <div id="importProgressBox" style="display: none; padding: 12px; background: #e3f2fd; border-radius: 8px; margin-bottom: 15px; color: #1565c0; font-size: 0.9rem;"></div>
             </div>
             
             <form id="importUsersForm" onsubmit="importUsers(event)">
@@ -20890,7 +20893,7 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             const format = document.getElementById('fileFormat').value;
             const reader = new FileReader();
             
-            reader.onload = function(e) {
+            reader.onload = async function(e) {
                 try {
                     let importedUsers = [];
                     const content = e.target.result;
@@ -20911,8 +20914,8 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                         return;
                     }
                     
-                    // Procesar e importar usuarios
-                    processImportedUsers(importedUsers);
+                    // Procesar e importar usuarios (Supabase: crear + actualizar)
+                    await processImportedUsers(importedUsers);
                     
                 } catch (error) {
                     console.error('Error importando usuarios:', error);
@@ -20969,115 +20972,83 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
             return users;
         }
         
-        // Función para procesar usuarios importados con validación de duplicados
-        function processImportedUsers(importedUsers) {
+        // Importar a Supabase: crea nuevos y actualiza existentes (email/teléfono)
+        async function processImportedUsers(importedUsers) {
             console.log('🔄 Procesando usuarios importados:', importedUsers.length);
-            
-            // Cargar usuarios existentes
-            const existingUsers = JSON.parse(localStorage.getItem('checkin24hs_users') || '[]');
-            
-            let added = 0;
-            let skipped = 0;
-            const errors = [];
-            
-            importedUsers.forEach((importedUser, index) => {
-                try {
-                    // Validar que tenga nombre y (email o teléfono)
-                    if (!importedUser.name && !importedUser.nombre) {
-                        errors.push(`Fila ${index + 1}: Falta el nombre`);
-                        skipped++;
-                        return;
-                    }
-                    
-                    const name = importedUser.name || importedUser.nombre || '';
-                    const email = (importedUser.email || importedUser.correo || '').toLowerCase().trim();
-                    const phone = (importedUser.phone || importedUser.telefono || importedUser.tel || '').trim();
-                    
-                    if (!email && !phone) {
-                        errors.push(`Fila ${index + 1}: Falta email y teléfono`);
-                        skipped++;
-                        return;
-                    }
-                    
-                    // Buscar duplicados
-                    let duplicate = null;
-                    
-                    if (email) {
-                        // Buscar por email
-                        duplicate = existingUsers.find(u => u.email && u.email.toLowerCase().trim() === email);
-                        if (duplicate) {
-                            console.log(`⚠️ Usuario con email ${email} ya existe, se mantiene el original`);
-                            skipped++;
-                            return;
-                        }
-                    }
-                    
-                    if (!email && phone) {
-                        // Si no hay email, buscar por teléfono
-                        const cleanPhone = phone.replace(/\D/g, '');
-                        duplicate = existingUsers.find(u => {
-                            if (!u.phone) return false;
-                            const existingPhone = u.phone.replace(/\D/g, '');
-                            return existingPhone === cleanPhone;
-                        });
-                        
-                        if (duplicate) {
-                            console.log(`⚠️ Usuario con teléfono ${phone} ya existe, se mantiene el original`);
-                            skipped++;
-                            return;
-                        }
-                    }
-                    
-                    // Crear nuevo usuario
-                    const newUser = {
-                        id: Date.now() + Math.random().toString(36).substr(2, 9),
-                        name: name,
-                        email: email || null,
-                        phone: phone || null,
-                        status: 'active',
-                        createdAt: new Date().toISOString(),
-                        tipoCuenta: 'importado',
-                        source: 'import'
-                    };
-                    
-                    // Agregar apellido si existe
-                    if (importedUser.lastName || importedUser.apellido) {
-                        newUser.lastName = importedUser.lastName || importedUser.apellido;
-                        newUser.name = `${name} ${newUser.lastName}`.trim();
-                    }
-                    
-                    existingUsers.push(newUser);
-                    added++;
-                    
-                } catch (error) {
-                    console.error(`Error procesando usuario ${index + 1}:`, error);
-                    errors.push(`Fila ${index + 1}: ${error.message}`);
-                    skipped++;
-                }
-            });
-            
-            // Guardar usuarios actualizados
-            localStorage.setItem('checkin24hs_users', JSON.stringify(existingUsers));
-            
-            // Mostrar resumen
-            let message = `✅ Importación completada:\n\n`;
-            message += `• Agregados: ${added}\n`;
-            message += `• Omitidos (duplicados): ${skipped}\n`;
-            if (errors.length > 0) {
-                message += `• Errores: ${errors.length}\n\n`;
-                message += `Errores:\n${errors.slice(0, 5).join('\n')}`;
-                if (errors.length > 5) message += `\n... y ${errors.length - 5} más`;
+
+            const progressBox = document.getElementById('importProgressBox');
+            const setProgress = (text) => {
+                if (!progressBox) return;
+                progressBox.style.display = 'block';
+                progressBox.textContent = text;
+            };
+
+            if (!window.supabaseClient || typeof window.supabaseClient.isInitialized !== 'function' || !window.supabaseClient.isInitialized()) {
+                alert('❌ Supabase no está conectado. No se puede importar a la base de datos.\n\nRecargá el dashboard e intentá de nuevo.');
+                return;
             }
-            
-            alert(message);
-            
-            // Cerrar modal
-            closeImportUsersModal();
-            
-            // Actualizar tabla
-            loadUsersData();
-            
-            console.log(`✅ Importación: ${added} agregados, ${skipped} omitidos`);
+            if (typeof window.supabaseClient.importUsersBulk !== 'function') {
+                alert('❌ Falta actualizar el dashboard (importUsersBulk). Subí supabase-client.js nuevo y recargá con Ctrl+F5.');
+                return;
+            }
+
+            // Unir nombre + apellido si viene separado
+            const normalized = (importedUsers || []).map((u) => {
+                const nombre = (u.name || u.nombre || '').trim();
+                const apellido = (u.lastName || u.apellido || '').trim();
+                const fullName = [nombre, apellido].filter(Boolean).join(' ').trim();
+                return {
+                    ...u,
+                    name: fullName || nombre,
+                    nombre: fullName || nombre
+                };
+            });
+
+            setProgress(`Preparando ${normalized.length.toLocaleString('es-AR')} filas…`);
+
+            try {
+                const result = await window.supabaseClient.importUsersBulk(normalized, {
+                    onProgress: (p) => {
+                        if (!p) return;
+                        if (p.phase === 'load') {
+                            setProgress('Cargando usuarios existentes desde Supabase…');
+                        } else if (p.phase === 'insert') {
+                            setProgress(`Creando contactos nuevos: ${p.done}/${p.total} (altas: ${p.inserted})`);
+                        } else if (p.phase === 'update') {
+                            setProgress(`Actualizando existentes: ${p.done}/${p.total} (updates: ${p.updated})`);
+                        } else {
+                            setProgress(`Procesando: ${p.done}/${p.total}`);
+                        }
+                    }
+                });
+
+                // Refrescar listado desde Supabase
+                setProgress('Refrescando listado…');
+                if (typeof loadUsersData === 'function') {
+                    await loadUsersData();
+                }
+
+                let message = `✅ Importación completada en Supabase:\n\n`;
+                message += `• Nuevos creados: ${result.inserted}\n`;
+                message += `• Actualizados: ${result.updated}\n`;
+                message += `• Ya al día (sin cambios de datos): ${result.unchanged}\n`;
+                message += `• Filas inválidas/vacías: ${result.invalid}\n`;
+                message += `• Duplicados dentro del CSV: ${result.duplicatesInFile}\n`;
+                message += `• Procesados únicos: ${result.totalProcessed}\n`;
+                if (result.errors && result.errors.length) {
+                    message += `\n• Errores: ${result.errors.length}\n`;
+                    message += result.errors.slice(0, 5).join('\n');
+                }
+
+                if (progressBox) progressBox.style.display = 'none';
+                alert(message);
+                closeImportUsersModal();
+                console.log('✅ Importación bulk:', result);
+            } catch (error) {
+                console.error('❌ Error importación bulk:', error);
+                if (progressBox) progressBox.style.display = 'none';
+                alert('❌ Error al importar: ' + (error.message || error));
+            }
         }
 
         // Función para crear usuario de prueba
