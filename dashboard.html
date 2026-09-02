@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-09-02T16:51:15Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 265; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-09-02T17:02:57Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 266; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2243,7 +2243,7 @@
     <!-- showSection ya está definido en la línea 6 del head -->
     
     <!-- Supabase: config inline en DASHBOARD_CONFIG (head). Client: -->
-    <script src="/supabase-client.js?v=3.2.6" onerror="console.warn('supabase-client.js no encontrado');"></script>
+    <script src="/supabase-client.js?v=3.2.7" onerror="console.warn('supabase-client.js no encontrado');"></script>
     
     <!-- showSection ya está definido en la línea 6 del head -->
     
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">265</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">266</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -21048,6 +21048,9 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 message += `• Filas inválidas/vacías: ${result.invalid}\n`;
                 message += `• Duplicados dentro del CSV: ${result.duplicatesInFile}\n`;
                 message += `• Procesados únicos: ${result.totalProcessed}\n`;
+                if (result.conflictUpdated) {
+                    message += `• Conflictos phone→update: ${result.conflictUpdated}\n`;
+                }
                 if (result.errors && result.errors.length) {
                     message += `\n• Errores: ${result.errors.length}\n`;
                     message += result.errors.slice(0, 5).join('\n');

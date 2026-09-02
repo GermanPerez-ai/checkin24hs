@@ -2669,9 +2669,20 @@ class SupabaseClient {
             return 'Sin nombre';
         };
 
-        // 1) Normalizar + dedupe dentro del archivo
-        const byKey = new Map();
+        // 1) Normalizar + dedupe dentro del archivo (email Y teléfono, sin duplicar el mismo phone)
+        const byEmail = new Map(); // email -> row
+        const byPhone = new Map(); // phone digits -> row
+        const rowsSet = new Set(); // identity set of row objects
         let invalid = 0;
+        let duplicatesInFile = 0;
+
+        const mergeInto = (target, src) => {
+            if (!target.email && src.email) target.email = src.email;
+            if (!target.phone && src.phone) target.phone = src.phone;
+            if (isBadName(target.name) && !isBadName(src.name)) target.name = src.name;
+            else if (!target.name && src.name) target.name = src.name;
+        };
+
         for (const u of rawUsers || []) {
             const email = String(u.email || u.correo || '').toLowerCase().trim();
             const phone = normalizePhone(u.phone || u.telefono || u.tel || '');
@@ -2680,21 +2691,36 @@ class SupabaseClient {
                 continue;
             }
             const name = pickName(u.name || u.nombre || '', phone, email);
-            const key = email ? `e:${email}` : `p:${phone}`;
-            if (byKey.has(key)) {
-                const prev = byKey.get(key);
-                if (isBadName(prev.name) && !isBadName(name)) prev.name = name;
-                if (!prev.email && email) prev.email = email;
-                if (!prev.phone && phone) prev.phone = phone;
+            const incoming = { name, email: email || null, phone: phone || null };
+
+            const byE = email ? byEmail.get(email) : null;
+            const byP = phone ? byPhone.get(phone) : null;
+
+            if (byE && byP && byE !== byP) {
+                // Mismo CSV: una fila por email y otra por phone del mismo contacto → fusionar
+                mergeInto(byE, byP);
+                mergeInto(byE, incoming);
+                rowsSet.delete(byP);
+                byPhone.set(phone, byE);
+                if (byP.email) byEmail.set(byP.email, byE);
+                duplicatesInFile++;
                 continue;
             }
-            byKey.set(key, {
-                name,
-                email: email || null,
-                phone: phone || null
-            });
+
+            const existing = byE || byP;
+            if (existing) {
+                mergeInto(existing, incoming);
+                if (email) byEmail.set(email, existing);
+                if (phone) byPhone.set(phone, existing);
+                duplicatesInFile++;
+                continue;
+            }
+
+            rowsSet.add(incoming);
+            if (email) byEmail.set(email, incoming);
+            if (phone) byPhone.set(phone, incoming);
         }
-        const list = [...byKey.values()];
+        const list = [...rowsSet];
 
         if (!this.isInitialized()) {
             let inserted = 0;
@@ -2714,7 +2740,7 @@ class SupabaseClient {
                 updated,
                 unchanged: 0,
                 invalid,
-                duplicatesInFile: (rawUsers || []).length - invalid - list.length,
+                duplicatesInFile,
                 errors: [],
                 totalProcessed: list.length
             };
@@ -2752,6 +2778,16 @@ class SupabaseClient {
                     found = phoneMap.get(`L10:${row.phone.slice(-10)}`) || null;
                 }
             }
+            // Si matcheó por email pero el teléfono ya es de OTRO usuario, preferir el del teléfono
+            // (evita users_phone_unique al actualizar)
+            if (found && row.phone) {
+                const phoneOwner =
+                    phoneMap.get(row.phone) ||
+                    (row.phone.length >= 10 ? phoneMap.get(`L10:${row.phone.slice(-10)}`) : null);
+                if (phoneOwner && phoneOwner.id !== found.id) {
+                    found = phoneOwner;
+                }
+            }
 
             if (found) {
                 const updates = {
@@ -2771,31 +2807,30 @@ class SupabaseClient {
                 }
 
                 if (row.email && !found.email) {
-                    updates.email = row.email;
-                    changed = true;
+                    const emailOwner = emailMap.get(row.email);
+                    if (!emailOwner || emailOwner.id === found.id) {
+                        updates.email = row.email;
+                        changed = true;
+                    }
                 }
 
                 const foundPhone = normalizePhone(found.phone);
                 if (row.phone && foundPhone !== row.phone) {
-                    // Completar o normalizar teléfono si falta / distinto formato del mismo número
-                    if (!foundPhone || (row.phone.length >= 10 && foundPhone.slice(-10) === row.phone.slice(-10))) {
-                        updates.phone = row.phone;
-                        changed = true;
-                    } else if (!foundPhone) {
+                    const phoneOwner =
+                        phoneMap.get(row.phone) ||
+                        (row.phone.length >= 10 ? phoneMap.get(`L10:${row.phone.slice(-10)}`) : null);
+                    const canSetPhone = !phoneOwner || phoneOwner.id === found.id;
+                    if (canSetPhone && (!foundPhone || foundPhone.slice(-10) === row.phone.slice(-10) || !foundPhone)) {
                         updates.phone = row.phone;
                         changed = true;
                     }
                 }
 
-                if (!found.tipo_cuenta || found.tipo_cuenta === 'cliente_reserva') {
-                    // No pisar tipos especiales; marcar importados si vacío
-                    if (!found.tipo_cuenta) {
-                        updates.tipo_cuenta = 'importado';
-                        changed = true;
-                    }
+                if (!found.tipo_cuenta) {
+                    updates.tipo_cuenta = 'importado';
+                    changed = true;
                 }
 
-                // Siempre tocar last_activity en matches para "actualizar" la base
                 toUpdate.push({ id: found.id, updates, changed });
             } else {
                 toInsert.push({
@@ -2808,23 +2843,64 @@ class SupabaseClient {
                     rewards_points: 0,
                     tipo_cuenta: 'importado'
                 });
+                // Reservar phone/email en mapas para no insertar duplicados en el mismo batch
+                const phantom = { id: `pending-${toInsert.length}`, email: row.email, phone: row.phone, name: row.name };
+                if (row.email) emailMap.set(row.email, phantom);
+                if (row.phone) {
+                    phoneMap.set(row.phone, phantom);
+                    if (row.phone.length >= 10) phoneMap.set(`L10:${row.phone.slice(-10)}`, phantom);
+                }
             }
         }
 
         const errors = [];
         let inserted = 0;
         let updated = 0;
+        let conflictUpdated = 0;
+
+        const updateExistingByPhone = async (row) => {
+            if (!row.phone) return false;
+            const { data: ex, error } = await this.client
+                .from('users')
+                .select('id, name, email, phone')
+                .eq('phone', row.phone)
+                .limit(1)
+                .maybeSingle();
+            if (error || !ex) return false;
+            const patch = {
+                last_activity: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                is_active: true,
+                status: 'active'
+            };
+            if (row.name && !isBadName(row.name)) patch.name = row.name;
+            if (row.email && !ex.email) patch.email = row.email;
+            const { error: uerr } = await this.client.from('users').update(patch).eq('id', ex.id);
+            return !uerr;
+        };
 
         // 3) Inserts en lotes
-        const insertChunk = 150;
+        const insertChunk = 100;
         for (let i = 0; i < toInsert.length; i += insertChunk) {
             const batch = toInsert.slice(i, i + insertChunk);
             const { data, error } = await this.client.from('users').insert(batch).select('id');
             if (error) {
                 for (const row of batch) {
                     const { error: e2 } = await this.client.from('users').insert([row]);
-                    if (e2) errors.push(e2.message || String(e2));
-                    else inserted++;
+                    if (!e2) {
+                        inserted++;
+                        continue;
+                    }
+                    const msg = e2.message || String(e2);
+                    const isPhoneUnique =
+                        e2.code === '23505' ||
+                        /users_phone_unique|duplicate key.*phone/i.test(msg);
+                    if (isPhoneUnique && (await updateExistingByPhone(row))) {
+                        conflictUpdated++;
+                        updated++;
+                    } else {
+                        errors.push(msg);
+                    }
                 }
             } else {
                 inserted += (data || batch).length;
@@ -2846,8 +2922,19 @@ class SupabaseClient {
             const batch = toUpdate.slice(i, i + updateChunk);
             await Promise.all(batch.map(async ({ id, updates, changed }) => {
                 const { error } = await this.client.from('users').update(updates).eq('id', id);
-                if (error) errors.push(error.message || String(error));
-                else if (changed) updated++;
+                if (error) {
+                    const msg = error.message || String(error);
+                    // Si el update de phone choca, reintentar sin phone
+                    if (/users_phone_unique|duplicate key.*phone/i.test(msg) && updates.phone) {
+                        const { phone, ...rest } = updates;
+                        const { error: e3 } = await this.client.from('users').update(rest).eq('id', id);
+                        if (e3) errors.push(e3.message || String(e3));
+                        else if (changed) updated++;
+                        else unchanged++;
+                    } else {
+                        errors.push(msg);
+                    }
+                } else if (changed) updated++;
                 else unchanged++;
             }));
             if (typeof onProgress === 'function') {
@@ -2861,15 +2948,13 @@ class SupabaseClient {
             }
         }
 
-        // Contar como actualizados también los solo-touch de actividad si el usuario pidió "actualizar"
-        // (changed=false → unchanged). OK.
-
         return {
             inserted,
             updated,
             unchanged,
             invalid,
-            duplicatesInFile: Math.max(0, (rawUsers || []).length - invalid - list.length),
+            duplicatesInFile,
+            conflictUpdated,
             errors: errors.slice(0, 25),
             totalProcessed: list.length,
             existingInDb: (existing || []).length
