@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-09-02T16:43:09Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 264; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-09-02T16:51:15Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 265; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2243,7 +2243,7 @@
     <!-- showSection ya está definido en la línea 6 del head -->
     
     <!-- Supabase: config inline en DASHBOARD_CONFIG (head). Client: -->
-    <script src="/supabase-client.js?v=3.2.5" onerror="console.warn('supabase-client.js no encontrado');"></script>
+    <script src="/supabase-client.js?v=3.2.6" onerror="console.warn('supabase-client.js no encontrado');"></script>
     
     <!-- showSection ya está definido en la línea 6 del head -->
     
@@ -2308,7 +2308,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">264</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">265</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -20932,14 +20932,33 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
         
         // Función para parsear CSV
         function parseCSV(csvContent) {
-            const lines = csvContent.split('\n').filter(line => line.trim());
+            const lines = csvContent.split(/\r?\n/).filter(line => line.trim());
             if (lines.length === 0) return [];
             
             // Detectar delimitador
             const delimiter = csvContent.includes(';') ? ';' : ',';
             
-            // Obtener headers
-            const headers = lines[0].split(delimiter).map(h => h.trim().toLowerCase().replace(/"/g, ''));
+            // Obtener headers (sin BOM)
+            const headers = lines[0].split(delimiter).map(h =>
+                h.trim().toLowerCase().replace(/"/g, '').replace(/^\ufeff/, '')
+            );
+
+            // Mapear header → campo (NO usar includes('tel'): matchea "hoteles")
+            const mapHeader = (header) => {
+                const h = String(header || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                if (h === 'nombre' || h === 'name') return 'name';
+                if (h === 'apellido' || h === 'lastname' || h === 'surname') return 'lastName';
+                if (h === 'email' || h === 'correo' || h === 'mail') return 'email';
+                if (
+                    h === 'telefono' ||
+                    h === 'phone' ||
+                    h === 'tel' ||
+                    h === 'celular' ||
+                    h === 'movil' ||
+                    h === 'whatsapp'
+                ) return 'phone';
+                return null;
+            };
             
             // Parsear datos
             const users = [];
@@ -20950,16 +20969,10 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 const user = {};
                 headers.forEach((header, index) => {
                     const value = values[index] || '';
-                    // Mapear headers comunes
-                    if (header.includes('nombre') || header.includes('name')) {
-                        user.name = value;
-                    } else if (header.includes('email') || header.includes('correo')) {
-                        user.email = value;
-                    } else if (header.includes('telefono') || header.includes('phone') || header.includes('tel')) {
-                        user.phone = value;
-                    } else if (header.includes('apellido') || header.includes('lastname') || header.includes('surname')) {
-                        user.lastName = value;
-                    } else {
+                    const field = mapHeader(header);
+                    if (field) {
+                        user[field] = value;
+                    } else if (header) {
                         user[header] = value;
                     }
                 });
