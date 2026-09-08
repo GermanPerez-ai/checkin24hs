@@ -33,6 +33,23 @@ try {
 } catch (e) {
     downloadMediaMessage = null;
 }
+
+/** Descarga media tolerante a fallos cripto temporales (reenvíos corruptos). */
+async function safeDownloadMediaMessage(waMsg, type = 'buffer', options = {}) {
+    if (!downloadMediaMessage || !waMsg) return null;
+    try {
+        return await downloadMediaMessage(waMsg, type, options);
+    } catch (e) {
+        if (typeof isNonFatalBaileysCryptoError === 'function' && isNonFatalBaileysCryptoError(e)) {
+            if (typeof recordFlorSessionCryptoIssue === 'function') {
+                recordFlorSessionCryptoIssue(String(e?.message || e).slice(0, 300));
+            }
+            console.warn('⚠️ downloadMedia cripto no-fatal (paquete ignorado):', e?.message || e);
+            return null;
+        }
+        throw e;
+    }
+}
 const { Boom } = require('@hapi/boom');
 const express = require('express');
 const cors = require('cors');
@@ -295,6 +312,11 @@ const FLOR_MAX_OUTPUT_TOKENS_MIN = Math.max(256, parseInt(process.env.FLOR_MAX_O
 /** Ventana deslizante para errores cripto/sesión (Bad MAC, decrypt). Resumen en log + campo en /health. */
 const FLOR_SESSION_CRYPTO_WINDOW_MS = Math.max(60_000, parseInt(process.env.FLOR_SESSION_CRYPTO_WINDOW_MS || '300000', 10) || 300_000);
 const FLOR_SESSION_CRYPTO_SUMMARY = process.env.FLOR_SESSION_CRYPTO_SUMMARY !== '0' && process.env.FLOR_SESSION_CRYPTO_SUMMARY !== 'false';
+/**
+ * Errores cripto temporales (reenvíos multimedia / ráfagas) NO deben tumbar el proceso ni forzar wipe de auth.
+ * Desactivar: FLOR_CRYPTO_NONFATAL=0
+ */
+const FLOR_CRYPTO_NONFATAL = process.env.FLOR_CRYPTO_NONFATAL !== '0' && process.env.FLOR_CRYPTO_NONFATAL !== 'false';
 const _origConsoleErrorForFlor = console.error.bind(console);
 const florSessionCryptoIssueTimes = [];
 let florSessionCryptoLastSummaryAt = 0;
@@ -305,6 +327,7 @@ function florSessionCryptoNormalizeDetail(args) {
         if (a && typeof a === 'object') {
             if (a.msg) return String(a.msg);
             if (a.err && a.err.message) return String(a.err.message);
+            if (a.message) return String(a.message);
             try {
                 return JSON.stringify(a);
             } catch (e) {
@@ -316,7 +339,21 @@ function florSessionCryptoNormalizeDetail(args) {
 }
 
 function florSessionCryptoIsMatch(text) {
-    return /Bad MAC|failed to decrypt|SessionError|No matching sessions|Session error:\s*Error:\s*Bad MAC/i.test(String(text || ''));
+    return /Bad MAC|failed to decrypt|SessionError|No matching sessions|MessageCounterError|KeyError|UnsupportedState|InvalidPreKey|Session error:\s*Error:\s*Bad MAC|Unable to decrypt|decrypt.*fail|cipher/i.test(String(text || ''));
+}
+
+function isNonFatalBaileysCryptoError(errOrText) {
+    if (!FLOR_CRYPTO_NONFATAL) return false;
+    if (errOrText == null) return false;
+    if (typeof errOrText === 'string') return florSessionCryptoIsMatch(errOrText);
+    const parts = [
+        errOrText?.message,
+        errOrText?.msg,
+        errOrText?.err?.message,
+        errOrText?.data?.message,
+        typeof errOrText === 'object' ? florSessionCryptoNormalizeDetail([errOrText]) : String(errOrText)
+    ].filter(Boolean).join(' ');
+    return florSessionCryptoIsMatch(parts);
 }
 
 function pruneFlorSessionCryptoIssueTimes() {
@@ -344,7 +381,8 @@ function recordFlorSessionCryptoIssue(detail) {
         const winMin = Math.max(1, Math.round(FLOR_SESSION_CRYPTO_WINDOW_MS / 60000));
         _origConsoleErrorForFlor(
             `🔐 Flor: ${n} evento(s) cripto/sesión en ~${winMin} min (Bad MAC / decrypt). ` +
-                `Si crece: 1 réplica, volumen auth estable, deploy stop-first; si sigue: reset auth+QR. ` +
+                `Tratados como no-fatales (sesión se mantiene). Si crece con ráfagas de media: rate-limit salida. ` +
+                `Si persiste tras restart: 1 réplica + auth estable; último recurso reset auth+QR. ` +
                 `Muestra: ${String(detail).slice(0, 180)}`
         );
     }
@@ -359,16 +397,20 @@ function createFlorBaileysLogger() {
     const emit = (level, args) => {
         const [one] = args;
         const text = florSessionCryptoNormalizeDetail(args);
-        if (florSessionCryptoIsMatch(text)) recordFlorSessionCryptoIssue(text.slice(0, 300));
+        const isCrypto = florSessionCryptoIsMatch(text);
+        if (isCrypto) recordFlorSessionCryptoIssue(text.slice(0, 300));
+        const effectiveLevel = (isCrypto && FLOR_CRYPTO_NONFATAL && (level === 'error' || level === 'fatal'))
+            ? 'warn'
+            : level;
         if (typeof one === 'object' && one !== null && one.msg !== undefined) {
             const line = JSON.stringify(one);
-            if (level === 'error' || level === 'fatal') _origConsoleErrorForFlor(line);
-            else if (level === 'warn') console.warn(line);
+            if (effectiveLevel === 'error' || effectiveLevel === 'fatal') _origConsoleErrorForFlor(line);
+            else if (effectiveLevel === 'warn') console.warn(line);
             else console.log(line);
             return;
         }
-        if (level === 'error' || level === 'fatal') _origConsoleErrorForFlor(...args);
-        else if (level === 'warn') console.warn(...args);
+        if (effectiveLevel === 'error' || effectiveLevel === 'fatal') _origConsoleErrorForFlor(...args);
+        else if (effectiveLevel === 'warn') console.warn(...args);
         else console.log(...args);
     };
     const base = {};
@@ -665,6 +707,33 @@ const lastOutboundSendAtByJid = new Map();
 /** msgId → { resolve, timer, jid, label } */
 const outboundDeliveryWaiters = new Map();
 
+/**
+ * Rate-limit GLOBAL de salida (todas las conversaciones de la línea).
+ * Evita que ráfagas de reenvíos multimedia saturen el socket Signal/Baileys.
+ * WA_GLOBAL_OUTBOUND_GAP_MS (default 900) · WA_MEDIA_OUTBOUND_GAP_MS (default 4500)
+ */
+const WA_GLOBAL_OUTBOUND_GAP_MS = Math.max(
+    0,
+    parseInt(process.env.WA_GLOBAL_OUTBOUND_GAP_MS || '900', 10) || 900
+);
+const WA_MEDIA_OUTBOUND_GAP_MS = Math.max(
+    0,
+    parseInt(process.env.WA_MEDIA_OUTBOUND_GAP_MS || '4500', 10) || 4500
+);
+const WA_MEDIA_DELIVERY_WAIT_MS = Math.max(
+    WA_OUTBOUND_DELIVERY_WAIT_MS,
+    parseInt(process.env.WA_MEDIA_DELIVERY_WAIT_MS || String(Math.max(WA_OUTBOUND_DELIVERY_WAIT_MS, 20000)), 10) || 20000
+);
+let globalOutboundChain = Promise.resolve();
+let lastGlobalOutboundAt = 0;
+let lastGlobalOutboundWasMedia = false;
+
+/** Cola de messages.upsert (backpressure ante ráfagas entrantes). */
+const WA_INBOUND_UPSERT_CONCURRENCY = Math.max(1, parseInt(process.env.WA_INBOUND_UPSERT_CONCURRENCY || '1', 10) || 1);
+const WA_INBOUND_MSG_YIELD_MS = Math.max(0, parseInt(process.env.WA_INBOUND_MSG_YIELD_MS || '40', 10) || 40);
+const inboundUpsertQueue = [];
+let inboundUpsertActive = 0;
+
 const WA_MSG_STATUS_LABEL = {
     0: 'ERROR',
     1: 'PENDING',
@@ -678,6 +747,11 @@ function delayMs(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function isOutboundMediaContent(content) {
+    if (!content || typeof content !== 'object') return false;
+    return !!(content.image || content.video || content.audio || content.document || content.sticker);
+}
+
 function describeOutboundContent(content) {
     if (!content || typeof content !== 'object') return 'unknown';
     if (content.text != null) return `text(${String(content.text).length}ch)`;
@@ -685,6 +759,7 @@ function describeOutboundContent(content) {
     if (content.document) return 'document';
     if (content.audio) return 'audio';
     if (content.video) return 'video';
+    if (content.sticker) return 'sticker';
     return Object.keys(content).join(',') || 'payload';
 }
 
@@ -702,6 +777,28 @@ async function maybeDelayBetweenOutboundBubbles(jid) {
     lastOutboundSendAtByJid.set(key, Date.now());
 }
 
+async function maybeDelayGlobalOutbound(isMedia) {
+    const now = Date.now();
+    let wait = 0;
+    if (lastGlobalOutboundAt > 0) {
+        const needed = Math.max(
+            WA_GLOBAL_OUTBOUND_GAP_MS,
+            lastGlobalOutboundWasMedia ? WA_MEDIA_OUTBOUND_GAP_MS : 0
+        );
+        wait = needed - (now - lastGlobalOutboundAt);
+    }
+    if (wait > 0) {
+        console.log(`⏳ WA rate-limit global: esperando ${wait}ms${isMedia ? ' (media)' : ''}…`);
+        await delayMs(wait);
+    }
+}
+
+function enqueueGlobalOutbound(fn) {
+    const next = globalOutboundChain.then(() => fn());
+    globalOutboundChain = next.catch(() => {});
+    return next;
+}
+
 function enqueueOutboundForJid(jid, fn) {
     const key = String(jid || 'unknown');
     const prev = outboundSendChainsByJid.get(key) || Promise.resolve();
@@ -712,6 +809,39 @@ function enqueueOutboundForJid(jid, fn) {
         });
     outboundSendChainsByJid.set(key, next.catch(() => {}));
     return next;
+}
+
+function enqueueInboundUpsert(fn) {
+    return new Promise((resolve, reject) => {
+        inboundUpsertQueue.push({ fn, resolve, reject });
+        drainInboundUpsertQueue();
+    });
+}
+
+function drainInboundUpsertQueue() {
+    while (inboundUpsertActive < WA_INBOUND_UPSERT_CONCURRENCY && inboundUpsertQueue.length > 0) {
+        const job = inboundUpsertQueue.shift();
+        inboundUpsertActive++;
+        Promise.resolve()
+            .then(() => job.fn())
+            .then(job.resolve, job.reject)
+            .finally(() => {
+                inboundUpsertActive--;
+                if (inboundUpsertQueue.length > 0) setImmediate(drainInboundUpsertQueue);
+            });
+    }
+}
+
+function getWaQueueHealthSnapshot() {
+    return {
+        inboundUpsertQueued: inboundUpsertQueue.length,
+        inboundUpsertActive,
+        outboundJidChains: outboundSendChainsByJid.size,
+        deliveryWaiters: outboundDeliveryWaiters.size,
+        globalOutboundGapMs: WA_GLOBAL_OUTBOUND_GAP_MS,
+        mediaOutboundGapMs: WA_MEDIA_OUTBOUND_GAP_MS,
+        bubbleDelayMs: WA_OUTBOUND_BUBBLE_DELAY_MS
+    };
 }
 
 function resolveOutboundDeliveryWaiter(msgId, status, remoteJid) {
@@ -738,15 +868,16 @@ function resolveOutboundDeliveryWaiter(msgId, status, remoteJid) {
     }
 }
 
-function waitForOutboundDelivery(msgId, jid, label) {
+function waitForOutboundDelivery(msgId, jid, label, waitMs = WA_OUTBOUND_DELIVERY_WAIT_MS) {
     const id = normalizeBaileysMessageId(msgId);
     if (!id) return Promise.resolve({ status: 'no_id', statusLabel: 'NO_ID' });
+    const timeoutMs = Math.max(1000, Number(waitMs) || WA_OUTBOUND_DELIVERY_WAIT_MS);
     return new Promise((resolve) => {
         const timer = setTimeout(() => {
             outboundDeliveryWaiters.delete(id);
-            console.warn(`⚠️ WA ENTREGA TIMEOUT [${label}] id=${id} jid=${jid} (>${WA_OUTBOUND_DELIVERY_WAIT_MS}ms sin ACK)`);
+            console.warn(`⚠️ WA ENTREGA TIMEOUT [${label}] id=${id} jid=${jid} (>${timeoutMs}ms sin ACK)`);
             resolve({ status: 'timeout', statusLabel: 'TIMEOUT', delivered: false });
-        }, WA_OUTBOUND_DELIVERY_WAIT_MS);
+        }, timeoutMs);
         outboundDeliveryWaiters.set(id, { resolve, timer, jid, label });
     });
 }
@@ -764,26 +895,44 @@ function attachOutboundDeliveryListeners(sock) {
 
 async function sendOutboundMessage(sock, jid, content, label = 'msg') {
     if (!sock || !jid || !content) return null;
+    const isMedia = isOutboundMediaContent(content);
     return enqueueOutboundForJid(jid, async () => {
-        await maybeDelayBetweenOutboundBubbles(jid);
-        const payload = { ...content };
-        if (payload.text != null && payload.linkPreview === undefined) {
-            payload.linkPreview = null;
-        }
-        try {
-            const res = await sock.sendMessage(jid, payload);
-            const ids = new Set();
-            collectMessageIdsFromBaileysSendResult(res, ids);
-            const msgId = [...ids][0] || null;
-            console.log(`📤 WA OUT [${label}] → ${jid} id=${msgId || 'n/a'} (${describeOutboundContent(payload)})`);
-            if (msgId) {
-                await waitForOutboundDelivery(msgId, jid, label);
+        return enqueueGlobalOutbound(async () => {
+            await maybeDelayBetweenOutboundBubbles(jid);
+            await maybeDelayGlobalOutbound(isMedia);
+            const payload = { ...content };
+            if (payload.text != null && payload.linkPreview === undefined) {
+                payload.linkPreview = null;
             }
-            return res;
-        } catch (e) {
-            console.error(`❌ WA OUT FALLO [${label}] → ${jid}:`, e?.message || e);
-            throw e;
-        }
+            try {
+                const res = await sock.sendMessage(jid, payload);
+                lastGlobalOutboundAt = Date.now();
+                lastGlobalOutboundWasMedia = isMedia;
+                const ids = new Set();
+                collectMessageIdsFromBaileysSendResult(res, ids);
+                const msgId = [...ids][0] || null;
+                console.log(`📤 WA OUT [${label}] → ${jid} id=${msgId || 'n/a'} (${describeOutboundContent(payload)})`);
+                if (msgId) {
+                    await waitForOutboundDelivery(
+                        msgId,
+                        jid,
+                        label,
+                        isMedia ? WA_MEDIA_DELIVERY_WAIT_MS : WA_OUTBOUND_DELIVERY_WAIT_MS
+                    );
+                }
+                return res;
+            } catch (e) {
+                if (isNonFatalBaileysCryptoError(e)) {
+                    recordFlorSessionCryptoIssue(String(e?.message || e).slice(0, 300));
+                    console.warn(`⚠️ WA OUT cripto no-fatal [${label}] → ${jid}:`, e?.message || e);
+                    lastGlobalOutboundAt = Date.now();
+                    lastGlobalOutboundWasMedia = isMedia;
+                    return null;
+                }
+                console.error(`❌ WA OUT FALLO [${label}] → ${jid}:`, e?.message || e);
+                throw e;
+            }
+        });
     });
 }
 
@@ -1670,7 +1819,7 @@ if (FLOR_ANTI_LOOP_ENABLED) {
 } else {
     console.log('🛡️ Flor anti-loop: DESACTIVADO (FLOR_ANTI_LOOP=0).');
 }
-console.log(`📤 WA salida: debounce ${WA_OUTBOUND_BUBBLE_DELAY_MS}ms entre burbujas (WA_OUTBOUND_BUBBLE_DELAY_MS), espera entrega ${WA_OUTBOUND_DELIVERY_WAIT_MS}ms (WA_OUTBOUND_DELIVERY_WAIT_MS), linkPreview desactivado en textos.`);
+console.log(`📤 WA salida: debounce ${WA_OUTBOUND_BUBBLE_DELAY_MS}ms/chat (WA_OUTBOUND_BUBBLE_DELAY_MS), gap global ${WA_GLOBAL_OUTBOUND_GAP_MS}ms (WA_GLOBAL_OUTBOUND_GAP_MS), media +${WA_MEDIA_OUTBOUND_GAP_MS}ms (WA_MEDIA_OUTBOUND_GAP_MS), ACK texto ${WA_OUTBOUND_DELIVERY_WAIT_MS}ms / media ${WA_MEDIA_DELIVERY_WAIT_MS}ms, cripto-no-fatal=${FLOR_CRYPTO_NONFATAL}.`);
 console.log(`🛡️ Flor anti-spam: notify≤${Math.round(FLOR_INBOUND_MAX_AGE_MS_NOTIFY / 60000)}min, append≤${Math.round(FLOR_INBOUND_MAX_AGE_MS_APPEND / 60000)}min (FLOR_INBOUND_MAX_AGE_MS_*).`);
 console.log(`📤 Cola salida WA: ${WA_OUTBOUND_BUBBLE_DELAY_MS}ms entre mensajes. Flor solo texto: ${FLOR_TEXT_ONLY_OUTBOUND ? 'SÍ (sin img/preview)' : 'NO'}.`);
 if (FLOR_SESSION_CRYPTO_SUMMARY) {
@@ -6063,7 +6212,7 @@ const WHATSAPP_MEDIA_BUCKET = 'whatsapp-media';
 async function persistirMediaMensajeWhatsApp(waMsg, hint) {
     if (!supabase || !downloadMediaMessage || !waMsg) return null;
     try {
-        const buffer = await downloadMediaMessage(waMsg, 'buffer', {});
+        const buffer = await safeDownloadMediaMessage(waMsg, 'buffer', {});
         if (!buffer || !Buffer.isBuffer(buffer) || buffer.length === 0) return null;
 
         let m = waMsg.message;
@@ -6347,13 +6496,14 @@ async function connectToWhatsApp() {
         passive: true,
         qrTimeout: 120000,
         connectTimeoutMs: 300000,
-        defaultQueryTimeoutMs: 60000,
+        // Timeouts más holgados: ráfagas de multimedia / reenvíos no deben cortar queries a medias
+        defaultQueryTimeoutMs: Math.max(60000, parseInt(process.env.WA_DEFAULT_QUERY_TIMEOUT_MS || '120000', 10) || 120000),
         keepAliveIntervalMs: 10000,
         markOnlineOnConnect: true,
         generateHighQualityLinkPreview: false,
         syncFullHistory: false,
-        retryRequestDelayMs: 500,
-        maxMsgRetryCount: 5,
+        retryRequestDelayMs: Math.max(250, parseInt(process.env.WA_RETRY_REQUEST_DELAY_MS || '750', 10) || 750),
+        maxMsgRetryCount: Math.max(2, parseInt(process.env.WA_MAX_MSG_RETRY_COUNT || '3', 10) || 3),
         shouldSyncHistoryMessage: () => false,
         shouldSyncAppState: () => false,
         shouldIgnoreJid: () => false,
@@ -6675,13 +6825,14 @@ async function connectToWhatsApp() {
 
     // Manejar mensajes recibidos
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
-        // Cedé el event loop para que keepAlive/ACK de Baileys no se atrasen bajo pico de tráfico
+        // Cola + yield: backpressure ante ráfagas (reenvíos multimedia) sin bloquear keepAlive
+        return enqueueInboundUpsert(async () => {
         await new Promise((r) => setImmediate(r));
         if (myGen !== waConnectGeneration) {
             console.log(`⏭️ messages.upsert ignorado (socket gen=${myGen} actual=${waConnectGeneration})`);
             return;
         }
-        console.log(`📨 Evento messages.upsert recibido - type: ${type}, cantidad: ${messages?.length || 0}`);
+        console.log(`📨 Evento messages.upsert recibido - type: ${type}, cantidad: ${messages?.length || 0}, cola=${inboundUpsertQueue.length}`);
         
         // Procesar 'notify' (tiempo real) Y 'append' (mensajes offline/buffer al reconectar; anuncios pueden venir por append)
         if (type !== 'notify' && type !== 'append') {
@@ -6692,7 +6843,11 @@ async function connectToWhatsApp() {
             console.log(`📬 Procesando mensajes type=append (offline/buffer)`);
         }
 
-        for (const msg of messages) {
+        for (let _msgIdx = 0; _msgIdx < (messages || []).length; _msgIdx++) {
+            const msg = messages[_msgIdx];
+            if (_msgIdx > 0 && WA_INBOUND_MSG_YIELD_MS > 0) await delayMs(WA_INBOUND_MSG_YIELD_MS);
+            else if (_msgIdx > 0) await new Promise((r) => setImmediate(r));
+            try {
             const groupJidEarly = msg.key?.remoteJid;
             if (groupJidEarly && isWhatsAppGroupJid(groupJidEarly)) {
                 try {
@@ -7316,7 +7471,7 @@ async function connectToWhatsApp() {
                 const msgConAudio = p.messages.find(m => m.msg && m.msg.message && (m.msg.message.audioMessage || m.msg.message.pttMessage));
                 if (msgConAudio && msgConAudio.msg && typeof downloadMediaMessage === 'function') {
                     try {
-                        const buffer = await downloadMediaMessage(msgConAudio.msg, 'buffer', {});
+                        const buffer = await safeDownloadMediaMessage(msgConAudio.msg, 'buffer', {});
                         if (buffer && Buffer.isBuffer(buffer)) {
                             const audioBase64 = buffer.toString('base64');
                             const mimeType = (msgConAudio.msg.message?.audioMessage?.mimetype || msgConAudio.msg.message?.pttMessage?.mimetype || 'audio/ogg').split(';')[0].trim();
@@ -7455,7 +7610,7 @@ async function connectToWhatsApp() {
                     const msgConImagen = p.messages.find(m => m.msg && m.msg.message && m.msg.message.imageMessage);
                     if (msgConImagen && msgConImagen.msg) {
                         try {
-                            const buffer = await downloadMediaMessage(msgConImagen.msg, 'buffer', {});
+                            const buffer = await safeDownloadMediaMessage(msgConImagen.msg, 'buffer', {});
                             if (buffer && Buffer.isBuffer(buffer)) {
                                 const base64 = buffer.toString('base64');
                                 imageParts = [{ mimeType: 'image/jpeg', data: base64 }];
@@ -7633,7 +7788,16 @@ async function connectToWhatsApp() {
                     });
                 }, FLOR_DELAY_MS);
             }
+            } catch (msgErr) {
+                if (isNonFatalBaileysCryptoError(msgErr)) {
+                    recordFlorSessionCryptoIssue(String(msgErr?.message || msgErr).slice(0, 300));
+                    console.warn('⚠️ upsert msg cripto no-fatal (se ignora, sesión viva):', msgErr?.message || msgErr);
+                } else {
+                    console.error('❌ Error procesando mensaje upsert:', msgErr?.message || msgErr, msgErr?.stack || '');
+                }
+            }
         }
+        }); // enqueueInboundUpsert
     });
     } catch (connectErr) {
         console.error('❌ connectToWhatsApp falló:', connectErr?.message || connectErr);
@@ -7660,7 +7824,9 @@ app.get(['/api/health', '/health'], (req, res) => {
         whatsapp: connectionStatus,
         timestamp: new Date().toISOString(),
         florSessionCryptoIssuesLastWindow: getFlorSessionCryptoIssueCount(),
-        florSessionCryptoWindowMinutes: Math.max(1, Math.round(FLOR_SESSION_CRYPTO_WINDOW_MS / 60000))
+        florSessionCryptoWindowMinutes: Math.max(1, Math.round(FLOR_SESSION_CRYPTO_WINDOW_MS / 60000)),
+        florCryptoNonFatal: FLOR_CRYPTO_NONFATAL,
+        waQueues: typeof getWaQueueHealthSnapshot === 'function' ? getWaQueueHealthSnapshot() : null
     });
 });
 
@@ -8270,7 +8436,8 @@ app.post('/api/send-audio', async (req, res) => {
         }
         const num = normalizarNumeroParaEnvio(number) || String(number).replace(/^\+/, '').replace(/\D/g, '').trim();
         const jid = num.includes('@') ? num : `${num}@s.whatsapp.net`;
-        await sock.sendMessage(jid, { audio: buffer, mimetype: mime, ptt: true });
+        // Rate-limit global + cola por JID (antes bypaseaba y saturaba Baileys en ráfagas)
+        await sendOutboundMessage(sock, jid, { audio: buffer, mimetype: mime, ptt: true }, 'api-audio');
         await guardarMensaje(num.replace(/@.*$/, ''), '[Audio]', true, null, null, chatIdFromDashboard || null);
         await setFlorPausedUntil(num.replace(/@.*$/, ''), FLOR_SILENCE_MINUTES, chatIdFromDashboard || null);
         clearFlorPendingQueuesForContact(num);
@@ -8301,14 +8468,14 @@ app.post('/api/send-media', async (req, res) => {
         const tipo = String(type).toLowerCase();
         const cap = (caption || '').slice(0, 1024);
         if (tipo === 'image') {
-            await sock.sendMessage(jid, { image: buffer, caption: cap || undefined, mimetype: mimetype || 'image/jpeg' });
+            await sendOutboundMessage(sock, jid, { image: buffer, caption: cap || undefined, mimetype: mimetype || 'image/jpeg' }, 'api-image');
             await guardarMensaje(num.replace(/@.*$/, ''), caption ? '[Imagen] ' + cap : '[Imagen]', true, null, null, chatIdFromDashboard || null);
         } else if (tipo === 'video') {
-            await sock.sendMessage(jid, { video: buffer, caption: cap || undefined, mimetype: mimetype || 'video/mp4' });
+            await sendOutboundMessage(sock, jid, { video: buffer, caption: cap || undefined, mimetype: mimetype || 'video/mp4' }, 'api-video');
             await guardarMensaje(num.replace(/@.*$/, ''), caption ? '[Video] ' + cap : '[Video]', true, null, null, chatIdFromDashboard || null);
         } else if (tipo === 'document') {
             const fname = (fileName || 'documento').replace(/[^a-zA-Z0-9._-]/g, '_');
-            await sock.sendMessage(jid, { document: buffer, mimetype: mimetype || 'application/octet-stream', fileName: fname });
+            await sendOutboundMessage(sock, jid, { document: buffer, mimetype: mimetype || 'application/octet-stream', fileName: fname }, 'api-document');
             await guardarMensaje(num.replace(/@.*$/, ''), '[Documento] ' + (caption || fname), true, null, null, chatIdFromDashboard || null);
         } else {
             return res.status(400).json({ error: 'type debe ser image, video o document' });
@@ -8695,6 +8862,11 @@ process.on('SIGTERM', () => {
 process.on('uncaughtException', (err) => {
     const code = err?.output?.statusCode;
     const msg = String(err?.message || err || '');
+    if (isNonFatalBaileysCryptoError(err) || isNonFatalBaileysCryptoError(msg)) {
+        recordFlorSessionCryptoIssue(msg.slice(0, 300));
+        console.warn('⚠️ uncaughtException cripto no-fatal (proceso y sesión vivos):', msg.slice(0, 240));
+        return;
+    }
     if (code === 428 || /Connection Closed|Precondition Required/i.test(msg)) {
         console.error('⚠️ uncaughtException Baileys (proceso vivo):', msg);
         scheduleWaReconnect(5000, 'uncaughtException Connection Closed');
@@ -8707,6 +8879,11 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (reason) => {
     const msg = String(reason?.message || reason || '');
     const code = reason?.output?.statusCode;
+    if (isNonFatalBaileysCryptoError(reason) || isNonFatalBaileysCryptoError(msg)) {
+        recordFlorSessionCryptoIssue(msg.slice(0, 300));
+        console.warn('⚠️ unhandledRejection cripto no-fatal (ignorado):', msg.slice(0, 240));
+        return;
+    }
     if (code === 428 || /Connection Closed|Precondition Required/i.test(msg)) {
         console.error('⚠️ unhandledRejection Baileys (proceso vivo):', msg);
         scheduleWaReconnect(5000, 'unhandledRejection Connection Closed');
