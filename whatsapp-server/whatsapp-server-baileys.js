@@ -386,11 +386,92 @@ function recordFlorSessionCryptoIssue(detail) {
                 `Muestra: ${String(detail).slice(0, 180)}`
         );
     }
+    try { maybeTriggerFlorCryptoProtection(detail); } catch (_) { /* ignore */ }
 }
 
 function getFlorSessionCryptoIssueCount() {
     pruneFlorSessionCryptoIssueTimes();
     return florSessionCryptoIssueTimes.length;
+}
+
+/**
+ * Protección adaptativa ante ráfagas (vendedores): no se puede frenar el celular,
+ * pero sí endurecer gaps de salida y cortar media del dashboard/API cuando cripto sube.
+ * Soft: multiplica gaps. Hard: bloquea /api/send-media|audio y opcional soft-reconnect.
+ */
+const FLOR_CRYPTO_SOFT_THRESHOLD = Math.max(5, parseInt(process.env.FLOR_CRYPTO_SOFT_THRESHOLD || '25', 10) || 25);
+const FLOR_CRYPTO_HARD_THRESHOLD = Math.max(
+    FLOR_CRYPTO_SOFT_THRESHOLD + 5,
+    parseInt(process.env.FLOR_CRYPTO_HARD_THRESHOLD || '60', 10) || 60
+);
+const FLOR_CRYPTO_ADAPTIVE_GAP_MULT = Math.max(1, parseFloat(process.env.FLOR_CRYPTO_ADAPTIVE_GAP_MULT || '2.5') || 2.5);
+const FLOR_CRYPTO_HARD_GAP_MULT = Math.max(
+    FLOR_CRYPTO_ADAPTIVE_GAP_MULT,
+    parseFloat(process.env.FLOR_CRYPTO_HARD_GAP_MULT || '4') || 4
+);
+const FLOR_CRYPTO_BLOCK_MEDIA = process.env.FLOR_CRYPTO_BLOCK_MEDIA !== '0' && process.env.FLOR_CRYPTO_BLOCK_MEDIA !== 'false';
+const FLOR_CRYPTO_SOFT_RECONNECT = process.env.FLOR_CRYPTO_SOFT_RECONNECT !== '0' && process.env.FLOR_CRYPTO_SOFT_RECONNECT !== 'false';
+const FLOR_CRYPTO_RECONNECT_COOLDOWN_MS = Math.max(
+    5 * 60 * 1000,
+    parseInt(process.env.FLOR_CRYPTO_RECONNECT_COOLDOWN_MS || String(20 * 60 * 1000), 10) || 20 * 60 * 1000
+);
+let florCryptoLastSoftReconnectAt = 0;
+let florCryptoLastProtectionLogAt = 0;
+
+function getFlorCryptoProtectionLevel() {
+    const n = getFlorSessionCryptoIssueCount();
+    if (n >= FLOR_CRYPTO_HARD_THRESHOLD) return 'hard';
+    if (n >= FLOR_CRYPTO_SOFT_THRESHOLD) return 'soft';
+    return 'ok';
+}
+
+function getFlorCryptoGapMultiplier() {
+    const level = getFlorCryptoProtectionLevel();
+    if (level === 'hard') return FLOR_CRYPTO_HARD_GAP_MULT;
+    if (level === 'soft') return FLOR_CRYPTO_ADAPTIVE_GAP_MULT;
+    return 1;
+}
+
+function isFlorCryptoMediaBlocked() {
+    return FLOR_CRYPTO_BLOCK_MEDIA && getFlorCryptoProtectionLevel() === 'hard';
+}
+
+function getFlorCryptoProtectionSnapshot() {
+    return {
+        level: getFlorCryptoProtectionLevel(),
+        issues: getFlorSessionCryptoIssueCount(),
+        softThreshold: FLOR_CRYPTO_SOFT_THRESHOLD,
+        hardThreshold: FLOR_CRYPTO_HARD_THRESHOLD,
+        gapMultiplier: getFlorCryptoGapMultiplier(),
+        mediaBlocked: isFlorCryptoMediaBlocked(),
+        softReconnectEnabled: FLOR_CRYPTO_SOFT_RECONNECT
+    };
+}
+
+function maybeTriggerFlorCryptoProtection(detail) {
+    const level = getFlorCryptoProtectionLevel();
+    const n = getFlorSessionCryptoIssueCount();
+    const now = Date.now();
+    if (level === 'ok') return;
+    if (now - florCryptoLastProtectionLogAt > 60_000) {
+        florCryptoLastProtectionLogAt = now;
+        console.warn(
+            '🛡️ Cripto protección=' + level + ': ' + n + ' eventos/' +
+            Math.round(FLOR_SESSION_CRYPTO_WINDOW_MS / 60000) + 'min (soft=' +
+            FLOR_CRYPTO_SOFT_THRESHOLD + ', hard=' + FLOR_CRYPTO_HARD_THRESHOLD + '). gap×' +
+            getFlorCryptoGapMultiplier() + (isFlorCryptoMediaBlocked() ? '; MEDIA API bloqueada' : '') +
+            '. Muestra: ' + String(detail || '').slice(0, 120)
+        );
+    }
+    if (level !== 'hard' || !FLOR_CRYPTO_SOFT_RECONNECT) return;
+    if (now - florCryptoLastSoftReconnectAt < FLOR_CRYPTO_RECONNECT_COOLDOWN_MS) return;
+    if (typeof scheduleWaReconnect !== 'function') return;
+    florCryptoLastSoftReconnectAt = now;
+    console.warn(
+        '🔄 Soft-reconnect por cripto hard (' + n + ' eventos). No wipea auth. Cooldown ' +
+        Math.round(FLOR_CRYPTO_RECONNECT_COOLDOWN_MS / 60000) + ' min.'
+    );
+    scheduleWaReconnect(8000, 'crypto hard protection n=' + n);
 }
 
 function createFlorBaileysLogger() {
@@ -780,15 +861,21 @@ async function maybeDelayBetweenOutboundBubbles(jid) {
 async function maybeDelayGlobalOutbound(isMedia) {
     const now = Date.now();
     let wait = 0;
+    const mult = getFlorCryptoGapMultiplier();
     if (lastGlobalOutboundAt > 0) {
-        const needed = Math.max(
+        const base = Math.max(
             WA_GLOBAL_OUTBOUND_GAP_MS,
             lastGlobalOutboundWasMedia ? WA_MEDIA_OUTBOUND_GAP_MS : 0
         );
+        const needed = Math.round(base * mult);
         wait = needed - (now - lastGlobalOutboundAt);
     }
     if (wait > 0) {
-        console.log(`⏳ WA rate-limit global: esperando ${wait}ms${isMedia ? ' (media)' : ''}…`);
+        const level = getFlorCryptoProtectionLevel();
+        console.log(
+            `⏳ WA rate-limit global: esperando ${wait}ms${isMedia ? ' (media)' : ''}` +
+            `${mult > 1 ? ` [cripto=${level} ×${mult}]` : ''}…`
+        );
         await delayMs(wait);
     }
 }
@@ -1825,6 +1912,13 @@ console.log(`📤 Cola salida WA: ${WA_OUTBOUND_BUBBLE_DELAY_MS}ms entre mensaje
 if (FLOR_SESSION_CRYPTO_SUMMARY) {
     console.log(`🔐 Flor: resumen cripto/sesión cada ~${Math.round(FLOR_SESSION_CRYPTO_WINDOW_MS / 60000)} min en /health (florSessionCryptoIssuesLastWindow). Desactivar: FLOR_SESSION_CRYPTO_SUMMARY=0. Ventana ms: FLOR_SESSION_CRYPTO_WINDOW_MS.`);
 }
+console.log(
+    `🛡️ Cripto adaptativo: soft≥${FLOR_CRYPTO_SOFT_THRESHOLD} (gap×${FLOR_CRYPTO_ADAPTIVE_GAP_MULT}), ` +
+    `hard≥${FLOR_CRYPTO_HARD_THRESHOLD} (gap×${FLOR_CRYPTO_HARD_GAP_MULT}` +
+    `${FLOR_CRYPTO_BLOCK_MEDIA ? ', bloquea media API' : ''}` +
+    `${FLOR_CRYPTO_SOFT_RECONNECT ? ', soft-reconnect' : ''}). ` +
+    `Env: FLOR_CRYPTO_SOFT_THRESHOLD / HARD / ADAPTIVE_GAP_MULT / BLOCK_MEDIA / SOFT_RECONNECT.`
+);
 
 // Prompt mínimo (spec: conocimiento en servidor, Flor como "capa de lenguaje"). Usado si no hay flor_general_config en Supabase.
 const FLOR_PROMPT_DEFAULT = `Eres **Flor IA** 🌸, asistente virtual de **Checkin24hs**. Tono de lujo: amable, profesional y fluido.
@@ -7826,6 +7920,7 @@ app.get(['/api/health', '/health'], (req, res) => {
         florSessionCryptoIssuesLastWindow: getFlorSessionCryptoIssueCount(),
         florSessionCryptoWindowMinutes: Math.max(1, Math.round(FLOR_SESSION_CRYPTO_WINDOW_MS / 60000)),
         florCryptoNonFatal: FLOR_CRYPTO_NONFATAL,
+        florCryptoProtection: typeof getFlorCryptoProtectionSnapshot === 'function' ? getFlorCryptoProtectionSnapshot() : null,
         waQueues: typeof getWaQueueHealthSnapshot === 'function' ? getWaQueueHealthSnapshot() : null
     });
 });
@@ -8418,6 +8513,13 @@ app.post('/api/send-audio', async (req, res) => {
         if (connectionStatus !== 'open' || !sock) {
             return res.status(400).json({ error: 'WhatsApp no está conectado' });
         }
+        if (isFlorCryptoMediaBlocked()) {
+            const snap = getFlorCryptoProtectionSnapshot();
+            return res.status(429).json({
+                error: 'Línea saturada (sesión cripto inestable). Reintentá en unos minutos o enviá solo texto.',
+                florCryptoProtection: snap
+            });
+        }
         let buffer = Buffer.from(audioBase64, 'base64');
         if (buffer.length === 0) {
             return res.status(400).json({ error: 'audioBase64 inválido' });
@@ -8458,6 +8560,13 @@ app.post('/api/send-media', async (req, res) => {
         }
         if (connectionStatus !== 'open' || !sock) {
             return res.status(400).json({ error: 'WhatsApp no está conectado' });
+        }
+        if (isFlorCryptoMediaBlocked()) {
+            const snap = getFlorCryptoProtectionSnapshot();
+            return res.status(429).json({
+                error: 'Línea saturada (sesión cripto inestable). Reintentá en unos minutos o enviá solo texto.',
+                florCryptoProtection: snap
+            });
         }
         const buffer = Buffer.from(dataBase64, 'base64');
         if (buffer.length === 0) {
