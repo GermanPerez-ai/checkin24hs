@@ -151,6 +151,20 @@ export function DigitalCard() {
   const displayName = useMemo(() => (tarjeta ? fullName(tarjeta) : ''), [tarjeta]);
   const phoneDigits = useMemo(() => (tarjeta ? digitsOnly(tarjeta.telefono) : ''), [tarjeta]);
 
+  const cardUrl = useMemo(() => {
+    if (!tarjeta?.slug) return '';
+    const path = `/${encodeURIComponent(tarjeta.slug)}`;
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      return `${window.location.origin}${path}`;
+    }
+    return `https://checkin24hs.com${path}`;
+  }, [tarjeta?.slug]);
+
+  const qrSrc = useMemo(() => {
+    if (!cardUrl) return '';
+    return `https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=${encodeURIComponent(cardUrl)}`;
+  }, [cardUrl]);
+
   const waHref = useMemo(() => {
     if (!tarjeta || !phoneDigits) return '#';
     const text = `Hola ${tarjeta.nombre}, escaneé tu tarjeta digital de Checkin24hs.`;
@@ -256,6 +270,19 @@ export function DigitalCard() {
             </a>
           ) : null}
         </div>
+
+        {qrSrc ? (
+          <div className={styles.qrBlock}>
+            <img
+              className={styles.qrImg}
+              src={qrSrc}
+              alt={`Código QR de ${displayName}`}
+              width={168}
+              height={168}
+            />
+            <p className={styles.qrCaption}>Escaneá para abrir esta tarjeta</p>
+          </div>
+        ) : null}
 
         <footer className={styles.footer}>
           <a className={styles.footerLink} href="https://checkin24hs.com">
