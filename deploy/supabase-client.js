@@ -747,6 +747,121 @@ class SupabaseClient {
     }
 
     // ============================================
+    // TARJETAS DIGITALES (vCard / QR público)
+    // ============================================
+
+    async getTarjetasContacto() {
+        if (!this.isInitialized()) return [];
+        try {
+            const { data, error } = await this.client
+                .from('tarjetas_contacto')
+                .select('*')
+                .order('nombre', { ascending: true })
+                .order('apellido', { ascending: true });
+            if (error) throw error;
+            return data || [];
+        } catch (error) {
+            console.error('❌ Error obteniendo tarjetas:', error);
+            return [];
+        }
+    }
+
+    async createTarjetaContacto(row) {
+        if (!this.isInitialized()) throw new Error('Supabase no inicializado');
+        const slug = String(row.slug || '')
+            .trim()
+            .toLowerCase()
+            .replace(/[^a-z0-9-]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+        const { data, error } = await this.client
+            .from('tarjetas_contacto')
+            .insert([{
+                slug,
+                nombre: row.nombre || '',
+                apellido: row.apellido || '',
+                cargo: row.cargo || '',
+                descripcion: row.descripcion || '',
+                telefono: String(row.telefono || '').replace(/\D/g, ''),
+                email: (row.email || '').trim().toLowerCase(),
+                avatar_url: row.avatar_url || null,
+                activo: row.activo !== false
+            }])
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    }
+
+    async updateTarjetaContacto(id, updates) {
+        if (!this.isInitialized()) throw new Error('Supabase no inicializado');
+        const patch = { ...updates, updated_at: new Date().toISOString() };
+        if (patch.slug != null) {
+            patch.slug = String(patch.slug)
+                .trim()
+                .toLowerCase()
+                .replace(/[^a-z0-9-]+/g, '-')
+                .replace(/^-+|-+$/g, '');
+        }
+        if (patch.telefono != null) {
+            patch.telefono = String(patch.telefono).replace(/\D/g, '');
+        }
+        if (patch.email != null) {
+            patch.email = String(patch.email).trim().toLowerCase();
+        }
+        const { data, error } = await this.client
+            .from('tarjetas_contacto')
+            .update(patch)
+            .eq('id', id)
+            .select()
+            .single();
+        if (error) throw error;
+        return data;
+    }
+
+    async deleteTarjetaContacto(id) {
+        if (!this.isInitialized()) throw new Error('Supabase no inicializado');
+        const { error } = await this.client.from('tarjetas_contacto').delete().eq('id', id);
+        if (error) throw error;
+    }
+
+    /**
+     * Métricas agregadas por tarjeta (y opcionalmente por rango de fechas ISO).
+     * @returns {{ byId: Record<string, { page_view: number, vcard_download: number, whatsapp_click: number, email_click: number, total: number }> }}
+     */
+    async getTarjetasAnaliticasStats(fromIso, toIso) {
+        if (!this.isInitialized()) return { byId: {} };
+        try {
+            let q = this.client
+                .from('tarjetas_analiticas')
+                .select('tarjeta_id, tipo_evento, created_at');
+            if (fromIso) q = q.gte('created_at', fromIso);
+            if (toIso) q = q.lte('created_at', toIso);
+            const { data, error } = await q.limit(50000);
+            if (error) throw error;
+            const byId = {};
+            for (const row of data || []) {
+                const id = row.tarjeta_id;
+                if (!byId[id]) {
+                    byId[id] = {
+                        page_view: 0,
+                        vcard_download: 0,
+                        whatsapp_click: 0,
+                        email_click: 0,
+                        total: 0
+                    };
+                }
+                const t = row.tipo_evento;
+                if (byId[id][t] != null) byId[id][t] += 1;
+                byId[id].total += 1;
+            }
+            return { byId };
+        } catch (error) {
+            console.error('❌ Error métricas tarjetas:', error);
+            return { byId: {} };
+        }
+    }
+
+    // ============================================
     // NEWSLETTER (suscriptores web)
     // ============================================
 

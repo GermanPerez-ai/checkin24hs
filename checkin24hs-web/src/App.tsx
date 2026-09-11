@@ -8,6 +8,7 @@ import { Packs } from './pages/Packs';
 import { PackDetail } from './pages/PackDetail';
 import { Promos } from './pages/Promos';
 import { PromoDetail } from './pages/PromoDetail';
+import { DigitalCard } from './pages/DigitalCard';
 import { TrackPageview } from './components/TrackPageview';
 import './index.css';
 
@@ -26,6 +27,8 @@ function App() {
         <Route path="/promo/:slug" element={<PromoDetail />} />
         <Route path="/hotel/:slug" element={<HotelDetail />} />
         <Route path="/novedad/:slugOrId" element={<NovedadDetail />} />
+        {/* Tarjetas digitales: /axel, /german, etc. (después de rutas fijas) */}
+        <Route path="/:slug" element={<DigitalCard />} />
       </Routes>
     </FlorProvider>
   );
