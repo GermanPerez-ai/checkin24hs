@@ -12,10 +12,17 @@ type TarjetaMini = {
   slug: string;
   nombre: string;
   apellido: string;
+  avatar_url: string | null;
 };
 
 function displayName(t: TarjetaMini): string {
   return [t.nombre, t.apellido].filter(Boolean).join(' ').trim() || t.slug;
+}
+
+function initials(t: TarjetaMini): string {
+  const a = (t.nombre || '').trim().charAt(0);
+  const b = (t.apellido || '').trim().charAt(0);
+  return (a + b).toUpperCase() || (t.slug || '?').charAt(0).toUpperCase();
 }
 
 export function Footer() {
@@ -26,7 +33,7 @@ export function Footer() {
     let cancelled = false;
     void supabase
       .from('tarjetas_contacto')
-      .select('slug, nombre, apellido')
+      .select('slug, nombre, apellido, avatar_url')
       .eq('activo', true)
       .order('nombre', { ascending: true })
       .then(({ data }) => {
@@ -70,12 +77,28 @@ export function Footer() {
         {contactos.length > 0 ? (
           <div className={styles.contactosBlock}>
             <p className={styles.contactosTitle}>Contacto personal</p>
-            <div className={styles.contactos}>
-              {contactos.map((t) => (
-                <Link key={t.slug} to={`/${encodeURIComponent(t.slug)}`} className={styles.contactoBtn}>
-                  {displayName(t)}
-                </Link>
-              ))}
+            <div className={styles.contactos} role="list">
+              {contactos.map((t) => {
+                const name = displayName(t);
+                return (
+                  <Link
+                    key={t.slug}
+                    to={`/${encodeURIComponent(t.slug)}`}
+                    className={styles.contactoBtn}
+                    role="listitem"
+                    title={name}
+                  >
+                    {t.avatar_url ? (
+                      <img className={styles.contactoAvatar} src={t.avatar_url} alt="" width={64} height={64} />
+                    ) : (
+                      <span className={styles.contactoAvatarFallback} aria-hidden>
+                        {initials(t)}
+                      </span>
+                    )}
+                    <span className={styles.contactoName}>{name}</span>
+                  </Link>
+                );
+              })}
             </div>
           </div>
         ) : null}
