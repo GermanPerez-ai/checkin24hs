@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-09-11T14:34:31Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 267; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-09-11T15:12:52Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 269; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2311,7 +2311,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">267</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">269</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -3517,8 +3517,19 @@
                         <input type="email" id="tarjetaEmail" style="width: 100%; padding: 8px; box-sizing: border-box;">
                     </div>
                     <div class="form-section" style="margin-bottom: 12px;">
-                        <label>URL avatar / foto</label>
-                        <input type="url" id="tarjetaAvatar" placeholder="https://..." style="width: 100%; padding: 8px; box-sizing: border-box;">
+                        <label>Foto / avatar</label>
+                        <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 8px;">
+                            <img id="tarjetaAvatarPreview" alt="" style="width: 72px; height: 72px; border-radius: 50%; object-fit: cover; background: #e8eef6; border: 2px solid #003580; display: none;">
+                            <div style="flex: 1;">
+                                <input type="file" id="tarjetaAvatarFile" accept="image/*" style="width: 100%;">
+                                <small style="color: #666; display: block; margin-top: 4px;">
+                                    Se comprime automáticamente (máx. 800×800, JPEG ~calidad 82%). Bucket: <code>tarjetas-digitales</code>.
+                                </small>
+                                <span id="tarjetaAvatarStatus" style="font-size: 0.85rem; color: #666;"></span>
+                            </div>
+                        </div>
+                        <label style="font-size: 0.85rem; color: #666;">O pegá una URL (opcional si subís archivo)</label>
+                        <input type="url" id="tarjetaAvatar" placeholder="https://..." style="width: 100%; padding: 8px; box-sizing: border-box;" oninput="window._tarjetaAvatarUrlPreview && window._tarjetaAvatarUrlPreview()">
                     </div>
                     <div class="form-section" style="margin-bottom: 16px;">
                         <label><input type="checkbox" id="tarjetaActivo" checked> Activo (visible en la web)</label>
@@ -3547,6 +3558,9 @@
             (function() {
                 var editingTarjetaId = null;
                 var RESERVED = { chile:1, argentina:1, internacionales:1, packs:1, pack:1, promos:1, promo:1, hotel:1, novedad:1 };
+                var TARJETAS_BUCKET = 'tarjetas-digitales';
+                var AVATAR_MAX_PX = 800;
+                var AVATAR_JPEG_QUALITY = 0.82;
 
                 function esc(s) {
                     return String(s == null ? '' : s)
@@ -3570,11 +3584,120 @@
                     return { fromIso: fromIso, toIso: toIso };
                 }
 
+                function setAvatarPreview(url) {
+                    var img = document.getElementById('tarjetaAvatarPreview');
+                    if (!img) return;
+                    if (url) {
+                        img.src = url;
+                        img.style.display = 'block';
+                    } else {
+                        img.removeAttribute('src');
+                        img.style.display = 'none';
+                    }
+                }
+
                 window._tarjetaSlugPreview = function() {
                     var s = (document.getElementById('tarjetaSlug').value || '').trim().toLowerCase() || 'slug';
                     var el = document.getElementById('tarjetaSlugPreview');
                     if (el) el.textContent = s;
                 };
+
+                window._tarjetaAvatarUrlPreview = function() {
+                    var url = (document.getElementById('tarjetaAvatar').value || '').trim();
+                    var fileInput = document.getElementById('tarjetaAvatarFile');
+                    if (fileInput && fileInput.files && fileInput.files[0]) return;
+                    setAvatarPreview(url || null);
+                };
+
+                /** Redimensiona y comprime a JPEG (máx AVATAR_MAX_PX). */
+                function compressAvatarFile(file) {
+                    return new Promise(function(resolve, reject) {
+                        if (!file || !file.type || file.type.indexOf('image/') !== 0) {
+                            reject(new Error('El archivo no es una imagen'));
+                            return;
+                        }
+                        var reader = new FileReader();
+                        reader.onload = function(e) {
+                            var img = new Image();
+                            img.onload = function() {
+                                var w = img.width;
+                                var h = img.height;
+                                var max = AVATAR_MAX_PX;
+                                if (w > max || h > max) {
+                                    if (w >= h) {
+                                        h = Math.round((h * max) / w);
+                                        w = max;
+                                    } else {
+                                        w = Math.round((w * max) / h);
+                                        h = max;
+                                    }
+                                }
+                                var canvas = document.createElement('canvas');
+                                canvas.width = w;
+                                canvas.height = h;
+                                var ctx = canvas.getContext('2d');
+                                ctx.fillStyle = '#ffffff';
+                                ctx.fillRect(0, 0, w, h);
+                                ctx.drawImage(img, 0, 0, w, h);
+                                canvas.toBlob(function(blob) {
+                                    if (!blob) {
+                                        reject(new Error('No se pudo comprimir la imagen'));
+                                        return;
+                                    }
+                                    var out = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+                                    resolve({
+                                        file: out,
+                                        originalBytes: file.size,
+                                        compressedBytes: blob.size,
+                                        width: w,
+                                        height: h
+                                    });
+                                }, 'image/jpeg', AVATAR_JPEG_QUALITY);
+                            };
+                            img.onerror = function() { reject(new Error('No se pudo leer la imagen')); };
+                            img.src = e.target.result;
+                        };
+                        reader.onerror = function() { reject(new Error('Error leyendo el archivo')); };
+                        reader.readAsDataURL(file);
+                    });
+                }
+
+                async function uploadTarjetaAvatar(file, slug) {
+                    var client = window.supabaseClient && window.supabaseClient.client;
+                    if (!client || !client.storage) throw new Error('Storage no disponible');
+                    var compressed = await compressAvatarFile(file);
+                    var statusEl = document.getElementById('tarjetaAvatarStatus');
+                    if (statusEl) {
+                        var kb0 = (compressed.originalBytes / 1024).toFixed(0);
+                        var kb1 = (compressed.compressedBytes / 1024).toFixed(0);
+                        statusEl.textContent = 'Comprimida: ' + kb0 + ' KB → ' + kb1 + ' KB (' + compressed.width + '×' + compressed.height + '). Subiendo…';
+                    }
+                    var safeSlug = String(slug || 'avatar').replace(/[^a-z0-9-]/g, '') || 'avatar';
+                    var fileName = 'avatars/' + safeSlug + '_' + Date.now() + '.jpg';
+                    var { error: upErr } = await client.storage
+                        .from(TARJETAS_BUCKET)
+                        .upload(fileName, compressed.file, { upsert: true, contentType: 'image/jpeg' });
+                    if (upErr) throw upErr;
+                    var { data: urlData } = client.storage.from(TARJETAS_BUCKET).getPublicUrl(fileName);
+                    return urlData.publicUrl;
+                }
+
+                // Preview local al elegir archivo
+                document.addEventListener('change', function(ev) {
+                    if (!ev.target || ev.target.id !== 'tarjetaAvatarFile') return;
+                    var file = ev.target.files && ev.target.files[0];
+                    var statusEl = document.getElementById('tarjetaAvatarStatus');
+                    if (!file) {
+                        if (statusEl) statusEl.textContent = '';
+                        window._tarjetaAvatarUrlPreview();
+                        return;
+                    }
+                    if (statusEl) {
+                        statusEl.textContent = 'Seleccionada: ' + file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB). Se comprimirá al guardar.';
+                    }
+                    var url = URL.createObjectURL(file);
+                    setAvatarPreview(url);
+                });
 
                 window.loadTarjetasDigitales = async function() {
                     var tbody = document.getElementById('tarjetasTableBody');
@@ -3638,6 +3761,11 @@
                     document.getElementById('tarjetaTelefono').value = '';
                     document.getElementById('tarjetaEmail').value = '';
                     document.getElementById('tarjetaAvatar').value = '';
+                    var fileInput = document.getElementById('tarjetaAvatarFile');
+                    if (fileInput) fileInput.value = '';
+                    var statusEl = document.getElementById('tarjetaAvatarStatus');
+                    if (statusEl) statusEl.textContent = '';
+                    setAvatarPreview(null);
                     document.getElementById('tarjetaActivo').checked = true;
                     if (id && window._tarjetasCache) {
                         var t = window._tarjetasCache.find(function(x) { return x.id === id; });
@@ -3651,6 +3779,7 @@
                             document.getElementById('tarjetaEmail').value = t.email || '';
                             document.getElementById('tarjetaAvatar').value = t.avatar_url || '';
                             document.getElementById('tarjetaActivo').checked = t.activo !== false;
+                            setAvatarPreview(t.avatar_url || null);
                         }
                     }
                     window._tarjetaSlugPreview();
@@ -3702,6 +3831,23 @@
                     }
                     if (!nombre) { alert('El nombre es obligatorio.'); return; }
                     if (!telefono.replace(/\D/g, '')) { alert('El teléfono es obligatorio.'); return; }
+
+                    var avatarUrl = document.getElementById('tarjetaAvatar').value.trim() || null;
+                    var fileInput = document.getElementById('tarjetaAvatarFile');
+                    var file = fileInput && fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+                    if (file) {
+                        try {
+                            avatarUrl = await uploadTarjetaAvatar(file, slug);
+                            document.getElementById('tarjetaAvatar').value = avatarUrl;
+                            setAvatarPreview(avatarUrl);
+                            var statusEl = document.getElementById('tarjetaAvatarStatus');
+                            if (statusEl) statusEl.textContent = 'Foto subida OK';
+                        } catch (e) {
+                            alert('Error subiendo foto. ¿Ejecutaste 084_storage_tarjetas_digitales.sql y el bucket es público? ' + (e.message || e));
+                            return;
+                        }
+                    }
+
                     var row = {
                         slug: slug,
                         nombre: nombre,
@@ -3710,7 +3856,7 @@
                         descripcion: document.getElementById('tarjetaDescripcion').value.trim(),
                         telefono: telefono,
                         email: document.getElementById('tarjetaEmail').value.trim(),
-                        avatar_url: document.getElementById('tarjetaAvatar').value.trim() || null,
+                        avatar_url: avatarUrl,
                         activo: document.getElementById('tarjetaActivo').checked
                     };
                     try {
