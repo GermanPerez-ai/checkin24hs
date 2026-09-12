@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-09-11T15:12:52Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 269; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-09-12T19:39:32Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 270; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2311,7 +2311,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">269</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">270</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -18263,6 +18263,45 @@ Ej:
             return null;
         }
 
+        function landingPromoIsExpired(row) {
+            if (!row || !row.vigencia_hasta) return false;
+            const end = new Date(String(row.vigencia_hasta).slice(0, 10) + 'T23:59:59');
+            return !Number.isNaN(end.getTime()) && end.getTime() < Date.now();
+        }
+
+        function landingDefaultVigenciaPlusDays(days) {
+            const d = new Date();
+            d.setDate(d.getDate() + (days || 30));
+            return d.toISOString().slice(0, 10);
+        }
+
+        function escapeLandingHtml(s) {
+            return String(s == null ? '' : s)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        /** Landing reutilizable del hotel (misma URL, se actualiza el contenido). */
+        async function findLandingPromoForHotel(hotelId) {
+            if (!hotelId || !window.supabaseClient || !window.supabaseClient.client) return null;
+            const client = window.supabaseClient.client;
+            try {
+                const { data, error } = await client
+                    .from('landing_promos')
+                    .select('*')
+                    .eq('hotel_id', hotelId)
+                    .order('updated_at', { ascending: false })
+                    .limit(5);
+                if (error || !data || !data.length) return null;
+                // Preferir la más reciente (activa o no); es la plantilla del hotel
+                return data[0];
+            } catch (_) {
+                return null;
+            }
+        }
+
         async function findLandingPromoForPromotion(promotionId) {
             if (!promotionId || !window.supabaseClient || !window.supabaseClient.client) return null;
             const client = window.supabaseClient.client;
@@ -18358,10 +18397,11 @@ Ej:
             return data;
         }
 
-        /** Actualiza landing existente o crea una nueva ligada a la promo del dashboard. */
+        /** Actualiza landing existente ligada a la promo o a la plantilla del hotel. */
         async function syncLandingWebFromPromotion(hotel, promo) {
             if (!hotel || !promo || !promo.id) return null;
-            const existing = await findLandingPromoForPromotion(promo.id);
+            const existing = await findLandingPromoForPromotion(promo.id)
+                || (hotel.id ? await findLandingPromoForHotel(hotel.id) : null);
             if (!existing) return null; // solo sync si ya hubo landing (no crea al editar)
             const fields = buildLandingFieldsFromPromotion(hotel, promo, existing);
             const client = window.supabaseClient.client;
@@ -18872,22 +18912,59 @@ Ej:
                 const promo = (promos || []).find((p) => String(p.id) === String(promotionId));
                 if (!promo) throw new Error('Promoción no encontrada');
 
-                const existing = await findLandingPromoForPromotion(promo.id);
+                // Reutilizar la misma landing del hotel (misma URL) si ya existe
+                const existing = await findLandingPromoForPromotion(promo.id)
+                    || await findLandingPromoForHotel(hotel.id);
                 const fields = buildLandingFieldsFromPromotion(hotel, promo, existing);
                 const row = Object.assign({}, fields);
-                // Al crear desde cero, imagen del hotel si no hay media previa
                 if (!existing) {
                     row.imagen_hero = hotelHeroImageUrl(hotel);
+                } else {
+                    // Mantener media y slug ya publicados; solo refrescar contenido/vigencia
+                    row.slug = existing.slug;
+                    if (existing.imagen_hero) row.imagen_hero = existing.imagen_hero;
+                    if (existing.imagen_hero_mobile) row.imagen_hero_mobile = existing.imagen_hero_mobile;
+                    if (existing.video_hero) row.video_hero = existing.video_hero;
+                    row.id = existing.id;
+                }
+                // Al renovar desde una promo vigente, publicar en web
+                if (promo.endDate && !landingPromoIsExpired({ vigencia_hasta: fields.vigencia_hasta })) {
+                    row.activo = true;
                 }
 
-                const saved = await upsertLandingPromoRow(row);
+                let saved;
+                if (existing && existing.id) {
+                    const client = window.supabaseClient.client;
+                    const payload = Object.assign({}, row, { updated_at: new Date().toISOString() });
+                    delete payload.id;
+                    let { data, error } = await client
+                        .from('landing_promos')
+                        .update(payload)
+                        .eq('id', existing.id)
+                        .select()
+                        .single();
+                    if (error && /source_promotion_id|column/i.test(String(error.message || ''))) {
+                        const { source_promotion_id, ...rest } = payload;
+                        ({ data, error } = await client
+                            .from('landing_promos')
+                            .update(rest)
+                            .eq('id', existing.id)
+                            .select()
+                            .single());
+                    }
+                    if (error) throw error;
+                    saved = data;
+                } else {
+                    saved = await upsertLandingPromoRow(row);
+                }
                 if (saved && saved.id && promo.id) {
                     await deactivateDuplicateLandingsForPromotion(promo.id, saved.id);
                 }
                 const finalSlug = saved.slug || row.slug;
                 const finalUrl = landingPublicUrl(finalSlug);
                 try { await navigator.clipboard.writeText(finalUrl); } catch (_) {}
-                const msg = `Landing lista: ${finalUrl}` + (navigator.clipboard ? ' (URL copiada)' : '');
+                const reused = existing ? ' (actualizada, misma URL del hotel)' : '';
+                const msg = `Landing lista: ${finalUrl}${reused}` + (navigator.clipboard ? ' · URL copiada' : '');
                 if (typeof showNotification === 'function') showNotification('✅ ' + msg, 'success');
                 else alert('✅ ' + msg);
                 showLandingPromoImageModal(finalSlug, saved.imagen_hero || row.imagen_hero, finalUrl, saved.video_hero || null);
@@ -18975,7 +19052,225 @@ Ej:
         window.createLandingWebFromPromotion = createLandingWebFromPromotion;
         window.createLandingWebsFromHotelFlorPromos = createLandingWebsFromHotelFlorPromos;
 
-        /** Lista landings de checkin24hs.com/promo (tabla landing_promos) para activar/borrar huérfanas. */
+        /** Formulario crear / editar landing (reutilizable por hotel). */
+        async function showLandingPromoEditForm(existingRow) {
+            const prev = document.getElementById('landing-promo-edit-modal');
+            if (prev) prev.remove();
+
+            if (!window.supabaseClient || !window.supabaseClient.client) {
+                alert('Supabase no disponible');
+                return;
+            }
+            const client = window.supabaseClient.client;
+            const isEdit = !!(existingRow && existingRow.id);
+            const r = existingRow || {};
+
+            let hotelOptions = '<option value="">— Sin hotel vinculado —</option>';
+            try {
+                let hotels = [];
+                if (window.supabaseClient.getHotels) {
+                    hotels = await window.supabaseClient.getHotels() || [];
+                }
+                if (!hotels.length) {
+                    hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                }
+                hotelOptions += (hotels || []).map((h) => {
+                    const sel = String(h.id) === String(r.hotel_id || '') ? ' selected' : '';
+                    return `<option value="${escapeLandingHtml(h.id)}"${sel}>${escapeLandingHtml(h.name || h.id)}</option>`;
+                }).join('');
+            } catch (_) {}
+
+            const modal = document.createElement('div');
+            modal.id = 'landing-promo-edit-modal';
+            modal.className = 'modal';
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;justify-content:center;align-items:center;z-index:1110;';
+            modal.innerHTML = `
+              <div style="background:#fff;border-radius:12px;padding:24px;width:min(640px,96vw);max-height:92vh;overflow:auto;" onclick="event.stopPropagation()">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                  <h2 style="margin:0;color:#003580;font-size:1.1rem;">${isEdit ? '✏️ Editar landing' : '➕ Nueva landing'}</h2>
+                  <button type="button" id="landEditClose" style="background:none;border:none;font-size:24px;cursor:pointer;color:#666;">&times;</button>
+                </div>
+                <p style="margin:0 0 14px;color:#666;font-size:0.85rem;">
+                  ${isEdit
+                    ? 'Podés renovar el contenido y la vigencia sin cambiar la URL (/promo/…). La web oculta automáticamente si la vigencia ya venció.'
+                    : 'Creá una landing reutilizable. Después podés editarla o vincularla al hotel y renovarla en cada promo.'}
+                </p>
+                <div style="display:grid;gap:10px;">
+                  <label style="font-size:0.85rem;color:#333;">Hotel
+                    <select id="landEditHotel" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #ccc;border-radius:6px;">${hotelOptions}</select>
+                  </label>
+                  <label style="font-size:0.85rem;color:#333;">Título *
+                    <input id="landEditTitulo" type="text" value="${escapeLandingHtml(r.titulo || '')}" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;" />
+                  </label>
+                  <label style="font-size:0.85rem;color:#333;">Subtítulo
+                    <input id="landEditSubtitulo" type="text" value="${escapeLandingHtml(r.subtitulo || '')}" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;" />
+                  </label>
+                  <label style="font-size:0.85rem;color:#333;">Nombre hotel (texto en la web)
+                    <input id="landEditHotelNombre" type="text" value="${escapeLandingHtml(r.hotel_nombre || '')}" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;" />
+                  </label>
+                  ${isEdit ? `
+                  <label style="font-size:0.85rem;color:#333;">Slug (URL fija)
+                    <input id="landEditSlug" type="text" value="${escapeLandingHtml(r.slug || '')}" readonly style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #ddd;border-radius:6px;background:#f5f5f5;box-sizing:border-box;" />
+                  </label>` : `
+                  <label style="font-size:0.85rem;color:#333;">Slug (opcional; se genera solo si vacío)
+                    <input id="landEditSlug" type="text" placeholder="ej: hotel-puyehue-promo" value="" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;" />
+                  </label>`}
+                  <label style="font-size:0.85rem;color:#333;">Badge
+                    <input id="landEditBadge" type="text" value="${escapeLandingHtml(r.badge || 'Oferta Checkin24hs')}" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;" />
+                  </label>
+                  <label style="font-size:0.85rem;color:#333;">Precio / texto oferta
+                    <input id="landEditPrecio" type="text" value="${escapeLandingHtml(r.precio_texto || '')}" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;" />
+                  </label>
+                  <label style="font-size:0.85rem;color:#333;">Beneficios (uno por línea)
+                    <textarea id="landEditBeneficios" rows="4" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;font-family:inherit;">${escapeLandingHtml(r.beneficios || '')}</textarea>
+                  </label>
+                  <label style="font-size:0.85rem;color:#333;">Cuerpo / descripción
+                    <textarea id="landEditCuerpo" rows="4" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;font-family:inherit;">${escapeLandingHtml(r.cuerpo || '')}</textarea>
+                  </label>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <label style="font-size:0.85rem;color:#333;">Vigencia hasta
+                      <input id="landEditVigencia" type="date" value="${escapeLandingHtml((r.vigencia_hasta || '').toString().slice(0, 10))}" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;" />
+                    </label>
+                    <label style="font-size:0.85rem;color:#333;">Orden
+                      <input id="landEditOrden" type="number" value="${r.orden != null ? r.orden : 1}" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;" />
+                    </label>
+                  </div>
+                  <label style="font-size:0.85rem;color:#333;">CTA WhatsApp
+                    <input id="landEditCta" type="text" value="${escapeLandingHtml(r.cta_whatsapp || 'Quiero esta promo por WhatsApp')}" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;" />
+                  </label>
+                  <label style="font-size:0.85rem;color:#333;">Mensaje WhatsApp prellenado
+                    <textarea id="landEditMsgWa" rows="2" style="display:block;width:100%;margin-top:4px;padding:8px;border:1px solid #ccc;border-radius:6px;box-sizing:border-box;font-family:inherit;">${escapeLandingHtml(r.mensaje_whatsapp || '')}</textarea>
+                  </label>
+                  <label style="font-size:0.85rem;color:#333;display:flex;align-items:center;gap:8px;">
+                    <input id="landEditActivo" type="checkbox" ${r.activo !== false ? 'checked' : ''} />
+                    Publicar en la web (si la vigencia no venció)
+                  </label>
+                </div>
+                <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap;">
+                  <button type="button" id="landEditCancel" style="background:#eee;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;">Cancelar</button>
+                  <button type="button" id="landEditSave" style="background:#003580;color:#fff;border:none;padding:10px 16px;border-radius:6px;cursor:pointer;font-weight:600;">Guardar</button>
+                </div>
+              </div>`;
+            document.body.appendChild(modal);
+
+            const close = () => modal.remove();
+            modal.querySelector('#landEditClose').onclick = close;
+            modal.querySelector('#landEditCancel').onclick = close;
+            modal.onclick = (e) => { if (e.target === modal) close(); };
+
+            const hotelSelect = modal.querySelector('#landEditHotel');
+            hotelSelect.addEventListener('change', () => {
+                const opt = hotelSelect.options[hotelSelect.selectedIndex];
+                const nombreInput = modal.querySelector('#landEditHotelNombre');
+                if (opt && opt.value && nombreInput && !nombreInput.value.trim()) {
+                    nombreInput.value = opt.textContent || '';
+                }
+            });
+
+            modal.querySelector('#landEditSave').onclick = async () => {
+                const titulo = (modal.querySelector('#landEditTitulo').value || '').trim();
+                if (!titulo) {
+                    alert('El título es obligatorio');
+                    return;
+                }
+                const hotelId = hotelSelect.value || null;
+                const hotelNombre = (modal.querySelector('#landEditHotelNombre').value || '').trim()
+                    || (hotelSelect.options[hotelSelect.selectedIndex] && hotelSelect.value
+                        ? hotelSelect.options[hotelSelect.selectedIndex].textContent
+                        : '')
+                    || null;
+                const vigencia = (modal.querySelector('#landEditVigencia').value || '').trim() || null;
+                const activo = !!modal.querySelector('#landEditActivo').checked;
+                let slug = (modal.querySelector('#landEditSlug').value || '').trim();
+
+                if (!isEdit) {
+                    if (!slug) {
+                        slug = buildLandingPromoSlug(hotelNombre || 'promo', titulo, hotelId || Date.now().toString(36));
+                    } else {
+                        slug = slug.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '');
+                    }
+                    // Si ya hay landing del mismo hotel, ofrecer reutilizarla
+                    if (hotelId) {
+                        const hotelLanding = await findLandingPromoForHotel(hotelId);
+                        if (hotelLanding && hotelLanding.id) {
+                            const reuse = confirm(
+                                `Este hotel ya tiene landing /promo/${hotelLanding.slug}.\n\n¿Actualizar esa misma (recomendada) en lugar de crear otra?`
+                            );
+                            if (reuse) {
+                                const payloadReuse = {
+                                    titulo,
+                                    subtitulo: (modal.querySelector('#landEditSubtitulo').value || '').trim() || null,
+                                    hotel_nombre: hotelNombre,
+                                    hotel_id: hotelId,
+                                    badge: (modal.querySelector('#landEditBadge').value || '').trim() || null,
+                                    precio_texto: (modal.querySelector('#landEditPrecio').value || '').trim() || null,
+                                    beneficios: (modal.querySelector('#landEditBeneficios').value || '').trim() || null,
+                                    cuerpo: (modal.querySelector('#landEditCuerpo').value || '').trim() || null,
+                                    vigencia_hasta: vigencia,
+                                    orden: parseInt(modal.querySelector('#landEditOrden').value, 10) || 1,
+                                    cta_whatsapp: (modal.querySelector('#landEditCta').value || '').trim() || 'Consultar por WhatsApp',
+                                    mensaje_whatsapp: (modal.querySelector('#landEditMsgWa').value || '').trim() || null,
+                                    activo,
+                                    updated_at: new Date().toISOString()
+                                };
+                                const { error } = await client.from('landing_promos').update(payloadReuse).eq('id', hotelLanding.id);
+                                if (error) {
+                                    alert(error.message || String(error));
+                                    return;
+                                }
+                                modal.remove();
+                                if (typeof showNotification === 'function') {
+                                    showNotification('✅ Landing del hotel actualizada (misma URL)', 'success');
+                                }
+                                showLandingPromosManagerModal();
+                                return;
+                            }
+                        }
+                    }
+                }
+
+                const payload = {
+                    titulo,
+                    subtitulo: (modal.querySelector('#landEditSubtitulo').value || '').trim() || null,
+                    hotel_nombre: hotelNombre,
+                    hotel_id: hotelId || null,
+                    badge: (modal.querySelector('#landEditBadge').value || '').trim() || null,
+                    precio_texto: (modal.querySelector('#landEditPrecio').value || '').trim() || null,
+                    beneficios: (modal.querySelector('#landEditBeneficios').value || '').trim() || null,
+                    cuerpo: (modal.querySelector('#landEditCuerpo').value || '').trim() || null,
+                    vigencia_hasta: vigencia,
+                    orden: parseInt(modal.querySelector('#landEditOrden').value, 10) || 1,
+                    cta_whatsapp: (modal.querySelector('#landEditCta').value || '').trim() || 'Consultar por WhatsApp',
+                    mensaje_whatsapp: (modal.querySelector('#landEditMsgWa').value || '').trim() || null,
+                    activo,
+                    updated_at: new Date().toISOString()
+                };
+
+                try {
+                    if (isEdit) {
+                        const { error } = await client.from('landing_promos').update(payload).eq('id', r.id);
+                        if (error) throw error;
+                    } else {
+                        payload.slug = slug;
+                        if (!payload.mensaje_whatsapp) {
+                            payload.mensaje_whatsapp = `Hola, vi la promo en ${landingPublicUrl(slug)} y quiero más info`;
+                        }
+                        const { error } = await client.from('landing_promos').insert(payload);
+                        if (error) throw error;
+                    }
+                    modal.remove();
+                    if (typeof showNotification === 'function') {
+                        showNotification(isEdit ? '✅ Landing actualizada' : '✅ Landing creada', 'success');
+                    }
+                    showLandingPromosManagerModal();
+                } catch (err) {
+                    alert((err && err.message) ? err.message : String(err));
+                }
+            };
+        }
+        window.showLandingPromoEditForm = showLandingPromoEditForm;
+
+        /** Lista landings de checkin24hs.com/promo — crear / editar / publicar / ocultar / borrar. */
         async function showLandingPromosManagerModal() {
             const existing = document.getElementById('landing-promos-manager-modal');
             if (existing) existing.remove();
@@ -19003,33 +19298,39 @@ Ej:
             modal.id = 'landing-promos-manager-modal';
             modal.className = 'modal';
             modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;z-index:1105;';
-            const activeCount = rows.filter((r) => r.activo).length;
+            const activeCount = rows.filter((r) => r.activo && !landingPromoIsExpired(r)).length;
             const listHtml = rows.length === 0
-                ? '<p style="color:#666;text-align:center;padding:24px;">No hay landings en landing_promos.</p>'
+                ? '<p style="color:#666;text-align:center;padding:24px;">No hay landings. Creá una con «Nueva landing».</p>'
                 : rows.map((r) => {
                     const url = landingPublicUrl(r.slug);
-                    const vig = r.vigencia_hasta || '—';
+                    const vig = r.vigencia_hasta || 'sin fecha';
+                    const expired = landingPromoIsExpired(r);
+                    const visible = r.activo && !expired;
+                    const statusLabel = expired
+                        ? '🔴 Caducada'
+                        : (r.activo ? '🟢 Visible en web' : '⚪ Oculta');
                     const src = r.source_promotion_id
                         ? String(r.source_promotion_id).slice(0, 8) + '…'
-                        : 'sin vínculo';
+                        : 'plantilla hotel';
                     return `
-                      <div style="border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:10px;background:${r.activo ? '#f8fff8' : '#fafafa'};">
+                      <div style="border:1px solid #e0e0e0;border-radius:8px;padding:12px;margin-bottom:10px;background:${visible ? '#f8fff8' : (expired ? '#fff8f8' : '#fafafa')};">
                         <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:flex-start;">
                           <div style="flex:1;min-width:200px;">
-                            <strong style="color:#003580;">${String(r.titulo || '').replace(/</g, '')}</strong>
-                            <div style="font-size:0.85rem;color:#666;margin-top:4px;">${String(r.hotel_nombre || '').replace(/</g, '')}</div>
+                            <strong style="color:#003580;">${escapeLandingHtml(r.titulo || '')}</strong>
+                            <div style="font-size:0.85rem;color:#666;margin-top:4px;">${escapeLandingHtml(r.hotel_nombre || '')}</div>
                             <div style="font-size:0.8rem;margin-top:6px;word-break:break-all;">
-                              <a href="${url}" target="_blank" rel="noopener">/promo/${String(r.slug || '').replace(/</g, '')}</a>
+                              <a href="${url}" target="_blank" rel="noopener">/promo/${escapeLandingHtml(r.slug || '')}</a>
                             </div>
                             <div style="font-size:0.75rem;color:#888;margin-top:4px;">
-                              ${r.activo ? '🟢 Activa' : '⚪ Inactiva'} · vigencia: ${vig} · promo: ${src}
+                              ${statusLabel} · vigencia: ${escapeLandingHtml(vig)} · ${src}
                             </div>
                           </div>
                           <div style="display:flex;gap:6px;flex-wrap:wrap;">
-                            <button type="button" data-land-toggle="${r.id}" data-activo="${r.activo ? '1' : '0'}" style="background:${r.activo ? '#ff9800' : '#4caf50'};color:#fff;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;font-size:0.85rem;">
-                              ${r.activo ? 'Ocultar web' : 'Publicar'}
+                            <button type="button" data-land-edit="${r.id}" style="background:#5c6bc0;color:#fff;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;font-size:0.85rem;">Editar</button>
+                            <button type="button" data-land-toggle="${r.id}" data-activo="${r.activo ? '1' : '0'}" data-expired="${expired ? '1' : '0'}" data-vig="${escapeLandingHtml(r.vigencia_hasta || '')}" style="background:${r.activo && !expired ? '#ff9800' : '#4caf50'};color:#fff;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;font-size:0.85rem;">
+                              ${r.activo && !expired ? 'Ocultar' : (expired ? 'Renovar y publicar' : 'Publicar')}
                             </button>
-                            <button type="button" data-land-media="${String(r.slug).replace(/"/g, '')}" data-img="${String(r.imagen_hero || '').replace(/"/g, '&quot;')}" data-vid="${String(r.video_hero || '').replace(/"/g, '&quot;')}" style="background:#003580;color:#fff;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;font-size:0.85rem;">Media</button>
+                            <button type="button" data-land-media="${escapeLandingHtml(r.slug)}" data-img="${escapeLandingHtml(r.imagen_hero || '')}" data-vid="${escapeLandingHtml(r.video_hero || '')}" style="background:#003580;color:#fff;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;font-size:0.85rem;">Media</button>
                             <button type="button" data-land-del="${r.id}" style="background:#f44336;color:#fff;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;font-size:0.85rem;">Borrar</button>
                           </div>
                         </div>
@@ -19037,27 +19338,70 @@ Ej:
                 }).join('');
 
             modal.innerHTML = `
-              <div style="background:#fff;border-radius:12px;padding:24px;width:min(720px,94vw);max-height:90vh;overflow:auto;" onclick="event.stopPropagation()">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+              <div style="background:#fff;border-radius:12px;padding:24px;width:min(780px,94vw);max-height:90vh;overflow:auto;" onclick="event.stopPropagation()">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap;">
                   <h2 style="margin:0;color:#003580;font-size:1.15rem;">🌐 Landings en la web</h2>
-                  <button type="button" id="landingMgrClose" style="background:none;border:none;font-size:24px;cursor:pointer;color:#666;">&times;</button>
+                  <div style="display:flex;gap:8px;align-items:center;">
+                    <button type="button" id="landingMgrNew" style="background:#4caf50;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:0.9rem;">＋ Nueva landing</button>
+                    <button type="button" id="landingMgrClose" style="background:none;border:none;font-size:24px;cursor:pointer;color:#666;">&times;</button>
+                  </div>
                 </div>
                 <p style="margin:0 0 16px;color:#666;font-size:0.9rem;">
-                  Esto es lo que ve checkin24hs.com/promos (${activeCount} activas / ${rows.length} total).
-                  Borrar u ocultar acá saca la promo de la web aunque ya no exista en el dashboard.
+                  Visibles en checkin24hs.com/promos: <strong>${activeCount}</strong> / ${rows.length} total.
+                  Editá la misma landing del hotel y renová la vigencia; al vencer se oculta sola en la web.
                 </p>
                 <div id="landingMgrList">${listHtml}</div>
               </div>`;
             document.body.appendChild(modal);
             modal.querySelector('#landingMgrClose').onclick = () => modal.remove();
+            modal.querySelector('#landingMgrNew').onclick = () => {
+                showLandingPromoEditForm(null);
+            };
+
+            modal.querySelectorAll('[data-land-edit]').forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const id = btn.getAttribute('data-land-edit');
+                    const row = rows.find((x) => String(x.id) === String(id));
+                    if (row) showLandingPromoEditForm(row);
+                });
+            });
 
             modal.querySelectorAll('[data-land-toggle]').forEach((btn) => {
                 btn.addEventListener('click', async () => {
                     const id = btn.getAttribute('data-land-toggle');
                     const wasOn = btn.getAttribute('data-activo') === '1';
+                    const expired = btn.getAttribute('data-expired') === '1';
+                    const update = { updated_at: new Date().toISOString() };
+
+                    if (wasOn && !expired) {
+                        update.activo = false;
+                    } else {
+                        // Publicar o renovar: exigir vigencia futura
+                        let vig = (btn.getAttribute('data-vig') || '').slice(0, 10);
+                        if (expired || !vig || landingPromoIsExpired({ vigencia_hasta: vig })) {
+                            const suggested = landingDefaultVigenciaPlusDays(30);
+                            const input = prompt(
+                                'Para que se vea en la web necesitás una vigencia futura (AAAA-MM-DD):',
+                                suggested
+                            );
+                            if (input === null) return;
+                            vig = String(input).trim().slice(0, 10);
+                            if (!/^\d{4}-\d{2}-\d{2}$/.test(vig)) {
+                                alert('Fecha inválida. Usá formato AAAA-MM-DD.');
+                                return;
+                            }
+                            if (landingPromoIsExpired({ vigencia_hasta: vig })) {
+                                alert('La fecha tiene que ser hoy o posterior.');
+                                return;
+                            }
+                        }
+                        update.activo = true;
+                        update.vigencia_hasta = vig;
+                    }
+
                     const { error } = await client
                         .from('landing_promos')
-                        .update({ activo: !wasOn, updated_at: new Date().toISOString() })
+                        .update(update)
                         .eq('id', id);
                     if (error) {
                         alert(error.message || String(error));
