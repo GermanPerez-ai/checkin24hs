@@ -91,7 +91,7 @@ const CONFIG = {
     IMAGEN_COTIZACION_URL: (process.env.IMAGEN_COTIZACION_URL || 'https://dashboard.checkin24hs.com/og-cotizar.jpg').trim() || null,
     // Slack: alertas cuando Flor escala a humano o no tiene dato técnico (noEntendido). Definir SLACK_WEBHOOK_URL en el servidor.
     SLACK_WEBHOOK_URL: (process.env.SLACK_WEBHOOK_URL || '').trim() || null,
-    /** Prueba A/B: 1 = enviar Flor al mismo JID entrante (@lid) sin pasar a PN (si los retries siguen, probá esto). */
+    /** Si 1, siempre enviar al JID entrante. Por defecto, si el inbound es @lid se responde al mismo @lid (no convertir a PN). */
     FLOR_SEND_USE_REMOTE_JID_ONLY: process.env.FLOR_SEND_USE_REMOTE_JID_ONLY === '1'
 };
 
@@ -814,6 +814,14 @@ const WA_INBOUND_UPSERT_CONCURRENCY = Math.max(1, parseInt(process.env.WA_INBOUN
 const WA_INBOUND_MSG_YIELD_MS = Math.max(0, parseInt(process.env.WA_INBOUND_MSG_YIELD_MS || '40', 10) || 40);
 const inboundUpsertQueue = [];
 let inboundUpsertActive = 0;
+const WA_INBOUND_JOB_TIMEOUT_MS = Math.max(
+    20000,
+    parseInt(process.env.WA_INBOUND_JOB_TIMEOUT_MS || '75000', 10) || 75000
+);
+const WA_SEND_MESSAGE_TIMEOUT_MS = Math.max(
+    8000,
+    parseInt(process.env.WA_SEND_MESSAGE_TIMEOUT_MS || '25000', 10) || 25000
+);
 
 const WA_MSG_STATUS_LABEL = {
     0: 'ERROR',
@@ -826,6 +834,16 @@ const WA_MSG_STATUS_LABEL = {
 
 function delayMs(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function promiseWithTimeout(promise, ms, label) {
+    let timer;
+    const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label || 'op'} timed out after ${ms}ms`)), ms);
+    });
+    return Promise.race([Promise.resolve(promise), timeout]).finally(() => {
+        if (timer) clearTimeout(timer);
+    });
 }
 
 function isOutboundMediaContent(content) {
@@ -910,8 +928,17 @@ function drainInboundUpsertQueue() {
         const job = inboundUpsertQueue.shift();
         inboundUpsertActive++;
         Promise.resolve()
-            .then(() => job.fn())
-            .then(job.resolve, job.reject)
+            .then(() => promiseWithTimeout(job.fn(), WA_INBOUND_JOB_TIMEOUT_MS, 'inbound upsert'))
+            .then(job.resolve, (err) => {
+                if (err && /timed out/i.test(String(err.message || err))) {
+                    console.error(
+                        `❌ inbound upsert TIMEOUT (${WA_INBOUND_JOB_TIMEOUT_MS}ms) — se libera la cola. restante=${inboundUpsertQueue.length}`
+                    );
+                    job.resolve(undefined);
+                    return;
+                }
+                job.reject(err);
+            })
             .finally(() => {
                 inboundUpsertActive--;
                 if (inboundUpsertQueue.length > 0) setImmediate(drainInboundUpsertQueue);
@@ -992,7 +1019,11 @@ async function sendOutboundMessage(sock, jid, content, label = 'msg') {
                 payload.linkPreview = null;
             }
             try {
-                const res = await sock.sendMessage(jid, payload);
+                const res = await promiseWithTimeout(
+                    sock.sendMessage(jid, payload),
+                    WA_SEND_MESSAGE_TIMEOUT_MS,
+                    `sendMessage ${label}`
+                );
                 lastGlobalOutboundAt = Date.now();
                 lastGlobalOutboundWasMedia = isMedia;
                 const ids = new Set();
@@ -1578,13 +1609,34 @@ function phoneDigitsRoughlyMatch(a, b) {
     return da === db || da.endsWith(db) || db.endsWith(da);
 }
 
+function lidUserBare(jid) {
+    const s = String(jid || '').trim().toLowerCase();
+    if (!s.includes('@lid')) return '';
+    return s.split('@')[0].split(':')[0].replace(/\D/g, '');
+}
+
 /** Evita enviar respuesta de Flor a un JID distinto del remitente del inbound. */
 function validateFlorDestJidForPending(p, destJid) {
     if (!destJid || !p) return destJid;
+    const remote = p.remoteJid && String(p.remoteJid).trim();
+    const dest = String(destJid).trim();
+    if (remote && remote.includes('@lid')) {
+        if (dest.includes('@lid')) {
+            const a = lidUserBare(remote);
+            const b = lidUserBare(dest);
+            if (a && b && a === b) return destJid;
+            console.warn(`🛑 Flor: destJid LID ${dest} ≠ inbound ${remote} — usando inbound`);
+            return remote;
+        }
+        if (dest.includes('@s.whatsapp.net')) {
+            console.warn(`🛑 Flor: no enviar PN ${dest} si el inbound fue ${remote} — usando @lid (evita Esperando mensaje)`);
+            return remote;
+        }
+    }
     const expectedCanon = resolveCanonicalPhoneDigitsForFlor(p.numero, p.remoteJid);
-    const destCanon = String(destJid).replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '').split(':')[0].replace(/\D/g, '');
+    const destCanon = dest.replace(/@s\.whatsapp\.net$/i, '').replace(/@lid$/i, '').split(':')[0].replace(/\D/g, '');
     if (expectedCanon.length >= 10 && destCanon.length >= 10 && !phoneDigitsRoughlyMatch(expectedCanon, destCanon)) {
-        const fallback = (p.jidDestino && String(p.jidDestino).trim()) || (p.remoteJid && String(p.remoteJid).trim());
+        const fallback = remote || (p.jidDestino && String(p.jidDestino).trim());
         console.error(`🛑 Flor: destJid ${destJid} no coincide con remitente ${p.numero}/${p.remoteJid} — usando ${fallback}`);
         return fallback || destJid;
     }
@@ -5676,6 +5728,15 @@ function isOurBotPhoneDigits(digits) {
     return d === ours || d.endsWith(ours) || ours.endsWith(d);
 }
 
+/** Otras líneas Checkin24hs (companions Baileys). Auto-reply entre ellas = Esperando mensaje + cripto. */
+const CHECKIN24HS_LINE_PHONES = ['5492944200748', '5492944411580', '5492944486453', '5492944815203'];
+function isCheckin24hsFleetPhone(numeroOrDigits) {
+    const d = String(numeroOrDigits || '').replace(/\D/g, '');
+    if (d.length < 10) return false;
+    if (isOurBotPhoneDigits(d)) return true;
+    return CHECKIN24HS_LINE_PHONES.some((p) => d === p || d.endsWith(p) || p.endsWith(d));
+}
+
 function jidPnToE164(jidStr) {
     if (!jidStr || typeof jidStr !== 'string') return null;
     if (!jidStr.includes('@s.whatsapp.net')) return null;
@@ -7303,6 +7364,11 @@ async function connectToWhatsApp() {
 
             if (!CONFIG.AUTO_REPLY || !CONFIG.FLOR_ENABLED) continue;
 
+            if (isCheckin24hsFleetPhone(numero)) {
+                console.log(`⏭️ Flor: no auto-responder a otra línea Checkin24hs (${numero}) — companions Baileys se pisan (Esperando mensaje)`);
+                continue;
+            }
+
             if (!shouldFlorReplyToInbound(msg, type)) continue;
 
             const silenceInbound = await assertFlorSilenceProtocolDbOnly(numero, CONFIG.INSTANCE_NUMBER, savedChatIdInbound || null);
@@ -7492,8 +7558,14 @@ async function connectToWhatsApp() {
                 }
 
                 let destJid = await resolveFlorSendJid(sock, p);
-                if (CONFIG.FLOR_SEND_USE_REMOTE_JID_ONLY && p.remoteJid) {
-                    destJid = String(p.remoteJid);
+                const incomingJid = p.remoteJid && String(p.remoteJid).trim();
+                const inboundIsLid = !!(incomingJid && incomingJid.includes('@lid'));
+                if (inboundIsLid) {
+                    // Misma sesión Signal que el inbound. Convertir @lid→PN deja "Esperando mensaje" en el cliente.
+                    destJid = incomingJid;
+                    console.log(`📤 Flor: sendMessage al @lid entrante (misma sesión Signal) → ${destJid}`);
+                } else if (CONFIG.FLOR_SEND_USE_REMOTE_JID_ONLY && incomingJid) {
+                    destJid = incomingJid;
                     console.log(`📤 Flor: envío al JID entrante (FLOR_SEND_USE_REMOTE_JID_ONLY) → ${destJid}`);
                 } else {
                     destJid = applyFlorDestJidDeviceTransfer(p, destJid);
@@ -7502,7 +7574,7 @@ async function connectToWhatsApp() {
                     }
                 }
 
-                if (destJid && String(destJid).includes('@lid') && p.supabaseChatId) {
+                if (!inboundIsLid && destJid && String(destJid).includes('@lid') && p.supabaseChatId) {
                     const fixE164 = await resolveE164FromSupabaseForLidChat(null, p.supabaseChatId);
                     if (fixE164) {
                         const ndf = fixE164.replace(/\D/g, '');
@@ -7516,9 +7588,7 @@ async function connectToWhatsApp() {
                         console.log(`📤 Flor: destino corregido (@lid→MSISDN) vía chat_id → ${destJid}`);
                     }
                 }
-                if (destJid && !String(destJid).includes('@lid')) {
-                    console.log(`📤 Flor: sendMessage usará JID final=${destJid}`);
-                }
+                console.log(`📤 Flor: sendMessage usará JID final=${destJid}`);
                 destJid = validateFlorDestJidForPending(p, destJid);
 
                 let dispatchPushed = false;
