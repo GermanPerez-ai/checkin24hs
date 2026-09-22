@@ -152,13 +152,16 @@ function attachSmtpSession(socket) {
     }
   };
   socket.on('data', onData);
-  function nextLine(ms) {
+  function detach() {
+    socket.removeListener('data', onData);
+  }
+  function nextLine(ms, step) {
     if (queue.length) return Promise.resolve(queue.shift());
     return new Promise((resolve, reject) => {
       const t = setTimeout(() => {
         const i = waiters.indexOf(entry);
         if (i >= 0) waiters.splice(i, 1);
-        reject(new Error('smtp_timeout'));
+        reject(new Error('smtp_timeout ' + (step || 'esperando respuesta')));
       }, ms || 12000);
       const entry = {
         resolve: (line) => {
@@ -169,10 +172,10 @@ function attachSmtpSession(socket) {
       waiters.push(entry);
     });
   }
-  async function readReply(ms) {
+  async function readReply(ms, step) {
     const lines = [];
     for (let i = 0; i < 20; i++) {
-      const line = await nextLine(ms);
+      const line = await nextLine(ms, step);
       if (!line) continue;
       lines.push(line);
       if (/^\d{3} /.test(line)) {
@@ -184,39 +187,48 @@ function attachSmtpSession(socket) {
   function write(cmd) {
     socket.write(cmd + '\r\n');
   }
-  async function expect(prefix, ms) {
-    const r = await readReply(ms);
+  async function expect(prefix, ms, step) {
+    const r = await readReply(ms, step || ('esperando ' + prefix));
     if (!r.line.startsWith(String(prefix))) {
       throw new Error('smtp: ' + r.text);
     }
     return r;
   }
-  return { readReply, write, expect };
+  return { readReply, write, expect, detach };
 }
 
 function smtpConnect(host, port, starttls) {
   return new Promise((resolve, reject) => {
-    const done = (err, sock) => {
-      if (sock) sock.setTimeout(0);
-      if (err) reject(err);
-      else resolve(sock);
-    };
+    const opts = { host, port, family: 4 };
     const sock = starttls
-      ? net.connect({ host, port })
-      : tls.connect({ host, port, servername: host });
+      ? net.connect(opts)
+      : tls.connect({ ...opts, servername: host });
+    const session = attachSmtpSession(sock);
+    const done = (err) => {
+      sock.setTimeout(0);
+      if (err) {
+        try { session.detach(); } catch (_) {}
+        reject(err);
+      } else {
+        resolve({ sock, session });
+      }
+    };
     sock.setTimeout(15000);
     sock.once('timeout', () => {
       sock.destroy();
       done(new Error('smtp_timeout conectando a ' + host + ':' + port));
     });
     sock.once('error', (err) => done(err));
-    sock.once(starttls ? 'connect' : 'secureConnect', () => done(null, sock));
+    sock.once(starttls ? 'connect' : 'secureConnect', () => done(null));
   });
 }
 
 function smtpUpgradeTls(socket, host) {
   return new Promise((resolve, reject) => {
-    const tlsSock = tls.connect({ socket, servername: host, host }, () => resolve(tlsSock));
+    const tlsSock = tls.connect({ socket, servername: host, host }, () => {
+      tlsSock.setTimeout(0);
+      resolve({ sock: tlsSock, session: attachSmtpSession(tlsSock) });
+    });
     tlsSock.setTimeout(15000, () => {
       tlsSock.destroy();
       reject(new Error('smtp_timeout STARTTLS'));
@@ -225,27 +237,27 @@ function smtpUpgradeTls(socket, host) {
   });
 }
 
-async function smtpHandshakeAndSend(socket, { user, pass, from, unique, dataPayload, toList, bccList }, skipGreeting) {
-  const s = attachSmtpSession(socket);
-  if (!skipGreeting) await s.expect('220', 12000);
+async function smtpHandshakeAndSend(socket, session, { user, pass, from, unique, dataPayload, toList, bccList }, skipGreeting) {
+  const s = session;
+  if (!skipGreeting) await s.expect('220', 12000, 'saludo 220');
   s.write('EHLO checkin24hs.com');
-  await s.expect('250', 12000);
+  await s.expect('250', 12000, 'EHLO');
   s.write('AUTH LOGIN');
-  await s.expect('334', 8000);
+  await s.expect('334', 8000, 'AUTH LOGIN');
   s.write(Buffer.from(user, 'utf8').toString('base64'));
-  await s.expect('334', 8000);
+  await s.expect('334', 8000, 'usuario AUTH');
   s.write(Buffer.from(pass, 'utf8').toString('base64'));
-  await s.expect('235', 8000);
+  await s.expect('235', 8000, 'clave AUTH');
   s.write('MAIL FROM:<' + from + '>');
-  await s.expect('250', 8000);
+  await s.expect('250', 8000, 'MAIL FROM');
   for (const rcpt of unique) {
     s.write('RCPT TO:<' + rcpt + '>');
-    await s.expect('250', 8000);
+    await s.expect('250', 8000, 'RCPT TO');
   }
   s.write('DATA');
-  await s.expect('354', 8000);
+  await s.expect('354', 8000, 'DATA');
   socket.write(String(dataPayload || '').replace(/^\./gm, '..') + '\r\n.\r\n');
-  await s.expect('250', 30000);
+  await s.expect('250', 30000, 'contenido');
   try { s.write('QUIT'); } catch (_) {}
   try { socket.end(); } catch (_) {}
   return { ok: true, to: toList, bcc: bccList };
@@ -352,23 +364,26 @@ async function sendSmtpMail({ to, bcc, subject, text, replyTo, attachments }) {
   for (const attempt of attempts) {
     let socket;
     try {
-      socket = await smtpConnect(host, attempt.port, attempt.starttls);
-      let sessionSock = socket;
+      const conn = await smtpConnect(host, attempt.port, attempt.starttls);
+      socket = conn.sock;
+      let session = conn.session;
       if (attempt.starttls) {
-        const s0 = attachSmtpSession(socket);
-        await s0.expect('220', 12000);
-        s0.write('EHLO checkin24hs.com');
-        await s0.expect('250', 12000);
-        s0.write('STARTTLS');
-        await s0.expect('220', 12000);
-        sessionSock = await smtpUpgradeTls(socket, host);
-        const sent = await smtpHandshakeAndSend(sessionSock, {
+        await session.expect('220', 12000, 'saludo 220');
+        session.write('EHLO checkin24hs.com');
+        await session.expect('250', 12000, 'EHLO');
+        session.write('STARTTLS');
+        await session.expect('220', 12000, 'STARTTLS');
+        session.detach();
+        const upgraded = await smtpUpgradeTls(socket, host);
+        socket = upgraded.sock;
+        session = upgraded.session;
+        const sent = await smtpHandshakeAndSend(socket, session, {
           user, pass, from, unique, dataPayload, toList, bccList,
         }, true);
         console.log('[hotel-mail] enviado via', host + ':' + attempt.port, 'STARTTLS', files.length ? files.length + ' adj.' : '');
         return sent;
       }
-      const sent = await smtpHandshakeAndSend(sessionSock, {
+      const sent = await smtpHandshakeAndSend(socket, session, {
         user, pass, from, unique, dataPayload, toList, bccList,
       }, false);
       console.log('[hotel-mail] enviado via', host + ':' + attempt.port, 'SSL', files.length ? files.length + ' adj.' : '');
