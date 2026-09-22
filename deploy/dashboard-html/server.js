@@ -9,6 +9,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const tls = require('tls');
+const net = require('net');
 
 const WHATSAPP_PROXY_TARGET = 'https://whatsapp.checkin24hs.com';
 
@@ -135,70 +136,138 @@ function parseEmailList(raw) {
     .filter((s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s));
 }
 
-function smtpReadLine(socket, timeoutMs) {
-  return new Promise((resolve, reject) => {
-    let buf = '';
-    const onData = (chunk) => {
-      buf += chunk.toString('utf8');
-      const parts = buf.split(/\r?\n/);
-      buf = parts.pop() || '';
-      for (const line of parts) {
-        if (/^\d{3}[\s-]/.test(line)) {
-          cleanup();
-          resolve(line);
-          return;
-        }
-      }
-    };
-    const onErr = (err) => {
-      cleanup();
-      reject(err);
-    };
-    const t = setTimeout(() => {
-      cleanup();
-      reject(new Error('smtp_timeout'));
-    }, timeoutMs || 20000);
-    const cleanup = () => {
-      clearTimeout(t);
-      socket.removeListener('data', onData);
-      socket.removeListener('error', onErr);
-    };
-    socket.on('data', onData);
-    socket.on('error', onErr);
-  });
-}
-
-function smtpExpect(socket, okPrefix) {
-  return smtpReadLine(socket).then((line) => {
-    if (!String(line).startsWith(String(okPrefix))) {
-      throw new Error('smtp: ' + line);
+function attachSmtpSession(socket) {
+  let buf = '';
+  const queue = [];
+  const waiters = [];
+  const onData = (chunk) => {
+    buf += chunk.toString('utf8');
+    for (;;) {
+      const idx = buf.indexOf('\n');
+      if (idx < 0) break;
+      const line = buf.slice(0, idx).replace(/\r$/, '');
+      buf = buf.slice(idx + 1);
+      if (waiters.length) waiters.shift().resolve(line);
+      else queue.push(line);
     }
-    return line;
+  };
+  socket.on('data', onData);
+  function nextLine(ms) {
+    if (queue.length) return Promise.resolve(queue.shift());
+    return new Promise((resolve, reject) => {
+      const t = setTimeout(() => {
+        const i = waiters.indexOf(entry);
+        if (i >= 0) waiters.splice(i, 1);
+        reject(new Error('smtp_timeout'));
+      }, ms || 12000);
+      const entry = {
+        resolve: (line) => {
+          clearTimeout(t);
+          resolve(line);
+        },
+      };
+      waiters.push(entry);
+    });
+  }
+  async function readReply(ms) {
+    const lines = [];
+    for (let i = 0; i < 20; i++) {
+      const line = await nextLine(ms);
+      if (!line) continue;
+      lines.push(line);
+      if (/^\d{3} /.test(line)) {
+        return { code: line.slice(0, 3), line, lines, text: lines.join('\n') };
+      }
+    }
+    throw new Error('smtp: respuesta incompleta ' + lines.join(' | '));
+  }
+  function write(cmd) {
+    socket.write(cmd + '\r\n');
+  }
+  async function expect(prefix, ms) {
+    const r = await readReply(ms);
+    if (!r.line.startsWith(String(prefix))) {
+      throw new Error('smtp: ' + r.text);
+    }
+    return r;
+  }
+  return { readReply, write, expect };
+}
+
+function smtpConnect(host, port, starttls) {
+  return new Promise((resolve, reject) => {
+    const done = (err, sock) => {
+      if (sock) sock.setTimeout(0);
+      if (err) reject(err);
+      else resolve(sock);
+    };
+    const sock = starttls
+      ? net.connect({ host, port })
+      : tls.connect({ host, port, servername: host });
+    sock.setTimeout(15000);
+    sock.once('timeout', () => {
+      sock.destroy();
+      done(new Error('smtp_timeout conectando a ' + host + ':' + port));
+    });
+    sock.once('error', (err) => done(err));
+    sock.once(starttls ? 'connect' : 'secureConnect', () => done(null, sock));
   });
 }
 
-function smtpWrite(socket, line) {
-  socket.write(line + '\r\n');
+function smtpUpgradeTls(socket, host) {
+  return new Promise((resolve, reject) => {
+    const tlsSock = tls.connect({ socket, servername: host, host }, () => resolve(tlsSock));
+    tlsSock.setTimeout(15000, () => {
+      tlsSock.destroy();
+      reject(new Error('smtp_timeout STARTTLS'));
+    });
+    tlsSock.once('error', reject);
+  });
 }
 
-function sendSmtpMail({ to, bcc, subject, text, replyTo }) {
+async function smtpHandshakeAndSend(socket, { user, pass, from, unique, headers, safeText, toList, bccList }, skipGreeting) {
+  const s = attachSmtpSession(socket);
+  if (!skipGreeting) await s.expect('220', 12000);
+  s.write('EHLO checkin24hs.com');
+  await s.expect('250', 12000);
+  s.write('AUTH LOGIN');
+  await s.expect('334', 8000);
+  s.write(Buffer.from(user, 'utf8').toString('base64'));
+  await s.expect('334', 8000);
+  s.write(Buffer.from(pass, 'utf8').toString('base64'));
+  await s.expect('235', 8000);
+  s.write('MAIL FROM:<' + from + '>');
+  await s.expect('250', 8000);
+  for (const rcpt of unique) {
+    s.write('RCPT TO:<' + rcpt + '>');
+    await s.expect('250', 8000);
+  }
+  s.write('DATA');
+  await s.expect('354', 8000);
+  socket.write(headers.join('\r\n') + '\r\n\r\n' + safeText.replace(/^\./gm, '..') + '\r\n.\r\n');
+  await s.expect('250', 15000);
+  try { s.write('QUIT'); } catch (_) {}
+  try { socket.end(); } catch (_) {}
+  return { ok: true, to: toList, bcc: bccList };
+}
+
+async function sendSmtpMail({ to, bcc, subject, text, replyTo }) {
   const host = process.env.SMTP_HOST || 'smtp.hostinger.com';
-  const port = parseInt(process.env.SMTP_PORT || '465', 10);
+  const preferredPort = parseInt(process.env.SMTP_PORT || '465', 10);
   const user = (process.env.SMTP_USER || process.env.SMTP_FROM || 'reservas@checkin24hs.com').trim();
   const pass = (process.env.SMTP_PASS || '').trim();
   const from = (process.env.SMTP_FROM || user).trim();
-  const recipients = [...parseEmailList(to), ...parseEmailList(bcc || process.env.MAIL_BCC || from)];
-  const unique = [...new Set(recipients)];
-  if (!pass) return Promise.reject(new Error('SMTP_PASS no configurado'));
-  if (!unique.length) return Promise.reject(new Error('Sin destinatarios'));
+  const toList = parseEmailList(to);
+  const bccList = parseEmailList(bcc || process.env.MAIL_BCC || from);
+  const unique = [...new Set([...toList, ...bccList])];
+  if (!pass) throw new Error('SMTP_PASS no configurado');
+  if (!unique.length) throw new Error('Sin destinatarios');
   const safeSubject = String(subject || '').replace(/[\r\n]+/g, ' ').slice(0, 200);
   const safeText = String(text || '').replace(/\r\n/g, '\n').replace(/\n/g, '\r\n').slice(0, 20000);
   const headers = [
     'From: Checkin24hs Reservas <' + from + '>',
-    'To: ' + parseEmailList(to).join(', '),
-    parseEmailList(bcc || process.env.MAIL_BCC || from).length
-      ? 'Bcc: ' + parseEmailList(bcc || process.env.MAIL_BCC || from).join(', ')
-      : '',
+    'To: ' + toList.join(', '),
+    bccList.length ? 'Bcc: ' + bccList.join(', ') : '',
     replyTo ? 'Reply-To: ' + String(replyTo).replace(/[\r\n]+/g, '') : '',
     'Subject: =?UTF-8?B?' + Buffer.from(safeSubject, 'utf8').toString('base64') + '?=',
     'MIME-Version: 1.0',
@@ -206,48 +275,42 @@ function sendSmtpMail({ to, bcc, subject, text, replyTo }) {
     'Content-Transfer-Encoding: 8bit',
   ].filter(Boolean);
 
-  return new Promise((resolve, reject) => {
-    const socket = tls.connect({ host, port, servername: host }, async () => {
-      try {
-        await smtpExpect(socket, '220');
-        smtpWrite(socket, 'EHLO checkin24hs.com');
-        // EHLO can send several 250- then 250
-        let ehlo = '';
-        for (let i = 0; i < 12; i++) {
-          ehlo = await smtpReadLine(socket);
-          if (ehlo.startsWith('250 ')) break;
-          if (!ehlo.startsWith('250')) throw new Error('smtp ehlo: ' + ehlo);
-        }
-        smtpWrite(socket, 'AUTH LOGIN');
-        await smtpExpect(socket, '334');
-        smtpWrite(socket, Buffer.from(user, 'utf8').toString('base64'));
-        await smtpExpect(socket, '334');
-        smtpWrite(socket, Buffer.from(pass, 'utf8').toString('base64'));
-        await smtpExpect(socket, '235');
-        smtpWrite(socket, 'MAIL FROM:<' + from + '>');
-        await smtpExpect(socket, '250');
-        for (const rcpt of unique) {
-          smtpWrite(socket, 'RCPT TO:<' + rcpt + '>');
-          await smtpExpect(socket, '250');
-        }
-        smtpWrite(socket, 'DATA');
-        await smtpExpect(socket, '354');
-        socket.write(headers.join('\r\n') + '\r\n\r\n' + safeText.replace(/^\./gm, '..') + '\r\n.\r\n');
-        await smtpExpect(socket, '250');
-        smtpWrite(socket, 'QUIT');
-        socket.end();
-        resolve({ ok: true, to: parseEmailList(to), bcc: parseEmailList(bcc || process.env.MAIL_BCC || from) });
-      } catch (err) {
-        try { socket.destroy(); } catch (_) {}
-        reject(err);
+  const attempts = preferredPort === 587
+    ? [{ port: 587, starttls: true }, { port: 465, starttls: false }]
+    : [{ port: 465, starttls: false }, { port: 587, starttls: true }];
+
+  let lastErr = null;
+  for (const attempt of attempts) {
+    let socket;
+    try {
+      socket = await smtpConnect(host, attempt.port, attempt.starttls);
+      let sessionSock = socket;
+      if (attempt.starttls) {
+        const s0 = attachSmtpSession(socket);
+        await s0.expect('220', 12000);
+        s0.write('EHLO checkin24hs.com');
+        await s0.expect('250', 12000);
+        s0.write('STARTTLS');
+        await s0.expect('220', 12000);
+        sessionSock = await smtpUpgradeTls(socket, host);
+        const sent = await smtpHandshakeAndSend(sessionSock, {
+          user, pass, from, unique, headers, safeText, toList, bccList,
+        }, true);
+        console.log('[hotel-mail] enviado via', host + ':' + attempt.port, 'STARTTLS');
+        return sent;
       }
-    });
-    socket.setTimeout(25000, () => {
-      socket.destroy();
-      reject(new Error('smtp_timeout'));
-    });
-    socket.on('error', reject);
-  });
+      const sent = await smtpHandshakeAndSend(sessionSock, {
+        user, pass, from, unique, headers, safeText, toList, bccList,
+      }, false);
+      console.log('[hotel-mail] enviado via', host + ':' + attempt.port, attempt.starttls ? 'STARTTLS' : 'SSL');
+      return sent;
+    } catch (err) {
+      lastErr = err;
+      console.warn('[hotel-mail]', host + ':' + attempt.port, err.message);
+      try { if (socket) socket.destroy(); } catch (_) {}
+    }
+  }
+  throw lastErr || new Error('smtp_timeout');
 }
 
 function readJsonBody(req, limit) {
