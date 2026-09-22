@@ -16,6 +16,15 @@ ANULAR RESERVA Llao Llao ABC12X
 ```
 
 Consulta / info: **no** usar ANULAR ni MODIFICAR.
+
+La respuesta del **hotel** (mismo hilo) se lee el cuerpo, sin el texto citado:
+
+- “Confirmamos la anulación / queda anulada” → **Cancelada** (auto)
+- “Confirmamos la modificación / fechas actualizadas” → **Modificada** (auto)
+- “No se puede”, recargo, no show, “lo revisamos” → **En gestión** (no cierra)
+- “Recibido” u otra frase ambigua → no toca el estado (sigue pedida; ventas confirma a mano)
+
+El mail de ventas (`@checkin24hs.com`) nunca cierra: deja **Anulación pedida** / **Modificación pedida**.
 - **Confirmaciones Puyehue / Termas Aguas Calientes:** email (este script)
   - Mail **cliente** → sube la reserva (nombre, email, teléfono, fechas, monto)
   - Mail **agencia** → actualiza columna Agente (`Mariano Olivar (Canopy Promociones)`)

@@ -21,7 +21,7 @@ from pathlib import Path
 
 from parse_corralco import looks_corralco, parse_corralco_confirmations
 from parse_huilo import parse_huilo_confirmations, strip_html
-from parse_lifecycle import parse_lifecycle_mail
+from parse_lifecycle import is_internal_sender, parse_lifecycle_mail
 from parse_puyehue import looks_puyehue, parse_puyehue_mail
 
 DIR = Path(__file__).resolve().parent
@@ -380,8 +380,18 @@ def patch_reservation_agent(reservation_code: str, agent_name: str):
     )
 
 
+_CLOSED_STATUSES = ("Cancelada", "Modificada", "No show")
+
+
+def _append_note(existing, line: str) -> str:
+    prev = str(existing or "").strip()
+    if line in prev:
+        return prev
+    return (prev + "\n" if prev else "") + line
+
+
 def patch_reservation_lifecycle(reservation_code: str, kind: str, parsed: dict | None = None, from_addr: str = ""):
-    """Pedido de ventas = Anulación/Modificación pedida. Solo el hotel cierra Cancelada/Modificada."""
+    """Ventas pide; el hotel cierra solo si el cuerpo confirma de forma inequívoca."""
     code = str(reservation_code or "").strip()
     if not code:
         return {"ok": False, "reason": "sin_codigo"}
@@ -398,35 +408,56 @@ def patch_reservation_lifecycle(reservation_code: str, kind: str, parsed: dict |
     rid = row.get("id")
     if not rid:
         return {"ok": False, "reason": "sin_id"}
-    from_hotel = any(
-        d in (from_addr or "").lower()
-        for d in ("puyehue.cl", "huilohuilo.com", "corralco.com", "corralco.cl")
-    )
+    parsed = parsed or {}
+    current = str(row.get("status") or "")
+    closed = current in _CLOSED_STATUSES
+    verdict = parsed.get("hotel_verdict") or "unclear"
+    stamp = dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%MZ")
     body = {}
-    if kind == "cancel":
-        # Mail de ventas / interno = pedido. Mail del hotel = confirmación.
-        body["status"] = "Cancelada" if from_hotel else "Anulación pedida"
+
+    if is_internal_sender(from_addr):
+        if closed:
+            return {"ok": True, "status": current, "reason": "ya_cerrada"}
+        body["status"] = "Anulación pedida" if kind == "cancel" else "Modificación pedida"
+    elif verdict == "confirm_cancel":
+        if current == "Cancelada":
+            return {"ok": True, "status": current, "reason": "ya_cerrada"}
+        body["status"] = "Cancelada"
+        body["notes"] = _append_note(row.get("notes"), "[HOTEL confirmó anulación — auto " + stamp + "]")
+    elif verdict == "confirm_modify":
+        if current == "Modificada":
+            return {"ok": True, "status": current, "reason": "ya_cerrada"}
+        body["status"] = "Modificada"
+        if parsed.get("check_in"):
+            body["check_in"] = parsed["check_in"]
+        if parsed.get("check_out"):
+            body["check_out"] = parsed["check_out"]
+        if parsed.get("total_amount") not in (None, "", 0, 0.0):
+            body["total_amount"] = parsed["total_amount"]
+        body["notes"] = _append_note(row.get("notes"), "[HOTEL confirmó modificación — auto " + stamp + "]")
+    elif verdict == "reject":
+        if closed:
+            return {"ok": True, "status": current, "reason": "ya_cerrada"}
+        if current == "En gestión":
+            return {"ok": True, "status": current, "reason": "ya_cerrada"}
+        body["status"] = "En gestión"
+        body["notes"] = _append_note(row.get("notes"), "[HOTEL no confirmó / no se puede — auto " + stamp + "]")
     else:
-        if from_hotel:
-            body["status"] = "Modificada"
-            parsed = parsed or {}
-            if parsed.get("check_in"):
-                body["check_in"] = parsed["check_in"]
-            if parsed.get("check_out"):
-                body["check_out"] = parsed["check_out"]
-            if parsed.get("total_amount") not in (None, "", 0, 0.0):
-                body["total_amount"] = parsed["total_amount"]
-        else:
-            body["status"] = "Modificación pedida"
+        return {"ok": True, "status": current, "reason": "hotel_reply_unclear"}
+
     path = "reservations?id=eq." + urllib.parse.quote(str(rid), safe="")
     try:
         sb("PATCH", path, body)
     except RuntimeError as e:
-        if "updated_at" in str(e).lower():
+        msg = str(e).lower()
+        if "notes" in body and "notes" in msg:
+            body.pop("notes", None)
+            sb("PATCH", path, body)
+        elif "updated_at" in msg:
             sb("PATCH", path, body)
         else:
             raise
-    return {"ok": True, "status": body.get("status"), "fields": list(body.keys())}
+    return {"ok": True, "status": body.get("status"), "fields": list(body.keys()), "verdict": verdict}
 
 
 def parse_reservation_mail(from_addr, subject, text, html, msg_dt):
@@ -599,12 +630,14 @@ def main():
                     tag = "🚫" if kind == "cancel" else "✏️"
                     print(f"{tag} [{hotel_key}] {kind} {code} | {subject[:80]}")
                     if args.dry_run:
+                        print(f"   · from={from_addr} verdict={parsed.get('hotel_verdict')}")
                         continue
                     try:
                         result = patch_reservation_lifecycle(code, kind, parsed, from_addr)
                         if result.get("ok"):
                             stats["imported"] += 1
-                            print(f"   → {result.get('status')} {code}")
+                            extra = result.get("reason") or result.get("verdict") or ""
+                            print(f"   → {result.get('status')} {code}" + (f" ({extra})" if extra else ""))
                         else:
                             print(f"   ⚠️ no se aplicó {code}: {result.get('reason')}")
                         mark_imported(

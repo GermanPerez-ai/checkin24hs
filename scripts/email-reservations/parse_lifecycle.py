@@ -1,6 +1,7 @@
 """Mails de anular / modificar reserva — cualquier hotel del catálogo."""
 from __future__ import annotations
 
+import html as html_lib
 import re
 import unicodedata
 from typing import Optional
@@ -238,6 +239,147 @@ def extract_lifecycle_code(subject: str, text: str = "") -> Optional[str]:
     return None
 
 
+_INTERNAL_DOMAINS = ("checkin24hs.com",)
+
+_HOTEL_DOMAINS = (
+    "puyehue.cl",
+    "huilohuilo.com",
+    "corralco.com",
+    "corralco.cl",
+)
+
+_CUT_QUOTE = re.compile(
+    r"(?im)^(?:"
+    r"on .+ wrote:\s*$"
+    r"|el .+ escribi[oó]:\s*$"
+    r"|from:\s*checkin24hs"
+    r"|de:\s*checkin24hs"
+    r"|solicitamos anular la siguiente reserva"
+    r"|solicitamos modificar la siguiente reserva"
+    r"|consulta sobre la siguiente reserva"
+    r"|-{5,}.*original"
+    r"|_{5,}"
+    r")",
+)
+
+_CONFIRM_CANCEL = re.compile(
+    r"(?:"
+    r"confirmamos (?:que )?(?:la )?(?:anulaci[oó]n|cancelaci[oó]n)"
+    r"|confirmamos que (?:la )?reserva (?:fue |queda |qued[oó] |est[aá] )?(?:anulad[ao]|cancelad[ao])"
+    r"|(?:la )?reserva (?:fue |ha sido |queda |qued[oó] |est[aá] )?(?:correctamente )?(?:anulad[ao]|cancelad[ao])"
+    r"|(?:fue |ha sido |queda |qued[oó] |est[aá] )(?:correctamente )?(?:anulad[ao]|cancelad[ao])"
+    r"|hemos (?:procedido a )?(?:anular|cancelar|anulado|cancelado)"
+    r"|se (?:procedi[oó] a )?(?:anular|cancelar|anul[oó]|cancel[oó])"
+    r"|(?:anulaci[oó]n|cancelaci[oó]n) (?:confirmada|realizada|efectuada|ok)"
+    r"|damos (?:de )?baja"
+    r"|aceptamos (?:la )?(?:anulaci[oó]n|cancelaci[oó]n)"
+    r")",
+    re.I,
+)
+
+_CONFIRM_MODIFY = re.compile(
+    r"(?:"
+    r"confirmamos (?:que )?(?:la )?(?:modificaci[oó]n|el cambio)"
+    r"|(?:la )?reserva (?:fue |ha sido |queda |qued[oó] |est[aá] )?modificad[ao]"
+    r"|hemos modificado"
+    r"|se (?:modific[oó]|actualiz[oó])"
+    r"|modificaci[oó]n (?:confirmada|realizada|efectuada|aceptada)"
+    r"|cambios? (?:aceptados?|confirmados?|realizados?|aplicados?)"
+    r"|fechas? (?:actualizadas?|modificadas?|cambiadas?|ok|correctas?)"
+    r"|aceptamos (?:el cambio|la modificaci[oó]n)"
+    r")",
+    re.I,
+)
+
+_REPLY_BLOCK = re.compile(
+    r"(?:"
+    r"no (?:es |nos es )?posible"
+    r"|no (?:podemos|se puede)(?:\s+(?:anular|cancelar|modificar|aceptar|proceder))?"
+    r"|lamentamos (?:informar )?(?:que )?no"
+    r"|fuera de (?:plazo|tiempo|t[eé]rmino)"
+    r"|recargo"
+    r"|penalidad"
+    r"|cargo por (?:cancel|anul)"
+    r"|\bno[\s\-]?show\b"
+    r"|no corresponde"
+    r"|sujeto a (?:confirmaci[oó]n|disponibilidad|pol[ií]tica)"
+    r"|lo (?:vamos a )?(?:revisar|revisamos|evaluar|evaluamos|analizar|analizamos)"
+    r"|en (?:revisi[oó]n|evaluaci[oó]n)"
+    r")",
+    re.I,
+)
+
+
+def _sender_domain(from_addr: str) -> str:
+    addr = str(from_addr or "").lower().strip()
+    if "@" not in addr:
+        return ""
+    return addr.rsplit("@", 1)[-1].strip(">")
+
+
+def is_internal_sender(from_addr: str) -> bool:
+    domain = _sender_domain(from_addr)
+    return any(domain == d or domain.endswith("." + d) for d in _INTERNAL_DOMAINS)
+
+
+def is_hotel_sender(from_addr: str) -> bool:
+    if is_internal_sender(from_addr):
+        return False
+    domain = _sender_domain(from_addr)
+    if not domain:
+        return False
+    if any(domain == d or domain.endswith("." + d) for d in _HOTEL_DOMAINS):
+        return True
+    return "@" in str(from_addr or "")
+
+
+def _plain_from_html(html: str) -> str:
+    s = html_lib.unescape(str(html or ""))
+    s = re.sub(r"(?i)<br\s*/?>", "\n", s)
+    s = re.sub(r"(?i)</(p|div|tr|h[1-6]|li)>", "\n", s)
+    s = re.sub(r"<[^>]+>", " ", s)
+    return re.sub(r"[ \t]+\n", "\n", s)
+
+
+def own_reply_text(text: str, html: str = "") -> str:
+    """Solo el mensaje nuevo del hotel, sin el pedido citado de Checkin24hs."""
+    raw = str(text or "").strip()
+    if not raw:
+        raw = _plain_from_html(html)
+    s = str(raw or "").replace("\r", "")
+    s = re.split(r"(?im)^De:\s+.+\nEnviado el:", s)[0]
+    s = re.split(r"(?im)^From:\s+.+\nSent:", s)[0]
+    s = re.split(r"(?im)^-{5,}Original Message-{5,}", s)[0]
+    out = []
+    for line in s.split("\n"):
+        if line.strip().startswith(">"):
+            break
+        if _CUT_QUOTE.search(line.strip()):
+            break
+        out.append(line)
+    return "\n".join(out).strip()
+
+
+def classify_hotel_reply(kind: str, own_text: str) -> str:
+    """confirm_cancel | confirm_modify | reject | unclear"""
+    t = _fold(own_text)
+    t = re.sub(r"\s+", " ", t).strip()
+    if len(t) < 8:
+        return "unclear"
+    blocked = bool(_REPLY_BLOCK.search(t))
+    cc = bool(_CONFIRM_CANCEL.search(t))
+    cm = bool(_CONFIRM_MODIFY.search(t))
+    if blocked:
+        return "reject"
+    if cc and cm:
+        return "confirm_cancel" if kind == "cancel" else "confirm_modify"
+    if cc:
+        return "confirm_cancel"
+    if cm:
+        return "confirm_modify"
+    return "unclear"
+
+
 def parse_lifecycle_mail(mail: dict) -> Optional[dict]:
     subject = str(mail.get("subject") or "")
     text = str(mail.get("text") or "")
@@ -280,6 +422,7 @@ def parse_lifecycle_mail(mail: dict) -> Optional[dict]:
                 }
         except Exception:
             extra = {}
+    own = own_reply_text(text, html)
     return {
         "kind": intent,
         "hotel_key": hotel_key,
@@ -290,4 +433,6 @@ def parse_lifecycle_mail(mail: dict) -> Optional[dict]:
         "total_amount": extra.get("total_amount"),
         "currency": extra.get("currency") or "USD",
         "notes": extra.get("notes"),
+        "own_text": own,
+        "hotel_verdict": classify_hotel_reply(intent, own),
     }
