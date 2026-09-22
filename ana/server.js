@@ -543,7 +543,13 @@ app.post('/api/chat', requireAuth, async (req, res) => {
   }
 });
 
-app.use(express.static(path.join(__dirname, 'public'), { index: 'index.html', extensions: ['html'] }));
+app.get(['/', '/index.html'], (req, res) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.use(express.static(path.join(__dirname, 'public'), { index: false, extensions: ['html'] }));
 
 app.listen(PORT, () => {
   console.log(`ANA escuchando en :${PORT}`);

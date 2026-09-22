@@ -198,33 +198,33 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div class="lg:col-span-2 glass-panel p-5 rounded-2xl">
-                            <h3 class="text-base font-bold text-white mb-4">Reservas recientes</h3>
-                            <div id="feedRecent" class="space-y-3 text-sm text-slate-400">Cargando…</div>
-                        </div>
-                        <div class="glass-panel p-5 rounded-2xl">
-                            <h3 class="text-base font-bold text-white mb-3">Recomendaciones ANA</h3>
-                            <div id="feedIdeas" class="space-y-3 text-xs text-slate-300">Cargando…</div>
-                        </div>
-                    </div>
-
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="glass-panel p-5 rounded-2xl">
                             <div class="flex items-center justify-between gap-3 mb-1">
                                 <h3 class="text-base font-bold text-white">Pedido de anulación</h3>
                                 <span id="feedCancelCount" class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-orange-950 text-orange-300 border border-orange-800/50">0</span>
                             </div>
-                            <p class="text-xs text-slate-400 mb-4">ANA sigue el caso hasta que el hotel confirme. Estado actual de cada reserva.</p>
-                            <div id="feedCancel" class="space-y-3 text-sm text-slate-400">Cargando…</div>
+                            <p class="text-xs text-slate-400 mb-4">ANA sigue el caso hasta que el hotel confirme.</p>
+                            <div id="feedCancel" class="space-y-3 text-sm text-slate-400 max-h-64 overflow-y-auto">Cargando…</div>
                         </div>
                         <div class="glass-panel p-5 rounded-2xl">
                             <div class="flex items-center justify-between gap-3 mb-1">
                                 <h3 class="text-base font-bold text-white">Pedido de modificación</h3>
                                 <span id="feedModifyCount" class="px-2 py-0.5 rounded-full text-[10px] font-mono bg-violet-950 text-violet-300 border border-violet-800/50">0</span>
                             </div>
-                            <p class="text-xs text-slate-400 mb-4">Cambios pedidos al hotel, aún sin cierre. ANA hace el seguimiento.</p>
-                            <div id="feedModify" class="space-y-3 text-sm text-slate-400">Cargando…</div>
+                            <p class="text-xs text-slate-400 mb-4">Cambios pedidos al hotel, aún sin cierre.</p>
+                            <div id="feedModify" class="space-y-3 text-sm text-slate-400 max-h-64 overflow-y-auto">Cargando…</div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 glass-panel p-5 rounded-2xl">
+                            <h3 class="text-base font-bold text-white mb-4">Reservas recientes</h3>
+                            <div id="feedRecent" class="space-y-3 text-sm text-slate-400 max-h-80 overflow-y-auto">Cargando…</div>
+                        </div>
+                        <div class="glass-panel p-5 rounded-2xl">
+                            <h3 class="text-base font-bold text-white mb-3">Recomendaciones ANA</h3>
+                            <div id="feedIdeas" class="space-y-3 text-xs text-slate-300">Cargando…</div>
                         </div>
                     </div>
                 </div>
