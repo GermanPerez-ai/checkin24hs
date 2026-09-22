@@ -5,15 +5,18 @@ set -e
 cd /root/checkin24hs
 
 echo "=== 1. Repo ==="
-if [ -e ana ] || [ -e docker-compose.ana.yml ]; then
+git fetch origin
+if ! git pull origin main; then
   BAK="/root/backups/ana-$(date +%Y%m%d-%H%M%S)"
   mkdir -p "$BAK"
-  echo "   Guardando ana/ local en $BAK"
+  echo "   git pull chocó: aparto ana/ local a $BAK"
   [ -e ana ] && mv ana "$BAK/"
   [ -e docker-compose.ana.yml ] && mv docker-compose.ana.yml "$BAK/"
+  git pull origin main
 fi
-git fetch origin
-git pull origin main || git checkout origin/main -- ana docker-compose.ana.yml scripts/deploy_ana_servidor.sh
+git checkout origin/main -- ana docker-compose.ana.yml
+test -f ana/Dockerfile
+test -f ana/public/index.html
 
 echo "=== 2. Imagen ANA ==="
 docker build -f ana/Dockerfile -t easypanel/checkin24hs/ana:latest ./ana
@@ -33,6 +36,6 @@ fi
 
 echo ""
 echo "=== Comprobar HTML ==="
-sleep 3
-curl -sS -k https://ana.checkin24hs.com/ | grep -o "Pedido de anulación" | head -1 || echo "(todavía no aparece: esperá 10s y recargá con Ctrl+Shift+R)"
+sleep 8
+curl -sS -k https://ana.checkin24hs.com/ | grep -o "Pedido de anulación" | head -1 || echo "(todavía no aparece: esperá 15s y recargá con Ctrl+Shift+R)"
 echo "Listo."
