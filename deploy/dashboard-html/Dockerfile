@@ -5,7 +5,7 @@
 
 FROM node:18-alpine
 
-ARG BUILD_ID=81
+ARG BUILD_ID=272
 ARG BUILD_SOURCE=unknown
 ARG BUILD_TIME=unknown
 ENV BUILD_ID=${BUILD_ID}
@@ -25,6 +25,7 @@ COPY supabase-client.js ./
 COPY deploy/supabase-config.js ./supabase-config.js
 COPY hotel-images ./hotel-images
 COPY deploy/logo.png ./logo.png
+COPY video-pipeline ./video-pipeline
 COPY deploy/dashboard-html/server.js ./server.js
 # Imagen promocional para /og-cotizar.jpg (WhatsApp / Open Graph). Fallback: main.jpg si no existe hotel-images/hotel-images/og-preview.jpg
 COPY hotel-images/hotel-1-puyehue/main.jpg ./og-cotizar.jpg

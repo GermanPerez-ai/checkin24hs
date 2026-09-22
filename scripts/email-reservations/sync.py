@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Sync IMAP (Dovecot LOGIN) → Supabase. Huilo, Corralco, Puyehue y Aguas Calientes."""
+"""Sync IMAP → Supabase. Confirmaciones: Huilo, Corralco, Puyehue, Aguas.
+Anular/modificar: cualquier hotel del catálogo (asunto = acción + hotel + código)."""
 from __future__ import annotations
 
 import argparse
@@ -10,6 +11,7 @@ import json
 import re
 import ssl
 import sys
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -19,6 +21,7 @@ from pathlib import Path
 
 from parse_corralco import looks_corralco, parse_corralco_confirmations
 from parse_huilo import parse_huilo_confirmations, strip_html
+from parse_lifecycle import parse_lifecycle_mail
 from parse_puyehue import looks_puyehue, parse_puyehue_mail
 
 DIR = Path(__file__).resolve().parent
@@ -169,9 +172,14 @@ def _is_forbidden_hotel_name(name: str) -> bool:
     return False
 
 
+def _fold_name(name: str) -> str:
+    n = unicodedata.normalize("NFD", str(name or "").lower())
+    return "".join(c for c in n if unicodedata.category(c) != "Mn")
+
+
 def _hotel_name_ok(name: str, tokens: list[str]) -> bool:
-    n = (name or "").lower()
-    if not n or "pack" in n or _is_forbidden_hotel_name(n):
+    n = _fold_name(name)
+    if not n or "pack" in n or _is_forbidden_hotel_name(name):
         return False
     return all(t in n for t in tokens)
 
@@ -191,53 +199,107 @@ def _hotel_by_id(hotel_id: str) -> dict | None:
     return None
 
 
-def find_hotel(key: str = "huilo"):
-    """Resuelve hotel por ID canónico + nombre. Nunca usa data[0] ni Cabaña Del Lago."""
-    key = (key or "huilo").lower().replace("_web", "")
-    if key == "corralco":
-        patterns = ["*corralco*"]
-        fallback = "Corralco"
-        tokens_list = [["corralco"]]
-    elif key == "puyehue":
-        patterns = ["*puyehue*", "*termas*puyehue*"]
-        fallback = "Hotel Termas Puyehue Wellness & Spa Resort"
-        tokens_list = [["puyehue"], ["termas", "puyehue"]]
-    elif key == "aguas_calientes":
-        patterns = ["*aguas*calientes*", "*aguas calientes*"]
-        fallback = "Cabañas Termas de Aguas Calientes"
-        tokens_list = [["aguas", "calientes"]]
-    else:
-        patterns = ["*huilo*"]
-        fallback = "Huilo Huilo"
-        tokens_list = [["huilo"]]
+_KNOWN_HOTELS = {
+    "corralco": {
+        "patterns": ["*corralco*"],
+        "fallback": "Corralco",
+        "tokens_list": [["corralco"]],
+    },
+    "puyehue": {
+        "patterns": ["*puyehue*", "*termas*puyehue*"],
+        "fallback": "Hotel Termas Puyehue Wellness & Spa Resort",
+        "tokens_list": [["puyehue"], ["termas", "puyehue"]],
+    },
+    "aguas_calientes": {
+        "patterns": ["*aguas*calientes*", "*aguas calientes*"],
+        "fallback": "Cabañas Termas de Aguas Calientes",
+        "tokens_list": [["aguas", "calientes"]],
+    },
+    "huilo": {
+        "patterns": ["*huilo*"],
+        "fallback": "Huilo Huilo",
+        "tokens_list": [["huilo"]],
+    },
+}
 
-    # 1) ID fijo (más confiable que ilike)
-    by_id = _hotel_by_id(HOTEL_IDS.get(key) or "")
-    if by_id:
-        return by_id
+_HOTEL_CATALOG: list[dict] | None = None
 
-    # 2) Búsqueda por nombre
-    candidates: list[dict] = []
-    seen_ids: set[str] = set()
-    for pat in patterns:
-        q = "hotels?select=id,name&name.ilike." + urllib.parse.quote(pat, safe="") + "&limit=20"
-        data = sb("GET", q)
-        if not isinstance(data, list):
-            continue
-        for h in data:
-            hid = str(h.get("id") or "")
-            if hid and hid in seen_ids:
-                continue
-            if hid:
-                seen_ids.add(hid)
-            candidates.append(h)
 
+def hotel_catalog() -> list[dict]:
+    global _HOTEL_CATALOG
+    if _HOTEL_CATALOG is None:
+        data = sb("GET", "hotels?select=id,name&limit=1000")
+        _HOTEL_CATALOG = data if isinstance(data, list) else []
+    return _HOTEL_CATALOG
+
+
+def _tokens_from_key(key: str) -> list[str]:
+    return [t for t in re.split(r"[_\s-]+", _fold_name(key)) if len(t) >= 3]
+
+
+def _pretty_hotel_name(key: str) -> str:
+    return " ".join(w.capitalize() for w in re.split(r"[_\s-]+", key) if w) or "Hotel (revisar)"
+
+
+def _pick_hotel(candidates: list[dict], tokens_list: list[list[str]], fallback: str) -> dict | None:
     for tokens in tokens_list:
-        preferred = next((h for h in candidates if _hotel_name_ok(h.get("name") or "", tokens)), None)
-        if preferred:
-            return {"id": preferred.get("id"), "name": preferred.get("name") or fallback}
+        scored = []
+        for h in candidates:
+            name = h.get("name") or ""
+            if not _hotel_name_ok(name, tokens):
+                continue
+            folded = _fold_name(name)
+            score = 1000 * sum(len(t) for t in tokens) - len(folded)
+            scored.append((score, h))
+        if scored:
+            scored.sort(key=lambda x: x[0], reverse=True)
+            best = scored[0][1]
+            return {"id": best.get("id"), "name": best.get("name") or fallback}
+    return None
 
-    print(f"⚠️ find_hotel({key}): sin match confiable en catálogo → fallback '{fallback}' (id=null)")
+
+def find_hotel(key: str = ""):
+    """Resuelve cualquier hotel del catálogo. Nunca usa data[0] ni Cabaña Del Lago."""
+    key = hotel_lookup_key(key)
+    known = _KNOWN_HOTELS.get(key)
+    if key == "unknown":
+        return {"id": None, "name": "Hotel (revisar)"}
+
+    if known:
+        by_id = _hotel_by_id(HOTEL_IDS.get(key) or "")
+        if by_id:
+            return by_id
+        patterns = known["patterns"]
+        fallback = known["fallback"]
+        tokens_list = known["tokens_list"]
+        candidates: list[dict] = []
+        seen_ids: set[str] = set()
+        for pat in patterns:
+            q = "hotels?select=id,name&name.ilike." + urllib.parse.quote(pat, safe="") + "&limit=20"
+            data = sb("GET", q)
+            if not isinstance(data, list):
+                continue
+            for h in data:
+                hid = str(h.get("id") or "")
+                if hid and hid in seen_ids:
+                    continue
+                if hid:
+                    seen_ids.add(hid)
+                candidates.append(h)
+        picked = _pick_hotel(candidates, tokens_list, fallback)
+        if picked:
+            return picked
+        print(f"⚠️ find_hotel({key}): sin match confiable en catálogo → fallback '{fallback}' (id=null)")
+        return {"id": None, "name": fallback}
+
+    tokens = _tokens_from_key(key)
+    fallback = _pretty_hotel_name(key)
+    if not tokens:
+        return {"id": None, "name": fallback}
+    picked = _pick_hotel(hotel_catalog(), [tokens], fallback)
+    if picked:
+        return picked
+    print(f"⚠️ find_hotel({key}): sin match en catálogo → fallback '{fallback}' (id=null)")
     return {"id": None, "name": fallback}
 
 
@@ -263,7 +325,7 @@ def upsert_reservation(parsed, hotel, agent_name: str):
     hotel = dict(hotel or {})
     # Red de seguridad: nunca persistir Cabaña Del Lago / Puerto Varas fantasma
     if _is_forbidden_hotel_name(hotel.get("name") or ""):
-        lookup = hotel_lookup_key(parsed.get("hotel_key") or "puyehue")
+        lookup = hotel_lookup_key(parsed.get("hotel_key") or "")
         print(
             f"⛔ Hotel prohibido '{hotel.get('name')}' en upsert "
             f"{parsed.get('reservation_code')} → re-resolviendo ({lookup})"
@@ -318,6 +380,55 @@ def patch_reservation_agent(reservation_code: str, agent_name: str):
     )
 
 
+def patch_reservation_lifecycle(reservation_code: str, kind: str, parsed: dict | None = None, from_addr: str = ""):
+    """Pedido de ventas = Anulación/Modificación pedida. Solo el hotel cierra Cancelada/Modificada."""
+    code = str(reservation_code or "").strip()
+    if not code:
+        return {"ok": False, "reason": "sin_codigo"}
+    q = (
+        "reservations?reservation_code=eq."
+        + urllib.parse.quote(code, safe="")
+        + "&select=id,reservation_code,status,check_in,check_out,total_amount,notes"
+        + "&limit=1"
+    )
+    existing = sb("GET", q)
+    if not isinstance(existing, list) or not existing:
+        return {"ok": False, "reason": "no_existe"}
+    row = existing[0]
+    rid = row.get("id")
+    if not rid:
+        return {"ok": False, "reason": "sin_id"}
+    from_hotel = any(
+        d in (from_addr or "").lower()
+        for d in ("puyehue.cl", "huilohuilo.com", "corralco.com", "corralco.cl")
+    )
+    body = {}
+    if kind == "cancel":
+        # Mail de ventas / interno = pedido. Mail del hotel = confirmación.
+        body["status"] = "Cancelada" if from_hotel else "Anulación pedida"
+    else:
+        if from_hotel:
+            body["status"] = "Modificada"
+            parsed = parsed or {}
+            if parsed.get("check_in"):
+                body["check_in"] = parsed["check_in"]
+            if parsed.get("check_out"):
+                body["check_out"] = parsed["check_out"]
+            if parsed.get("total_amount") not in (None, "", 0, 0.0):
+                body["total_amount"] = parsed["total_amount"]
+        else:
+            body["status"] = "Modificación pedida"
+    path = "reservations?id=eq." + urllib.parse.quote(str(rid), safe="")
+    try:
+        sb("PATCH", path, body)
+    except RuntimeError as e:
+        if "updated_at" in str(e).lower():
+            sb("PATCH", path, body)
+        else:
+            raise
+    return {"ok": True, "status": body.get("status"), "fields": list(body.keys())}
+
+
 def parse_reservation_mail(from_addr, subject, text, html, msg_dt):
     mail = {
         "from": from_addr,
@@ -326,9 +437,12 @@ def parse_reservation_mail(from_addr, subject, text, html, msg_dt):
         "html": html,
         "date": msg_dt,
     }
-    blob = f"{from_addr} {subject} {text[:2000]} {(html or '')[:500]}".lower()
     if re.search(r"undeliverable|propuesta comercial|jahuel|delivery status", subject, re.I):
         return None, []
+    life = parse_lifecycle_mail(mail)
+    if life:
+        return life.get("hotel_key") or "unknown", [life]
+    blob = f"{from_addr} {subject} {text[:2000]} {(html or '')[:500]}".lower()
     if looks_puyehue(from_addr, subject, f"{text}\n{html or ''}"):
         row = parse_puyehue_mail(mail)
         if row:
@@ -366,11 +480,15 @@ def agent_for(hotel_key: str, parsed: dict | None = None, pending_agent: str = "
         return "Email Puyehue"
     if hk == "aguas_calientes":
         return "Email Aguas Calientes"
-    return "Email Huilo"
+    if hk == "huilo":
+        return "Email Huilo"
+    if hk and hk != "unknown":
+        return "Email " + _pretty_hotel_name(hk)
+    return "Email reservas"
 
 
 def hotel_lookup_key(hotel_key: str) -> str:
-    return (hotel_key or "huilo").replace("_web", "")
+    return (hotel_key or "").replace("_web", "").strip().lower() or "unknown"
 
 
 def main():
@@ -393,18 +511,24 @@ def main():
     print(f"📬 IMAP {IMAP_USER}@{IMAP_HOST}:{IMAP_PORT} mailbox={MAILBOX}")
     print(f"📅 SINCE {since_imap}{' (DRY-RUN)' if args.dry_run else ''}{' (retry skipped)' if args.retry_skipped else ''}")
 
-    hotels = {
-        "huilo": {"id": None, "name": "Huilo Huilo"},
-        "corralco": {"id": None, "name": "Hotel Corralco Resort"},
-        "puyehue": {"id": None, "name": "Hotel Termas Puyehue Wellness & Spa Resort"},
-        "aguas_calientes": {"id": None, "name": "Cabañas Termas de Aguas Calientes"},
-    }
+    hotels: dict[str, dict] = {}
+
+    def resolve_hotel(key: str) -> dict:
+        lookup = hotel_lookup_key(key)
+        if lookup not in hotels:
+            if args.dry_run:
+                hotels[lookup] = {"id": None, "name": _pretty_hotel_name(lookup)}
+            else:
+                hotels[lookup] = find_hotel(lookup)
+        return hotels[lookup]
+
     if not args.dry_run:
-        for hk in list(hotels.keys()):
-            hotels[hk] = find_hotel(hk)
+        for hk in ("huilo", "corralco", "puyehue", "aguas_calientes"):
+            resolve_hotel(hk)
     print(
-        f"🏨 Huilo: {hotels['huilo']['name']} | Corralco: {hotels['corralco']['name']} | "
-        f"Puyehue: {hotels['puyehue']['name']} | Aguas Cal.: {hotels['aguas_calientes']['name']}"
+        "🏨 Anular/modificar: cualquier hotel del catálogo "
+        "(asunto = acción + nombre + código). "
+        "Confirmaciones auto: Huilo, Corralco, Puyehue, Aguas Calientes."
     )
     if not args.dry_run:
         for hk, h in hotels.items():
@@ -442,7 +566,8 @@ def main():
             if not hotel_key:
                 continue
 
-            if not args.dry_run and already_imported(message_id, args.retry_skipped):
+            is_life = bool(parsed_list) and parsed_list[0].get("kind") in ("cancel", "modify")
+            if not args.dry_run and already_imported(message_id, args.retry_skipped) and not is_life:
                 stats["skipped"] += 1
                 continue
 
@@ -470,6 +595,33 @@ def main():
             for parsed in parsed_list:
                 kind = parsed.get("kind", "client")
                 code = parsed.get("reservation_code", "")
+                if kind in ("cancel", "modify"):
+                    tag = "🚫" if kind == "cancel" else "✏️"
+                    print(f"{tag} [{hotel_key}] {kind} {code} | {subject[:80]}")
+                    if args.dry_run:
+                        continue
+                    try:
+                        result = patch_reservation_lifecycle(code, kind, parsed, from_addr)
+                        if result.get("ok"):
+                            stats["imported"] += 1
+                            print(f"   → {result.get('status')} {code}")
+                        else:
+                            print(f"   ⚠️ no se aplicó {code}: {result.get('reason')}")
+                        mark_imported(
+                            {
+                                "message_id": message_id,
+                                "reservation_code": code,
+                                "hotel_key": hotel_key,
+                                "subject": subject,
+                                "from_addr": from_addr,
+                                "status": "imported" if result.get("ok") else "skipped",
+                                "error_detail": None if result.get("ok") else result.get("reason"),
+                            }
+                        )
+                    except Exception as e:
+                        stats["errors"] += 1
+                        print(f"❌ Error {kind} {code}: {e}")
+                    continue
                 if kind == "agency":
                     pending_agents[code] = parsed.get("agent_name") or ""
                     print(f"👤 [{hotel_key}] agente {code} → {pending_agents[code]}")
@@ -502,17 +654,19 @@ def main():
             if args.dry_run:
                 continue
             lookup = hotel_lookup_key(hotel_key)
-            hotel = hotels.get(lookup) or hotels["huilo"]
+            hotel = resolve_hotel(lookup)
             try:
                 for parsed in parsed_list:
-                    if parsed.get("kind") == "agency":
+                    if parsed.get("kind") in ("agency", "cancel", "modify"):
                         continue
                     code = parsed.get("reservation_code", "")
                     agent_name = agent_for(hotel_key, parsed, pending_agents.get(code, ""))
                     upsert_reservation(parsed, hotel, agent_name)
                     stats["imported"] += 1
                 client_codes = [
-                    p["reservation_code"] for p in parsed_list if p.get("kind") != "agency"
+                    p["reservation_code"]
+                    for p in parsed_list
+                    if p.get("kind") not in ("agency", "cancel", "modify")
                 ]
                 if client_codes:
                     mark_imported(

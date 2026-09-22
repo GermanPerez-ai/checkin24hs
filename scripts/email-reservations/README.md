@@ -2,10 +2,20 @@
 
 Lee la casilla **`reservas@checkin24hs.com`** por IMAP y carga **confirmaciones** en Supabase → Dashboard → Reservas.
 
-- **Confirmaciones Huilo:** email (este script)
-- **Modificaciones / cancelaciones Huilo:** WhatsApp (grupo Confirmaciones Huilo)
-- **Confirmaciones Corralco:** email (este script)
-- **Modificaciones / cancelaciones Corralco:** WhatsApp (grupo **Reservas Corralco Paz**)
+## Anular / modificar (cualquier hotel)
+
+Asunto: **`ANULAR RESERVA {Hotel} {código}`** o **`MODIFICAR RESERVA {Hotel} {código}`**.
+
+Vale Puyehue, Huilo, Corralco, Aguas Calientes y **cualquier otro hotel del catálogo**. El sync busca el hotel por nombre y actualiza la reserva por código (no crea una fila nueva).
+
+```
+ANULAR RESERVA Hotel Puyehue VK5LDY
+ANULAR RESERVA Huilo 600363973
+MODIFICAR RESERVA Corralco #2602640
+ANULAR RESERVA Llao Llao ABC12X
+```
+
+Consulta / info: **no** usar ANULAR ni MODIFICAR.
 - **Confirmaciones Puyehue / Termas Aguas Calientes:** email (este script)
   - Mail **cliente** → sube la reserva (nombre, email, teléfono, fechas, monto)
   - Mail **agencia** → actualiza columna Agente (`Mariano Olivar (Canopy Promociones)`)
@@ -50,10 +60,10 @@ python3 dump_unparsed.py --subject-contains="Puyehue" --since-days=90
 python3 dump_unparsed.py --subject-contains="Corralco" --since-days=90
 ```
 
-## 4. Cron (cada 6 horas)
+## 4. Cron (cada 15 minutos)
 
 ```
-0 */6 * * * cd /root/checkin24hs/scripts/email-reservations && /usr/bin/python3 sync.py --since-days=14 >> /var/log/email-reservas-huilo.log 2>&1
+*/15 * * * * cd /root/checkin24hs/scripts/email-reservations && /usr/bin/python3 sync.py --since-days=14 >> /var/log/email-reservas-huilo.log 2>&1
 ```
 
 El mismo cron cubre Huilo, Corralco, Puyehue y Aguas Calientes.

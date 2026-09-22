@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-09-12T19:39:32Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 270; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-09-22T16:01:57Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 273; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -201,6 +201,9 @@
                     }
                     if (section === 'tarjetas') {
                         setTimeout(function() { if (typeof loadTarjetasDigitales === 'function') loadTarjetasDigitales(); }, 200);
+                    }
+                    if (section === 'videos-ia') {
+                        setTimeout(function() { if (typeof initVideosIa === 'function') initVideosIa(); }, 200);
                     }
                     if (section === 'newsletter') {
                         setTimeout(function() { if (typeof loadNewsletter === 'function') loadNewsletter(); }, 200);
@@ -695,6 +698,144 @@
 
         .form-button.secondary:hover {
             background-color: #e0e0e0;
+        }
+
+        .form-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .videos-ia-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 280px;
+            gap: 20px;
+            margin-bottom: 24px;
+            align-items: start;
+        }
+        .videos-ia-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .videos-ia-card h3 {
+            margin: 0 0 16px;
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #333;
+        }
+        .videos-ia-field {
+            margin-bottom: 12px;
+        }
+        .videos-ia-field label {
+            display: block;
+            font-size: 0.85rem;
+            color: #555;
+            margin-bottom: 6px;
+        }
+        .videos-ia-field input,
+        .videos-ia-field select,
+        .videos-ia-field textarea {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 0.95rem;
+        }
+        .videos-ia-duration {
+            display: flex;
+            gap: 8px;
+        }
+        .videos-ia-duration button {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            background: #f5f5f5;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .videos-ia-duration button.active {
+            background: #1976d2;
+            color: #fff;
+            border-color: #1976d2;
+        }
+        .videos-ia-phone {
+            width: 220px;
+            height: 390px;
+            margin: 0 auto 12px;
+            border-radius: 28px;
+            overflow: hidden;
+            background: #111;
+            position: relative;
+            border: 8px solid #1f1f1f;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        }
+        .videos-ia-phone img,
+        .videos-ia-phone .videos-ia-phone-fallback {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .videos-ia-phone-fallback {
+            background: linear-gradient(180deg, #1565c0, #0d47a1);
+        }
+        .videos-ia-overlay {
+            position: absolute;
+            left: 12px;
+            right: 12px;
+            top: 42%;
+            color: #fff;
+            font-weight: 700;
+            font-size: 1.15rem;
+            text-align: center;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.7);
+            letter-spacing: 0.04em;
+        }
+        .videos-ia-cta-bar {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding: 10px 12px 16px;
+            background: linear-gradient(transparent, rgba(0,0,0,0.75));
+            color: #fff;
+            font-size: 0.75rem;
+            text-align: center;
+        }
+        .videos-ia-status {
+            display: inline-block;
+            font-size: 0.75rem;
+            padding: 3px 8px;
+            border-radius: 999px;
+            background: #e3f2fd;
+            color: #1565c0;
+            margin-bottom: 10px;
+        }
+        .videos-ia-status.ready { background: #e8f5e9; color: #2e7d32; }
+        .videos-ia-status.warn { background: #fff8e1; color: #f57f17; }
+        .videos-ia-matrix {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.88rem;
+        }
+        .videos-ia-matrix th {
+            background: #e3f2fd;
+            text-align: left;
+            padding: 10px;
+            border-bottom: 2px solid #bbdefb;
+        }
+        .videos-ia-matrix td {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            vertical-align: top;
+        }
+        @media (max-width: 900px) {
+            .videos-ia-layout {
+                grid-template-columns: 1fr;
+            }
         }
 
         /* Table Styles */
@@ -1961,6 +2102,42 @@
             font-weight: 500;
         }
 
+        .status-anulacion-pedida {
+            background-color: #ef6c00;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-modificacion-pedida {
+            background-color: #6a1b9a;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-en-gestion {
+            background-color: #455a64;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-no-show {
+            background-color: #37474f;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
         /* Estilos para el modal de edición de reservas */
         .form-grid {
             display: grid;
@@ -2311,7 +2488,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">270</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">273</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -2358,6 +2535,10 @@
             <a href="#" class="menu-item" onclick="window.showSection('flor-config', event)">
                 <span class="material-icons">smart_toy</span>
                 Flor IA
+            </a>
+            <a href="#" class="menu-item" onclick="window.showSection('videos-ia', event)">
+                <span class="material-icons">movie</span>
+                Videos IA
             </a>
             <a href="#" class="menu-item" onclick="window.showSection('banners', event)">
                 <span class="material-icons">view_carousel</span>
@@ -3876,6 +4057,412 @@
 
 
             <!-- Newsletter (suscriptores web) -->
+            <div id="videos-ia-section" style="display: none;">
+                <h2 class="page-title">Videos IA</h2>
+                <p style="color:#666;margin-bottom:16px;">
+                    Guiones 9:16 para Reels / TikTok / Shorts. El MP4 automático pide ElevenLabs + Creatomate cuando estén las keys.
+                    Tabla histórica: migración <code>085_video_scripts.sql</code>.
+                </p>
+                <div class="videos-ia-layout">
+                    <div class="videos-ia-card">
+                        <h3>Nuevo video</h3>
+                        <div class="videos-ia-field">
+                            <label for="videosIaHotel">Hotel / destino</label>
+                            <select id="videosIaHotel">
+                                <option value="">Cargando hoteles…</option>
+                            </select>
+                        </div>
+                        <div class="videos-ia-field">
+                            <label for="videosIaAngulo">Ángulo de venta</label>
+                            <input id="videosIaAngulo" type="text" placeholder="Ej. escapada termal de 3 noches">
+                        </div>
+                        <div class="videos-ia-field">
+                            <label>Duración</label>
+                            <div class="videos-ia-duration">
+                                <button type="button" id="videosIaDur15" onclick="window.setVideosIaDuration(15)">15s</button>
+                                <button type="button" id="videosIaDur30" class="active" onclick="window.setVideosIaDuration(30)">30s</button>
+                            </div>
+                        </div>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;">
+                            <button type="button" class="form-button secondary" onclick="window.generateVideosIaScript()">Generar guion</button>
+                            <button type="button" class="form-button" onclick="window.generateVideosIaVideo()">Generar video MP4</button>
+                            <button type="button" class="form-button secondary" onclick="window.exportVideosIaScript()">Exportar JSON</button>
+                        </div>
+                        <p id="videosIaMsg" style="margin:12px 0 0;font-size:0.88rem;color:#666;"></p>
+                    </div>
+                    <div class="videos-ia-card" style="text-align:center;">
+                        <span class="videos-ia-status" id="videosIaStatus">Sin guion</span>
+                        <div class="videos-ia-phone" id="videosIaPhone">
+                            <div class="videos-ia-phone-fallback" id="videosIaPhoneBg"></div>
+                            <img id="videosIaPhoneImg" alt="" style="display:none;position:absolute;inset:0;width:100%;height:100%;object-fit:cover;">
+                            <div class="videos-ia-overlay" id="videosIaOverlay">CHECKIN24HS</div>
+                            <div class="videos-ia-cta-bar" id="videosIaCtaBar">Reservá en checkin24hs.com</div>
+                        </div>
+                        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+                            <button type="button" class="form-button secondary" onclick="window.playVideosIaLocucion()">
+                                <span class="material-icons" style="font-size:18px;margin-right:4px;">play_arrow</span>
+                                Escuchar locución
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="videos-ia-card" style="margin-bottom:20px;">
+                    <h3>Matriz técnica del guión</h3>
+                    <div style="overflow-x:auto;">
+                        <table class="videos-ia-matrix">
+                            <thead>
+                                <tr>
+                                    <th>Tiempo</th>
+                                    <th>Locución (VO)</th>
+                                    <th>B-Roll</th>
+                                    <th>Overlay</th>
+                                    <th>CTA</th>
+                                </tr>
+                            </thead>
+                            <tbody id="videosIaMatrixBody">
+                                <tr><td colspan="5" style="color:#999;padding:16px;">Generá un guion para ver las escenas.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="videos-ia-card">
+                    <h3>Histórico</h3>
+                    <div style="overflow-x:auto;">
+                        <table class="videos-ia-matrix">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Hotel</th>
+                                    <th>Ángulo</th>
+                                    <th>Duración</th>
+                                    <th>Origen</th>
+                                </tr>
+                            </thead>
+                            <tbody id="videosIaHistoryBody">
+                                <tr><td colspan="5" style="color:#999;padding:16px;">Sin registros todavía.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <script>
+            (function() {
+                var duration = 30;
+                var lastPayload = null;
+                var overlayTimer = null;
+                var hotelsCache = [];
+
+                function $(id) { return document.getElementById(id); }
+
+                function setMsg(text, isError) {
+                    var el = $('videosIaMsg');
+                    if (!el) return;
+                    el.textContent = text || '';
+                    el.style.color = isError ? '#c62828' : '#666';
+                }
+
+                function setStatus(text, kind) {
+                    var el = $('videosIaStatus');
+                    if (!el) return;
+                    el.textContent = text;
+                    el.className = 'videos-ia-status' + (kind ? ' ' + kind : '');
+                }
+
+                function esc(s) {
+                    return String(s == null ? '' : s)
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;');
+                }
+
+                window.setVideosIaDuration = function(sec) {
+                    duration = sec === 15 ? 15 : 30;
+                    var b15 = $('videosIaDur15');
+                    var b30 = $('videosIaDur30');
+                    if (b15) b15.classList.toggle('active', duration === 15);
+                    if (b30) b30.classList.toggle('active', duration === 30);
+                };
+
+                async function loadHotelOptions() {
+                    var sel = $('videosIaHotel');
+                    if (!sel) return;
+                    var hotels = [];
+                    try {
+                        if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                            hotels = await window.supabaseClient.getHotels();
+                        }
+                    } catch (e) {
+                        console.warn('Videos IA hoteles:', e);
+                    }
+                    if (!hotels.length) {
+                        try { hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]'); } catch (_) { hotels = []; }
+                    }
+                    hotelsCache = hotels || [];
+                    sel.innerHTML = '<option value="">-- Seleccioná un hotel --</option>';
+                    hotelsCache.forEach(function(h) {
+                        var opt = document.createElement('option');
+                        opt.value = String(h.id);
+                        opt.textContent = h.name || h.nombre || 'Hotel';
+                        sel.appendChild(opt);
+                    });
+                }
+
+                async function selectedHotel() {
+                    var sel = $('videosIaHotel');
+                    var id = sel && sel.value;
+                    if (!id) return null;
+                    if (window.supabaseClient && typeof window.supabaseClient.getHotelById === 'function') {
+                        try {
+                            var full = await window.supabaseClient.getHotelById(id);
+                            if (full) return full;
+                        } catch (_) {}
+                    }
+                    return hotelsCache.find(function(h) { return String(h.id) === String(id); }) || null;
+                }
+
+                function hotelImage(h) {
+                    if (!h) return '';
+                    if (h.imagen_principal) return h.imagen_principal;
+                    if (Array.isArray(h.images) && h.images[0]) {
+                        var first = h.images[0];
+                        return typeof first === 'string' ? first : (first.url || first.src || '');
+                    }
+                    if (Array.isArray(h.galeria_fotos) && h.galeria_fotos[0]) {
+                        var g = h.galeria_fotos[0];
+                        return typeof g === 'string' ? g : (g.url || '');
+                    }
+                    return '';
+                }
+
+                function renderMatrix(script) {
+                    var body = $('videosIaMatrixBody');
+                    if (!body) return;
+                    var escenas = (script && script.escenas) || [];
+                    if (!escenas.length) {
+                        body.innerHTML = '<tr><td colspan="5" style="color:#999;padding:16px;">Generá un guion para ver las escenas.</td></tr>';
+                        return;
+                    }
+                    body.innerHTML = escenas.map(function(e, i) {
+                        var cta = (i === escenas.length - 1) ? esc(script.cta || '') : '';
+                        return '<tr>' +
+                            '<td style="white-space:nowrap;font-weight:600;">' + esc(e.tiempo) + '</td>' +
+                            '<td>' + esc(e.locucion) + '</td>' +
+                            '<td>' + esc(e.broll) + '</td>' +
+                            '<td>' + esc(e.overlay) + '</td>' +
+                            '<td>' + cta + '</td>' +
+                            '</tr>';
+                    }).join('');
+                }
+
+                function startOverlayCycle(script, imageUrl) {
+                    var img = $('videosIaPhoneImg');
+                    var bg = $('videosIaPhoneBg');
+                    var overlay = $('videosIaOverlay');
+                    var cta = $('videosIaCtaBar');
+                    if (cta) cta.textContent = (script && script.cta) || 'Reservá en checkin24hs.com';
+                    if (imageUrl && img) {
+                        img.src = imageUrl;
+                        img.style.display = 'block';
+                        if (bg) bg.style.display = 'none';
+                    }
+                    var escenas = (script && script.escenas) || [];
+                    if (!escenas.length || !overlay) return;
+                    var i = 0;
+                    overlay.textContent = escenas[0].overlay || escenas[0].locucion || 'CHECKIN24HS';
+                    if (overlayTimer) clearInterval(overlayTimer);
+                    overlayTimer = setInterval(function() {
+                        i = (i + 1) % escenas.length;
+                        overlay.textContent = escenas[i].overlay || escenas[i].locucion || '';
+                    }, 2800);
+                }
+
+                async function saveLocalHistory(row) {
+                    try {
+                        if (!window.supabaseClient || !window.supabaseClient.isInitialized() || !window.supabaseClient.client) return;
+                        await window.supabaseClient.client.from('video_scripts').insert([{
+                            hotel_id: row.hotel_id || null,
+                            hotel_name: row.hotel_name || '',
+                            angulo: row.angulo || '',
+                            duracion_s: row.duracion_s || 30,
+                            script: row.script || {},
+                            source: row.source || 'template'
+                        }]);
+                    } catch (e) {
+                        console.warn('Videos IA histórico:', e);
+                    }
+                }
+
+                async function loadHistory() {
+                    var body = $('videosIaHistoryBody');
+                    if (!body) return;
+                    try {
+                        if (!window.supabaseClient || !window.supabaseClient.client) return;
+                        var res = await window.supabaseClient.client
+                            .from('video_scripts')
+                            .select('created_at,hotel_name,angulo,duracion_s,source')
+                            .order('created_at', { ascending: false })
+                            .limit(12);
+                        if (res.error) {
+                            body.innerHTML = '<tr><td colspan="5" style="color:#999;padding:16px;">Ejecutá la migración 085_video_scripts.sql en Supabase.</td></tr>';
+                            return;
+                        }
+                        var rows = res.data || [];
+                        if (!rows.length) {
+                            body.innerHTML = '<tr><td colspan="5" style="color:#999;padding:16px;">Sin registros todavía.</td></tr>';
+                            return;
+                        }
+                        body.innerHTML = rows.map(function(r) {
+                            var d = r.created_at ? new Date(r.created_at).toLocaleString('es-AR') : '';
+                            return '<tr><td>' + esc(d) + '</td><td>' + esc(r.hotel_name) + '</td><td>' + esc(r.angulo) + '</td><td>' + esc(r.duracion_s) + 's</td><td>' + esc(r.source) + '</td></tr>';
+                        }).join('');
+                    } catch (_) {
+                        body.innerHTML = '<tr><td colspan="5" style="color:#999;padding:16px;">Ejecutá la migración 085_video_scripts.sql en Supabase.</td></tr>';
+                    }
+                }
+
+                async function requestGenerate(path) {
+                    var hotel = await selectedHotel();
+                    var angulo = ($('videosIaAngulo') && $('videosIaAngulo').value || '').trim();
+                    if (!hotel && !angulo) {
+                        setMsg('Elegí un hotel o escribí un ángulo de venta.', true);
+                        return null;
+                    }
+                    var slim = hotel ? {
+                        id: hotel.id,
+                        name: hotel.name || hotel.nombre,
+                        ciudad: hotel.ciudad,
+                        region: hotel.region,
+                        pais: hotel.pais,
+                        location: hotel.location,
+                        description: hotel.description,
+                        ficha_web: hotel.ficha_web,
+                        imagen_principal: hotel.imagen_principal,
+                        images: Array.isArray(hotel.images) ? hotel.images.slice(0, 3) : hotel.images,
+                        galeria_fotos: Array.isArray(hotel.galeria_fotos) ? hotel.galeria_fotos.slice(0, 3) : hotel.galeria_fotos
+                    } : null;
+                    var body = {
+                        hotel_id: hotel && hotel.id,
+                        hotel_name: hotel && (hotel.name || hotel.nombre),
+                        hotel: slim,
+                        angulo: angulo,
+                        duracion_s: duration
+                    };
+                    var res = await fetch(path, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+                    var data = await res.json().catch(function() { return {}; });
+                    if (!res.ok || data.ok === false) {
+                        throw new Error(data.error || ('HTTP ' + res.status));
+                    }
+                    data._hotel = hotel;
+                    data.angulo = angulo;
+                    data.duracion_s = duration;
+                    return data;
+                }
+
+                function applyScriptResult(data, kind) {
+                    lastPayload = data;
+                    renderMatrix(data.script);
+                    var img = data.image_url || hotelImage(data._hotel);
+                    startOverlayCycle(data.script, img);
+                    var src = data.source === 'template' ? 'Plantilla (sin LLM o fallback)' : ('IA · ' + data.source);
+                    if (kind === 'video') {
+                        if (data.status === 'needs_keys') {
+                            setStatus('Guión listo · falta MP4', 'warn');
+                            setMsg(data.message || 'Configurá ElevenLabs y Creatomate para el render.');
+                        } else {
+                            setStatus('Listo', 'ready');
+                            setMsg('Video en proceso o listo.');
+                        }
+                    } else {
+                        setStatus(src, data.source === 'template' ? 'warn' : 'ready');
+                        setMsg(data.llmError ? 'Se usó una plantilla de guía (Gemini no respondió). El guión igual quedó listo.' : 'Guión generado.');
+                    }
+                    var persist = data.id
+                        ? Promise.resolve()
+                        : saveLocalHistory({
+                            hotel_id: data.hotel_id,
+                            hotel_name: data.hotel_name,
+                            angulo: data.angulo,
+                            duracion_s: data.duracion_s,
+                            script: data.script,
+                            source: data.source
+                        });
+                    persist.then(loadHistory);
+                }
+
+                window.generateVideosIaScript = async function() {
+                    setMsg('Generando guion…');
+                    setStatus('Generando…');
+                    try {
+                        var data = await requestGenerate('/api/videos/generate-script');
+                        if (data) applyScriptResult(data, 'script');
+                    } catch (e) {
+                        setMsg('No se pudo generar: ' + (e.message || e), true);
+                        setStatus('Error', 'warn');
+                    }
+                };
+
+                window.generateVideosIaVideo = async function() {
+                    setMsg('Armando guion y pidiendo render…');
+                    setStatus('Render…');
+                    try {
+                        var data = await requestGenerate('/api/videos/generate-video');
+                        if (data) applyScriptResult(data, 'video');
+                    } catch (e) {
+                        setMsg('No se pudo iniciar el video: ' + (e.message || e), true);
+                        setStatus('Error', 'warn');
+                    }
+                };
+
+                window.playVideosIaLocucion = function() {
+                    var text = lastPayload && lastPayload.locucion_completa;
+                    if (!text && lastPayload && lastPayload.script) {
+                        text = (lastPayload.script.escenas || []).map(function(e) { return e.locucion; }).join(' ');
+                    }
+                    if (!text) {
+                        setMsg('Generá un guion primero.', true);
+                        return;
+                    }
+                    if (!window.speechSynthesis) {
+                        setMsg('Este navegador no puede leer en voz alta.', true);
+                        return;
+                    }
+                    window.speechSynthesis.cancel();
+                    var u = new SpeechSynthesisUtterance(text);
+                    u.lang = 'es-AR';
+                    u.rate = 1;
+                    window.speechSynthesis.speak(u);
+                };
+
+                window.exportVideosIaScript = function() {
+                    if (!lastPayload || !lastPayload.script) {
+                        setMsg('Generá un guion primero.', true);
+                        return;
+                    }
+                    var blob = new Blob([JSON.stringify(lastPayload.script, null, 2)], { type: 'application/json' });
+                    var a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'guion-' + (lastPayload.hotel_name || 'video').replace(/\s+/g, '-').toLowerCase() + '.json';
+                    a.click();
+                    setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+                };
+
+                window.initVideosIa = function() {
+                    loadHotelOptions();
+                    loadHistory();
+                    fetch('/api/videos/capabilities').then(function(r) { return r.json(); }).then(function(d) {
+                        if (d && d.capabilities && !d.capabilities.llm) {
+                            setMsg('Sin GEMINI_API_KEY / OPENAI_API_KEY en el servidor: se usa plantilla de guion.');
+                        }
+                    }).catch(function() {});
+                };
+            })();
+            </script>
+
             <div id="newsletter-section" style="display: none;">
                 <h2 class="page-title">✉️ Newsletter</h2>
                 <p style="color: #666; margin-bottom: 16px;">Emails que se suscribieron desde checkin24hs.com. Exportá el CSV para enviar campañas (Gmail, Brevo, etc.).</p>
@@ -4291,6 +4878,17 @@
                             </div>
                         </div>
                     </div>
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <div class="stat-icon" style="background-color: #ef6c00;">
+                                <span class="material-icons">hourglass_top</span>
+                            </div>
+                            <div class="stat-info">
+                                <h3 id="pendingHotelReservations">0</h3>
+                                <p>Pedidos al hotel</p>
+                            </div>
+                        </div>
+                    </div>
                     <div class="stat-card" style="cursor: pointer;" onclick="showTotalRevenueModal()">
                         <div class="stat-header">
                             <div class="stat-icon" style="background-color: #9c27b0;">
@@ -4342,10 +4940,14 @@
                                 style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;"
                                 onchange="applyReservationFilters()">
                                 <option value="">Todos</option>
-                                <option value="CONFIRMADA">Confirmada</option>
+                                <option value="Confirmada">Confirmada</option>
                                 <option value="Modificada">Modificada</option>
-                                <option value="CANCELADA">Cancelada</option>
-                                <option value="PENDIENTE">Pendiente</option>
+                                <option value="Cancelada">Cancelada</option>
+                                <option value="Anulación pedida">Anulación pedida</option>
+                                <option value="Modificación pedida">Modificación pedida</option>
+                                <option value="En gestión">En gestión</option>
+                                <option value="No show">No show</option>
+                                <option value="Pendiente">Pendiente</option>
                             </select>
                         </div>
                         <div>
@@ -4422,7 +5024,7 @@
             <div class="modal-header">
                 <h2 id="editReservationTitle">Modificar Reserva</h2>
             </div>
-            <form id="editReservationForm" onsubmit="saveReservationChanges(event)">
+            <form id="editReservationForm" onsubmit="event.preventDefault(); openHotelActionMail('modificar'); return false;">
                 <div class="form-grid">
                     <!-- Información del Cliente -->
                     <div class="form-section">
@@ -4496,12 +5098,49 @@
                     </div>
                 </div>
 
-                <div class="modal-footer">
+                <div class="modal-footer" style="flex-wrap: wrap; gap: 8px; align-items: stretch;">
                     <button type="button" onclick="closeEditReservationModal()" class="btn btn-secondary">Salir</button>
-                    <button type="button" onclick="cancelReservation()" class="btn btn-secondary" style="background: #dc3545; color: white;">Cancelar Reserva</button>
-                    <button type="submit" class="btn btn-primary">Modificar Reserva</button>
+                    <button type="button" onclick="openHotelActionMail('anular')" class="btn" style="background: #ef6c00; color: white;">Pedir anulación</button>
+                    <button type="button" onclick="openHotelActionMail('modificar')" class="btn" style="background: #6a1b9a; color: white;">Pedir modificación</button>
+                    <button type="button" onclick="openHotelActionMail('consulta')" class="btn" style="background: #455a64; color: white;">Consulta al hotel</button>
+                    <button type="submit" class="btn btn-primary" style="display: none;">Guardar</button>
+                </div>
+                <div style="padding: 0 4px 12px; display: flex; flex-wrap: wrap; gap: 8px;">
+                    <span style="width: 100%; font-size: 12px; color: #666;">Cuando el hotel responda (no antes):</span>
+                    <button type="button" onclick="resolveHotelResponse('Cancelada')" class="btn btn-secondary" style="background: #c62828; color: white;">Hotel confirmó anulación</button>
+                    <button type="button" onclick="resolveHotelResponse('Modificada')" class="btn btn-secondary" style="background: #1565c0; color: white;">Hotel confirmó modificación</button>
+                    <button type="button" onclick="resolveHotelResponse('No show')" class="btn btn-secondary" style="background: #37474f; color: white;">No show</button>
+                    <button type="button" onclick="resolveHotelResponse('En gestión')" class="btn btn-secondary">En gestión</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Pedido al hotel (mail) -->
+    <div id="hotelActionMailModal" class="modal" style="display: none; z-index: 1200;">
+        <div class="modal-content" style="max-width: 640px; width: 92%; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h2 id="hotelActionMailTitle">Pedido al hotel</h2>
+            </div>
+            <p id="hotelActionMailHint" style="margin: 0 0 12px; color: #555; font-size: 13px;">
+                Esto manda un pedido. La reserva <strong>no</strong> queda cancelada ni modificada hasta que el hotel confirme.
+            </p>
+            <div class="form-group" style="margin-bottom: 10px;">
+                <label for="hotelActionMailTo">Para (hotel)</label>
+                <input type="text" id="hotelActionMailTo" placeholder="reservas@hotel.com" style="width: 100%; padding: 8px;">
+            </div>
+            <div class="form-group" style="margin-bottom: 10px;">
+                <label for="hotelActionMailSubject">Asunto</label>
+                <input type="text" id="hotelActionMailSubject" style="width: 100%; padding: 8px;">
+            </div>
+            <div class="form-group" style="margin-bottom: 10px;">
+                <label for="hotelActionMailBody">Mensaje</label>
+                <textarea id="hotelActionMailBody" rows="12" style="width: 100%; padding: 8px; font-family: inherit;"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" onclick="closeHotelActionMailModal()" class="btn btn-secondary">Cancelar</button>
+                <button type="button" onclick="sendHotelActionMail()" class="btn btn-primary" id="hotelActionMailSendBtn">Enviar pedido</button>
+            </div>
         </div>
     </div>
 
@@ -8694,6 +9333,7 @@ Ej:
                 interactions: 'Interacciones',
                 chats: 'Chats',
                 'flor-config': 'Flor IA',
+                'videos-ia': 'Videos IA',
                 banners: 'Banners del sitio',
                 novedades: 'Novedades',
                 testimonios: 'Testimonios',
@@ -24768,7 +25408,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         </div>
                     </td>
                     <td style="text-align: center;">
-                        <span class="status-${status.toLowerCase()}">${status}</span>
+                        <span class="status-${reservationStatusSlug(status)}">${status}</span>
                     </td>
                     <td style="text-align: center;">
                         <strong>$${Number(totalAmount).toLocaleString()}</strong>
@@ -24849,8 +25489,16 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }
             
             if (canceledReservationsElement) {
-                const canceled = reservations.filter(r => norm(r.status) === 'cancelada').length;
+                const canceled = reservations.filter(r => foldReservationStatus(r.status) === 'cancelada').length;
                 canceledReservationsElement.textContent = canceled;
+            }
+            const pendingHotelEl = document.getElementById('pendingHotelReservations');
+            if (pendingHotelEl) {
+                const pendingHotel = reservations.filter(r => {
+                    const s = foldReservationStatus(r.status);
+                    return s === 'anulacion pedida' || s === 'modificacion pedida' || s === 'en gestion';
+                }).length;
+                pendingHotelEl.textContent = pendingHotel;
             }
             
             if (futureReservationsCountElement) {
@@ -24863,7 +25511,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 };
                 const futureReservations = reservations.filter(reservation => {
                     const status = reservation.status || '';
-                    if (norm(status) === 'cancelada') return false;
+                    if (foldReservationStatus(status) === 'cancelada' || foldReservationStatus(status) === 'no show') return false;
                     const rawCheckIn = reservation.checkIn || reservation.check_in;
                     if (!rawCheckIn) return false;
                     const checkInDate = normalizeDate(rawCheckIn);
@@ -24902,7 +25550,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             
             const normStatus = (s) => (s || '').toString().toLowerCase();
             const futureReservations = reservations.filter(reservation => {
-                if (normStatus(reservation.status) === 'cancelada') return false;
+                if (normStatus(reservation.status) === 'cancelada' || foldReservationStatus(reservation.status) === 'no show') return false;
                 const rawCheckIn = reservation.checkIn || reservation.check_in;
                 if (!rawCheckIn) return false;
                 const checkInDate = normalizeDate(rawCheckIn);
@@ -26069,6 +26717,259 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             console.log('✅ Modal de nueva reserva abierto');
         }
 
+        function reservationStatusSlug(status) {
+            return String(status || 'pendiente')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9]+/g, '-')
+                .replace(/^-|-$/g, '') || 'pendiente';
+        }
+
+        function foldReservationStatus(status) {
+            return String(status || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .trim();
+        }
+
+        function reservationStatusBadgeStyle(status) {
+            const s = foldReservationStatus(status);
+            const map = {
+                confirmada: ['#e8f5e9', '#2e7d32'],
+                cancelada: ['#ffebee', '#c62828'],
+                modificada: ['#e3f2fd', '#1565c0'],
+                'anulacion pedida': ['#fff3e0', '#ef6c00'],
+                'modificacion pedida': ['#f3e5f5', '#6a1b9a'],
+                'en gestion': ['#eceff1', '#455a64'],
+                'no show': ['#eceff1', '#37474f']
+            };
+            const c = map[s] || ['#fff8e1', '#e65100'];
+            return 'background: ' + c[0] + '; color: ' + c[1];
+        }
+
+        function defaultHotelReservasEmail(hotelName) {
+            const n = foldReservationStatus(hotelName);
+            if (n.includes('huilo')) return 'paz.galvez@huilohuilo.com';
+            if (n.includes('corralco')) return 'reservas@corralco.com';
+            if (n.includes('puyehue') || n.includes('aguas')) return 'reservas@puyehue.cl';
+            return '';
+        }
+
+        function currentEditReservationSnapshot() {
+            const form = document.getElementById('editReservationForm');
+            const id = form && form.dataset.reservationId;
+            const hotelSel = document.getElementById('editHotelSelect');
+            const hotelName = (hotelSel && hotelSel.options[hotelSel.selectedIndex] && hotelSel.options[hotelSel.selectedIndex].text) || '';
+            return {
+                id,
+                clientName: document.getElementById('editClientName')?.value || '',
+                clientEmail: document.getElementById('editClientEmail')?.value || '',
+                clientPhone: document.getElementById('editClientPhone')?.value || '',
+                hotelName,
+                code: document.getElementById('editReservationCode')?.value || '',
+                checkIn: document.getElementById('editCheckIn')?.value || '',
+                checkOut: document.getElementById('editCheckOut')?.value || '',
+                totalAmount: document.getElementById('editTotalAmount')?.value || '',
+                agentName: document.getElementById('editAgentSelect')?.value || ''
+            };
+        }
+
+        function buildHotelActionSubject(kind, snap) {
+            const hotel = snap.hotelName || 'Hotel';
+            const code = snap.code || '';
+            if (kind === 'anular') return 'ANULAR RESERVA ' + hotel + ' ' + code;
+            if (kind === 'modificar') return 'MODIFICAR RESERVA ' + hotel + ' ' + code;
+            return 'CONSULTA ' + hotel + ' ' + code;
+        }
+
+        function buildHotelActionBody(kind, snap) {
+            const lines = [
+                'Hola,',
+                '',
+                kind === 'anular'
+                    ? 'Solicitamos anular la siguiente reserva. Quedamos a la espera de su confirmación según política del hotel.'
+                    : kind === 'modificar'
+                    ? 'Solicitamos modificar la siguiente reserva. Quedamos a la espera de su confirmación (disponibilidad / política).'
+                    : 'Consulta sobre la siguiente reserva. No es anulación ni modificación.',
+                '',
+                'Hotel: ' + (snap.hotelName || ''),
+                'Código Checkin24hs: ' + (snap.code || ''),
+                'Huésped: ' + (snap.clientName || ''),
+                'Email huésped: ' + (snap.clientEmail || ''),
+                'Teléfono: ' + (snap.clientPhone || ''),
+                'Check-in: ' + (snap.checkIn || ''),
+                'Check-out: ' + (snap.checkOut || ''),
+                'Tarifa (USD): ' + (snap.totalAmount || ''),
+                snap.agentName ? ('Agente: ' + snap.agentName) : '',
+                '',
+                'Por favor confirmen si es posible. Si no se puede anular y corresponde no-show, indíquennos.',
+                '',
+                'Saludos,',
+                'Checkin24hs — reservas@checkin24hs.com'
+            ];
+            return lines.filter((l, i) => l !== '' || i === 1).join('\n');
+        }
+
+        function closeHotelActionMailModal() {
+            const m = document.getElementById('hotelActionMailModal');
+            if (m) m.style.display = 'none';
+        }
+
+        function openHotelActionMail(kind) {
+            const snap = currentEditReservationSnapshot();
+            if (!snap.id || !snap.code) {
+                alert('Abrí primero la reserva (Editar) para pedir al hotel.');
+                return;
+            }
+            window._hotelActionKind = kind;
+            window._hotelActionSnap = snap;
+            const titles = {
+                anular: 'Pedir anulación al hotel',
+                modificar: 'Pedir modificación al hotel',
+                consulta: 'Consulta al hotel'
+            };
+            document.getElementById('hotelActionMailTitle').textContent = titles[kind] || 'Pedido al hotel';
+            document.getElementById('hotelActionMailTo').value = defaultHotelReservasEmail(snap.hotelName);
+            document.getElementById('hotelActionMailSubject').value = buildHotelActionSubject(kind, snap);
+            document.getElementById('hotelActionMailBody').value = buildHotelActionBody(kind, snap);
+            document.getElementById('hotelActionMailModal').style.display = 'block';
+        }
+
+        async function patchReservationStatus(reservationId, updates) {
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                await window.supabaseClient.updateReservation(reservationId, updates);
+                return;
+            }
+            const reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+            const idx = reservations.findIndex(r => r.id === reservationId || r.id == reservationId);
+            if (idx === -1) throw new Error('Reserva no encontrada');
+            Object.assign(reservations[idx], updates);
+            localStorage.setItem('reservationsDB', JSON.stringify(reservations));
+        }
+
+        async function sendHotelActionMail() {
+            const kind = window._hotelActionKind;
+            const snap = window._hotelActionSnap || currentEditReservationSnapshot();
+            const to = (document.getElementById('hotelActionMailTo').value || '').trim();
+            const subject = (document.getElementById('hotelActionMailSubject').value || '').trim();
+            const text = (document.getElementById('hotelActionMailBody').value || '').trim();
+            if (!to || !to.includes('@')) {
+                alert('Completá el email del hotel.');
+                return;
+            }
+            if (!subject || !text) {
+                alert('Asunto y mensaje no pueden estar vacíos.');
+                return;
+            }
+            const btn = document.getElementById('hotelActionMailSendBtn');
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = 'Enviando…';
+            }
+            try {
+                const res = await fetch('/api/hotel-mail', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        kind,
+                        to,
+                        subject,
+                        text,
+                        code: snap.code,
+                        replyTo: 'reservas@checkin24hs.com'
+                    })
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok || !data.ok) {
+                    throw new Error(data.error || ('HTTP ' + res.status));
+                }
+                const stamp = new Date().toISOString();
+                const pedidoLine = '[PEDIDO ' + kind + ' ' + stamp + '] para=' + to + ' check_in=' + snap.checkIn + ' check_out=' + snap.checkOut + ' total=' + snap.totalAmount;
+                let notes = '';
+                try {
+                    const all = window.supabaseClient && window.supabaseClient.isInitialized()
+                        ? await window.supabaseClient.getReservations()
+                        : JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+                    const cur = (all || []).find(r => r.id === snap.id || r.id == snap.id);
+                    notes = (cur && (cur.notes || '')) || '';
+                } catch (_) {}
+                const updates = {
+                    notes: (notes ? notes + '\n' : '') + pedidoLine,
+                    updated_at: stamp
+                };
+                if (kind === 'anular') updates.status = 'Anulación pedida';
+                if (kind === 'modificar') updates.status = 'Modificación pedida';
+                try {
+                    await patchReservationStatus(snap.id, updates);
+                } catch (e) {
+                    if (updates.notes) {
+                        delete updates.notes;
+                        await patchReservationStatus(snap.id, updates);
+                    } else {
+                        throw e;
+                    }
+                }
+                closeHotelActionMailModal();
+                closeEditReservationModal();
+                loadReservationsTable();
+                updateReservationsStats();
+                alert(kind === 'consulta'
+                    ? 'Consulta enviada al hotel. La reserva no cambia de estado.'
+                    : 'Pedido enviado. La reserva queda en espera: el hotel tiene que confirmar.');
+            } catch (err) {
+                console.error(err);
+                alert('No se pudo enviar el mail: ' + (err.message || err) + '\n\nSi es SMTP no configurado, hay que cargar SMTP_PASS en el dashboard (Hostinger).');
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = 'Enviar pedido';
+                }
+            }
+        }
+
+        async function resolveHotelResponse(newStatus) {
+            const form = document.getElementById('editReservationForm');
+            const reservationId = form && form.dataset.reservationId;
+            if (!reservationId) {
+                alert('No hay reserva abierta.');
+                return;
+            }
+            const labels = {
+                'Cancelada': 'el hotel CONFIRMÓ la anulación (la reserva se cancela)',
+                'Modificada': 'el hotel CONFIRMÓ la modificación (se aplican las fechas/tarifa de este formulario)',
+                'No show': 'corresponde No show (no se pudo anular según política)',
+                'En gestión': 'queda en gestión / disputa con el hotel'
+            };
+            if (!confirm('¿Confirmás que ' + (labels[newStatus] || newStatus) + '?')) return;
+            const updates = {
+                status: newStatus,
+                updated_at: new Date().toISOString()
+            };
+            if (newStatus === 'Modificada') {
+                const checkIn = document.getElementById('editCheckIn').value;
+                const checkOut = document.getElementById('editCheckOut').value;
+                const totalAmount = parseInt(document.getElementById('editTotalAmount').value, 10);
+                if (!checkIn || !checkOut || checkOut <= checkIn) {
+                    alert('Revisá las fechas pedidas antes de confirmar la modificación.');
+                    return;
+                }
+                updates.check_in = checkIn;
+                updates.check_out = checkOut;
+                if (!Number.isNaN(totalAmount) && totalAmount > 0) updates.total_amount = totalAmount;
+            }
+            try {
+                await patchReservationStatus(reservationId, updates);
+                closeEditReservationModal();
+                loadReservationsTable();
+                updateReservationsStats();
+                alert('Estado actualizado: ' + newStatus);
+            } catch (err) {
+                alert('No se pudo actualizar: ' + (err.message || err));
+            }
+        }
+
         // Función para editar reserva
         async function editReservation(reservationId) {
             console.log('✏️ Editando reserva:', reservationId);
@@ -26274,7 +27175,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     
                     <div style="margin-bottom: 20px;">
                         <h3>💰 Información de Pago</h3>
-                        <p><strong>Estado:</strong> <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; background: ${status === 'Confirmada' ? '#e8f5e9' : status === 'Cancelada' ? '#ffebee' : status === 'Modificada' ? '#e3f2fd' : '#fff3e0'}; color: ${status === 'Confirmada' ? '#2e7d32' : status === 'Cancelada' ? '#c62828' : status === 'Modificada' ? '#1565c0' : '#e65100'};">${status}</span></p>
+                        <p><strong>Estado:</strong> <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; ${reservationStatusBadgeStyle(status)}">${status}</span></p>
                         <p><strong>Total:</strong> $${totalAmount.toLocaleString()} USD</p>
                     </div>
                     
@@ -26374,8 +27275,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 if (filterTo && checkIn && checkIn > filterTo) return false;
                 
                 // Filtro por estado
-                const status = (r.status || '').toUpperCase();
-                if (statusFilter && !status.includes(statusFilter.toUpperCase())) return false;
+                const status = (r.status || '');
+                if (statusFilter && foldReservationStatus(status) !== foldReservationStatus(statusFilter) && !foldReservationStatus(status).includes(foldReservationStatus(statusFilter))) return false;
                 
                 // Filtro por hotel (id + nombre + aliases HTP/ACC/etc.)
                 if (hotelFilter) {
@@ -27539,266 +28440,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
 
         // Función para cancelar una reserva
         async function cancelReservation() {
-            const form = document.getElementById('editReservationForm');
-            const reservationId = form.dataset.reservationId;
-            
-            if (!reservationId) {
-                console.error('❌ ID de reserva no encontrado');
-                alert('❌ Error: ID de reserva no encontrado');
-                return;
-            }
-            
-            // Confirmar cancelación
-            if (!confirm('¿Estás seguro de que quieres cancelar esta reserva?')) {
-                return;
-            }
-            
-            console.log('🚫 Cancelando reserva:', reservationId);
-            
-            // Datos a actualizar
-            const updates = {
-                status: 'Cancelada',
-                updated_at: new Date().toISOString()
-            };
-            
-            try {
-                // Intentar actualizar en Supabase primero
-                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
-                    await window.supabaseClient.updateReservation(reservationId, updates);
-                    console.log('✅ Reserva cancelada en Supabase');
-                    alert('✅ Reserva cancelada correctamente');
-                    
-                    // Cerrar modal y recargar tabla
-                    closeEditReservationModal();
-                    loadReservationsTable();
-                    updateReservationsStats();
-                    return;
-                }
-            } catch (error) {
-                console.error('❌ Error cancelando en Supabase:', error);
-            }
-            
-            // Fallback a localStorage
-            const reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
-            const reservationIndex = reservations.findIndex(r => r.id === reservationId || r.id == reservationId);
-            
-            if (reservationIndex !== -1) {
-                // Cambiar el estado a "Cancelada"
-                reservations[reservationIndex].status = 'Cancelada';
-                reservations[reservationIndex].updatedAt = new Date().toISOString();
-                
-                localStorage.setItem('reservationsDB', JSON.stringify(reservations));
-                
-                // Actualizar última actividad del usuario
-                const reservation = reservations[reservationIndex];
-                if (reservation.clientEmail) {
-                    updateUserActivity(reservation.clientEmail);
-                }
-                
-                console.log('✅ Reserva cancelada correctamente');
-                alert('✅ Reserva cancelada correctamente');
-                
-                // Cerrar modal
-                closeEditReservationModal();
-                
-                // Actualizar tabla y estadísticas
-                loadReservationsTable();
-                updateReservationsStats();
-            } else {
-                console.error('❌ Reserva no encontrada para cancelar');
-                alert('❌ Error: Reserva no encontrada');
-            }
+            return resolveHotelResponse('Cancelada');
         }
 
         // Función para guardar cambios de la reserva
         async function saveReservationChanges(event) {
             event.preventDefault();
-            
-            try {
-                console.log('💾 Guardando cambios de la reserva...');
-                
-                const form = document.getElementById('editReservationForm');
-                if (!form) {
-                    console.error('❌ Formulario no encontrado');
-                    if (typeof showNotification === 'function') {
-                        showNotification('❌ Error: Formulario no encontrado', 'error');
-                    } else {
-                        alert('❌ Error: Formulario no encontrado');
-                    }
-                    return;
-                }
-                
-                const reservationId = form.dataset.reservationId;
-                
-                if (!reservationId) {
-                    console.error('❌ ID de reserva no encontrado');
-                    if (typeof showNotification === 'function') {
-                        showNotification('❌ Error: ID de reserva no encontrado', 'error');
-                    } else {
-                        alert('❌ Error: ID de reserva no encontrado');
-                    }
-                    return;
-                }
-                
-                // Obtener datos del formulario - Solo tarifa y fechas son editables
-                const formData = new FormData(form);
-                let checkIn = formData.get('checkIn');
-                let checkOut = formData.get('checkOut');
-                const totalAmount = parseInt(formData.get('totalAmount'));
-                
-                // Validar campos requeridos
-                if (!checkIn || !checkOut || !totalAmount || totalAmount <= 0) {
-                    if (typeof showNotification === 'function') {
-                        showNotification('❌ Por favor completa todos los campos requeridos (fechas y tarifa)', 'warning');
-                    } else {
-                        alert('❌ Por favor completa todos los campos requeridos (fechas y tarifa)');
-                    }
-                    return;
-                }
-                
-                // Asegurar que las fechas estén en formato YYYY-MM-DD
-                if (!/^\d{4}-\d{2}-\d{2}$/.test(checkIn) || !/^\d{4}-\d{2}-\d{2}$/.test(checkOut)) {
-                    console.error('Formato de fecha inválido:', { checkIn, checkOut });
-                    if (typeof showNotification === 'function') {
-                        showNotification('❌ Formato de fecha inválido. Por favor, selecciona las fechas nuevamente.', 'error');
-                    } else {
-                        alert('❌ Error: Formato de fecha inválido. Por favor, selecciona las fechas nuevamente.');
-                    }
-                    return;
-                }
-                
-                // Validar fechas
-                if (checkOut <= checkIn) {
-                    if (typeof showNotification === 'function') {
-                        showNotification('❌ La fecha de salida debe ser posterior a la fecha de entrada', 'warning');
-                    } else {
-                        alert('❌ La fecha de salida debe ser posterior a la fecha de entrada');
-                    }
-                    return;
-                }
-                
-                // Datos a actualizar (usando snake_case para Supabase)
-                const updates = {
-                    check_in: checkIn,
-                    check_out: checkOut,
-                    total_amount: totalAmount,
-                    status: 'Modificada',
-                    updated_at: new Date().toISOString()
-                };
-                
-                console.log('📦 Actualizando reserva:', reservationId, updates);
-                
-                // Intentar actualizar en Supabase primero
-                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
-                    try {
-                        await window.supabaseClient.updateReservation(reservationId, updates);
-                        console.log('✅ Reserva actualizada en Supabase');
-                        
-                        // Mostrar notificación de éxito
-                        if (typeof showNotification === 'function') {
-                            showNotification('✅ Reserva actualizada correctamente', 'success');
-                        } else {
-                            alert('✅ Reserva actualizada correctamente');
-                        }
-                        
-                        // Cerrar modal y recargar tabla
-                        closeEditReservationModal();
-                        loadReservationsTable();
-                        if (typeof updateReservationsStats === 'function') {
-                            updateReservationsStats();
-                        }
-                        return;
-                        
-                    } catch (supabaseError) {
-                        console.error('❌ Error actualizando reserva en Supabase:', supabaseError);
-                        
-                        // Informar al usuario que se guardará localmente
-                        if (typeof showNotification === 'function') {
-                            showNotification('⚠️ Error al guardar en la nube. Guardando localmente...', 'warning');
-                        }
-                    }
-                }
-                
-                // Fallback a localStorage
-                const reservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
-                const reservationIndex = reservations.findIndex(r => r.id === reservationId || r.id == reservationId);
-                
-                if (reservationIndex !== -1) {
-                    // Obtener la reserva actual para mantener datos no editables
-                    const currentReservation = reservations[reservationIndex];
-                    
-                    // Obtener reservationDate del formulario si existe
-                    const reservationDate = formData.get('reservationDate');
-                    
-                    // Actualizar solo tarifa y fechas (campos editables)
-                    // Asegurar que las fechas se guarden en formato correcto (YYYY-MM-DD)
-                    reservations[reservationIndex].checkIn = checkIn;
-                    reservations[reservationIndex].checkOut = checkOut;
-                    reservations[reservationIndex].totalAmount = totalAmount;
-                    if (reservationDate) {
-                        reservations[reservationIndex].reservationDate = reservationDate;
-                    }
-                    reservations[reservationIndex].updatedAt = new Date().toISOString();
-                    
-                    // Cambiar el estado a "Modificada" cuando se modifica una reserva
-                    // Si estaba cancelada, cambiar a "Modificada" (celeste)
-                    // Si estaba confirmada, cambiar a "Modificada" (celeste)
-                    if (currentReservation.status === 'Cancelada' || currentReservation.status === 'Confirmada' || currentReservation.status === 'Modificada') {
-                        reservations[reservationIndex].status = 'Modificada';
-                    }
-                    
-                    localStorage.setItem('reservationsDB', JSON.stringify(reservations));
-                    console.log('✅ Reserva guardada en localStorage');
-                    
-                    // Actualizar última actividad del usuario
-                    const reservation = reservations[reservationIndex];
-                    if (reservation.clientEmail && typeof updateUserActivity === 'function') {
-                        try {
-                            updateUserActivity(reservation.clientEmail);
-                        } catch (activityError) {
-                            console.warn('⚠️ Error actualizando actividad del usuario:', activityError);
-                        }
-                    }
-                    
-                    console.log('✅ Reserva modificada correctamente');
-                    console.log('📅 Fechas actualizadas:', { checkIn, checkOut });
-                    
-                    // Mostrar notificación de éxito con localStorage
-                    if (typeof showNotification === 'function') {
-                        showNotification('✅ Cambios guardados localmente. Se sincronizará cuando vuelva la conexión.', 'info');
-                    } else {
-                        alert('✅ Reserva modificada correctamente (guardada localmente)');
-                    }
-                    
-                    // Cerrar modal
-                    closeEditReservationModal();
-                    
-                    // Actualizar tabla y estadísticas
-                    loadReservationsTable();
-                    if (typeof updateReservationsStats === 'function') {
-                        updateReservationsStats();
-                    }
-                } else {
-                    console.error('❌ Reserva no encontrada para actualizar');
-                    if (typeof showNotification === 'function') {
-                        showNotification('❌ Error: Reserva no encontrada', 'error');
-                    } else {
-                        alert('❌ Error: Reserva no encontrada');
-                    }
-                }
-                
-            } catch (error) {
-                console.error('❌ Error inesperado guardando reserva:', error);
-                
-                // Mostrar error al usuario
-                if (typeof showNotification === 'function') {
-                    showNotification('❌ Error inesperado al guardar. Intenta de nuevo.', 'error');
-                } else {
-                    alert('❌ Error inesperado al guardar. Intenta de nuevo.');
-                }
-            }
+            openHotelActionMail('modificar');
         }
-
+            
         // Función auxiliar para obtener nombre del hotel por ID
         async function getHotelNameById(hotelId) {
             let hotels = [];

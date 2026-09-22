@@ -8,6 +8,18 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const tls = require('tls');
+
+let videoPipeline = null;
+try {
+    videoPipeline = require(path.join(__dirname, 'video-pipeline', 'http-handler'));
+} catch (_) {
+    try {
+        videoPipeline = require(path.join(__dirname, '..', '..', 'video-pipeline', 'http-handler'));
+    } catch (e) {
+        console.warn('video-pipeline no disponible:', e.message);
+    }
+}
 
 const WHATSAPP_PROXY_TARGET = 'https://whatsapp.checkin24hs.com';
 
@@ -118,6 +130,162 @@ const noCacheHeaders = {
   'Surrogate-Control': 'no-store',
 };
 
+function sendPlainJson(res, status, json) {
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', ...noCacheHeaders });
+  res.end(JSON.stringify(json));
+}
+
+function smtpConfigured() {
+  return Boolean((process.env.SMTP_PASS || '').trim());
+}
+
+function parseEmailList(raw) {
+  return String(raw || '')
+    .split(/[,;]+/)
+    .map((s) => s.trim())
+    .filter((s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s));
+}
+
+function smtpReadLine(socket, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    let buf = '';
+    const onData = (chunk) => {
+      buf += chunk.toString('utf8');
+      const parts = buf.split(/\r?\n/);
+      buf = parts.pop() || '';
+      for (const line of parts) {
+        if (/^\d{3}[\s-]/.test(line)) {
+          cleanup();
+          resolve(line);
+          return;
+        }
+      }
+    };
+    const onErr = (err) => {
+      cleanup();
+      reject(err);
+    };
+    const t = setTimeout(() => {
+      cleanup();
+      reject(new Error('smtp_timeout'));
+    }, timeoutMs || 20000);
+    const cleanup = () => {
+      clearTimeout(t);
+      socket.removeListener('data', onData);
+      socket.removeListener('error', onErr);
+    };
+    socket.on('data', onData);
+    socket.on('error', onErr);
+  });
+}
+
+function smtpExpect(socket, okPrefix) {
+  return smtpReadLine(socket).then((line) => {
+    if (!String(line).startsWith(String(okPrefix))) {
+      throw new Error('smtp: ' + line);
+    }
+    return line;
+  });
+}
+
+function smtpWrite(socket, line) {
+  socket.write(line + '\r\n');
+}
+
+function sendSmtpMail({ to, bcc, subject, text, replyTo }) {
+  const host = process.env.SMTP_HOST || 'smtp.hostinger.com';
+  const port = parseInt(process.env.SMTP_PORT || '465', 10);
+  const user = (process.env.SMTP_USER || process.env.SMTP_FROM || 'reservas@checkin24hs.com').trim();
+  const pass = (process.env.SMTP_PASS || '').trim();
+  const from = (process.env.SMTP_FROM || user).trim();
+  const recipients = [...parseEmailList(to), ...parseEmailList(bcc || process.env.MAIL_BCC || from)];
+  const unique = [...new Set(recipients)];
+  if (!pass) return Promise.reject(new Error('SMTP_PASS no configurado'));
+  if (!unique.length) return Promise.reject(new Error('Sin destinatarios'));
+  const safeSubject = String(subject || '').replace(/[\r\n]+/g, ' ').slice(0, 200);
+  const safeText = String(text || '').replace(/\r\n/g, '\n').replace(/\n/g, '\r\n').slice(0, 20000);
+  const headers = [
+    'From: Checkin24hs Reservas <' + from + '>',
+    'To: ' + parseEmailList(to).join(', '),
+    parseEmailList(bcc || process.env.MAIL_BCC || from).length
+      ? 'Bcc: ' + parseEmailList(bcc || process.env.MAIL_BCC || from).join(', ')
+      : '',
+    replyTo ? 'Reply-To: ' + String(replyTo).replace(/[\r\n]+/g, '') : '',
+    'Subject: =?UTF-8?B?' + Buffer.from(safeSubject, 'utf8').toString('base64') + '?=',
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: 8bit',
+  ].filter(Boolean);
+
+  return new Promise((resolve, reject) => {
+    const socket = tls.connect({ host, port, servername: host }, async () => {
+      try {
+        await smtpExpect(socket, '220');
+        smtpWrite(socket, 'EHLO checkin24hs.com');
+        // EHLO can send several 250- then 250
+        let ehlo = '';
+        for (let i = 0; i < 12; i++) {
+          ehlo = await smtpReadLine(socket);
+          if (ehlo.startsWith('250 ')) break;
+          if (!ehlo.startsWith('250')) throw new Error('smtp ehlo: ' + ehlo);
+        }
+        smtpWrite(socket, 'AUTH LOGIN');
+        await smtpExpect(socket, '334');
+        smtpWrite(socket, Buffer.from(user, 'utf8').toString('base64'));
+        await smtpExpect(socket, '334');
+        smtpWrite(socket, Buffer.from(pass, 'utf8').toString('base64'));
+        await smtpExpect(socket, '235');
+        smtpWrite(socket, 'MAIL FROM:<' + from + '>');
+        await smtpExpect(socket, '250');
+        for (const rcpt of unique) {
+          smtpWrite(socket, 'RCPT TO:<' + rcpt + '>');
+          await smtpExpect(socket, '250');
+        }
+        smtpWrite(socket, 'DATA');
+        await smtpExpect(socket, '354');
+        socket.write(headers.join('\r\n') + '\r\n\r\n' + safeText.replace(/^\./gm, '..') + '\r\n.\r\n');
+        await smtpExpect(socket, '250');
+        smtpWrite(socket, 'QUIT');
+        socket.end();
+        resolve({ ok: true, to: parseEmailList(to), bcc: parseEmailList(bcc || process.env.MAIL_BCC || from) });
+      } catch (err) {
+        try { socket.destroy(); } catch (_) {}
+        reject(err);
+      }
+    });
+    socket.setTimeout(25000, () => {
+      socket.destroy();
+      reject(new Error('smtp_timeout'));
+    });
+    socket.on('error', reject);
+  });
+}
+
+function readJsonBody(req, limit) {
+  const max = limit || 50000;
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let n = 0;
+    req.on('data', (c) => {
+      n += c.length;
+      if (n > max) {
+        reject(new Error('body_too_large'));
+        req.destroy();
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}'));
+      } catch (e) {
+        reject(e);
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
 function serveFile(res, filePath, contentType, isText, extraHeaders) {
   fs.readFile(filePath, (err, data) => {
     if (err) {
@@ -205,6 +373,99 @@ const server = http.createServer((req, res) => {
       Accept: 'text/html,application/json',
       'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0',
     }, res);
+    return;
+  }
+
+  if (req.method === 'OPTIONS' && urlPath.startsWith('/api/videos/')) {
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    });
+    res.end();
+    return;
+  }
+
+  if (req.method === 'GET' && urlPath === '/api/videos/capabilities') {
+    if (!videoPipeline) {
+      sendPlainJson(res, 503, { ok: false, error: 'video-pipeline no disponible' });
+      return;
+    }
+    sendPlainJson(res, 200, { ok: true, capabilities: videoPipeline.capabilities() });
+    return;
+  }
+
+  if (req.method === 'POST' && (urlPath === '/api/videos/generate-script' || urlPath === '/api/videos/generate-video')) {
+    if (!videoPipeline) {
+      sendPlainJson(res, 503, { ok: false, error: 'video-pipeline no disponible' });
+      return;
+    }
+    videoPipeline.readJsonBody(req).then((body) => {
+      const fn = urlPath.endsWith('generate-video')
+        ? videoPipeline.handleGenerateVideo
+        : videoPipeline.handleGenerateScript;
+      return fn({ body: body || {}, supabase: null });
+    }).then((result) => {
+      sendPlainJson(res, result.status, result.json);
+    }).catch((err) => {
+      console.error('videos-ia:', err.message);
+      sendPlainJson(res, 500, { ok: false, error: err.message });
+    });
+    return;
+  }
+
+  if (req.method === 'GET' && (urlPath === '/api/hotel-mail/ready' || urlPath.endsWith('/hotel-mail/ready'))) {
+    sendPlainJson(res, 200, {
+      ok: true,
+      configured: smtpConfigured(),
+      from: process.env.SMTP_FROM || process.env.SMTP_USER || 'reservas@checkin24hs.com',
+    });
+    return;
+  }
+
+  if (req.method === 'OPTIONS' && (urlPath === '/api/hotel-mail' || urlPath.endsWith('/hotel-mail'))) {
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    });
+    res.end();
+    return;
+  }
+
+  if (req.method === 'POST' && (urlPath === '/api/hotel-mail' || urlPath.endsWith('/hotel-mail'))) {
+    readJsonBody(req)
+      .then((body) => {
+        const to = parseEmailList(body && body.to);
+        const kind = String((body && body.kind) || '').toLowerCase();
+        if (!to.length) {
+          sendPlainJson(res, 400, { ok: false, error: 'Falta el email del hotel' });
+          return null;
+        }
+        if (!['anular', 'modificar', 'consulta'].includes(kind)) {
+          sendPlainJson(res, 400, { ok: false, error: 'Acción inválida' });
+          return null;
+        }
+        if (!smtpConfigured()) {
+          sendPlainJson(res, 503, { ok: false, error: 'SMTP no configurado en el dashboard (SMTP_USER / SMTP_PASS)' });
+          return null;
+        }
+        const bcc = process.env.MAIL_BCC || process.env.SMTP_FROM || process.env.SMTP_USER || 'reservas@checkin24hs.com';
+        return sendSmtpMail({
+          to: to.join(', '),
+          bcc,
+          subject: body.subject,
+          text: body.text,
+          replyTo: body.replyTo,
+        }).then((sent) => {
+          console.log('[hotel-mail]', kind, sent.to.join(','), (body && body.code) || '');
+          sendPlainJson(res, 200, { ok: true, ...sent, kind });
+        });
+      })
+      .catch((err) => {
+        console.error('[hotel-mail]', err.message);
+        sendPlainJson(res, 500, { ok: false, error: err.message || 'No se pudo enviar' });
+      });
     return;
   }
 
