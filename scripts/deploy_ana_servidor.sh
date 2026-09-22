@@ -5,8 +5,15 @@ set -e
 cd /root/checkin24hs
 
 echo "=== 1. Repo ==="
+if [ -e ana ] || [ -e docker-compose.ana.yml ]; then
+  BAK="/root/backups/ana-$(date +%Y%m%d-%H%M%S)"
+  mkdir -p "$BAK"
+  echo "   Guardando ana/ local en $BAK"
+  [ -e ana ] && mv ana "$BAK/"
+  [ -e docker-compose.ana.yml ] && mv docker-compose.ana.yml "$BAK/"
+fi
 git fetch origin
-git checkout origin/main -- ana docker-compose.ana.yml
+git pull origin main || git checkout origin/main -- ana docker-compose.ana.yml scripts/deploy_ana_servidor.sh
 
 echo "=== 2. Imagen ANA ==="
 docker build -f ana/Dockerfile -t easypanel/checkin24hs/ana:latest ./ana
