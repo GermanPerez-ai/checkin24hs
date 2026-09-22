@@ -1,0 +1,19 @@
+# ANA + sync de confirmaciones por mail
+# En el VPS: crontab -e  (reemplazar SECRET por el mismo ANA_JOBS_SECRET del servicio)
+
+CRON_TZ=America/Argentina/Buenos_Aires
+
+# Confirmaciones Huilo/Corralco/Puyehue/Aguas Calientes → Supabase (antes cada 6 h)
+*/15 * * * * cd /root/checkin24hs/scripts/email-reservations && /usr/bin/python3 sync.py --since-days=14 >> /var/log/email-reservas-huilo.log 2>&1
+
+# Flash matutino ANA 08:00 ART
+0 8 * * * curl -fsS -X POST -H "X-Ana-Jobs-Secret: SECRET" https://ana.checkin24hs.com/api/jobs/morning-flash >> /var/log/ana-jobs.log 2>&1
+
+# Fricción Flor (ventanas de 2 h)
+5 */2 * * * curl -fsS -X POST -H "X-Ana-Jobs-Secret: SECRET" https://ana.checkin24hs.com/api/jobs/flor-friction >> /var/log/ana-jobs.log 2>&1
+
+# Calidad Flor semanal (lunes 09:30)
+30 9 * * 1 curl -fsS -X POST -H "X-Ana-Jobs-Secret: SECRET" https://ana.checkin24hs.com/api/jobs/weekly-qa >> /var/log/ana-jobs.log 2>&1
+
+# Seguimiento pedidos anulación/modificación al hotel (cada 4 h)
+20 */4 * * * curl -fsS -X POST -H "X-Ana-Jobs-Secret: SECRET" https://ana.checkin24hs.com/api/jobs/lifecycle-followup >> /var/log/ana-jobs.log 2>&1

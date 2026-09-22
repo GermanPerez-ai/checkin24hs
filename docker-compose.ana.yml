@@ -1,0 +1,68 @@
+# Deploy aislado de ANA (no reinicia WhatsApp / Flor).
+# En el VPS, con red easypanel:
+#   docker compose -f docker-compose.ana.yml up -d --build
+# DNS: A ana.checkin24hs.com → IP del VPS (Traefik saca el cert).
+# Env mínimas: ANA_PASSWORD, GEMINI_API_KEY, SUPABASE_ANON_KEY
+
+services:
+  ana:
+    build:
+      context: ./ana
+      dockerfile: Dockerfile
+    image: easypanel/checkin24hs/ana:latest
+    environment:
+      - PORT=8080
+      - ANA_PASSWORD=${ANA_PASSWORD}
+      - ANA_SESSION_SECRET=${ANA_SESSION_SECRET:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}
+      - SUPABASE_URL=${SUPABASE_URL:-https://lmoeuyasuvoqhtvhkyia.supabase.co}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - WHATSAPP_API_URL=http://checkin24hs_whatsapp:3001
+      - WHATSAPP2_API_URL=http://checkin24hs_whatsapp2:3002
+      - WHATSAPP3_API_URL=http://checkin24hs_whatsapp3:3001
+      - WHATSAPP4_API_URL=http://checkin24hs_whatsapp4:3001
+      - MONITOR_WEB_URL=https://www.checkin24hs.com
+      - MONITOR_DASHBOARD_URL=https://dashboard.checkin24hs.com
+      - MONITOR_COTIZADOR_URL=https://cotizar.checkin24hs.com
+      - GOOGLE_ADS_CUSTOMER_ID=${GOOGLE_ADS_CUSTOMER_ID:-2654092864}
+      - GOOGLE_ADS_ACCOUNT_NAME=${GOOGLE_ADS_ACCOUNT_NAME:-Checkin24hs}
+      - GOOGLE_ADS_ADVERTISER_ID=${GOOGLE_ADS_ADVERTISER_ID:-505321673398}
+      - IMAP_HOST=${IMAP_HOST:-mail.checkin24hs.com}
+      - IMAP_PORT=${IMAP_PORT:-993}
+      - IMAP_SECURE=${IMAP_SECURE:-1}
+      - IMAP_USER=${IMAP_USER:-reservas}
+      - IMAP_PASS=${IMAP_PASS:-}
+      - IMAP_TLS_REJECT_UNAUTHORIZED=${IMAP_TLS_REJECT_UNAUTHORIZED:-1}
+      - ANA_JOBS_SECRET=${ANA_JOBS_SECRET:-}
+      - ANA_ALERT_PHONE=${ANA_ALERT_PHONE:-542944210725}
+      - ANA_DAILY_SALES_GOAL_USD=${ANA_DAILY_SALES_GOAL_USD:-}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
+      - ANA_ALERT_WEBHOOK_URL=${ANA_ALERT_WEBHOOK_URL:-}
+    networks:
+      - easypanel
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=easypanel"
+      - "traefik.http.routers.ana.rule=Host(`ana.checkin24hs.com`)"
+      - "traefik.http.routers.ana.entrypoints=websecure"
+      - "traefik.http.routers.ana.service=ana"
+      - "traefik.http.routers.ana.tls=true"
+      - "traefik.http.routers.ana.tls.certresolver=letsencrypt"
+      - "traefik.http.services.ana.loadbalancer.server.port=8080"
+    deploy:
+      replicas: 1
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=easypanel"
+        - "traefik.http.routers.ana.rule=Host(`ana.checkin24hs.com`)"
+        - "traefik.http.routers.ana.entrypoints=websecure"
+        - "traefik.http.routers.ana.service=ana"
+        - "traefik.http.routers.ana.tls=true"
+        - "traefik.http.routers.ana.tls.certresolver=letsencrypt"
+        - "traefik.http.services.ana.loadbalancer.server.port=8080"
+
+networks:
+  easypanel:
+    external: true

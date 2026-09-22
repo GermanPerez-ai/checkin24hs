@@ -1,0 +1,17 @@
+{
+  "name": "checkin24hs-ana",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ANA — asistente ejecutivo interno Checkin24hs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "imapflow": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
