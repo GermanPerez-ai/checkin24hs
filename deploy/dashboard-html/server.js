@@ -10,17 +10,6 @@ const fs = require('fs');
 const path = require('path');
 const tls = require('tls');
 
-let videoPipeline = null;
-try {
-    videoPipeline = require(path.join(__dirname, 'video-pipeline', 'http-handler'));
-} catch (_) {
-    try {
-        videoPipeline = require(path.join(__dirname, '..', '..', 'video-pipeline', 'http-handler'));
-    } catch (e) {
-        console.warn('video-pipeline no disponible:', e.message);
-    }
-}
-
 const WHATSAPP_PROXY_TARGET = 'https://whatsapp.checkin24hs.com';
 
 /** Proxy estado/QR: red interna Docker primero, luego URL pública (evita 404 Traefik + CORS en dashboard). */
@@ -373,44 +362,6 @@ const server = http.createServer((req, res) => {
       Accept: 'text/html,application/json',
       'User-Agent': req.headers['user-agent'] || 'Mozilla/5.0',
     }, res);
-    return;
-  }
-
-  if (req.method === 'OPTIONS' && urlPath.startsWith('/api/videos/')) {
-    res.writeHead(204, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    });
-    res.end();
-    return;
-  }
-
-  if (req.method === 'GET' && urlPath === '/api/videos/capabilities') {
-    if (!videoPipeline) {
-      sendPlainJson(res, 503, { ok: false, error: 'video-pipeline no disponible' });
-      return;
-    }
-    sendPlainJson(res, 200, { ok: true, capabilities: videoPipeline.capabilities() });
-    return;
-  }
-
-  if (req.method === 'POST' && (urlPath === '/api/videos/generate-script' || urlPath === '/api/videos/generate-video')) {
-    if (!videoPipeline) {
-      sendPlainJson(res, 503, { ok: false, error: 'video-pipeline no disponible' });
-      return;
-    }
-    videoPipeline.readJsonBody(req).then((body) => {
-      const fn = urlPath.endsWith('generate-video')
-        ? videoPipeline.handleGenerateVideo
-        : videoPipeline.handleGenerateScript;
-      return fn({ body: body || {}, supabase: null });
-    }).then((result) => {
-      sendPlainJson(res, result.status, result.json);
-    }).catch((err) => {
-      console.error('videos-ia:', err.message);
-      sendPlainJson(res, 500, { ok: false, error: err.message });
-    });
     return;
   }
 
