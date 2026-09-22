@@ -225,7 +225,7 @@ function smtpUpgradeTls(socket, host) {
   });
 }
 
-async function smtpHandshakeAndSend(socket, { user, pass, from, unique, headers, safeText, toList, bccList }, skipGreeting) {
+async function smtpHandshakeAndSend(socket, { user, pass, from, unique, dataPayload, toList, bccList }, skipGreeting) {
   const s = attachSmtpSession(socket);
   if (!skipGreeting) await s.expect('220', 12000);
   s.write('EHLO checkin24hs.com');
@@ -244,14 +244,91 @@ async function smtpHandshakeAndSend(socket, { user, pass, from, unique, headers,
   }
   s.write('DATA');
   await s.expect('354', 8000);
-  socket.write(headers.join('\r\n') + '\r\n\r\n' + safeText.replace(/^\./gm, '..') + '\r\n.\r\n');
-  await s.expect('250', 15000);
+  socket.write(String(dataPayload || '').replace(/^\./gm, '..') + '\r\n.\r\n');
+  await s.expect('250', 30000);
   try { s.write('QUIT'); } catch (_) {}
   try { socket.end(); } catch (_) {}
   return { ok: true, to: toList, bcc: bccList };
 }
 
-async function sendSmtpMail({ to, bcc, subject, text, replyTo }) {
+function wrapBase64(b64) {
+  const clean = String(b64 || '').replace(/\s+/g, '');
+  return clean.match(/.{1,76}/g) ? clean.match(/.{1,76}/g).join('\r\n') : clean;
+}
+
+function sanitizeAttachName(name) {
+  return String(name || 'adjunto').replace(/[^\w.\- áéíóúñÁÉÍÓÚÑ]/gi, '_').slice(0, 80) || 'adjunto';
+}
+
+function normalizeAttachments(raw) {
+  if (!Array.isArray(raw)) return [];
+  const allowed = {
+    'application/pdf': true,
+    'image/jpeg': true,
+    'image/jpg': true,
+    'image/png': true,
+    'image/gif': true,
+    'image/webp': true,
+  };
+  const out = [];
+  for (const a of raw.slice(0, 4)) {
+    const type = String((a && (a.contentType || a.type)) || '').toLowerCase();
+    let data = String((a && (a.data || a.content)) || '');
+    data = data.replace(/^data:[^;]+;base64,/i, '').replace(/\s+/g, '');
+    if (!allowed[type] || !data) continue;
+    if (data.length > 11 * 1024 * 1024) continue;
+    out.push({
+      filename: sanitizeAttachName((a && (a.filename || a.name)) || 'adjunto'),
+      contentType: type === 'image/jpg' ? 'image/jpeg' : type,
+      data,
+    });
+  }
+  return out;
+}
+
+function buildMailDataPayload({ from, toList, bccList, subject, text, replyTo, attachments }) {
+  const safeSubject = String(subject || '').replace(/[\r\n]+/g, ' ').slice(0, 200);
+  const safeText = String(text || '').replace(/\r\n/g, '\n').replace(/\n/g, '\r\n').slice(0, 20000);
+  const headers = [
+    'From: Checkin24hs Reservas <' + from + '>',
+    'To: ' + toList.join(', '),
+    bccList.length ? 'Bcc: ' + bccList.join(', ') : '',
+    replyTo ? 'Reply-To: ' + String(replyTo).replace(/[\r\n]+/g, '') : '',
+    'Subject: =?UTF-8?B?' + Buffer.from(safeSubject, 'utf8').toString('base64') + '?=',
+    'MIME-Version: 1.0',
+  ].filter(Boolean);
+  if (!attachments.length) {
+    return headers.concat([
+      'Content-Type: text/plain; charset=UTF-8',
+      'Content-Transfer-Encoding: 8bit',
+      '',
+      safeText,
+    ]).join('\r\n');
+  }
+  const boundary = '----=_Checkin24hs_' + Date.now().toString(36);
+  const parts = [
+    headers.concat(['Content-Type: multipart/mixed; boundary="' + boundary + '"', '']).join('\r\n'),
+    '--' + boundary,
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: 8bit',
+    '',
+    safeText,
+  ];
+  for (const att of attachments) {
+    parts.push(
+      '--' + boundary,
+      'Content-Type: ' + att.contentType + '; name="' + att.filename.replace(/"/g, '') + '"',
+      'Content-Transfer-Encoding: base64',
+      'Content-Disposition: attachment; filename="' + att.filename.replace(/"/g, '') + '"',
+      '',
+      wrapBase64(att.data)
+    );
+  }
+  parts.push('--' + boundary + '--', '');
+  return parts.join('\r\n');
+}
+
+async function sendSmtpMail({ to, bcc, subject, text, replyTo, attachments }) {
   const host = process.env.SMTP_HOST || 'smtp.hostinger.com';
   const preferredPort = parseInt(process.env.SMTP_PORT || '465', 10);
   const user = (process.env.SMTP_USER || process.env.SMTP_FROM || 'reservas@checkin24hs.com').trim();
@@ -262,18 +339,10 @@ async function sendSmtpMail({ to, bcc, subject, text, replyTo }) {
   const unique = [...new Set([...toList, ...bccList])];
   if (!pass) throw new Error('SMTP_PASS no configurado');
   if (!unique.length) throw new Error('Sin destinatarios');
-  const safeSubject = String(subject || '').replace(/[\r\n]+/g, ' ').slice(0, 200);
-  const safeText = String(text || '').replace(/\r\n/g, '\n').replace(/\n/g, '\r\n').slice(0, 20000);
-  const headers = [
-    'From: Checkin24hs Reservas <' + from + '>',
-    'To: ' + toList.join(', '),
-    bccList.length ? 'Bcc: ' + bccList.join(', ') : '',
-    replyTo ? 'Reply-To: ' + String(replyTo).replace(/[\r\n]+/g, '') : '',
-    'Subject: =?UTF-8?B?' + Buffer.from(safeSubject, 'utf8').toString('base64') + '?=',
-    'MIME-Version: 1.0',
-    'Content-Type: text/plain; charset=UTF-8',
-    'Content-Transfer-Encoding: 8bit',
-  ].filter(Boolean);
+  const files = normalizeAttachments(attachments);
+  const dataPayload = buildMailDataPayload({
+    from, toList, bccList, subject, text, replyTo, attachments: files,
+  });
 
   const attempts = preferredPort === 587
     ? [{ port: 587, starttls: true }, { port: 465, starttls: false }]
@@ -294,15 +363,15 @@ async function sendSmtpMail({ to, bcc, subject, text, replyTo }) {
         await s0.expect('220', 12000);
         sessionSock = await smtpUpgradeTls(socket, host);
         const sent = await smtpHandshakeAndSend(sessionSock, {
-          user, pass, from, unique, headers, safeText, toList, bccList,
+          user, pass, from, unique, dataPayload, toList, bccList,
         }, true);
-        console.log('[hotel-mail] enviado via', host + ':' + attempt.port, 'STARTTLS');
+        console.log('[hotel-mail] enviado via', host + ':' + attempt.port, 'STARTTLS', files.length ? files.length + ' adj.' : '');
         return sent;
       }
       const sent = await smtpHandshakeAndSend(sessionSock, {
-        user, pass, from, unique, headers, safeText, toList, bccList,
+        user, pass, from, unique, dataPayload, toList, bccList,
       }, false);
-      console.log('[hotel-mail] enviado via', host + ':' + attempt.port, attempt.starttls ? 'STARTTLS' : 'SSL');
+      console.log('[hotel-mail] enviado via', host + ':' + attempt.port, 'SSL', files.length ? files.length + ' adj.' : '');
       return sent;
     } catch (err) {
       lastErr = err;
@@ -448,7 +517,7 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === 'POST' && (urlPath === '/api/hotel-mail' || urlPath.endsWith('/hotel-mail'))) {
-    readJsonBody(req)
+    readJsonBody(req, 12 * 1024 * 1024)
       .then((body) => {
         const to = parseEmailList(body && body.to);
         const kind = String((body && body.kind) || '').toLowerCase();
@@ -471,6 +540,7 @@ const server = http.createServer((req, res) => {
           subject: body.subject,
           text: body.text,
           replyTo: body.replyTo,
+          attachments: body.attachments,
         }).then((sent) => {
           console.log('[hotel-mail]', kind, sent.to.join(','), (body && body.code) || '');
           sendPlainJson(res, 200, { ok: true, ...sent, kind });

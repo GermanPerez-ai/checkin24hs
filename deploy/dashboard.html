@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-09-22T16:33:30Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 277; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-09-22T16:46:15Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 278; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2352,7 +2352,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">277</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">278</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -4589,7 +4589,15 @@
             </div>
             <div class="form-group" style="margin-bottom: 10px;">
                 <label for="hotelActionMailBody">Mensaje</label>
-                <textarea id="hotelActionMailBody" rows="12" style="width: 100%; padding: 8px; font-family: inherit;"></textarea>
+                <textarea id="hotelActionMailBody" rows="14" style="width: 100%; padding: 8px; font-family: inherit;"></textarea>
+            </div>
+            <div class="form-group" style="margin-bottom: 10px;">
+                <label for="hotelActionMailFiles">Adjunto (imagen o PDF)</label>
+                <input type="file" id="hotelActionMailFiles" accept=".pdf,image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png"
+                    multiple style="width: 100%; padding: 8px;">
+                <p style="margin: 6px 0 0; font-size: 12px; color: #666;">
+                    Opcional: certificado médico u otra prueba. Hasta 4 archivos, 8 MB cada uno.
+                </p>
             </div>
             <div class="modal-footer">
                 <button type="button" onclick="closeHotelActionMailModal()" class="btn btn-secondary">Cancelar</button>
@@ -26238,15 +26246,15 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         function buildHotelActionBody(kind, snap) {
-            const lines = [
+            const intro = kind === 'anular'
+                ? 'Solicitamos anular la siguiente reserva. El cliente no podrá viajar.'
+                : kind === 'modificar'
+                ? 'Solicitamos modificar la siguiente reserva.'
+                : 'Consulta sobre la siguiente reserva.';
+            return [
                 'Hola,',
                 '',
-                kind === 'anular'
-                    ? 'Solicitamos anular la siguiente reserva. Quedamos a la espera de su confirmación según política del hotel.'
-                    : kind === 'modificar'
-                    ? 'Solicitamos modificar la siguiente reserva. Quedamos a la espera de su confirmación (disponibilidad / política).'
-                    : 'Consulta sobre la siguiente reserva. No es anulación ni modificación.',
-                '',
+                intro,
                 'Hotel: ' + (snap.hotelName || ''),
                 'Código Checkin24hs: ' + (snap.code || ''),
                 'Huésped: ' + (snap.clientName || ''),
@@ -26255,14 +26263,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 'Check-in: ' + (snap.checkIn || ''),
                 'Check-out: ' + (snap.checkOut || ''),
                 'Tarifa (USD): ' + (snap.totalAmount || ''),
-                snap.agentName ? ('Agente: ' + snap.agentName) : '',
-                '',
-                'Por favor confirmen si es posible. Si no se puede anular y corresponde no-show, indíquennos.',
+                'Aguardo confirmación.',
                 '',
                 'Saludos,',
                 'Checkin24hs — reservas@checkin24hs.com'
-            ];
-            return lines.filter((l, i) => l !== '' || i === 1).join('\n');
+            ].join('\n');
         }
 
         function closeHotelActionMailModal() {
@@ -26287,6 +26292,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             document.getElementById('hotelActionMailTo').value = defaultHotelReservasEmail(snap.hotelName);
             document.getElementById('hotelActionMailSubject').value = buildHotelActionSubject(kind, snap);
             document.getElementById('hotelActionMailBody').value = buildHotelActionBody(kind, snap);
+            const files = document.getElementById('hotelActionMailFiles');
+            if (files) files.value = '';
             document.getElementById('hotelActionMailModal').style.display = 'block';
         }
 
@@ -26300,6 +26307,35 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             if (idx === -1) throw new Error('Reserva no encontrada');
             Object.assign(reservations[idx], updates);
             localStorage.setItem('reservationsDB', JSON.stringify(reservations));
+        }
+
+        async function readHotelMailAttachments() {
+            const input = document.getElementById('hotelActionMailFiles');
+            const files = input && input.files ? Array.from(input.files) : [];
+            const out = [];
+            for (const f of files.slice(0, 4)) {
+                if (f.size > 8 * 1024 * 1024) {
+                    throw new Error(f.name + ' supera 8 MB');
+                }
+                const okType = /pdf|jpeg|jpg|png|gif|webp/i.test(f.type || '') || /\.(pdf|jpe?g|png|gif|webp)$/i.test(f.name || '');
+                if (!okType) {
+                    throw new Error('Solo imagen o PDF: ' + f.name);
+                }
+                const dataUrl = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(String(reader.result || ''));
+                    reader.onerror = () => reject(new Error('No se pudo leer ' + f.name));
+                    reader.readAsDataURL(f);
+                });
+                const b64 = dataUrl.split(',')[1] || '';
+                if (!b64) throw new Error('Adjunto vacío: ' + f.name);
+                out.push({
+                    filename: f.name,
+                    contentType: f.type || 'application/octet-stream',
+                    data: b64
+                });
+            }
+            return out;
         }
 
         async function sendHotelActionMail() {
@@ -26322,6 +26358,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 btn.textContent = 'Enviando…';
             }
             try {
+                const attachments = await readHotelMailAttachments();
                 const res = await fetch('/api/hotel-mail', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -26331,7 +26368,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         subject,
                         text,
                         code: snap.code,
-                        replyTo: 'reservas@checkin24hs.com'
+                        replyTo: 'reservas@checkin24hs.com',
+                        attachments
                     })
                 });
                 const data = await res.json().catch(() => ({}));
