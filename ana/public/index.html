@@ -276,7 +276,7 @@
                         </div>
                     </div>
                     <form onsubmit="handleAgendaCapture(event)" class="glass-panel p-4 rounded-2xl space-y-3">
-                        <!-- ANA agenda media 2026-09-23 -->
+                        <!-- ANA agenda media 2026-09-23b -->
                         <input id="agendaCapture" type="text" placeholder="Texto, foto del stand / WhatsApp, o audio. Ej. reunión mañana 11 con RateHawk"
                             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500">
                         <div class="flex gap-2 flex-wrap items-center">
@@ -974,7 +974,7 @@ let AGENDA = { tasks: [], ideas: [] };
             const out = await api('/api/copilot/capture', { method: 'POST', body: JSON.stringify(body) });
             $('agendaCapture').value = '';
             clearAgendaAttach();
-            msg.className = 'text-xs text-teal-300';
+            msg.className = 'text-xs text-teal-300 whitespace-pre-wrap';
             msg.textContent = out.reply || 'Capturado';
             await loadAgenda();
         } catch (err) {

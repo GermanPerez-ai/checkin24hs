@@ -38,17 +38,21 @@ function asStatus(value) {
   return STATUSES.includes(v) ? v : 'pending';
 }
 
-function parseJsonLoose(raw) {
-  const s = String(raw || '').trim();
-  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const body = (fence ? fence[1] : s).trim();
-  const start = body.indexOf('{');
-  if (start < 0) throw new Error('Gemini no devolvió JSON');
-  let depth = 0;
+function jsonStartIndex(body) {
+  const obj = body.indexOf('{');
+  const arr = body.indexOf('[');
+  if (obj < 0) return arr;
+  if (arr < 0) return obj;
+  return Math.min(obj, arr);
+}
+
+function repairTruncatedJson(raw) {
+  let s = String(raw || '').trim().replace(/,\s*$/, '');
   let inStr = false;
   let esc = false;
-  for (let i = start; i < body.length; i++) {
-    const c = body[i];
+  const stack = [];
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
     if (inStr) {
       if (esc) {
         esc = false;
@@ -65,15 +69,51 @@ function parseJsonLoose(raw) {
       inStr = true;
       continue;
     }
-    if (c === '{') depth += 1;
-    if (c === '}') {
-      depth -= 1;
-      if (depth === 0) {
-        return JSON.parse(body.slice(start, i + 1));
-      }
+    if (c === '{') stack.push('}');
+    else if (c === '[') stack.push(']');
+    else if (c === '}' || c === ']') stack.pop();
+  }
+  if (inStr) s += '"';
+  s = s.replace(/,\s*$/, '');
+  const lastObj = s.lastIndexOf('}');
+  const lastArr = s.lastIndexOf(']');
+  const lastCut = Math.max(lastObj, lastArr);
+  if (lastCut > 0 && stack.length) {
+    const trimmed = s.slice(0, lastCut + 1);
+    try {
+      return JSON.parse(trimmed);
+    } catch (_) {
+      /* close below */
+    }
+    s = trimmed;
+  }
+  while (stack.length) s += stack.pop();
+  return JSON.parse(s);
+}
+
+function parseJsonLoose(raw) {
+  const s = String(raw || '').trim();
+  const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const body = (fence ? fence[1] : s).trim();
+  const start = jsonStartIndex(body);
+  if (start < 0) throw new Error('Gemini no devolvió JSON');
+  const slice = body.slice(start);
+  try {
+    return JSON.parse(slice);
+  } catch (first) {
+    try {
+      return repairTruncatedJson(slice);
+    } catch (_) {
+      throw first;
     }
   }
-  return JSON.parse(body.slice(start));
+}
+
+function asCaptureItems(parsed) {
+  if (!parsed) return [];
+  if (Array.isArray(parsed)) return parsed;
+  if (Array.isArray(parsed.items)) return parsed.items;
+  return [parsed];
 }
 
 async function geminiJson(system, user) {
@@ -85,9 +125,13 @@ async function geminiJson(system, user) {
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: system }] },
       contents: [{ role: 'user', parts: [{ text: String(user || '').slice(0, 12000) }] }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 2048 },
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 8192,
+        responseMimeType: 'application/json',
+      },
     }),
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(45000),
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json?.error?.message || `Gemini ${res.status}`);
@@ -163,13 +207,23 @@ async function insertGoogleTask(parsed) {
   return { skipped: false, task_id: json.id };
 }
 
-const PARSE_SYSTEM = `Sos el clasificador de agenda de ANA (Checkin24hs). Hoy es ${new Date().toLocaleString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' })} ART.
-Devolvé SOLO JSON:
-{"type":"task"|"meeting"|"idea","title":"","description":"","category":"b2b_hoteles"|"sistemas_code"|"marketing_ads"|"gestion_personal"|"operaciones","priority":"P1"|"P2"|"P3","start_time":null|"ISO-8601 con offset -03:00","end_time":null|"ISO-8601","due_date":null|"YYYY-MM-DD","subtasks":["..."]}
-Reglas: meeting si hay reunión/call/cita con horario. idea si es un pensamiento, proyecto a incubar o "anotá la idea". task en el resto. Horarios en America/Argentina/Buenos_Aires. Si no hay fecha, due_date=hoy para P1, null si es idea. category b2b_hoteles para hoteles/reservas/RateHawk; sistemas_code para WhatsApp/Flor/código; marketing_ads para ads; gestion_personal para lo personal.`;
+function parseSystemPrompt() {
+  const now = new Date().toLocaleString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' });
+  return `Sos el clasificador de agenda de ANA (Checkin24hs). Ahora es ${now} ART.
+Devolvé SOLO JSON con este esquema:
+{"items":[{"include":true,"type":"meeting","title":"","description":"","category":"b2b_hoteles","priority":"P2","start_time":"2026-09-28T11:00:00-03:00","end_time":"2026-09-28T11:30:00-03:00","due_date":"2026-09-28"}]}
+Reglas:
+- Si hay VARIAS reuniones/citas (agenda de feria, lista, captura), un item por cada una. Máximo 20.
+- include=true solo las que el usuario pidió agendar. Si dijo "confirmadas", include=true SOLO si el texto dice Confirmada. Rechazada, Disponible, Pendiente de confirmación → include=false.
+- type=meeting si hay horario. idea si es pensamiento/incubadora. task el resto.
+- title corto: "Nombre — Empresa". description con stand y estado.
+- Horarios America/Argentina/Buenos_Aires, ISO con offset -03:00. Si no hay fecha, usá la fecha de la imagen o hoy.
+- category b2b_hoteles para hoteles/OTA/stands de feria; sistemas_code código/Flor; marketing_ads ads; gestion_personal personal.
+- Campos cortos. Sin markdown.`;
+}
 
 async function parseCapture(text) {
-  return geminiJson(PARSE_SYSTEM, text);
+  return geminiJson(parseSystemPrompt(), text);
 }
 
 async function findOpenByRef(source, sourceRef) {
@@ -220,12 +274,11 @@ async function createIdea(fields) {
   return Array.isArray(ins.data) ? ins.data[0] : ins.data;
 }
 
-async function captureFromText({ text, source = 'web_dashboard', confirmWhatsApp = false }) {
-  const raw = String(text || '').trim();
-  if (!raw) throw new Error('Falta texto');
-  const parsed = await parseCapture(raw);
+async function captureOneItem(parsed, { raw, source, confirmWhatsApp }) {
   const type = String(parsed.type || 'task').toLowerCase();
-  const subtasks = Array.isArray(parsed.subtasks) ? parsed.subtasks.map((s) => String(s)).filter(Boolean).slice(0, 8) : [];
+  const subtasks = Array.isArray(parsed.subtasks)
+    ? parsed.subtasks.map((s) => String(s)).filter(Boolean).slice(0, 8)
+    : [];
 
   if (type === 'idea') {
     const idea = await createIdea({
@@ -252,7 +305,7 @@ async function captureFromText({ text, source = 'web_dashboard', confirmWhatsApp
     title: parsed.title,
     description: [parsed.description, subtasks.length ? `Pasos: ${subtasks.join(' · ')}` : ''].filter(Boolean).join('\n'),
     category: parsed.category,
-    priority: parsed.priority,
+    priority: parsed.priority || (isMeeting ? 'P2' : 'P2'),
     is_meeting: isMeeting,
     start_time: parsed.start_time || null,
     end_time: parsed.end_time || null,
@@ -265,11 +318,49 @@ async function captureFromText({ text, source = 'web_dashboard', confirmWhatsApp
   const when = parsed.start_time
     ? new Date(parsed.start_time).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })
     : parsed.due_date || 'sin horario';
-  let reply = `${isMeeting ? 'Reunión' : 'Tarea'} *${parsed.title}* · ${parsed.priority} · ${when}`;
+  let reply = `${isMeeting ? 'Reunión' : 'Tarea'} *${parsed.title}* · ${parsed.priority || 'P2'} · ${when}`;
   if (calendar.html_link) reply += `\nCalendar: ${calendar.html_link}`;
   else if (calendar.error) reply += `\nCalendar: no se pudo sincronizar (${calendar.error})`;
-  if (confirmWhatsApp) await sendWhatsApp(reply).catch(() => null);
   return { ok: true, kind: isMeeting ? 'meeting' : 'task', item: task, reply, google: calendar };
+}
+
+async function captureFromText({ text, source = 'web_dashboard', confirmWhatsApp = false }) {
+  const raw = String(text || '').trim();
+  if (!raw) throw new Error('Falta texto');
+  const parsed = await parseCapture(raw);
+  const items = asCaptureItems(parsed)
+    .filter((it) => it && it.include !== false && String(it.title || '').trim())
+    .slice(0, 20);
+  if (!items.length) {
+    throw new Error('No encontré reuniones para agendar (si pediste confirmadas, en la imagen no había ninguna Confirmada).');
+  }
+
+  const created = [];
+  const errors = [];
+  for (const item of items) {
+    try {
+      created.push(await captureOneItem(item, { raw, source, confirmWhatsApp: false }));
+    } catch (e) {
+      errors.push(`${item.title || 'item'}: ${e.message || e}`);
+    }
+  }
+  if (!created.length) throw new Error(errors[0] || 'No se pudo guardar ninguna reunión');
+
+  const lines = created.map((c) => c.reply);
+  let reply =
+    created.length === 1
+      ? created[0].reply
+      : `Agendé ${created.length} reuniones:\n` + lines.map((l) => `• ${l}`).join('\n');
+  if (errors.length) reply += `\nNo pude cargar ${errors.length}: ${errors.slice(0, 3).join(' · ')}`;
+  if (confirmWhatsApp) await sendWhatsApp(reply).catch(() => null);
+  return {
+    ok: true,
+    kind: created.length > 1 ? 'meetings' : created[0].kind,
+    item: created[0].item,
+    items: created.map((c) => c.item),
+    reply,
+    google: created[0].google,
+  };
 }
 
 async function listTasks({ status, priority, category } = {}) {

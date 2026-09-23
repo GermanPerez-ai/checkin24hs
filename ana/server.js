@@ -828,7 +828,7 @@ async function extractImageNotes(base64, mimeType) {
         parts: [
           {
             text:
-              'Leé la imagen (stand, tarjeta, captura de WhatsApp, nota o foto de feria). Extraé nombres, empresa, fechas, horas, stand, teléfono, mail y cualquier pedido de reunión o tarea. Devolvé un párrafo en español listo para agendar, sin JSON, sin markdown. Si no hay texto útil, describí lo que se ve en una frase.',
+              'Si es una agenda/calendario de feria: una línea por slot, formato STATUS|YYYY-MM-DD|HH:MM|Nombre|Empresa|STAND. STATUS=CONFIRMED, PENDING, REJECTED o FREE. Fecha del encabezado. Sin JSON. Máximo 30 líneas. Si no es agenda (tarjeta, WhatsApp, nota), devolvé un párrafo en español listo para agendar.',
           },
         ],
       },
@@ -838,9 +838,9 @@ async function extractImageNotes(base64, mimeType) {
           parts: [{ inline_data: { mime_type: mime, data: stripDataUrl(base64) } }],
         },
       ],
-      generationConfig: { temperature: 0, maxOutputTokens: 2048 },
+      generationConfig: { temperature: 0, maxOutputTokens: 4096 },
     }),
-    signal: AbortSignal.timeout(25000),
+    signal: AbortSignal.timeout(45000),
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json?.error?.message || `Gemini imagen ${res.status}`);
