@@ -102,6 +102,9 @@
                         </div>
                         <span class="px-1.5 py-0.5 rounded-full text-[10px] font-mono bg-indigo-900/60 text-indigo-300 border border-indigo-700/50">IA</span>
                     </button>
+                    <button onclick="switchTab('agenda')" id="nav-agenda" class="nav-item w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
+                        <i data-lucide="calendar-check" class="w-4 h-4 text-cyan-400"></i><span>Agenda Executive</span>
+                    </button>
                     <button onclick="switchTab('flor-ia')" id="nav-flor-ia" class="nav-item w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50">
                         <i data-lucide="message-square" class="w-4 h-4 text-emerald-400"></i><span>Monitor Flor IA</span>
                     </button>
@@ -260,6 +263,52 @@
                     </div>
                 </div>
 
+                <div id="tab-agenda" class="tab-content hidden space-y-6">
+                    <div class="flex items-center justify-between gap-3 flex-wrap">
+                        <div>
+                            <h2 class="text-xl font-bold text-white">Agenda Executive</h2>
+                            <p class="text-xs text-slate-400">Tareas, reuniones e ideas. WhatsApp y auto-tareas de hotel / Flor.</p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span id="agendaSyncBadge" class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-slate-800 text-slate-400 border border-slate-700">Calendar: —</span>
+                            <button onclick="runAnaJob('copilot-auto')" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-300">Auto-tareas</button>
+                            <button onclick="runAnaJob('copilot-evening')" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-300">Cierre 19:00</button>
+                        </div>
+                    </div>
+                    <form onsubmit="handleAgendaCapture(event)" class="glass-panel p-4 rounded-2xl flex gap-2 flex-col sm:flex-row">
+                        <input id="agendaCapture" type="text" placeholder="Anotá, agendame reunión mañana 11 con RateHawk, o idea: pack termas…"
+                            class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500">
+                        <button type="submit" class="px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-teal-500 text-white text-sm font-semibold">Capturar</button>
+                    </form>
+                    <p id="agendaCaptureMsg" class="hidden text-xs text-teal-300"></p>
+                    <div class="flex gap-2 flex-wrap text-xs" id="agendaFilters">
+                        <button data-cat="" class="agenda-filter px-3 py-1.5 rounded-lg bg-indigo-600/30 border border-indigo-500/40 text-indigo-200">Todas</button>
+                        <button data-cat="b2b_hoteles" class="agenda-filter px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300">B2B Hoteles</button>
+                        <button data-cat="sistemas_code" class="agenda-filter px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300">Sistemas</button>
+                        <button data-cat="marketing_ads" class="agenda-filter px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300">Marketing</button>
+                        <button data-cat="gestion_personal" class="agenda-filter px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300">Personal</button>
+                        <button data-cat="operaciones" class="agenda-filter px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300">Operaciones</button>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="glass-panel p-4 rounded-2xl">
+                            <p class="text-xs font-semibold text-rose-300 uppercase mb-3">P1 · Urgente / hoy</p>
+                            <div id="agendaP1" class="space-y-2 text-sm text-slate-300">—</div>
+                        </div>
+                        <div class="glass-panel p-4 rounded-2xl">
+                            <p class="text-xs font-semibold text-amber-300 uppercase mb-3">P2 · Semanal</p>
+                            <div id="agendaP2" class="space-y-2 text-sm text-slate-300">—</div>
+                        </div>
+                        <div class="glass-panel p-4 rounded-2xl">
+                            <p class="text-xs font-semibold text-slate-400 uppercase mb-3">P3 · Backlog</p>
+                            <div id="agendaP3" class="space-y-2 text-sm text-slate-300">—</div>
+                        </div>
+                    </div>
+                    <div class="glass-panel p-5 rounded-2xl">
+                        <h3 class="text-sm font-bold text-white mb-3">Incubadora de ideas</h3>
+                        <div id="agendaIdeas" class="space-y-3 text-sm text-slate-300">—</div>
+                    </div>
+                </div>
+
                 <div id="tab-flor-ia" class="tab-content hidden space-y-6">
                     <div>
                         <h2 class="text-xl font-bold text-white">Monitor Flor IA</h2>
@@ -381,6 +430,8 @@
                             <button onclick="runAnaJob('morning-flash')" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-300">Flash ahora</button>
                             <button onclick="runAnaJob('flor-friction')" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-300">Chequear Flor</button>
                             <button onclick="runAnaJob('lifecycle-followup')" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-300">Seguimiento hotel</button>
+                            <button onclick="runAnaJob('copilot-auto')" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-300">Copiloto auto</button>
+                            <button onclick="runAnaJob('copilot-evening')" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-300">Cierre jornada</button>
                         </div>
                     </div>
                     <div id="alertsList" class="glass-panel p-5 rounded-2xl space-y-3 text-sm text-slate-300">Sin historial todavía. Aplicá la migración 086 y esperá el cron.</div>
@@ -422,6 +473,7 @@
     </div>
 
 <script>
+let AGENDA = { tasks: [], ideas: [] };
     let SNAP = null;
     let salesChart = null;
     let funnelChart = null;
@@ -497,6 +549,7 @@
         }
         if (tabId === 'alerts') loadAlerts();
         if (tabId === 'qa') loadQa();
+        if (tabId === 'agenda') loadAgenda();
     }
     function toggleMobileSidebar() { $('sidebar').classList.toggle('hidden'); $('sidebar').classList.toggle('flex'); }
 
@@ -825,12 +878,96 @@
         }
     }
 
+    let agendaCat = '';
+    const CAT_LABEL = {
+        b2b_hoteles: 'B2B',
+        sistemas_code: 'Sistemas',
+        marketing_ads: 'Ads',
+        gestion_personal: 'Personal',
+        operaciones: 'Ops'
+    };
+    function agendaCard(t) {
+        const when = t.start_time ? String(t.start_time).slice(0, 16).replace('T', ' ') : (t.due_date || '');
+        return `<div class="p-3 rounded-xl bg-slate-900/70 border border-slate-800">
+            <p class="text-xs font-semibold text-white">${esc(t.title)}</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">${esc(CAT_LABEL[t.category] || t.category)} · ${esc(t.source || '')}${when ? ' · ' + esc(when) : ''}${t.is_meeting ? ' · reunión' : ''}</p>
+            <button onclick="completeAgendaTask('${t.id}')" class="mt-2 text-[11px] text-teal-300 hover:text-white">Marcar hecha</button>
+        </div>`;
+    }
+    function renderAgenda() {
+        const tasks = (AGENDA.tasks || []).filter(t => !agendaCat || t.category === agendaCat);
+        ['P1','P2','P3'].forEach(p => {
+            const list = tasks.filter(t => t.priority === p);
+            $(p === 'P1' ? 'agendaP1' : p === 'P2' ? 'agendaP2' : 'agendaP3').innerHTML =
+                list.length ? list.map(agendaCard).join('') : '<p class="text-slate-500 text-xs">Vacío</p>';
+        });
+        const ideas = AGENDA.ideas || [];
+        $('agendaIdeas').innerHTML = ideas.length
+            ? ideas.map(i => {
+                const steps = (i.structured_plan && i.structured_plan.steps) || [];
+                return `<div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                    <p class="text-xs font-semibold text-white">${esc((i.structured_plan && i.structured_plan.title) || i.raw_prompt.slice(0,80))}</p>
+                    <p class="text-[11px] text-slate-400 mt-1">${esc(i.raw_prompt).slice(0,220)}</p>
+                    ${steps.length ? '<ul class="mt-2 text-[11px] list-disc pl-4">' + steps.map(s => '<li>'+esc(s)+'</li>').join('') + '</ul>' : ''}
+                    <button onclick="convertAgendaIdea('${i.id}')" class="mt-2 text-[11px] text-indigo-300">Convertir a tarea</button>
+                </div>`;
+            }).join('')
+            : '<p class="text-slate-500 text-xs">Sin ideas. Escribí "idea: …" acá o por WhatsApp.</p>';
+    }
+    async function loadAgenda() {
+        try {
+            const data = await api('/api/copilot/board');
+            AGENDA = data;
+            const g = data.google_calendar || {};
+            $('agendaSyncBadge').textContent = g.connected ? 'Calendar: sync OK' : 'Calendar: sin OAuth';
+            $('agendaSyncBadge').className = 'px-2.5 py-1 rounded-full text-[10px] font-mono border ' +
+                (g.connected ? 'bg-emerald-950 text-emerald-300 border-emerald-800/50' : 'bg-slate-800 text-slate-400 border-slate-700');
+            renderAgenda();
+        } catch (err) {
+            $('agendaP1').innerHTML = '<p class="text-amber-300 text-xs">¿Migración 087 en Supabase? ' + esc(err.message) + '</p>';
+        }
+    }
+    async function handleAgendaCapture(e) {
+        e.preventDefault();
+        const text = $('agendaCapture').value.trim();
+        if (!text) return;
+        try {
+            const out = await api('/api/copilot/capture', { method: 'POST', body: JSON.stringify({ text, source: 'web_dashboard' }) });
+            $('agendaCapture').value = '';
+            $('agendaCaptureMsg').classList.remove('hidden');
+            $('agendaCaptureMsg').textContent = out.reply || 'Capturado';
+            await loadAgenda();
+        } catch (err) {
+            $('agendaCaptureMsg').classList.remove('hidden');
+            $('agendaCaptureMsg').textContent = err.message || 'No se pudo capturar';
+        }
+    }
+    async function completeAgendaTask(id) {
+        await api('/api/copilot/tasks/' + id, { method: 'PATCH', body: JSON.stringify({ status: 'completed' }) });
+        await loadAgenda();
+    }
+    async function convertAgendaIdea(id) {
+        await api('/api/copilot/ideas/' + id + '/convert', { method: 'POST', body: '{}' });
+        await loadAgenda();
+    }
+    document.addEventListener('click', (ev) => {
+        const btn = ev.target.closest && ev.target.closest('.agenda-filter');
+        if (!btn) return;
+        agendaCat = btn.getAttribute('data-cat') || '';
+        document.querySelectorAll('.agenda-filter').forEach(b => {
+            b.className = 'agenda-filter px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300';
+        });
+        btn.className = 'agenda-filter px-3 py-1.5 rounded-lg bg-indigo-600/30 border border-indigo-500/40 text-indigo-200';
+        renderAgenda();
+    });
+
     async function runAnaJob(name) {
         try {
             const data = await api('/api/jobs/' + name, { method: 'POST', body: '{}' });
             alert(data.skipped ? ('Job: ' + (data.reason || 'omitido')) : (data.ok === false ? ('Error: ' + (data.error || 'falló')) : 'Job ejecutado'));
             await loadAlerts();
             await loadQa();
+            if (!$('tab-agenda').classList.contains('hidden')) await loadAgenda();
         } catch (err) {
             alert(err.message || 'No se pudo correr el job');
         }

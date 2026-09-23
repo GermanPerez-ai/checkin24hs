@@ -8,6 +8,15 @@ const { compactPlatform } = require('./ads');
 const { fetchBody } = require('./mail');
 const { runJob } = require('./jobs');
 const { buildProposalFromPrompt, buildPromoFromPrompt } = require('./proposals');
+const {
+  captureFromText,
+  listTasks,
+  listIdeas,
+  patchTask,
+  convertIdea,
+  boardSummary,
+  looksLikeCopilot,
+} = require('./copilot');
 
 const PORT = parseInt(process.env.PORT || '8080', 10) || 8080;
 const ANA_PASSWORD = String(process.env.ANA_PASSWORD || '').trim();
@@ -61,7 +70,8 @@ Eres ANA, la Inteligencia de Negocios y Asistente Ejecutiva Central de Checkin24
 - Promociones del dashboard: hotels no las trae; están en promotions (vigentes vs total). Si promotions.error, decí sin datos.
 - No inventes ocupación, comisiones por hotel (no hay columna de comisión en el catálogo) ni tarifas que no estén en precio_desde.
 - Propuestas B2B y packs promocionales: si el usuario pide una propuesta de representación o contenido promocional, el sistema genera HTML/JSON aparte; vos resumí y no inventes tarifas que no estén en el snapshot.
-- Alertas: flash 08:00, fricción Flor cada 2 h, QA semanal. No dispares envíos desde el chat.
+- Copiloto / agenda: snapshot.copilot (counts, p1, meetings_today). Crear con "anotá / agendame / idea:". Calendar: copilot.google_calendar.connected.
+- Alertas: flash 08:00, fricción Flor cada 2 h, QA semanal, cierre 19:00. No dispares envíos desde el chat.
 
 Abajo tenés un SNAPSHOT JSON real. Basate solo en eso y en el mensaje del usuario.`;
 
@@ -266,6 +276,74 @@ app.post('/api/jobs/:name', requireJobAuth, async (req, res) => {
   } catch (e) {
     console.warn('ANA job route', name, e.message || e);
     res.status(200).json({ ok: false, error: e.message || String(e), job: name });
+  }
+});
+
+app.get('/api/copilot/board', requireAuth, async (_req, res) => {
+  try {
+    const [board, tasks, ideas] = await Promise.all([boardSummary(), listTasks({}), listIdeas()]);
+    res.json({
+      ok: true,
+      google_calendar: board.google_calendar,
+      counts: board.counts,
+      tasks: tasks.items,
+      ideas: ideas.items,
+      error: board.error || tasks.error || ideas.error || null,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message || String(e) });
+  }
+});
+
+app.post('/api/copilot/capture', requireAuth, async (req, res) => {
+  try {
+    let text = String(req.body?.text || req.body?.message || '').trim();
+    if (!text && req.body?.audio) {
+      text = String(
+        await transcribeAudio(req.body.audio, req.body?.mimeType || req.body?.mime || 'audio/webm')
+      ).trim();
+    }
+    const out = await captureFromText({ text, source: req.body?.source || 'web_dashboard' });
+    res.json(out);
+  } catch (e) {
+    res.status(400).json({ error: e.message || String(e) });
+  }
+});
+
+app.post('/api/copilot/inbound', requireJobAuth, async (req, res) => {
+  try {
+    let text = String(req.body?.text || req.body?.message || '').trim();
+    if (!text && req.body?.audio) {
+      text = String(
+        await transcribeAudio(req.body.audio, req.body?.mimeType || req.body?.mime || 'audio/webm')
+      ).trim();
+    }
+    const out = await captureFromText({
+      text,
+      source: 'whatsapp',
+      confirmWhatsApp: true,
+    });
+    res.json(out);
+  } catch (e) {
+    res.status(400).json({ error: e.message || String(e) });
+  }
+});
+
+app.patch('/api/copilot/tasks/:id', requireAuth, async (req, res) => {
+  try {
+    const item = await patchTask(req.params.id, req.body || {});
+    res.json({ ok: true, item });
+  } catch (e) {
+    res.status(400).json({ error: e.message || String(e) });
+  }
+});
+
+app.post('/api/copilot/ideas/:id/convert', requireAuth, async (req, res) => {
+  try {
+    const out = await convertIdea(req.params.id);
+    res.json(out);
+  } catch (e) {
+    res.status(400).json({ error: e.message || String(e) });
   }
 });
 
@@ -655,6 +733,26 @@ function compactSnapshot(snap, userText) {
       meta: compactPlatform(snap.modules?.ads?.meta),
       reason: snap.modules?.ads?.reason || null,
     },
+    copilot: snap.modules?.copilot
+      ? {
+          connected: snap.modules.copilot.connected,
+          google_calendar: snap.modules.copilot.google_calendar || null,
+          counts: snap.modules.copilot.counts || null,
+          p1: (snap.modules.copilot.p1 || []).slice(0, 12).map((t) => ({
+            title: t.title,
+            priority: t.priority,
+            category: t.category,
+            due_date: t.due_date,
+            start_time: t.start_time,
+            status: t.status,
+          })),
+          meetings_today: (snap.modules.copilot.meetings_today || []).slice(0, 8).map((t) => ({
+            title: t.title,
+            start_time: t.start_time,
+          })),
+          error: snap.modules.copilot.error || null,
+        }
+      : { connected: false },
     unavailable: {
       occupancy: snap.modules?.occupancy,
     },
@@ -837,6 +935,21 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       }
     }
     if (!text) return res.status(400).json({ error: 'Falta text o audio' });
+    if (looksLikeCopilot(text)) {
+      try {
+        const captured = await captureFromText({ text, source: 'web_dashboard' });
+        return res.json({
+          ok: true,
+          reply: captured.reply,
+          copilot: captured,
+          ymd: (await getSnapshot()).ymd,
+          gemini: Boolean(GEMINI_API_KEY),
+          transcript: transcript || null,
+        });
+      } catch (e) {
+        console.warn('ANA copiloto chat', e.message || e);
+      }
+    }
     const snapshot = await getSnapshot({ force: true });
     const intent = detectCommercialIntent(text);
     let artifact = null;

@@ -9,6 +9,12 @@ const {
   supabaseInsert,
 } = require('./collect');
 const { dispatchAlert } = require('./notify');
+const {
+  morningBriefingExtras,
+  runSlaAutoTasks,
+  runHealthAutoTasks,
+  runEveningWrap,
+} = require('./copilot');
 
 const GEMINI_API_KEY = String(process.env.GEMINI_API_KEY || '').trim();
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
@@ -99,6 +105,10 @@ async function runMorningFlash() {
     })(),
     '_ANA · 08:00 ART_',
   ];
+  try {
+    const extra = await morningBriefingExtras();
+    if (extra?.text) lines.splice(lines.length - 1, 0, extra.text);
+  } catch (_) {}
   return dispatchAlert({
     kind: 'morning_flash',
     fingerprint: `morning-flash:${y.ymd || ymd}`,
@@ -351,12 +361,35 @@ async function runLifecycleFollowup() {
   return { ok: true, results, open: open.length, watch: watch.length };
 }
 
+async function runCopilotAuto() {
+  const snap = await getSnapshot({ force: true });
+  const sla = await runSlaAutoTasks(snap.modules?.dashboard?.sales || {});
+  const health = await runHealthAutoTasks(snap.modules?.monitor?.checks || []);
+  const made = [...sla, ...health].filter((x) => x && !x.skipped);
+  if (made.length) {
+    await dispatchAlert({
+      kind: 'copilot_auto',
+      fingerprint: `copilot-auto:${snap.ymd}:${made.length}`,
+      text: [
+        `📌 *ANA Copiloto · auto-tareas*`,
+        ...made.slice(0, 6).map((x) => `• ${x.task?.title || x.title}`),
+      ].join('\n'),
+      payload: { count: made.length },
+    });
+  }
+  return { ok: true, sla: sla.length, health: health.length, created: made.length };
+}
+
 async function runJob(name) {
   try {
     if (name === 'morning-flash' || name === 'morning_flash') return await runMorningFlash();
     if (name === 'flor-friction' || name === 'flor_friction') return await runFlorFriction();
     if (name === 'weekly-qa' || name === 'weekly_qa') return await runWeeklyQa();
     if (name === 'lifecycle-followup' || name === 'lifecycle_followup') return await runLifecycleFollowup();
+    if (name === 'copilot-auto' || name === 'copilot_auto') return await runCopilotAuto();
+    if (name === 'copilot-evening' || name === 'copilot_evening' || name === 'evening-wrap') {
+      return await runEveningWrap();
+    }
     return { ok: false, error: `job desconocido: ${name}` };
   } catch (e) {
     console.warn('ANA job error', name, e.message || e);
@@ -364,4 +397,12 @@ async function runJob(name) {
   }
 }
 
-module.exports = { runJob, runMorningFlash, runFlorFriction, runWeeklyQa, runLifecycleFollowup };
+module.exports = {
+  runJob,
+  runMorningFlash,
+  runFlorFriction,
+  runWeeklyQa,
+  runLifecycleFollowup,
+  runCopilotAuto,
+  runEveningWrap,
+};

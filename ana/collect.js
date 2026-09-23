@@ -935,6 +935,13 @@ async function buildSnapshot() {
     fetchInbox(20),
     fetchAdsSnapshot(),
   ]);
+  let copilot = { connected: false, reason: 'sin cargar' };
+  try {
+    const { boardSummary } = require('./copilot');
+    copilot = { connected: true, ...(await boardSummary()) };
+  } catch (e) {
+    copilot = { connected: false, error: e.message || String(e) };
+  }
   const snapshot = {
     agent: 'ANA',
     generated_at,
@@ -946,6 +953,7 @@ async function buildSnapshot() {
       web: visits.error ? { connected: false, error: visits.error } : { connected: true, visits },
       flor: flor.error ? { connected: false, error: flor.error, source: flor.source } : { connected: true, source: flor.source, flor },
       ads,
+      copilot,
       webmail: mail.connected
         ? { connected: true, mail }
         : { connected: false, reason: mail.reason || 'IMAP no disponible', mail },
@@ -1008,6 +1016,30 @@ async function supabaseInsert(table, body, { onConflict } = {}) {
   return { ok: res.ok, status: res.status, data };
 }
 
+async function supabasePatch(table, query, body) {
+  if (!SUPABASE_ANON_KEY) {
+    return { ok: false, status: 0, data: 'Falta SUPABASE_ANON_KEY' };
+  }
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
+    method: 'PATCH',
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
+  return { ok: res.ok, status: res.status, data };
+}
+
 module.exports = {
   getSnapshot,
   arYmd,
@@ -1016,4 +1048,5 @@ module.exports = {
   supabaseSelect,
   supabaseRpc,
   supabaseInsert,
+  supabasePatch,
 };

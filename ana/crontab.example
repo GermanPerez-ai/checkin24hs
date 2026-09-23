@@ -17,3 +17,9 @@ CRON_TZ=America/Argentina/Buenos_Aires
 
 # Seguimiento pedidos anulación/modificación al hotel (cada 4 h)
 20 */4 * * * curl -fsS -X POST -H "X-Ana-Jobs-Secret: SECRET" https://ana.checkin24hs.com/api/jobs/lifecycle-followup >> /var/log/ana-jobs.log 2>&1
+
+# Copiloto: auto-tareas hotel SLA 4h + líneas Flor caídas
+40 */2 * * * curl -fsS -X POST -H "X-Ana-Jobs-Secret: SECRET" https://ana.checkin24hs.com/api/jobs/copilot-auto >> /var/log/ana-jobs.log 2>&1
+
+# Copiloto: cierre de jornada 19:00 ART
+0 19 * * * curl -fsS -X POST -H "X-Ana-Jobs-Secret: SECRET" https://ana.checkin24hs.com/api/jobs/copilot-evening >> /var/log/ana-jobs.log 2>&1
