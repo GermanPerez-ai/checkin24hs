@@ -276,7 +276,7 @@
                         </div>
                     </div>
                     <form onsubmit="handleAgendaCapture(event)" class="glass-panel p-4 rounded-2xl space-y-3">
-                        <!-- ANA agenda media 2026-09-23c -->
+                        <!-- ANA agenda media 2026-09-23d -->
                         <input id="agendaCapture" type="text" placeholder="Texto, foto del stand / WhatsApp, o audio. Ej. reunión mañana 11 con RateHawk"
                             class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500">
                         <div class="flex gap-2 flex-wrap items-center">
@@ -926,10 +926,21 @@ let AGENDA = { tasks: [], ideas: [] };
             hour12: false
         });
     }
+    function standFromTask(t) {
+        const blob = `${t.title || ''} ${t.description || ''}`;
+        const m = blob.match(/\b(?:NAC|INT)[- ]?\d{2,6}\b/i)
+            || blob.match(/Stand[:\s]+([A-Z0-9-]{3,20})/i);
+        if (!m) return '';
+        const raw = (m[1] || m[0]).toUpperCase().replace(/\s+/g, '');
+        const n = raw.match(/^(NAC|INT)-?(\d{2,6})$/);
+        return n ? `${n[1]}-${n[2]}` : raw;
+    }
     function agendaCard(t) {
         const when = t.start_time ? formatArtDateTime(t.start_time) : (t.due_date || '');
+        const stand = standFromTask(t);
         return `<div class="p-3 rounded-xl bg-slate-900/70 border border-slate-800">
             <p class="text-xs font-semibold text-white">${esc(t.title)}</p>
+            ${stand ? `<p class="text-[11px] text-teal-300 mt-0.5 font-semibold">Stand ${esc(stand)}</p>` : ''}
             <p class="text-[11px] text-slate-400 mt-0.5">${esc(CAT_LABEL[t.category] || t.category)} · ${esc(t.source || '')}${when ? ' · ' + esc(when) : ''}${t.is_meeting ? ' · reunión' : ''}</p>
             <button onclick="completeAgendaTask('${t.id}')" class="mt-2 text-[11px] text-teal-300 hover:text-white">Marcar hecha</button>
         </div>`;

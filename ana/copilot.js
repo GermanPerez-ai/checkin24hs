@@ -62,6 +62,91 @@ function normalizeArtDateTime(value) {
   return `${withSec}-03:00`;
 }
 
+function normalizeStand(value) {
+  const s = String(value || '').trim().toUpperCase();
+  if (!s || s === '-' || s === 'N/A' || s === 'NA' || s === 'NULL') return '';
+  const m = s.match(/\b(NAC|INT|NACIONAL|INTERNACIONAL)[-\s]?(\d{2,6})\b/);
+  if (m) return `${m[1].startsWith('INT') ? 'INT' : 'NAC'}-${m[2]}`;
+  const m2 = s.match(/\b([A-Z]{2,5})-(\d{2,6})\b/);
+  if (m2) return `${m2[1]}-${m2[2]}`;
+  const m3 = s.match(/N[UÚ]MERO DE STAND[:\s]+([A-Z0-9-]{3,20})/i);
+  if (m3) return normalizeStand(m3[1]) || m3[1].toUpperCase();
+  const cleaned = s.replace(/^STAND[:\s]+/i, '').trim();
+  return /^[A-Z0-9-]{3,20}$/.test(cleaned) ? cleaned : '';
+}
+
+function extractStand(text) {
+  return normalizeStand(text);
+}
+
+function parseFairScheduleLines(raw) {
+  const lines = [];
+  for (const line of String(raw || '').split(/\r?\n/)) {
+    const cleaned = line.replace(/^Imagen:\s*/i, '').trim();
+    const parts = cleaned.split('|').map((p) => p.trim());
+    if (parts.length < 5) continue;
+    const status = parts[0].toUpperCase();
+    if (!/^(CONFIRMED|PENDING|REJECTED|FREE)/.test(status)) continue;
+    const time = String(parts[2] || '').replace('.', ':');
+    const hm = time.match(/^(\d{1,2}):(\d{2})/);
+    if (!hm) continue;
+    const stand = extractStand(parts[parts.length - 1]) || extractStand(cleaned);
+    lines.push({
+      status,
+      date: parts[1],
+      time: `${String(hm[1]).padStart(2, '0')}:${hm[2]}`,
+      name: parts[3] || '',
+      company: parts.slice(4, Math.max(5, parts.length - 1)).join(' | '),
+      stand,
+    });
+  }
+  return lines;
+}
+
+function foldName(s) {
+  return String(s || '')
+    .toUpperCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Z0-9]+/g, ' ')
+    .trim();
+}
+
+function namesOverlap(a, b) {
+  const left = foldName(a).split(' ').filter((w) => w.length > 2);
+  const right = new Set(foldName(b).split(' ').filter((w) => w.length > 2));
+  if (!left.length || !right.size) return false;
+  const hits = left.filter((w) => right.has(w)).length;
+  return hits >= Math.min(2, left.length);
+}
+
+function standForItem(item, raw) {
+  const direct = extractStand(item.stand) || extractStand(item.title) || extractStand(item.description);
+  if (direct) return direct;
+  const lines = parseFairScheduleLines(raw);
+  if (!lines.length) return extractStand(raw) || '';
+  const p = artParts(item.start_time);
+  const hm = p ? `${p.hh}:${p.mm}` : '';
+  const blob = `${item.title || ''} ${item.description || ''}`;
+  const byTimeAndName = lines.find(
+    (l) => l.stand && l.time === hm && (namesOverlap(blob, `${l.name} ${l.company}`) || namesOverlap(l.name, blob))
+  );
+  if (byTimeAndName) return byTimeAndName.stand;
+  const byTime = lines.filter((l) => l.stand && l.time === hm);
+  if (byTime.length === 1) return byTime[0].stand;
+  return '';
+}
+
+function applyStandToItem(item, stand) {
+  if (!item || !stand) return item;
+  item.stand = stand;
+  const title = String(item.title || '').trim();
+  if (title && !extractStand(title)) item.title = `${title} · ${stand}`.slice(0, 255);
+  const desc = String(item.description || '').trim();
+  if (!extractStand(desc)) item.description = [`Stand ${stand}`, desc].filter(Boolean).join(' · ').slice(0, 2000);
+  return item;
+}
+
 const CATEGORIES = ['b2b_hoteles', 'sistemas_code', 'marketing_ads', 'gestion_personal', 'operaciones'];
 const PRIORITIES = ['P1', 'P2', 'P3'];
 const STATUSES = ['pending', 'in_progress', 'completed', 'cancelled'];
@@ -227,6 +312,7 @@ async function insertGoogleCalendar(parsed) {
       body: JSON.stringify({
         summary: parsed.title,
         description: parsed.description || '',
+        location: parsed.stand ? `Stand ${parsed.stand}` : undefined,
         start: { dateTime: start, timeZone: 'America/Argentina/Buenos_Aires' },
         end: { dateTime: end, timeZone: 'America/Argentina/Buenos_Aires' },
         reminders: { useDefault: true },
@@ -261,12 +347,14 @@ function parseSystemPrompt() {
   const now = new Date().toLocaleString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' });
   return `Sos el clasificador de agenda de ANA (Checkin24hs). Ahora es ${now} ART.
 Devolvé SOLO JSON con este esquema:
-{"items":[{"include":true,"type":"meeting","title":"","description":"","category":"b2b_hoteles","priority":"P2","start_time":"2026-09-28T11:00:00-03:00","end_time":"2026-09-28T11:30:00-03:00","due_date":"2026-09-28"}]}
+{"items":[{"include":true,"type":"meeting","title":"","stand":"NAC-1150","description":"","category":"b2b_hoteles","priority":"P2","start_time":"2026-09-28T11:00:00-03:00","end_time":"2026-09-28T11:30:00-03:00","due_date":"2026-09-28"}]}
 Reglas:
 - Si hay VARIAS reuniones/citas (agenda de feria, lista, captura), un item por cada una. Máximo 20.
-- include=true solo las que el usuario pidió agendar. Si dijo "confirmadas", include=true SOLO si el texto dice Confirmada. Rechazada, Disponible, Pendiente de confirmación → include=false.
+- include=true solo las que el usuario pidió agendar. Si dijo "confirmadas", include=true SOLO si el texto dice Confirmada / CONFIRMED. Rechazada, Disponible, Pendiente de confirmación → include=false.
 - type=meeting si hay horario. idea si es pensamiento/incubadora. task el resto.
-- title corto: "Nombre — Empresa". description con stand y estado.
+- stand OBLIGATORIO si la línea/imagen tiene NÚMERO DE STAND o el último campo STAND (ej. NAC-1150, INT-3250). Copiá el código tal cual. NUNCA lo omitas.
+- title: "Nombre — Empresa · STAND" si hay stand. Si no hay stand, "Nombre — Empresa".
+- description: "Stand NAC-1150 · estado". El stand también va en el campo stand.
 - Horarios America/Argentina/Buenos_Aires. SIEMPRE ISO con offset -03:00 (ejemplo 11:00 → 2026-09-28T11:00:00-03:00). NUNCA uses Z ni UTC. 13:00 es 13 no 1.
 - category b2b_hoteles para hoteles/OTA/stands de feria; sistemas_code código/Flor; marketing_ads ads; gestion_personal personal.
 - Campos cortos. Sin markdown.`;
@@ -327,6 +415,7 @@ async function createIdea(fields) {
 async function captureOneItem(parsed, { raw, source, confirmWhatsApp }) {
   parsed.start_time = normalizeArtDateTime(parsed.start_time);
   parsed.end_time = normalizeArtDateTime(parsed.end_time);
+  applyStandToItem(parsed, standForItem(parsed, raw));
   const type = String(parsed.type || 'task').toLowerCase();
   const subtasks = Array.isArray(parsed.subtasks)
     ? parsed.subtasks.map((s) => String(s)).filter(Boolean).slice(0, 8)

@@ -828,7 +828,7 @@ async function extractImageNotes(base64, mimeType) {
         parts: [
           {
             text:
-              'Si es una agenda/calendario de feria: una línea por slot, formato STATUS|YYYY-MM-DD|HH:MM|Nombre|Empresa|STAND. STATUS=CONFIRMED, PENDING, REJECTED o FREE. Fecha del encabezado. Sin JSON. Máximo 30 líneas. Si no es agenda (tarjeta, WhatsApp, nota), devolvé un párrafo en español listo para agendar.',
+              'Si es una agenda/calendario de feria: una línea por slot, formato STATUS|YYYY-MM-DD|HH:MM|Nombre|Empresa|STAND. STATUS=CONFIRMED, PENDING, REJECTED o FREE. Fecha del encabezado. STAND es el código (NAC-1150, INT-3250, etc.) de "NÚMERO DE STAND". Copiálo EXACTO. Si el slot tiene persona/empresa, el STAND es obligatorio: no lo dejes vacío. Ejemplo: CONFIRMED|2026-09-28|14:00|FLORENCIA MINERO MINERO|TURI SUR NAVEGANDO LA PATAGONIA|NAC-1150. Sin JSON. Máximo 30 líneas. Si no es agenda (tarjeta, WhatsApp, nota), devolvé un párrafo en español listo para agendar e incluí el número de stand si aparece.',
           },
         ],
       },
