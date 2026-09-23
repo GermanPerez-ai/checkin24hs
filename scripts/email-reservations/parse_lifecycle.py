@@ -296,6 +296,9 @@ _CONFIRM_CANCEL = re.compile(
     r"|de acuerdo con la (?:anulaci[oó]n|cancelaci[oó]n)"
     r"|ok,? se (?:anula|cancela)"
     r"|proced\w* (?:con |a )?(?:la )?(?:anulaci[oó]n|cancelaci[oó]n)"
+    r"|proced\w* a (?:anular|cancelar)"
+    r"|n[°ºo.]?\s*cancelaci[oó]n"
+    r"|acusamos recibo.{0,80}(?:anular|cancelar|anulaci|cancelaci)"
     r"|qued[oó] sin efecto"
     r"|sin efecto la reserva"
     r")",

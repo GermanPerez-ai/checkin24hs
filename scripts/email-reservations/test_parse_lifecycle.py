@@ -90,6 +90,26 @@ class TestHotelReplyVerdict(unittest.TestCase):
         for text in samples:
             self.assertEqual(classify_hotel_reply("cancel", text), "confirm_cancel", text)
 
+    def test_huilo_paz_procedemos_a_anular(self):
+        from parse_lifecycle import classify_hotel_reply, parse_lifecycle_mail
+
+        text = (
+            "Estimados,\n\n"
+            "Acusamos recibo de la información.\n\n"
+            "Procedemos a anular las rsvas con N° cancelación: 600425952 y 600425963.\n"
+            "Saludos,\nPaz Gálvez\n"
+        )
+        self.assertEqual(classify_hotel_reply("cancel", text), "confirm_cancel")
+        row = parse_lifecycle_mail(
+            {
+                "subject": "RE: ANULAR RESERVA Hotel Huilo-Huilo 595946981 y 595947028",
+                "text": text,
+                "html": "",
+            }
+        )
+        self.assertEqual(row["hotel_verdict"], "confirm_cancel")
+        self.assertEqual(row["reservation_code"], "595946981")
+
     def test_informal_hotel_yes(self):
         from parse_lifecycle import classify_hotel_reply
 
