@@ -90,6 +90,16 @@ class TestHotelReplyVerdict(unittest.TestCase):
         for text in samples:
             self.assertEqual(classify_hotel_reply("cancel", text), "confirm_cancel", text)
 
+    def test_informal_hotel_yes(self):
+        from parse_lifecycle import classify_hotel_reply
+
+        for text in (
+            "Ok, anulamos la reserva.",
+            "De acuerdo con la anulación.",
+            "Procederemos con la cancelación.",
+        ):
+            self.assertEqual(classify_hotel_reply("cancel", text), "confirm_cancel", text)
+
     def test_unequivocal_modify(self):
         from parse_lifecycle import classify_hotel_reply
 

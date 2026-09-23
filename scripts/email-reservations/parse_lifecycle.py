@@ -33,13 +33,15 @@ _CODE_PAREN = re.compile(r"\((\d{5,8})\)")
 _CODE_ALNUM = re.compile(r"\b([A-Z][A-Z0-9]{4,9})\b")
 _CODE_DIGITS = re.compile(r"\b(\d{6,10})\b")
 _FORMULA = re.compile(
-    r"^(?:re:\s*|fwd:\s*)*"
+    r"^(?:re:\s*|fwd:\s*|fw:\s*|rv:\s*|res:\s*)*"
     r"(?:anular|anulaci[oó]n|cancelaci[oó]n|cancelar|modificar|modificaci[oó]n|ajuste de precio)"
     r".{0,20}?"
     r"reserva(?:s)?"
     r"(?:\s+web)?"
     r"\s+(.+?)\s+"
-    r"([A-Z][A-Z0-9]{4,9}|#\s*\d{5,10}|\d{6,10})\s*$",
+    r"([A-Z][A-Z0-9]{4,9}|#\s*\d{5,10}|\d{6,10})"
+    r"(?:\s+y\s+[A-Z0-9#]+)*"
+    r"\s*$",
     re.I,
 )
 
@@ -239,6 +241,22 @@ def extract_lifecycle_code(subject: str, text: str = "") -> Optional[str]:
     return None
 
 
+def extract_lifecycle_codes(subject: str, text: str = "") -> list[str]:
+    seen = []
+    one = extract_lifecycle_code(subject, text)
+    if one:
+        seen.append(one)
+    blob = f"{subject}\n{text or ''}"
+    for rx in (_CODE_HUILO, _CODE_HASH, _CODE_DIGITS, _CODE_ALNUM):
+        for m in rx.finditer(blob):
+            code = _clean_code(m.group(1))
+            if code and code not in seen and code not in _BLOCK_CODES:
+                seen.append(code)
+            if len(seen) >= 6:
+                return seen
+    return seen
+
+
 _INTERNAL_DOMAINS = ("checkin24hs.com",)
 
 _HOTEL_DOMAINS = (
@@ -273,6 +291,13 @@ _CONFIRM_CANCEL = re.compile(
     r"|(?:anulaci[oó]n|cancelaci[oó]n) (?:confirmada|realizada|efectuada|ok)"
     r"|damos (?:de )?baja"
     r"|aceptamos (?:la )?(?:anulaci[oó]n|cancelaci[oó]n)"
+    r"|\banulamos\b"
+    r"|\bcancelamos\b"
+    r"|de acuerdo con la (?:anulaci[oó]n|cancelaci[oó]n)"
+    r"|ok,? se (?:anula|cancela)"
+    r"|proced\w* (?:con |a )?(?:la )?(?:anulaci[oó]n|cancelaci[oó]n)"
+    r"|qued[oó] sin efecto"
+    r"|sin efecto la reserva"
     r")",
     re.I,
 )
@@ -343,9 +368,15 @@ def _plain_from_html(html: str) -> str:
 
 def own_reply_text(text: str, html: str = "") -> str:
     """Solo el mensaje nuevo del hotel, sin el pedido citado de Checkin24hs."""
+    html_plain = ""
+    if html:
+        h = str(html)
+        h = re.sub(r"(?is)<blockquote[\s\S]*?</blockquote>", "\n", h)
+        h = re.sub(r'(?is)<div[^>]*gmail_quote[\s\S]*', "\n", h)
+        html_plain = _plain_from_html(h)
     raw = str(text or "").strip()
-    if not raw:
-        raw = _plain_from_html(html)
+    if len(raw) < 20 and html_plain:
+        raw = html_plain
     s = str(raw or "").replace("\r", "")
     s = re.split(r"(?im)^De:\s+.+\nEnviado el:", s)[0]
     s = re.split(r"(?im)^From:\s+.+\nSent:", s)[0]
@@ -388,7 +419,8 @@ def parse_lifecycle_mail(mail: dict) -> Optional[dict]:
     if not intent:
         return None
     body = f"{text}\n{html}"
-    code = extract_lifecycle_code(subject, body)
+    codes = extract_lifecycle_codes(subject, body)
+    code = codes[0] if codes else extract_lifecycle_code(subject, body)
     if not code:
         return None
     hotel_key = hotel_key_from_lifecycle(subject, body)
@@ -427,6 +459,7 @@ def parse_lifecycle_mail(mail: dict) -> Optional[dict]:
         "kind": intent,
         "hotel_key": hotel_key,
         "reservation_code": code,
+        "reservation_codes": codes or [code],
         "client_name": extra.get("client_name") or "",
         "check_in": extra.get("check_in"),
         "check_out": extra.get("check_out"),

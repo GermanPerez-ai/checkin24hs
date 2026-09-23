@@ -390,11 +390,10 @@ def _append_note(existing, line: str) -> str:
     return (prev + "\n" if prev else "") + line
 
 
-def patch_reservation_lifecycle(reservation_code: str, kind: str, parsed: dict | None = None, from_addr: str = ""):
-    """Ventas pide; el hotel cierra solo si el cuerpo confirma de forma inequívoca."""
+def find_reservation_row(reservation_code: str):
     code = str(reservation_code or "").strip()
     if not code:
-        return {"ok": False, "reason": "sin_codigo"}
+        return None
     q = (
         "reservations?reservation_code=eq."
         + urllib.parse.quote(code, safe="")
@@ -402,9 +401,37 @@ def patch_reservation_lifecycle(reservation_code: str, kind: str, parsed: dict |
         + "&limit=1"
     )
     existing = sb("GET", q)
-    if not isinstance(existing, list) or not existing:
-        return {"ok": False, "reason": "no_existe"}
-    row = existing[0]
+    if isinstance(existing, list) and existing:
+        return existing[0]
+    q2 = (
+        "reservations?reservation_code=ilike."
+        + urllib.parse.quote("*" + code + "*", safe="*")
+        + "&select=id,reservation_code,status,check_in,check_out,total_amount,notes"
+        + "&limit=3"
+    )
+    existing = sb("GET", q2)
+    if isinstance(existing, list) and existing:
+        return existing[0]
+    return None
+
+
+def patch_reservation_lifecycle(reservation_code: str, kind: str, parsed: dict | None = None, from_addr: str = ""):
+    """Ventas pide; el hotel cierra solo si el cuerpo confirma de forma inequívoca."""
+    parsed = parsed or {}
+    codes = [c for c in ([reservation_code] + list(parsed.get("reservation_codes") or [])) if c]
+    seen = []
+    for c in codes:
+        c = str(c).strip()
+        if not c or c in seen:
+            continue
+        seen.append(c)
+        row = find_reservation_row(c)
+        if row:
+            return _apply_lifecycle_row(row, kind, parsed, from_addr)
+    return {"ok": False, "reason": "no_existe"}
+
+
+def _apply_lifecycle_row(row: dict, kind: str, parsed: dict, from_addr: str):
     rid = row.get("id")
     if not rid:
         return {"ok": False, "reason": "sin_id"}
@@ -540,6 +567,12 @@ def main():
     since = dt.date.today() - dt.timedelta(days=max(1, args.since_days))
     since_imap = since.strftime("%d-%b-%Y")
     print(f"📬 IMAP {IMAP_USER}@{IMAP_HOST}:{IMAP_PORT} mailbox={MAILBOX}")
+    if str(IMAP_HOST).strip() in ("127.0.0.1", "localhost", "mail.checkin24hs.com"):
+        print(
+            "⚠️  El dashboard manda por smtp.hostinger.com. Si el hotel responde a reservas@, "
+            "esta casilla local NO ve esa respuesta. En .env: IMAP_HOST=imap.hostinger.com "
+            "IMAP_PORT=993 IMAP_USER=reservas@checkin24hs.com"
+        )
     print(f"📅 SINCE {since_imap}{' (DRY-RUN)' if args.dry_run else ''}{' (retry skipped)' if args.retry_skipped else ''}")
 
     hotels: dict[str, dict] = {}
@@ -631,6 +664,9 @@ def main():
                     print(f"{tag} [{hotel_key}] {kind} {code} | {subject[:80]}")
                     if args.dry_run:
                         print(f"   · from={from_addr} verdict={parsed.get('hotel_verdict')}")
+                        own = (parsed.get("own_text") or "").replace("\n", " ")[:220]
+                        if own:
+                            print(f"   · cuerpo: {own}")
                         continue
                     try:
                         result = patch_reservation_lifecycle(code, kind, parsed, from_addr)
