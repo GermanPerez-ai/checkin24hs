@@ -78,7 +78,7 @@ Abajo tenés un SNAPSHOT JSON real. Basate solo en eso y en el mensaje del usuar
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
-app.use(express.json({ limit: '8mb' }));
+app.use(express.json({ limit: '15mb' }));
 
 function signSession(exp) {
   const payload = String(exp);
@@ -297,12 +297,7 @@ app.get('/api/copilot/board', requireAuth, async (_req, res) => {
 
 app.post('/api/copilot/capture', requireAuth, async (req, res) => {
   try {
-    let text = String(req.body?.text || req.body?.message || '').trim();
-    if (!text && req.body?.audio) {
-      text = String(
-        await transcribeAudio(req.body.audio, req.body?.mimeType || req.body?.mime || 'audio/webm')
-      ).trim();
-    }
+    const text = await resolveCaptureInput(req.body || {});
     const out = await captureFromText({ text, source: req.body?.source || 'web_dashboard' });
     res.json(out);
   } catch (e) {
@@ -312,12 +307,7 @@ app.post('/api/copilot/capture', requireAuth, async (req, res) => {
 
 app.post('/api/copilot/inbound', requireJobAuth, async (req, res) => {
   try {
-    let text = String(req.body?.text || req.body?.message || '').trim();
-    if (!text && req.body?.audio) {
-      text = String(
-        await transcribeAudio(req.body.audio, req.body?.mimeType || req.body?.mime || 'audio/webm')
-      ).trim();
-    }
+    const text = await resolveCaptureInput(req.body || {});
     const out = await captureFromText({
       text,
       source: 'whatsapp',
@@ -781,6 +771,16 @@ function normalizeAudioMime(raw) {
   return m || 'audio/webm';
 }
 
+function normalizeImageMime(raw) {
+  const m = String(raw || '')
+    .split(';')[0]
+    .trim()
+    .toLowerCase();
+  if (m === 'image/jpg') return 'image/jpeg';
+  if (m === 'image/jpeg' || m === 'image/png' || m === 'image/webp' || m === 'image/gif') return m;
+  return 'image/jpeg';
+}
+
 function stripDataUrl(b64) {
   const s = String(b64 || '').trim();
   const i = s.indexOf('base64,');
@@ -814,6 +814,58 @@ async function transcribeAudio(base64, mimeType) {
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json?.error?.message || `Gemini audio ${res.status}`);
   return geminiTextFrom(json);
+}
+
+async function extractImageNotes(base64, mimeType) {
+  if (!GEMINI_API_KEY) throw new Error('Falta GEMINI_API_KEY para leer la imagen');
+  const mime = normalizeImageMime(mimeType);
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      systemInstruction: {
+        parts: [
+          {
+            text:
+              'Leé la imagen (stand, tarjeta, captura de WhatsApp, nota o foto de feria). Extraé nombres, empresa, fechas, horas, stand, teléfono, mail y cualquier pedido de reunión o tarea. Devolvé un párrafo en español listo para agendar, sin JSON, sin markdown. Si no hay texto útil, describí lo que se ve en una frase.',
+          },
+        ],
+      },
+      contents: [
+        {
+          role: 'user',
+          parts: [{ inline_data: { mime_type: mime, data: stripDataUrl(base64) } }],
+        },
+      ],
+      generationConfig: { temperature: 0, maxOutputTokens: 2048 },
+    }),
+    signal: AbortSignal.timeout(25000),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json?.error?.message || `Gemini imagen ${res.status}`);
+  return geminiTextFrom(json);
+}
+
+async function resolveCaptureInput(body) {
+  const bits = [];
+  const note = String(body?.text || body?.message || '').trim();
+  if (note) bits.push(note);
+  if (body?.audio) {
+    const transcript = String(
+      await transcribeAudio(body.audio, body?.mimeType || body?.mime || 'audio/webm')
+    ).trim();
+    if (transcript) bits.push('Audio: ' + transcript);
+  }
+  if (body?.image) {
+    const vision = String(
+      await extractImageNotes(body.image, body?.imageMime || body?.image_mime || 'image/jpeg')
+    ).trim();
+    if (vision) bits.push('Imagen: ' + vision);
+  }
+  const text = bits.join('\n\n').trim();
+  if (!text) throw new Error('Falta texto, imagen o audio');
+  return text;
 }
 
 async function callGemini({ userText, history, snapshot }) {

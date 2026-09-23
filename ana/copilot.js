@@ -41,11 +41,39 @@ function asStatus(value) {
 function parseJsonLoose(raw) {
   const s = String(raw || '').trim();
   const fence = s.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const body = fence ? fence[1] : s;
+  const body = (fence ? fence[1] : s).trim();
   const start = body.indexOf('{');
-  const end = body.lastIndexOf('}');
-  if (start < 0 || end <= start) throw new Error('Gemini no devolvió JSON');
-  return JSON.parse(body.slice(start, end + 1));
+  if (start < 0) throw new Error('Gemini no devolvió JSON');
+  let depth = 0;
+  let inStr = false;
+  let esc = false;
+  for (let i = start; i < body.length; i++) {
+    const c = body[i];
+    if (inStr) {
+      if (esc) {
+        esc = false;
+        continue;
+      }
+      if (c === '\\') {
+        esc = true;
+        continue;
+      }
+      if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') {
+      inStr = true;
+      continue;
+    }
+    if (c === '{') depth += 1;
+    if (c === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return JSON.parse(body.slice(start, i + 1));
+      }
+    }
+  }
+  return JSON.parse(body.slice(start));
 }
 
 async function geminiJson(system, user) {

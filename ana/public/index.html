@@ -267,7 +267,7 @@
                     <div class="flex items-center justify-between gap-3 flex-wrap">
                         <div>
                             <h2 class="text-xl font-bold text-white">Agenda Executive</h2>
-                            <p class="text-xs text-slate-400">Tareas, reuniones e ideas. WhatsApp y auto-tareas de hotel / Flor.</p>
+                            <p class="text-xs text-slate-400">Tareas, reuniones e ideas. Texto, foto (stand/WhatsApp) o audio. También WhatsApp y auto-tareas.</p>
                         </div>
                         <div class="flex items-center gap-2">
                             <span id="agendaSyncBadge" class="px-2.5 py-1 rounded-full text-[10px] font-mono bg-slate-800 text-slate-400 border border-slate-700">Calendar: —</span>
@@ -275,10 +275,33 @@
                             <button onclick="runAnaJob('copilot-evening')" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-300">Cierre 19:00</button>
                         </div>
                     </div>
-                    <form onsubmit="handleAgendaCapture(event)" class="glass-panel p-4 rounded-2xl flex gap-2 flex-col sm:flex-row">
-                        <input id="agendaCapture" type="text" placeholder="Anotá, agendame reunión mañana 11 con RateHawk, o idea: pack termas…"
-                            class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500">
-                        <button type="submit" class="px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-teal-500 text-white text-sm font-semibold">Capturar</button>
+                    <form onsubmit="handleAgendaCapture(event)" class="glass-panel p-4 rounded-2xl space-y-3">
+                        <!-- ANA agenda media 2026-09-23 -->
+                        <input id="agendaCapture" type="text" placeholder="Texto, foto del stand / WhatsApp, o audio. Ej. reunión mañana 11 con RateHawk"
+                            class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500">
+                        <div class="flex gap-2 flex-wrap items-center">
+                            <label class="px-3 py-3 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 hover:text-white cursor-pointer shrink-0 inline-flex items-center gap-1.5 text-xs" title="Subir o sacar foto">
+                                <i data-lucide="image" class="w-4 h-4"></i>
+                                Foto
+                                <input id="agendaImageFile" type="file" accept="image/*" capture="environment" class="hidden" onchange="onAgendaImageFile(event)">
+                            </label>
+                            <label class="px-3 py-3 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 hover:text-white cursor-pointer shrink-0 inline-flex items-center gap-1.5 text-xs" title="Subir audio">
+                                <i data-lucide="file-audio" class="w-4 h-4"></i>
+                                Audio
+                                <input id="agendaAudioFile" type="file" accept="audio/*,video/webm" class="hidden" onchange="onAgendaAudioFile(event)">
+                            </label>
+                            <button type="button" id="agendaMicBtn" onclick="toggleAgendaMic()" title="Grabar audio"
+                                class="px-3 py-3 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 hover:text-white shrink-0 inline-flex items-center gap-1.5 text-xs">
+                                <i data-lucide="mic" class="w-4 h-4"></i>
+                                Grabar
+                            </button>
+                            <button type="submit" class="ml-auto px-4 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-teal-500 text-white text-sm font-semibold">Capturar</button>
+                        </div>
+                        <div id="agendaAttachPreview" class="hidden flex items-center gap-3 text-xs text-slate-300">
+                            <img id="agendaImagePreview" alt="" class="hidden w-14 h-14 rounded-lg object-cover border border-slate-700">
+                            <span id="agendaAudioPreview" class="hidden px-2 py-1 rounded-lg bg-slate-900 border border-slate-700"></span>
+                            <button type="button" onclick="clearAgendaAttach()" class="text-rose-300">Quitar</button>
+                        </div>
                     </form>
                     <p id="agendaCaptureMsg" class="hidden text-xs text-teal-300"></p>
                     <div class="flex gap-2 flex-wrap text-xs" id="agendaFilters">
@@ -549,7 +572,10 @@ let AGENDA = { tasks: [], ideas: [] };
         }
         if (tabId === 'alerts') loadAlerts();
         if (tabId === 'qa') loadQa();
-        if (tabId === 'agenda') loadAgenda();
+        if (tabId === 'agenda') {
+            loadAgenda();
+            lucide.createIcons();
+        }
     }
     function toggleMobileSidebar() { $('sidebar').classList.toggle('hidden'); $('sidebar').classList.toggle('flex'); }
 
@@ -930,17 +956,191 @@ let AGENDA = { tasks: [], ideas: [] };
     async function handleAgendaCapture(e) {
         e.preventDefault();
         const text = $('agendaCapture').value.trim();
-        if (!text) return;
+        if (!text && !agendaImageB64 && !agendaAudioB64) return;
+        const msg = $('agendaCaptureMsg');
+        msg.classList.remove('hidden');
+        msg.className = 'text-xs text-slate-400';
+        msg.textContent = agendaImageB64 || agendaAudioB64 ? 'Leyendo foto/audio y capturando…' : 'Capturando…';
         try {
-            const out = await api('/api/copilot/capture', { method: 'POST', body: JSON.stringify({ text, source: 'web_dashboard' }) });
+            const body = { text, source: 'web_dashboard' };
+            if (agendaImageB64) {
+                body.image = agendaImageB64;
+                body.imageMime = agendaImageMime || 'image/jpeg';
+            }
+            if (agendaAudioB64) {
+                body.audio = agendaAudioB64;
+                body.mimeType = agendaAudioMime || 'audio/webm';
+            }
+            const out = await api('/api/copilot/capture', { method: 'POST', body: JSON.stringify(body) });
             $('agendaCapture').value = '';
-            $('agendaCaptureMsg').classList.remove('hidden');
-            $('agendaCaptureMsg').textContent = out.reply || 'Capturado';
+            clearAgendaAttach();
+            msg.className = 'text-xs text-teal-300';
+            msg.textContent = out.reply || 'Capturado';
             await loadAgenda();
         } catch (err) {
-            $('agendaCaptureMsg').classList.remove('hidden');
-            $('agendaCaptureMsg').textContent = err.message || 'No se pudo capturar';
+            msg.className = 'text-xs text-rose-300';
+            msg.textContent = err.message || 'No se pudo capturar';
         }
+    }
+
+    let agendaImageB64 = null;
+    let agendaImageMime = null;
+    let agendaAudioB64 = null;
+    let agendaAudioMime = null;
+    let agendaMicRec = null;
+    let agendaMicChunks = [];
+    let agendaMicStream = null;
+    let agendaMicTimer = null;
+
+    function refreshAgendaAttach() {
+        const box = $('agendaAttachPreview');
+        const img = $('agendaImagePreview');
+        const aud = $('agendaAudioPreview');
+        const has = Boolean(agendaImageB64 || agendaAudioB64);
+        box.classList.toggle('hidden', !has);
+        if (agendaImageB64) {
+            img.src = agendaImageB64;
+            img.classList.remove('hidden');
+        } else {
+            img.removeAttribute('src');
+            img.classList.add('hidden');
+        }
+        if (agendaAudioB64) {
+            aud.textContent = 'Audio listo para capturar';
+            aud.classList.remove('hidden');
+        } else {
+            aud.classList.add('hidden');
+        }
+        lucide.createIcons();
+    }
+
+    function clearAgendaAttach() {
+        agendaImageB64 = null;
+        agendaImageMime = null;
+        agendaAudioB64 = null;
+        agendaAudioMime = null;
+        const imgFile = $('agendaImageFile');
+        const audFile = $('agendaAudioFile');
+        if (imgFile) imgFile.value = '';
+        if (audFile) audFile.value = '';
+        refreshAgendaAttach();
+    }
+
+    function compressImageFile(file) {
+        return new Promise((resolve, reject) => {
+            if (!file || !String(file.type || '').startsWith('image/')) {
+                reject(new Error('El archivo no es una imagen'));
+                return;
+            }
+            const reader = new FileReader();
+            reader.onerror = () => reject(new Error('No se pudo leer la imagen'));
+            reader.onload = () => {
+                const img = new Image();
+                img.onload = () => {
+                    let w = img.width;
+                    let h = img.height;
+                    const max = 1600;
+                    if (w > max || h > max) {
+                        if (w >= h) {
+                            h = Math.round((h * max) / w);
+                            w = max;
+                        } else {
+                            w = Math.round((w * max) / h);
+                            h = max;
+                        }
+                    }
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w;
+                    canvas.height = h;
+                    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                    resolve(canvas.toDataURL('image/jpeg', 0.82));
+                };
+                img.onerror = () => reject(new Error('Imagen no válida'));
+                img.src = String(reader.result || '');
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+
+    async function onAgendaImageFile(ev) {
+        const file = ev.target && ev.target.files && ev.target.files[0];
+        if (!file) return;
+        try {
+            agendaImageB64 = await compressImageFile(file);
+            agendaImageMime = 'image/jpeg';
+            refreshAgendaAttach();
+        } catch (err) {
+            $('agendaCaptureMsg').classList.remove('hidden');
+            $('agendaCaptureMsg').className = 'text-xs text-rose-300';
+            $('agendaCaptureMsg').textContent = err.message || 'No se pudo leer la foto';
+        }
+    }
+
+    async function onAgendaAudioFile(ev) {
+        const file = ev.target && ev.target.files && ev.target.files[0];
+        if (!file) return;
+        try {
+            agendaAudioB64 = await blobToBase64(file);
+            agendaAudioMime = file.type || 'audio/webm';
+            refreshAgendaAttach();
+        } catch (err) {
+            $('agendaCaptureMsg').classList.remove('hidden');
+            $('agendaCaptureMsg').className = 'text-xs text-rose-300';
+            $('agendaCaptureMsg').textContent = err.message || 'No se pudo leer el audio';
+        }
+    }
+
+    function setAgendaMicUi(on) {
+        const btn = $('agendaMicBtn');
+        if (!btn) return;
+        btn.classList.toggle('mic-rec', on);
+        btn.title = on ? 'Tocá para dejar de grabar' : 'Grabar audio';
+        lucide.createIcons();
+    }
+
+    async function toggleAgendaMic() {
+        if (agendaMicRec && agendaMicRec.state === 'recording') {
+            agendaMicRec.stop();
+            return;
+        }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            $('agendaCaptureMsg').classList.remove('hidden');
+            $('agendaCaptureMsg').className = 'text-xs text-rose-300';
+            $('agendaCaptureMsg').textContent = 'Este navegador no permite grabar audio.';
+            return;
+        }
+        try {
+            agendaMicStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (err) {
+            $('agendaCaptureMsg').classList.remove('hidden');
+            $('agendaCaptureMsg').className = 'text-xs text-rose-300';
+            $('agendaCaptureMsg').textContent = 'Permití el micrófono en el navegador.';
+            return;
+        }
+        const pick = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].find((t) => MediaRecorder.isTypeSupported(t));
+        agendaMicChunks = [];
+        agendaMicRec = pick ? new MediaRecorder(agendaMicStream, { mimeType: pick }) : new MediaRecorder(agendaMicStream);
+        agendaMicRec.ondataavailable = (e) => { if (e.data && e.data.size) agendaMicChunks.push(e.data); };
+        agendaMicRec.onstop = async () => {
+            clearTimeout(agendaMicTimer);
+            setAgendaMicUi(false);
+            (agendaMicStream?.getTracks() || []).forEach((t) => t.stop());
+            agendaMicStream = null;
+            const blob = new Blob(agendaMicChunks, { type: agendaMicRec.mimeType || 'audio/webm' });
+            agendaMicRec = null;
+            if (blob.size < 800) {
+                $('agendaCaptureMsg').classList.remove('hidden');
+                $('agendaCaptureMsg').className = 'text-xs text-rose-300';
+                $('agendaCaptureMsg').textContent = 'El audio quedó demasiado corto.';
+                return;
+            }
+            agendaAudioB64 = await blobToBase64(blob);
+            agendaAudioMime = blob.type || 'audio/webm';
+            refreshAgendaAttach();
+        };
+        agendaMicRec.start();
+        setAgendaMicUi(true);
+        agendaMicTimer = setTimeout(() => { if (agendaMicRec && agendaMicRec.state === 'recording') agendaMicRec.stop(); }, 90000);
     }
     async function completeAgendaTask(id) {
         await api('/api/copilot/tasks/' + id, { method: 'PATCH', body: JSON.stringify({ status: 'completed' }) });
@@ -1110,6 +1310,30 @@ let AGENDA = { tasks: [], ideas: [] };
     lucide.createIcons();
     checkAuth();
     setInterval(() => { if ($('loginGate').classList.contains('hidden')) refreshSnapshot(false); }, 60000);
+
+    document.addEventListener('paste', async (ev) => {
+        const agendaTab = $('tab-agenda');
+        if (!agendaTab || agendaTab.classList.contains('hidden')) return;
+        const items = ev.clipboardData && ev.clipboardData.items;
+        if (!items) return;
+        for (const item of items) {
+            if (item.type && item.type.indexOf('image/') === 0) {
+                ev.preventDefault();
+                const file = item.getAsFile();
+                if (!file) return;
+                try {
+                    agendaImageB64 = await compressImageFile(file);
+                    agendaImageMime = 'image/jpeg';
+                    refreshAgendaAttach();
+                } catch (err) {
+                    $('agendaCaptureMsg').classList.remove('hidden');
+                    $('agendaCaptureMsg').className = 'text-xs text-rose-300';
+                    $('agendaCaptureMsg').textContent = err.message || 'No se pudo pegar la imagen';
+                }
+                return;
+            }
+        }
+    });
 </script>
 </body>
 </html>
