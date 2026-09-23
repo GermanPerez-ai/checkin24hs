@@ -13,8 +13,8 @@
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-09-22T16:55:43Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 280; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-09-23T18:25:12Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 282; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2352,7 +2352,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">280</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">282</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -26218,11 +26218,22 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             return '';
         }
 
+        function isPlaceholderHotelName(name) {
+            const n = String(name || '').trim();
+            return !n || /^seleccionar hotel/i.test(n);
+        }
+
         function currentEditReservationSnapshot() {
             const form = document.getElementById('editReservationForm');
             const id = form && form.dataset.reservationId;
             const hotelSel = document.getElementById('editHotelSelect');
-            const hotelName = (hotelSel && hotelSel.options[hotelSel.selectedIndex] && hotelSel.options[hotelSel.selectedIndex].text) || '';
+            let hotelName = (form && form.dataset.hotelName) || '';
+            if (isPlaceholderHotelName(hotelName) && hotelSel && hotelSel.selectedIndex >= 0) {
+                const opt = hotelSel.options[hotelSel.selectedIndex];
+                const t = opt && opt.textContent;
+                if (opt && opt.value && !isPlaceholderHotelName(t)) hotelName = String(t).trim();
+            }
+            if (isPlaceholderHotelName(hotelName)) hotelName = '';
             return {
                 id,
                 clientName: document.getElementById('editClientName')?.value || '',
@@ -26554,18 +26565,20 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             document.getElementById('editCheckOut').value = normalizeDate(reservation.check_out || reservation.checkOut);
             document.getElementById('editReservationDate').value = normalizeDate(reservation.reservation_date || reservation.reservationDate);
             document.getElementById('editTotalAmount').value = reservation.total_amount || reservation.totalAmount || 0;
-            
-            // Cargar hoteles en el select y seleccionar el correcto
-            loadHotelsForEdit(reservation.hotel_id || reservation.hotelId);
-            
-            // Cargar agentes en el select y seleccionar el correcto
-            loadAgentsForEdit(reservation.agent_name || reservation.agentName);
+
+            const hotelId = reservation.hotel_id || reservation.hotelId || '';
+            const hotelName = String(reservation.hotel_name || reservation.hotelName || reservation.hotel || '').trim();
+            const editForm = document.getElementById('editReservationForm');
+            if (editForm) {
+                editForm.dataset.reservationId = reservationId;
+                editForm.dataset.hotelName = hotelName;
+                editForm.dataset.hotelId = hotelId ? String(hotelId) : '';
+            }
+            await loadHotelsForEdit(hotelId, hotelName);
+            await loadAgentsForEdit(reservation.agent_name || reservation.agentName);
             
             // Actualizar el título del modal
             document.getElementById('editReservationTitle').textContent = `Editar Reserva - ${reservation.reservation_code || reservation.reservationCode || reservation.id}`;
-            
-            // Guardar el ID de la reserva en el formulario
-            document.getElementById('editReservationForm').dataset.reservationId = reservationId;
             
             // Mostrar el modal
             document.getElementById('editReservationModal').style.display = 'block';
@@ -27852,23 +27865,44 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         }
 
         // Función para cargar hoteles en el select de edición
-        function loadHotelsForEdit(selectedHotelId = '') {
+        async function loadHotelsForEdit(selectedHotelId = '', fallbackName = '') {
             const hotelSelect = document.getElementById('editHotelSelect');
             if (!hotelSelect) return;
             
-            // Limpiar opciones existentes
             hotelSelect.innerHTML = '<option value="">Seleccionar hotel...</option>';
             
-            // Obtener hoteles del localStorage
-            const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            let hotels = [];
+            if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                try {
+                    hotels = await window.supabaseClient.getHotels({ includeInactive: true });
+                } catch (error) {
+                    console.error('Error cargando hoteles de Supabase:', error);
+                    hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                }
+            } else {
+                hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+            }
             
+            const wantId = String(selectedHotelId || '').trim();
+            let matched = false;
             hotels.forEach(hotel => {
                 const option = document.createElement('option');
                 option.value = hotel.id;
-                option.textContent = hotel.name;
-                option.selected = hotel.id === selectedHotelId;
+                option.textContent = hotel.name || hotel.hotel_name || '';
+                if (wantId && String(hotel.id) === wantId) {
+                    option.selected = true;
+                    matched = true;
+                }
                 hotelSelect.appendChild(option);
             });
+            const fallback = String(fallbackName || '').trim();
+            if (!matched && fallback && !isPlaceholderHotelName(fallback)) {
+                const option = document.createElement('option');
+                option.value = wantId || 'from-reservation';
+                option.textContent = fallback;
+                option.selected = true;
+                hotelSelect.appendChild(option);
+            }
             
             console.log(`✅ ${hotels.length} hoteles cargados en el select de edición`);
         }
