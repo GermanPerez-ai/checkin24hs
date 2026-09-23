@@ -35,6 +35,11 @@ else
 fi
 
 echo ""
+echo "=== Ads ==="
+echo "Si Google/Meta siguen 'sin API', cargá las env en EasyPanel del servicio ANA"
+echo "(DEVELOPER_TOKEN, CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN, META_AD_ACCOUNT_ID, META_ADS_ACCESS_TOKEN)."
+echo "docker service update --image no las crea solas."
+echo ""
 echo "=== Comprobar HTML ==="
 sleep 8
 curl -sS -k https://ana.checkin24hs.com/ | grep -o "Pedido de anulación" | head -1 || echo "(todavía no aparece: esperá 15s y recargá con Ctrl+Shift+R)"

@@ -4,6 +4,7 @@ const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
 const { getSnapshot, supabaseSelect } = require('./collect');
+const { compactPlatform } = require('./ads');
 const { fetchBody } = require('./mail');
 const { runJob } = require('./jobs');
 const { buildProposalFromPrompt, buildPromoFromPrompt } = require('./proposals');
@@ -48,12 +49,12 @@ Eres ANA, la Inteligencia de Negocios y Asistente Ejecutiva Central de Checkin24
 - Si el SNAPSHOT trae **sales_focus** y ok=true, esos totales ya están filtrados para ESTA pregunta: respondé **por cada slice** (no mezcles hotel, mes ni eje). No recalcules a mano ni cambies el redondeo. Si un slice tiene matched_rows=0, decí 0 en el recorte (sales.range_from).
 - Recorte: sales.range_from; si truncated=true, advertí que el listado puede estar topeado.
 - Web: visitas (site_pageviews) y UTM.
-- Ads: solo Google por ahora (customer Checkin24hs + cuenta publicitaria). Campañas/gasto/ROAS solo si google.token_ready=true. Meta no está configurada.
+- Ads: si ads.google.connected o ads.meta.connected, usá last_7d / last_30d / campaigns (spend, clicks, impressions, cpc, ctr, conversions, roas) con la currency que traiga cada plataforma. Nunca inventes gasto. Si connected=false, decí qué falta (missing_env o error) y no estimes CPC/ROAS.
+- Ads spend/clics: solo de la API. Nunca inventes Ad Spend Anomaly si no hay datos conectados.
 - Flor IA / WhatsApp: chats, hand-offs, SLA si viene en el snapshot, estado de L1–L4 (Monitor).
 - Webmail: INBOX IMAP de reservas@. Usá summary/preview del cuerpo; no respondas solo con el asunto. Borradores, no envíes.
 - Pedidos al hotel: sales.pending_cancel = anulaciones pedidas (y En gestión de anular). sales.pending_modify = modificaciones pedidas. hours_waiting = horas desde el último update. Tu tarea es el seguimiento: si llevan >18 h o el check-in está cerca, insistí en que ventas persiga al hotel o use los botones del dashboard. No marques Cancelada/Modificada vos: eso lo cierra el mail del hotel o ventas.
 - Ocupación hotelera: no existe en nuestra base.
-- Ads spend/clics: sin API. Nunca inventes Ad Spend Anomaly.
 - Empresa / catálogo (hotels.*): fuente de verdad de con qué hoteles y packs trabaja Checkin24hs. "Cuántos hoteles en Chile" = hotels.by_pais_activos.Chile (solo Activo). Listá nombres desde hotels.items filtrando pais + activo. Distinguí tipo hotel vs paquete (by_tipo).
 - Amenities: hotels.by_amenity (conteos de activos) y flags por ítem: piscina (pileta), termas (aguas termales), spa, wifi, desayuno, pet_friendly. Termas se infiere de nombre/amenities/descripcion (no hay columna aparte). Si preguntan "cuáles", listá los nombres, no solo el número.
 - Si viene **catalog_focus** y ok=true, usá count + names de ese recorte primero.
@@ -648,9 +649,13 @@ function compactSnapshot(snap, userText) {
           })),
         }
       : { connected: false, reason: snap.modules?.webmail?.reason || 'sin datos' },
+    ads: {
+      connected: Boolean(snap.modules?.ads?.connected),
+      google: compactPlatform(snap.modules?.ads?.google),
+      meta: compactPlatform(snap.modules?.ads?.meta),
+      reason: snap.modules?.ads?.reason || null,
+    },
     unavailable: {
-      ads: snap.modules?.ads,
-      webmail: snap.modules?.webmail,
       occupancy: snap.modules?.occupancy,
     },
   };
@@ -794,6 +799,14 @@ function fallbackReply(snapshot, userText, geminiErr) {
     `- Flor hoy: ${c.flor?.today?.new_chats_total ?? 0} chats · ${c.flor?.today?.inbound_messages_total ?? 0} msgs · ${c.flor?.today?.handoffs_total ?? 0} hand-offs`
   );
   lines.push(`- Web hoy: ${c.visits?.today?.visitors ?? 0} personas · ${c.visits?.today?.pageviews ?? 0} vistas`);
+  if (c.ads?.google?.connected) {
+    lines.push(`- Google Ads 7d: ${c.ads.google.currency} ${c.ads.google.last_7d?.spend ?? 0}`);
+  } else {
+    lines.push(`- Google Ads: ${c.ads?.google?.reason || c.ads?.google?.error || 'sin conectar'}`);
+  }
+  if (c.ads?.meta?.connected) {
+    lines.push(`- Meta Ads 7d: ${c.ads.meta.currency} ${c.ads.meta.last_7d?.spend ?? 0}`);
+  }
   lines.push(`- Monitor: ${failed.length ? failed.map((f) => f.name).join(', ') : 'todo OK'}`);
   const pc = c.sales?.pending_cancel || [];
   const pm = c.sales?.pending_modify || [];

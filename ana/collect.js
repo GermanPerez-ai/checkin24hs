@@ -44,25 +44,7 @@ const SUPABASE_ANON_KEY =
 const TIMEOUT_MS = Math.max(3000, parseInt(process.env.MONITOR_TIMEOUT_MS || '15000', 10) || 15000);
 const CACHE_MS = Math.max(15_000, parseInt(process.env.ANA_SNAPSHOT_CACHE_MS || '45000', 10) || 45_000);
 const { fetchInbox } = require('./mail');
-
-function digitsOnly(value) {
-  return String(value || '').replace(/\D/g, '');
-}
-
-const GOOGLE_ADS_CUSTOMER_ID = digitsOnly(process.env.GOOGLE_ADS_CUSTOMER_ID || '2654092864');
-const GOOGLE_ADS_ACCOUNT_NAME = String(process.env.GOOGLE_ADS_ACCOUNT_NAME || 'Checkin24hs').trim();
-const GOOGLE_ADS_ADVERTISER_ID = digitsOnly(process.env.GOOGLE_ADS_ADVERTISER_ID || '505321673398');
-const GOOGLE_ADS_DEVELOPER_TOKEN = String(process.env.GOOGLE_ADS_DEVELOPER_TOKEN || '').trim();
-const GOOGLE_ADS_REFRESH_TOKEN = String(process.env.GOOGLE_ADS_REFRESH_TOKEN || '').trim();
-const META_AD_ACCOUNT_ID = digitsOnly(process.env.META_AD_ACCOUNT_ID || '');
-const META_ADS_ACCESS_TOKEN = String(process.env.META_ADS_ACCESS_TOKEN || '').trim();
-
-function formatGoogleCid(digits) {
-  const d = digitsOnly(digits);
-  if (d.length === 10) return d.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
-  if (d.length === 12) return d.replace(/(\d{4})(\d{4})(\d{4})/, '$1-$2-$3');
-  return d;
-}
+const { fetchAdsSnapshot } = require('./ads');
 
 let snapshotCache = { at: 0, data: null, inflight: null };
 
@@ -888,7 +870,7 @@ async function fetchPromotions() {
   };
 }
 
-function ideasFromSnapshot({ health, visits, flor, sales, mail }) {
+function ideasFromSnapshot({ health, visits, flor, sales, mail, ads }) {
   const ideas = [];
   const failed = (health || []).filter((r) => !r.ok);
   if (failed.length) {
@@ -927,8 +909,15 @@ function ideasFromSnapshot({ health, visits, flor, sales, mail }) {
   } else if (mail && !mail.connected && mail.reason) {
     ideas.push(`Webmail: ${mail.reason}`);
   }
+  if (ads && !ads.google?.connected && !ads.meta?.connected) {
+    ideas.push('Marketing: conectar Google Ads y Meta (env en EasyPanel) para que ANA lea gasto, CPC y campañas reales.');
+  } else if (ads?.google?.connected && ads.google.prev_7d?.spend > 0 && ads.google.last_7d?.spend > ads.google.prev_7d.spend * 2.5) {
+    ideas.push(
+      `Google Ads: el gasto de 7 días (${ads.google.currency} ${ads.google.last_7d.spend}) superó 2.5× la semana previa.`
+    );
+  }
   if (!ideas.length) {
-    ideas.push('Chequeos en verde. Google Ads y Meta quedan para después; ocupación hotelera no está en la base.');
+    ideas.push('Chequeos en verde. Ocupación hotelera no está en la base.');
   }
   return ideas.slice(0, 8);
 }
@@ -936,7 +925,7 @@ function ideasFromSnapshot({ health, visits, flor, sales, mail }) {
 async function buildSnapshot() {
   const generated_at = new Date().toISOString();
   const timezone = 'America/Argentina/Buenos_Aires';
-  const [health, visits, flor, sales, hotels, promotions, mail] = await Promise.all([
+  const [health, visits, flor, sales, hotels, promotions, mail, ads] = await Promise.all([
     fetchHealth(),
     fetchVisitStats(),
     fetchWhatsappChatStats(),
@@ -944,6 +933,7 @@ async function buildSnapshot() {
     fetchHotels(),
     fetchPromotions(),
     fetchInbox(20),
+    fetchAdsSnapshot(),
   ]);
   const snapshot = {
     agent: 'ANA',
@@ -955,27 +945,7 @@ async function buildSnapshot() {
       dashboard: sales.error ? { connected: false, error: sales.error } : { connected: true, sales },
       web: visits.error ? { connected: false, error: visits.error } : { connected: true, visits },
       flor: flor.error ? { connected: false, error: flor.error, source: flor.source } : { connected: true, source: flor.source, flor },
-      ads: {
-        connected: false,
-        google: {
-          customer_id: GOOGLE_ADS_CUSTOMER_ID,
-          name: GOOGLE_ADS_ACCOUNT_NAME,
-          display_id: formatGoogleCid(GOOGLE_ADS_CUSTOMER_ID),
-          advertiser_id: GOOGLE_ADS_ADVERTISER_ID,
-          advertiser_display_id: formatGoogleCid(GOOGLE_ADS_ADVERTISER_ID),
-          token_ready: Boolean(GOOGLE_ADS_DEVELOPER_TOKEN && GOOGLE_ADS_REFRESH_TOKEN),
-        },
-        meta: META_AD_ACCOUNT_ID
-          ? {
-              account_id: META_AD_ACCOUNT_ID,
-              act_id: `act_${META_AD_ACCOUNT_ID}`,
-              token_ready: Boolean(META_ADS_ACCESS_TOKEN),
-            }
-          : { configured: false },
-        campaigns: [],
-        reason:
-          'Solo Google Ads. Cuentas identificadas; falta developer token + OAuth para leer campañas, gasto, CPC y ROAS. Meta no está cargada. No inventar métricas.',
-      },
+      ads,
       webmail: mail.connected
         ? { connected: true, mail }
         : { connected: false, reason: mail.reason || 'IMAP no disponible', mail },
@@ -987,7 +957,7 @@ async function buildSnapshot() {
         ? { connected: false, error: hotels.error, promotions }
         : { connected: true, hotels, promotions },
     },
-    ideas: ideasFromSnapshot({ health, visits, flor, sales, mail }),
+    ideas: ideasFromSnapshot({ health, visits, flor, sales, mail, ads }),
   };
   return snapshot;
 }

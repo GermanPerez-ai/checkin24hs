@@ -246,6 +246,7 @@
                             <button onclick="sendQuickPrompt('Venta en USD del Hotel Termas de Puyehue en agosto 2026: 1) por fecha de check-in 2) por fecha de check-out. Mostrá ambas por separado (reservas no canceladas). Si el mes ya pasó, usá 2026-08 en by_hotel_month.')" class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 whitespace-nowrap">Puyehue agosto</button>
                             <button onclick="sendQuickPrompt('¿Con cuántos hoteles activos trabajamos en Chile? Listá los nombres y el país según el catálogo. Distinguí hotel vs paquete.')" class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 whitespace-nowrap">Hoteles Chile</button>
                             <button onclick="sendQuickPrompt('Del catálogo activo: 1) cuántos tienen piscina o pileta 2) cuáles son de aguas termales / termas. Listá nombres.')" class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 whitespace-nowrap">Piletas y termas</button>
+                            <button onclick="sendQuickPrompt('Resumen de marketing: Google Ads y Meta últimos 7 y 30 días. Gasto, clics, CPC, conversiones y top campañas. Si no está conectado, decí exactamente qué env falta. No inventes números.')" class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 whitespace-nowrap">Ads 7 días</button>
                         </div>
                         <form onsubmit="handleChatSubmit(event)" class="p-4 border-t border-slate-800/80 flex items-center space-x-2">
                             <input id="chatInput" type="text" placeholder="Escribí o grabá un audio…"
@@ -311,6 +312,20 @@
                             <p id="webUtm" class="text-sm font-medium text-slate-200 mt-1">—</p>
                         </div>
                     </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="glass-panel p-4 rounded-xl">
+                            <p class="text-xs text-slate-400">Google Ads · 7 días</p>
+                            <p id="adsGoogleSpend" class="text-xl font-bold text-white">—</p>
+                        </div>
+                        <div class="glass-panel p-4 rounded-xl">
+                            <p class="text-xs text-slate-400">Meta Ads · 7 días</p>
+                            <p id="adsMetaSpend" class="text-xl font-bold text-white">—</p>
+                        </div>
+                        <div class="glass-panel p-4 rounded-xl">
+                            <p class="text-xs text-slate-400">Clics 7 días (ambas)</p>
+                            <p id="adsClicks7" class="text-xl font-bold text-white">—</p>
+                        </div>
+                    </div>
                     <div id="adsAccounts" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="glass-panel p-4 rounded-xl">
                             <p class="text-xs text-slate-400">Google Ads</p>
@@ -318,14 +333,30 @@
                             <p id="adsGoogleStatus" class="text-xs text-amber-300 mt-1">Sin token</p>
                         </div>
                         <div class="glass-panel p-4 rounded-xl">
-                            <p class="text-xs text-slate-400">Cuenta publicitaria Google</p>
-                            <p id="adsAdvertiserId" class="text-sm font-bold text-white mt-1">—</p>
-                            <p id="adsAdvertiserStatus" class="text-xs text-amber-300 mt-1">Sin token</p>
+                            <p class="text-xs text-slate-400">Meta Ads</p>
+                            <p id="adsMetaId" class="text-sm font-bold text-white mt-1">—</p>
+                            <p id="adsMetaStatus" class="text-xs text-amber-300 mt-1">Sin token</p>
                         </div>
                     </div>
-                    <div class="glass-panel p-5 rounded-2xl text-sm text-slate-300">
-                        <p class="font-semibold text-amber-300 mb-1">Google Ads: IDs cargados, API aún no</p>
-                        <p class="text-xs text-slate-400">Meta no está conectada. Para leer campañas Google hace falta developer token + OAuth. CPC/CPA/ROAS no se inventan.</p>
+                    <div class="glass-panel p-5 rounded-2xl overflow-x-auto">
+                        <p class="text-xs text-slate-400 uppercase font-mono mb-3">Campañas 30 días</p>
+                        <table class="w-full text-left text-sm">
+                            <thead class="text-slate-500 text-xs uppercase">
+                                <tr>
+                                    <th class="pb-3">Plataforma</th>
+                                    <th class="pb-3">Campaña</th>
+                                    <th class="pb-3">Gasto</th>
+                                    <th class="pb-3">Clics</th>
+                                    <th class="pb-3">CPC</th>
+                                    <th class="pb-3">ROAS</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adsCampaignsBody" class="divide-y divide-slate-800/60 text-slate-200"></tbody>
+                        </table>
+                    </div>
+                    <div id="adsSetupBox" class="glass-panel p-5 rounded-2xl text-sm text-slate-300">
+                        <p class="font-semibold text-amber-300 mb-1">Para conectar Ads</p>
+                        <p class="text-xs text-slate-400">Cargá las env en EasyPanel (servicio ANA). No las pegues en el chat. Google: developer token + OAuth (CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN). Meta: ID de cuenta publicitaria + token de usuario del sistema con ads_read.</p>
                     </div>
                 </div>
 
@@ -400,6 +431,11 @@
     function money(n) {
         const v = Number(n) || 0;
         return 'USD ' + v.toLocaleString('es-AR');
+    }
+    function moneyAds(n, currency) {
+        const v = Number(n) || 0;
+        const c = currency || 'ARS';
+        return c + ' ' + v.toLocaleString('es-AR', { maximumFractionDigits: 0 });
     }
     function esc(s) {
         return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -583,14 +619,35 @@
         $('webUtm').textContent = utm || 'sin UTM hoy';
 
         const ads = s.modules?.ads || {};
-        $('adsGoogleId').textContent = ads.google
-            ? ((ads.google.name || 'Google Ads') + ' · ' + (ads.google.display_id || ads.google.customer_id || '—'))
-            : 'sin ID';
-        $('adsGoogleStatus').textContent = ads.google?.token_ready ? 'API lista' : 'Cuenta identificada · falta developer token + OAuth';
-        $('adsGoogleStatus').className = 'text-xs mt-1 ' + (ads.google?.token_ready ? 'text-emerald-400' : 'text-amber-300');
-        $('adsAdvertiserId').textContent = ads.google?.advertiser_display_id || ads.google?.advertiser_id || '—';
-        $('adsAdvertiserStatus').textContent = ads.google?.token_ready ? 'API lista' : 'Misma API Google · falta token';
-        $('adsAdvertiserStatus').className = 'text-xs mt-1 ' + (ads.google?.token_ready ? 'text-emerald-400' : 'text-amber-300');
+        const g = ads.google || {};
+        const m = ads.meta || {};
+        $('adsGoogleId').textContent = (g.name || 'Google Ads') + ' · ' + (g.display_id || g.customer_id || '—');
+        $('adsGoogleStatus').textContent = g.connected
+            ? ('Conectado · ' + (g.currency || ''))
+            : (g.error || g.reason || 'Falta developer token + OAuth');
+        $('adsGoogleStatus').className = 'text-xs mt-1 ' + (g.connected ? 'text-emerald-400' : 'text-amber-300');
+        $('adsMetaId').textContent = m.act_id || m.account_id || m.name || 'sin cuenta';
+        $('adsMetaStatus').textContent = m.connected
+            ? ('Conectado · ' + (m.currency || ''))
+            : (m.error || m.reason || 'Falta META_AD_ACCOUNT_ID + token');
+        $('adsMetaStatus').className = 'text-xs mt-1 ' + (m.connected ? 'text-emerald-400' : 'text-amber-300');
+        $('adsGoogleSpend').textContent = g.connected ? moneyAds(g.last_7d?.spend, g.currency) : 'sin API';
+        $('adsMetaSpend').textContent = m.connected ? moneyAds(m.last_7d?.spend, m.currency) : 'sin API';
+        const clicks7 = (g.last_7d?.clicks || 0) + (m.last_7d?.clicks || 0);
+        $('adsClicks7').textContent = (g.connected || m.connected) ? String(clicks7) : '—';
+        const camps = ads.campaigns || [];
+        $('adsCampaignsBody').innerHTML = camps.length
+            ? camps.slice(0, 20).map(c => `<tr>
+                <td class="py-2 text-slate-400">${esc(c.platform || '')}</td>
+                <td class="py-2">${esc(c.name)}</td>
+                <td class="py-2 font-mono">${moneyAds(c.spend, c.platform === 'meta' ? m.currency : g.currency)}</td>
+                <td class="py-2">${c.clicks || 0}</td>
+                <td class="py-2">${c.cpc || 0}</td>
+                <td class="py-2">${c.roas || 0}</td>
+            </tr>`).join('')
+            : '<tr><td class="py-3 text-slate-500" colspan="6">Sin campañas (conectá las APIs o no hay gasto en 30 días).</td></tr>';
+        const setup = $('adsSetupBox');
+        if (setup) setup.classList.toggle('hidden', Boolean(g.connected || m.connected));
 
         const recent = sales?.recent || [];
         $('feedRecent').innerHTML = recent.length

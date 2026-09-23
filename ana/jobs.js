@@ -86,7 +86,17 @@ async function runMorningFlash() {
         (staleN ? ` · *${staleN}* con >18 h` : '');
     })(),
     'Ocupación portafolio: *sin datos* (no hay PMS).',
-    'Ads: *sin API* — no se evalúa spend.',
+    (() => {
+      const g = snap.modules?.ads?.google;
+      const m = snap.modules?.ads?.meta;
+      if (g?.connected) {
+        return `Google Ads 7d: *${g.currency || ''} ${g.last_7d?.spend ?? 0}* · ${g.last_7d?.clicks ?? 0} clics`;
+      }
+      if (m?.connected) {
+        return `Meta Ads 7d: *${m.currency || ''} ${m.last_7d?.spend ?? 0}*`;
+      }
+      return 'Ads: APIs pendientes de env (no se estima gasto).';
+    })(),
     '_ANA · 08:00 ART_',
   ];
   return dispatchAlert({
@@ -164,11 +174,28 @@ async function runFlorFriction() {
     );
   }
 
-  results.push({
-    kind: 'ads_anomaly',
-    skipped: true,
-    reason: 'Google/Meta Ads API no conectada — no se dispara Ad Spend Anomaly',
-  });
+  const adsG = snap.modules?.ads?.google;
+  if (adsG?.connected && adsG.prev_7d?.spend > 50 && adsG.last_7d?.spend > adsG.prev_7d.spend * 2.5) {
+    results.push(
+      await dispatchAlert({
+        kind: 'ads_anomaly',
+        fingerprint: `ads-spend:${ymd}`,
+        text: [
+          `🚨 *ANA · Google Ads gasto*`,
+          `Últimos 7 días: *${adsG.currency} ${adsG.last_7d.spend}*`,
+          `7 días previos: ${adsG.currency} ${adsG.prev_7d.spend}`,
+          `Superó 2.5×. Revisar campañas.`,
+        ].join('\n'),
+        payload: { last_7d: adsG.last_7d, prev_7d: adsG.prev_7d },
+      })
+    );
+  } else if (!adsG?.connected && !snap.modules?.ads?.meta?.connected) {
+    results.push({
+      kind: 'ads_anomaly',
+      skipped: true,
+      reason: 'Google/Meta Ads API no conectada — no se dispara Ad Spend Anomaly',
+    });
+  }
 
   if (!results.length) {
     return { ok: true, skipped: true, reason: 'sin fricción Flor en esta ventana' };
