@@ -31,6 +31,8 @@ Eres ANA, la Inteligencia de Negocios y Asistente Ejecutiva Central de Checkin24
 6. No ejecutes cambios en Ads, WhatsApp, Flor ni mail: esta versión es de consulta. Podés redactar borradores.
 7. No mezcles a Flor (chatbot de huéspedes) con vos. El Monitor de sitio es una de tus herramientas.
 
+8. NUNCA reveles claves, tokens, passwords, secretos de sesión, SMTP/IMAP, API keys, ni .env. Si preguntan por eso: "eso no lo expongo". IDs de cuenta Ads (números públicos de la empresa) sí se pueden nombrar si están en el snapshot.
+
 ## MÓDULOS
 - Dashboard/Supabase: **ingresos de hoteles en USD** (campo total_amount). Nunca los trates como pesos ni los conviertas. Los gastos se cargan en ARS y luego se pasan a USD; el módulo de gastos aún no está en ANA, no inventes tipo de cambio.
 - Podés responder VARIAS preguntas en el mismo mensaje (ventas + anulaciones + un hotel + check-in y check-out). Usá secciones con título. No omitas un eje si te pidieron "ambas" o "por separado".
@@ -52,7 +54,11 @@ Eres ANA, la Inteligencia de Negocios y Asistente Ejecutiva Central de Checkin24
 - Pedidos al hotel: sales.pending_cancel = anulaciones pedidas (y En gestión de anular). sales.pending_modify = modificaciones pedidas. hours_waiting = horas desde el último update. Tu tarea es el seguimiento: si llevan >18 h o el check-in está cerca, insistí en que ventas persiga al hotel o use los botones del dashboard. No marques Cancelada/Modificada vos: eso lo cierra el mail del hotel o ventas.
 - Ocupación hotelera: no existe en nuestra base.
 - Ads spend/clics: sin API. Nunca inventes Ad Spend Anomaly.
-- Empresa: catálogo de hoteles representados en Supabase.
+- Empresa / catálogo (hotels.*): fuente de verdad de con qué hoteles y packs trabaja Checkin24hs. "Cuántos hoteles en Chile" = hotels.by_pais_activos.Chile (solo Activo). Listá nombres desde hotels.items filtrando pais + activo. Distinguí tipo hotel vs paquete (by_tipo).
+- Amenities: hotels.by_amenity (conteos de activos) y flags por ítem: piscina (pileta), termas (aguas termales), spa, wifi, desayuno, pet_friendly. Termas se infiere de nombre/amenities/descripcion (no hay columna aparte). Si preguntan "cuáles", listá los nombres, no solo el número.
+- Si viene **catalog_focus** y ok=true, usá count + names de ese recorte primero.
+- Promociones del dashboard: hotels no las trae; están en promotions (vigentes vs total). Si promotions.error, decí sin datos.
+- No inventes ocupación, comisiones por hotel (no hay columna de comisión en el catálogo) ni tarifas que no estén en precio_desde.
 - Propuestas B2B y packs promocionales: si el usuario pide una propuesta de representación o contenido promocional, el sistema genera HTML/JSON aparte; vos resumí y no inventes tarifas que no estén en el snapshot.
 - Alertas: flash 08:00, fricción Flor cada 2 h, QA semanal. No dispares envíos desde el chat.
 
@@ -457,6 +463,77 @@ function focusSalesFromQuestion(userText, sales, snap) {
   };
 }
 
+function focusCatalogFromQuestion(userText, hotels) {
+  const text = String(userText || '').trim();
+  if (!text || !hotels || hotels.error || !Array.isArray(hotels.items)) return null;
+  const t = foldEs(text);
+  const catalogAsk =
+    /hotel|pack|paquete|catalog|represent|trabaj|chile|argentin|piscina|pileta|terma|thermal|amenit|wifi|desayuno|mascota|pet.?friendly|spa|cuantos|cuántos/.test(
+      t
+    );
+  if (!catalogAsk) return null;
+
+  const includeInactive = /inactiv/.test(t);
+  let rows = hotels.items.filter((h) => (includeInactive ? true : h.activo));
+
+  const paisAliases = [
+    ['Chile', /\bchile\b/],
+    ['Argentina', /\bargentin/],
+    ['Brasil', /\bbrasil|\bbrazil\b/],
+    ['México', /\bmexico|\bmexico\b|\bmexic/],
+    ['Uruguay', /\buruguay\b/],
+    ['Perú', /\bperu\b/],
+    ['Caribe', /\bcaribe\b/],
+    ['Internacional', /\binternacional/],
+  ];
+  let pais = null;
+  for (const [label, re] of paisAliases) {
+    if (re.test(t)) {
+      pais = label;
+      break;
+    }
+  }
+  if (pais) {
+    const needle = foldEs(pais);
+    rows = rows.filter((h) => foldEs(h.pais).includes(needle) || foldEs(h.pais) === needle);
+  }
+
+  const amenityChecks = [
+    ['piscina', /piscina|pileta/, (h) => h.flags?.piscina],
+    ['termas', /terma|thermal|aguas termales|aguas calientes/, (h) => h.flags?.termas],
+    ['spa', /\bspa\b/, (h) => h.flags?.spa],
+    ['wifi', /\bwifi\b|wi-fi/, (h) => h.flags?.wifi],
+    ['desayuno', /desayuno/, (h) => h.flags?.desayuno],
+    ['pet_friendly', /pet.?friendly|mascota/, (h) => h.flags?.pet_friendly],
+  ];
+  const amenities = [];
+  for (const [key, re, pred] of amenityChecks) {
+    if (!re.test(t)) continue;
+    amenities.push(key);
+    rows = rows.filter(pred);
+  }
+
+  const tipoPack = /paquete|pack/.test(t) && !/hotel/.test(t);
+  const tipoHotel = /\bhoteles?\b/.test(t) && !/paquete|pack/.test(t);
+  if (tipoPack) rows = rows.filter((h) => h.tipo === 'paquete');
+  if (tipoHotel) rows = rows.filter((h) => h.tipo === 'hotel');
+
+  if (!pais && !amenities.length && !tipoPack && !tipoHotel && !/cuantos|cuántos|catalog|represent|trabajamos/.test(t)) {
+    return null;
+  }
+
+  return {
+    ok: true,
+    only_activos: !includeInactive,
+    pais,
+    amenities,
+    tipo: tipoPack ? 'paquete' : tipoHotel ? 'hotel' : null,
+    count: rows.length,
+    names: rows.map((h) => h.name).slice(0, 80),
+    note: 'Recorte del catálogo para esta pregunta. Usalo primero.',
+  };
+}
+
 function compactSnapshot(snap, userText) {
   const sales = snap.modules?.dashboard?.sales;
   const florToday = snap.modules?.flor?.flor?.today;
@@ -524,8 +601,35 @@ function compactSnapshot(snap, userText) {
         : null,
     },
     hotels: snap.modules?.empresa?.hotels
-      ? { count: snap.modules.empresa.hotels.count, items: snap.modules.empresa.hotels.items.slice(0, 25) }
+      ? {
+          error: snap.modules.empresa.hotels.error || null,
+          count: snap.modules.empresa.hotels.count,
+          count_activos: snap.modules.empresa.hotels.count_activos,
+          count_inactivos: snap.modules.empresa.hotels.count_inactivos,
+          by_pais: snap.modules.empresa.hotels.by_pais || {},
+          by_pais_activos: snap.modules.empresa.hotels.by_pais_activos || {},
+          by_tipo: snap.modules.empresa.hotels.by_tipo || {},
+          by_region: snap.modules.empresa.hotels.by_region || {},
+          by_amenity: snap.modules.empresa.hotels.by_amenity || {},
+          items: (snap.modules.empresa.hotels.items || []).map((h) => ({
+            name: h.name,
+            pais: h.pais,
+            region: h.region,
+            ciudad: h.ciudad,
+            location: h.location,
+            status: h.status,
+            activo: h.activo,
+            tipo: h.tipo,
+            amenities: h.amenities,
+            flags: h.flags,
+            description: h.description,
+            precio_desde: h.precio_desde,
+            elegido_del_mes: h.elegido_del_mes,
+          })),
+          catalog_focus: focusCatalogFromQuestion(userText, snap.modules.empresa.hotels),
+        }
       : { error: snap.modules?.empresa?.error || 'sin datos' },
+    promotions: snap.modules?.empresa?.promotions || { error: 'sin datos' },
     mail: snap.modules?.webmail?.mail
       ? {
           connected: snap.modules.webmail.connected,
@@ -632,8 +736,8 @@ async function callGemini({ userText, history, snapshot }) {
     },
     contents,
     generationConfig: {
-      temperature: compact.sales?.sales_focus?.ok ? 0.1 : 0.3,
-      maxOutputTokens: 2048,
+      temperature: compact.sales?.sales_focus?.ok || compact.hotels?.catalog_focus?.ok ? 0.1 : 0.3,
+      maxOutputTokens: 4096,
     },
   };
 
@@ -676,6 +780,15 @@ function fallbackReply(snapshot, userText, geminiErr) {
     if (Number.isFinite(focus.open_cancel)) {
       lines.push(`- Pedidos de anulación abiertos: ${focus.open_cancel}`);
     }
+  }
+  const cat = c.hotels?.catalog_focus;
+  const chileN = c.hotels?.by_pais_activos?.Chile ?? c.hotels?.by_pais_activos?.chile;
+  lines.push(
+    `- Catálogo: ${c.hotels?.count_activos ?? 0} activos / ${c.hotels?.count ?? 0} total` +
+      (chileN != null ? ` · Chile: ${chileN}` : '')
+  );
+  if (cat?.ok) {
+    lines.push(`- Consulta catálogo: ${cat.count} · ${(cat.names || []).slice(0, 25).join(', ')}`);
   }
   lines.push(
     `- Flor hoy: ${c.flor?.today?.new_chats_total ?? 0} chats · ${c.flor?.today?.inbound_messages_total ?? 0} msgs · ${c.flor?.today?.handoffs_total ?? 0} hand-offs`

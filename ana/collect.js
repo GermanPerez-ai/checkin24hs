@@ -708,23 +708,183 @@ async function fetchHotelActionRequests() {
   };
 }
 
+function isActiveHotel(status) {
+  const s = String(status || '').trim().toLowerCase();
+  if (!s) return true;
+  if (/inactiv/.test(s)) return false;
+  return /activ/.test(s);
+}
+
+function uniqueStrings(values) {
+  const out = [];
+  const seen = new Set();
+  for (const raw of values) {
+    const v = String(raw || '').trim();
+    if (!v) continue;
+    const key = v.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(v);
+  }
+  return out;
+}
+
+function hotelAmenities(h) {
+  const fromCol = Array.isArray(h.amenities)
+    ? h.amenities
+    : String(h.amenities || '')
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean);
+  const flags = [];
+  if (h.wifi) flags.push('WiFi');
+  if (h.desayuno) flags.push('Desayuno');
+  if (h.piscina) flags.push('Piscina');
+  if (h.estacionamiento) flags.push('Estacionamiento');
+  if (h.calefaccion) flags.push('Calefacción');
+  if (h.pet_friendly) flags.push('Pet friendly');
+  return uniqueStrings([...fromCol, ...flags]).slice(0, 16);
+}
+
+function hotelBlob(h) {
+  return `${h.name || ''} ${h.location || ''} ${h.region || ''} ${h.ciudad || ''} ${h.description || ''} ${hotelAmenities(h).join(' ')}`;
+}
+
+function inferPais(h) {
+  const p = String(h.pais || '').trim();
+  if (p) return p;
+  const blob = hotelBlob(h);
+  if (/chile/i.test(blob)) return 'Chile';
+  if (/argentin/i.test(blob)) return 'Argentina';
+  if (/brasil|brazil/i.test(blob)) return 'Brasil';
+  if (/m[eé]xico|mexico/i.test(blob)) return 'México';
+  if (/uruguay/i.test(blob)) return 'Uruguay';
+  if (/per[uú]/i.test(blob)) return 'Perú';
+  if (/caribe|punta cana|canc[uú]n/i.test(blob)) return 'Caribe';
+  return 'Sin país';
+}
+
+function bumpCount(map, key) {
+  const k = String(key || 'Sin dato').trim() || 'Sin dato';
+  map[k] = (map[k] || 0) + 1;
+}
+
+function mapHotelCatalogRow(h) {
+  const amenities = hotelAmenities(h);
+  const blob = hotelBlob(h);
+  const flags = {
+    piscina: Boolean(h.piscina) || /piscina|pileta/i.test(blob),
+    termas: /terma|thermal|aguas calientes|aguas termales/i.test(blob),
+    spa: /\bspa\b/i.test(blob),
+    wifi: Boolean(h.wifi) || /wifi|wi-fi/i.test(blob),
+    desayuno: Boolean(h.desayuno) || /desayuno/i.test(blob),
+    pet_friendly: Boolean(h.pet_friendly) || /pet.?friendly|mascota/i.test(blob),
+    estacionamiento: Boolean(h.estacionamiento) || /estacionamiento|parking/i.test(blob),
+  };
+  const desc = String(h.description || '').replace(/\s+/g, ' ').trim();
+  return {
+    name: h.name || 'Sin nombre',
+    pais: inferPais(h),
+    region: h.region || '',
+    ciudad: h.ciudad || '',
+    location: h.location || '',
+    status: h.status || '',
+    activo: isActiveHotel(h.status),
+    tipo: String(h.tipo_producto || 'hotel').toLowerCase() === 'paquete' ? 'paquete' : 'hotel',
+    mostrar_hotel: h.mostrar_como_hotel !== false,
+    mostrar_pack: Boolean(h.mostrar_como_paquete),
+    elegido_del_mes: Boolean(h.elegido_del_mes),
+    precio_desde: Number(h.precio_desde || h.price) || null,
+    rating: Number(h.rating) || null,
+    amenities,
+    flags,
+    description: desc.slice(0, 180),
+  };
+}
+
 async function fetchHotels() {
+  const selects = [
+    'id,name,location,status,pais,region,ciudad,tipo_producto,mostrar_como_hotel,mostrar_como_paquete,amenities,wifi,desayuno,piscina,estacionamiento,calefaccion,pet_friendly,precio_desde,price,rating,description,elegido_del_mes',
+    'id,name,location,status,pais,region,amenities,precio_desde,description',
+    'id,name,location,status,pais,region',
+    'id,name,location,status',
+  ];
+  let items = [];
+  let lastError = null;
+  for (const select of selects) {
+    const { ok, status, data } = await supabaseSelect(
+      'hotels',
+      `select=${select}&order=name.asc&limit=500`
+    );
+    if (ok && Array.isArray(data)) {
+      items = data;
+      lastError = null;
+      break;
+    }
+    lastError = status === 0 ? 'Falta SUPABASE_ANON_KEY' : `Supabase hoteles ${status}`;
+  }
+  if (lastError) {
+    return { error: lastError, items: [], count: 0 };
+  }
+  const mapped = items.map(mapHotelCatalogRow).filter((h) => h.name && h.name !== 'Sin nombre');
+  const activos = mapped.filter((h) => h.activo);
+  const by_pais = {};
+  const by_pais_activos = {};
+  const by_tipo = {};
+  const by_region = {};
+  const by_amenity = { piscina: 0, termas: 0, spa: 0, wifi: 0, desayuno: 0, pet_friendly: 0 };
+  for (const h of mapped) {
+    bumpCount(by_pais, h.pais);
+    bumpCount(by_tipo, h.tipo);
+    if (h.region) bumpCount(by_region, `${h.pais} / ${h.region}`);
+    if (h.activo) bumpCount(by_pais_activos, h.pais);
+  }
+  for (const h of activos) {
+    if (h.flags.piscina) by_amenity.piscina += 1;
+    if (h.flags.termas) by_amenity.termas += 1;
+    if (h.flags.spa) by_amenity.spa += 1;
+    if (h.flags.wifi) by_amenity.wifi += 1;
+    if (h.flags.desayuno) by_amenity.desayuno += 1;
+    if (h.flags.pet_friendly) by_amenity.pet_friendly += 1;
+  }
+  return {
+    error: null,
+    currency_note: 'precio_desde puede estar incompleto; no inventar tarifas.',
+    count: mapped.length,
+    count_activos: activos.length,
+    count_inactivos: mapped.length - activos.length,
+    by_pais,
+    by_pais_activos,
+    by_tipo,
+    by_region,
+    by_amenity,
+    items: mapped,
+  };
+}
+
+async function fetchPromotions() {
   const { ok, status, data } = await supabaseSelect(
-    'hotels',
-    'select=id,name,location,status&order=name.asc&limit=200'
+    'promotions',
+    'select=id,name,status,discount,start_date,end_date,hotel_id&order=end_date.desc&limit=80'
   );
   if (!ok) {
-    return { error: `Supabase hoteles ${status}`, items: [], count: 0 };
+    return { error: status === 0 ? 'Falta SUPABASE_ANON_KEY' : `Supabase promociones ${status}`, items: [], count: 0 };
   }
-  const items = Array.isArray(data) ? data : [];
+  const rows = Array.isArray(data) ? data : [];
+  const today = arYmd();
+  const items = rows.map((p) => ({
+    name: p.name || '',
+    status: p.status || '',
+    discount: Number(p.discount) || 0,
+    start_date: p.start_date || '',
+    end_date: p.end_date || '',
+    vigente: String(p.status || '').toLowerCase() === 'active' && (!p.end_date || String(p.end_date) >= today),
+  }));
   return {
     error: null,
     count: items.length,
-    items: items.slice(0, 40).map((h) => ({
-      name: h.name,
-      location: h.location || '',
-      status: h.status || '',
-    })),
+    vigentes: items.filter((p) => p.vigente).length,
+    items: items.slice(0, 40),
   };
 }
 
@@ -776,12 +936,13 @@ function ideasFromSnapshot({ health, visits, flor, sales, mail }) {
 async function buildSnapshot() {
   const generated_at = new Date().toISOString();
   const timezone = 'America/Argentina/Buenos_Aires';
-  const [health, visits, flor, sales, hotels, mail] = await Promise.all([
+  const [health, visits, flor, sales, hotels, promotions, mail] = await Promise.all([
     fetchHealth(),
     fetchVisitStats(),
     fetchWhatsappChatStats(),
     fetchSales(),
     fetchHotels(),
+    fetchPromotions(),
     fetchInbox(20),
   ]);
   const snapshot = {
@@ -823,8 +984,8 @@ async function buildSnapshot() {
         reason: 'No hay PMS ni ocupación real por hotel en Supabase (Checkin24hs representa, no opera el hotel).',
       },
       empresa: hotels.error
-        ? { connected: false, error: hotels.error }
-        : { connected: true, hotels },
+        ? { connected: false, error: hotels.error, promotions }
+        : { connected: true, hotels, promotions },
     },
     ideas: ideasFromSnapshot({ health, visits, flor, sales, mail }),
   };
