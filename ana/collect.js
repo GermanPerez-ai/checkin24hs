@@ -394,7 +394,8 @@ function moneySum(rows, key) {
 }
 
 function isCancelled(status) {
-  return /cancel/i.test(String(status || ''));
+  const s = String(status || '');
+  return /cancelad/i.test(s) || /^cancelada$/i.test(s.trim());
 }
 
 function isConfirmed(status) {
@@ -406,43 +407,126 @@ function isPending(status) {
   return /pendient|nueva|proceso|hold/i.test(s) && !isCancelled(s);
 }
 
+function ymdMonth(value) {
+  const s = String(value || '').slice(0, 7);
+  return /^\d{4}-\d{2}$/.test(s) ? s : '';
+}
+
+function emptyHotelMonth(hotel, month) {
+  return {
+    hotel,
+    month,
+    created_count: 0,
+    created_amount: 0,
+    checkin_count: 0,
+    checkin_amount: 0,
+    checkout_count: 0,
+    checkout_amount: 0,
+    cancelled_count: 0,
+    cancelled_amount: 0,
+    cancelled_checkin_count: 0,
+    cancelled_checkin_amount: 0,
+    cancelled_checkout_count: 0,
+    cancelled_checkout_amount: 0,
+  };
+}
+
+function bumpHotelMonth(map, hotel, month, field, amount) {
+  if (!month) return;
+  const name = String(hotel || 'Sin hotel').trim() || 'Sin hotel';
+  const key = `${name.toLowerCase()}||${month}`;
+  if (!map.has(key)) map.set(key, emptyHotelMonth(name, month));
+  const row = map.get(key);
+  row[`${field}_count`] += 1;
+  if (Number.isFinite(amount) && amount > 0) row[`${field}_amount`] += amount;
+}
+
+function emptyPeriodMonth(month) {
+  return {
+    month,
+    created_count: 0,
+    created_amount: 0,
+    checkin_count: 0,
+    checkin_amount: 0,
+    checkout_count: 0,
+    checkout_amount: 0,
+    cancelled_count: 0,
+    cancelled_amount: 0,
+  };
+}
+
+function bumpPeriod(map, month, field, amount) {
+  if (!month) return;
+  if (!map.has(month)) map.set(month, emptyPeriodMonth(month));
+  const row = map.get(month);
+  row[`${field}_count`] += 1;
+  if (Number.isFinite(amount) && amount > 0) row[`${field}_amount`] += amount;
+}
+
+async function fetchReservationBundle(fromYmd, fromIso) {
+  const select =
+    'id,reservation_code,hotel_name,customer_name,check_in,check_out,total_amount,status,created_at,updated_at,customer_phone';
+  const queries = [
+    `select=${select}&created_at=gte.${encodeURIComponent(fromIso)}&order=created_at.desc&limit=2000`,
+    `select=${select}&check_in=gte.${fromYmd}&order=check_in.desc&limit=2000`,
+    `select=${select}&check_out=gte.${fromYmd}&order=check_out.desc&limit=2000`,
+  ];
+  const byId = new Map();
+  let truncated = false;
+  let lastError = null;
+  for (const q of queries) {
+    const { ok, status, data } = await supabaseSelect('reservations', q);
+    if (!ok) {
+      lastError = status === 0 ? 'Falta SUPABASE_ANON_KEY' : `Supabase reservas ${status}`;
+      continue;
+    }
+    const rows = Array.isArray(data) ? data : [];
+    if (rows.length >= 2000) truncated = true;
+    for (const r of rows) {
+      if (r && r.id) byId.set(r.id, r);
+    }
+  }
+  if (!byId.size && lastError) return { ok: false, error: lastError, rows: [], truncated: false };
+  return { ok: true, error: null, rows: [...byId.values()], truncated };
+}
+
 async function fetchSales() {
   const today = arYmd();
-  const fromYmd = addYmd(monthStartYmd(today), -240);
+  const fromYmd = addYmd(monthStartYmd(today), -400);
   const fromIso = `${fromYmd}T00:00:00.000-03:00`;
-  const select =
-    'id,reservation_code,hotel_name,customer_name,check_in,check_out,total_amount,status,created_at,customer_phone';
-  const { ok, status, data } = await supabaseSelect(
-    'reservations',
-    `select=${select}&created_at=gte.${encodeURIComponent(fromIso)}&order=created_at.desc&limit=2000`
-  );
-  if (!ok) {
-    return {
-      error: status === 0 ? 'Falta SUPABASE_ANON_KEY' : `Supabase reservas ${status}`,
-      currency: 'USD',
-      range_from: fromYmd,
-      today: { ymd: today, count: 0, amount: 0 },
-      yesterday: { ymd: addYmd(today, -1), count: 0, amount: 0 },
-      month: { ymd: monthStartYmd(today), count: 0, amount: 0 },
-      pending: { count: 0, amount: 0 },
-      weeks: [],
-      recent: [],
-      pending_cancel: [],
-      pending_modify: [],
-      by_hotel_month: [],
-    };
+  const empty = {
+    error: null,
+    currency: 'USD',
+    range_from: fromYmd,
+    today: { ymd: today, count: 0, amount: 0 },
+    yesterday: { ymd: addYmd(today, -1), count: 0, amount: 0 },
+    month: { ymd: monthStartYmd(today), count: 0, amount: 0 },
+    pending: { count: 0, amount: 0 },
+    weeks: [],
+    recent: [],
+    pending_cancel: [],
+    pending_modify: [],
+    by_hotel_month: [],
+    by_month: [],
+  };
+  const bundle = await fetchReservationBundle(fromYmd, fromIso);
+  if (!bundle.ok) {
+    return { ...empty, error: bundle.error };
   }
-  const rows = Array.isArray(data) ? data : [];
+  const rows = bundle.rows;
   const active = rows.filter((r) => !isCancelled(r.status));
+  const cancelled = rows.filter((r) => isCancelled(r.status));
   const todayRows = active.filter((r) => toArYmd(r.created_at) === today);
   const yesterday = addYmd(today, -1);
   const yesterdayRows = active.filter((r) => toArYmd(r.created_at) === yesterday);
-  const monthRows = active.filter((r) => toArYmd(r.created_at).slice(0, 7) === today.slice(0, 7));
+  const thisMonth = today.slice(0, 7);
+  const monthRows = active.filter((r) => toArYmd(r.created_at).slice(0, 7) === thisMonth);
   const pendingRows = rows.filter((r) => isPending(r.status));
   const todaySum = moneySum(todayRows, 'total_amount');
   const yesterdaySum = moneySum(yesterdayRows, 'total_amount');
   const monthSum = moneySum(monthRows, 'total_amount');
   const pendingSum = moneySum(pendingRows, 'total_amount');
+  const monthCancelled = cancelled.filter((r) => toArYmd(r.updated_at || r.created_at).slice(0, 7) === thisMonth);
 
   const weekMap = new Map();
   for (let i = 3; i >= 0; i--) {
@@ -466,44 +550,50 @@ async function fetchSales() {
   }
 
   const hotelMonth = new Map();
-  const bump = (hotel, month, field, amount) => {
-    const name = String(hotel || 'Sin hotel').trim() || 'Sin hotel';
-    const key = `${name.toLowerCase()}||${month}`;
-    if (!hotelMonth.has(key)) {
-      hotelMonth.set(key, {
-        hotel: name,
-        month,
-        created_count: 0,
-        created_amount: 0,
-        checkin_count: 0,
-        checkin_amount: 0,
-      });
-    }
-    const row = hotelMonth.get(key);
-    row[`${field}_count`] += 1;
-    if (Number.isFinite(amount) && amount > 0) row[`${field}_amount`] += amount;
-  };
+  const periodMonth = new Map();
   for (const r of active) {
     const amount = Number(r.total_amount) || 0;
-    const createdMonth = toArYmd(r.created_at).slice(0, 7);
-    if (createdMonth.length === 7) bump(r.hotel_name, createdMonth, 'created', amount);
-    const checkin = String(r.check_in || '').slice(0, 7);
-    if (/^\d{4}-\d{2}$/.test(checkin)) bump(r.hotel_name, checkin, 'checkin', amount);
+    bumpHotelMonth(hotelMonth, r.hotel_name, ymdMonth(toArYmd(r.created_at)), 'created', amount);
+    bumpHotelMonth(hotelMonth, r.hotel_name, ymdMonth(r.check_in), 'checkin', amount);
+    bumpHotelMonth(hotelMonth, r.hotel_name, ymdMonth(r.check_out), 'checkout', amount);
+    bumpPeriod(periodMonth, ymdMonth(toArYmd(r.created_at)), 'created', amount);
+    bumpPeriod(periodMonth, ymdMonth(r.check_in), 'checkin', amount);
+    bumpPeriod(periodMonth, ymdMonth(r.check_out), 'checkout', amount);
   }
+  for (const r of cancelled) {
+    const amount = Number(r.total_amount) || 0;
+    bumpHotelMonth(hotelMonth, r.hotel_name, ymdMonth(toArYmd(r.updated_at || r.created_at)), 'cancelled', amount);
+    bumpHotelMonth(hotelMonth, r.hotel_name, ymdMonth(r.check_in), 'cancelled_checkin', amount);
+    bumpHotelMonth(hotelMonth, r.hotel_name, ymdMonth(r.check_out), 'cancelled_checkout', amount);
+    bumpPeriod(periodMonth, ymdMonth(toArYmd(r.updated_at || r.created_at)), 'cancelled', amount);
+  }
+
+  const roundMoney = (row) => {
+    const out = { ...row };
+    for (const k of Object.keys(out)) {
+      if (k.endsWith('_amount')) out[k] = Math.round(Number(out[k]) || 0);
+    }
+    return out;
+  };
+
   const by_hotel_month = [...hotelMonth.values()]
-    .map((x) => ({
-      ...x,
-      created_amount: Math.round(x.created_amount),
-      checkin_amount: Math.round(x.checkin_amount),
-    }))
-    .sort((a, b) => b.month.localeCompare(a.month) || b.created_amount - a.created_amount)
-    .slice(0, 120);
+    .map(roundMoney)
+    .sort((a, b) => b.month.localeCompare(a.month) || b.checkin_amount - a.checkin_amount)
+    .slice(0, 400);
+
+  const by_month = [...periodMonth.values()].map(roundMoney).sort((a, b) => b.month.localeCompare(a.month)).slice(0, 18);
 
   const out = {
     error: null,
     currency: 'USD',
     range_from: fromYmd,
-    truncated: rows.length >= 2000,
+    truncated: bundle.truncated,
+    axes: {
+      created: 'cuando se cargó la reserva en el dashboard',
+      checkin: 'fecha de entrada (check-in)',
+      checkout: 'fecha de salida (check-out)',
+      cancelled: 'pasó a estado Cancelada (updated_at)',
+    },
     today: { ymd: today, count: todayRows.length, amount: todaySum.amount, with_amount: todaySum.n },
     yesterday: { ymd: yesterday, count: yesterdayRows.length, amount: yesterdaySum.amount, with_amount: yesterdaySum.n },
     month: {
@@ -512,21 +602,28 @@ async function fetchSales() {
       amount: monthSum.amount,
       with_amount: monthSum.n,
       confirmed: monthRows.filter((r) => isConfirmed(r.status)).length,
+      cancelled_count: monthCancelled.length,
+      cancelled_amount: moneySum(monthCancelled, 'total_amount').amount,
     },
     pending: { count: pendingRows.length, amount: pendingSum.amount },
     weeks: weekKeys.map((k) => {
       const w = weekMap.get(k);
       return { ...w, amount: Math.round(w.amount) };
     }),
+    by_month,
     by_hotel_month,
-    recent: active.slice(0, 8).map((r) => ({
-      code: r.reservation_code || r.id,
-      hotel: r.hotel_name || 'Hotel',
-      customer: r.customer_name || '',
-      amount: Number(r.total_amount) || 0,
-      status: r.status || '',
-      created_at: r.created_at,
-    })),
+    recent: active
+      .slice()
+      .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+      .slice(0, 8)
+      .map((r) => ({
+        code: r.reservation_code || r.id,
+        hotel: r.hotel_name || 'Hotel',
+        customer: r.customer_name || '',
+        amount: Number(r.total_amount) || 0,
+        status: r.status || '',
+        created_at: r.created_at,
+      })),
     pending_cancel: [],
     pending_modify: [],
   };

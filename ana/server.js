@@ -33,7 +33,18 @@ Eres ANA, la Inteligencia de Negocios y Asistente Ejecutiva Central de Checkin24
 
 ## MÓDULOS
 - Dashboard/Supabase: **ingresos de hoteles en USD** (campo total_amount). Nunca los trates como pesos ni los conviertas. Los gastos se cargan en ARS y luego se pasan a USD; el módulo de gastos aún no está en ANA, no inventes tipo de cambio.
-- Para un hotel y un mes usá sales.by_hotel_month. created_* = reservas **cargadas** ese mes; checkin_* = reservas con **check-in** ese mes. Si preguntan "ingresos de agosto de Puyehue", filtrá hotel que contenga Puyehue y month=2026-08. Si no hay fila, decí 0 reservas en el recorte (desde sales.range_from), no que "no podés desglosar".
+- Podés responder VARIAS preguntas en el mismo mensaje (ventas + anulaciones + un hotel + check-in y check-out). Usá secciones con título. No omitas un eje si te pidieron "ambas" o "por separado".
+- Ejes de fecha (sales.axes y filas sales.by_hotel_month / sales.by_month). Mes en formato YYYY-MM (agosto 2026 = 2026-08):
+  - **created_*** = reservas **cargadas** ese mes (cuándo se ingresó al dashboard).
+  - **checkin_*** = venta con **check-in** (entrada) en ese mes. Excluye Cancelada.
+  - **checkout_*** = venta con **check-out** (salida) en ese mes. Excluye Cancelada.
+  - **cancelled_*** = reservas que **pasaron a Cancelada** ese mes (updated_at).
+  - **cancelled_checkin_*** / **cancelled_checkout_*** = canceladas cuyo check-in o check-out cae en ese mes.
+- Si preguntan "venta / ingresos / cuánto vendimos" **sin** decir check-in ni check-out: mostrá **check-in y check-out por separado** (dos bloques). Si dicen solo check-in o solo check-out, usá ese eje. Si piden "ambas", los dos. "Cargadas / ingresadas / vendidas en el mes" (cuando se tomó la reserva) = created_*.
+- Hotel: filtrá by_hotel_month donde hotel contenga el nombre (Puyehue, Huilo, Corralco, Aguas…). Si hay varias filas del mismo mes, **sumá** count y amount. Si no hay fila: 0 en el recorte (sales.range_from), no digas que no podés desglosar.
+- Anulaciones del mes: sales.by_month[month].cancelled_count y cancelled_amount, o sales.month.cancelled_* para el mes actual. "Anulación pedida" NO cuenta como anulada: solo estado **Cancelada**. Pedidos abiertos: pending_cancel.
+- Si el SNAPSHOT trae **sales_focus** y ok=true, esos totales ya están filtrados para ESTA pregunta: respondé **por cada slice** (no mezcles hotel, mes ni eje). No recalcules a mano ni cambies el redondeo. Si un slice tiene matched_rows=0, decí 0 en el recorte (sales.range_from).
+- Recorte: sales.range_from; si truncated=true, advertí que el listado puede estar topeado.
 - Web: visitas (site_pageviews) y UTM.
 - Ads: solo Google por ahora (customer Checkin24hs + cuenta publicitaria). Campañas/gasto/ROAS solo si google.token_ready=true. Meta no está configurada.
 - Flor IA / WhatsApp: chats, hand-offs, SLA si viene en el snapshot, estado de L1–L4 (Monitor).
@@ -267,7 +278,186 @@ app.post('/api/proposal', requireAuth, async (req, res) => {
   }
 });
 
-function compactSnapshot(snap) {
+function foldEs(value) {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+}
+
+const MONTH_NAME_TO_MM = {
+  enero: '01',
+  febrero: '02',
+  marzo: '03',
+  abril: '04',
+  mayo: '05',
+  junio: '06',
+  julio: '07',
+  agosto: '08',
+  septiembre: '09',
+  setiembre: '09',
+  octubre: '10',
+  noviembre: '11',
+  diciembre: '12',
+};
+
+function parseMonthsFromQuestion(text, ymd) {
+  const year = String(ymd || '').slice(0, 4) || '2026';
+  const current = String(ymd || '').slice(0, 7);
+  const t = foldEs(text);
+  const named = new Set();
+  const currentMentioned = /\b(este mes|el mes|mes actual|en el mes)\b/.test(t);
+  for (const m of t.matchAll(/\b(20\d{2})-(\d{2})\b/g)) {
+    named.add(`${m[1]}-${m[2]}`);
+  }
+  for (const [name, mm] of Object.entries(MONTH_NAME_TO_MM)) {
+    if (!t.includes(name)) continue;
+    const withYear = t.match(new RegExp(`${name}\\s+(20\\d{2})`)) || t.match(new RegExp(`(20\\d{2})\\s+${name}`));
+    named.add(`${withYear ? withYear[1] : year}-${mm}`);
+  }
+  const namedList = [...named];
+  const all = [...new Set([...(currentMentioned && current ? [current] : []), ...namedList])];
+  return { current, currentMentioned, named: namedList, all };
+}
+
+function hotelNamesFromSales(sales, snap) {
+  const names = new Set();
+  for (const row of sales.by_hotel_month || []) {
+    if (row.hotel) names.add(String(row.hotel));
+  }
+  const catalog = snap?.modules?.empresa?.hotels?.items || [];
+  for (const h of catalog) {
+    if (h?.name) names.add(String(h.name));
+  }
+  return [...names];
+}
+
+function parseHotelsFromQuestion(text, names) {
+  const t = foldEs(text);
+  const stop = new Set([
+    'hotel',
+    'hoteles',
+    'termas',
+    'check',
+    'checkin',
+    'checkout',
+    'reserva',
+    'reservas',
+    'venta',
+    'agosto',
+    'septiembre',
+    'setiembre',
+  ]);
+  const hits = [];
+  for (const name of names) {
+    const n = foldEs(name);
+    if (n.length >= 8 && t.includes(n)) {
+      hits.push(name);
+      continue;
+    }
+    const tokens = n.split(/[^a-z0-9]+/).filter((w) => w.length >= 5 && !stop.has(w));
+    if (tokens.some((w) => t.includes(w))) hits.push(name);
+  }
+  const aliases = [
+    ['puyehue', /puyehue|termas de puyehue/],
+    ['huilo', /huilo/],
+    ['corralco', /corralco/],
+    ['aguas calientes', /aguas calientes|aguascalientes/],
+  ];
+  for (const [needle, re] of aliases) {
+    if (!re.test(t)) continue;
+    for (const name of names) {
+      if (foldEs(name).includes(needle) && !hits.includes(name)) hits.push(name);
+    }
+  }
+  return [...new Set(hits)];
+}
+
+function parseAxesFromQuestion(text) {
+  const t = foldEs(text);
+  const checkin = /check.?in|entrada|llegada/.test(t);
+  const checkout = /check.?out|salida/.test(t);
+  const created = /cargad|ingresad|cuando se tom|fecha de carga|fecha de venta/.test(t);
+  const cancelled = /anulaci|cancelad/.test(t);
+  const venta = /venta|ingreso|cuanto vend|cuanto factur/.test(t);
+  const axes = [];
+  if (checkin) axes.push('checkin');
+  if (checkout) axes.push('checkout');
+  if (created) axes.push('created');
+  if (cancelled) axes.push('cancelled');
+  if ((venta || /ambas|por separado/.test(t)) && !checkin && !checkout && !created) {
+    axes.push('checkin', 'checkout');
+  }
+  return [...new Set(axes)];
+}
+
+function sumAxisRows(rows, axis) {
+  let count = 0;
+  let amount = 0;
+  for (const row of rows) {
+    count += Number(row[`${axis}_count`] || 0);
+    amount += Number(row[`${axis}_amount`] || 0);
+  }
+  return { count, amount: Math.round(amount) };
+}
+
+function focusSlice(topic, hotels, months, axes, rows) {
+  const totals = {};
+  for (const axis of axes) totals[axis] = sumAxisRows(rows, axis);
+  return {
+    topic,
+    hotels,
+    months,
+    axes,
+    totals,
+    matched_rows: rows.length,
+  };
+}
+
+function focusSalesFromQuestion(userText, sales, snap) {
+  const text = String(userText || '').trim();
+  if (!text || !sales || sales.error) return null;
+  const t = foldEs(text);
+  const months = parseMonthsFromQuestion(text, snap?.ymd);
+  const hotels = parseHotelsFromQuestion(text, hotelNamesFromSales(sales, snap));
+  const axes = parseAxesFromQuestion(text);
+  const wantsOpen = /pedida|abiert|pendiente/.test(t) && /anulaci|modific/.test(t);
+  if (!months.all.length && !months.currentMentioned && !hotels.length && !axes.length && !wantsOpen) return null;
+
+  const hotelRows = sales.by_hotel_month || [];
+  const companyRows = sales.by_month || [];
+  const saleAxes = axes.filter((a) => a !== 'cancelled');
+  const slices = [];
+
+  if (axes.includes('cancelled') || wantsOpen) {
+    const cancelMonths =
+      months.currentMentioned || !months.named.length ? [months.current] : months.named;
+    const rows = companyRows.filter((r) => cancelMonths.includes(r.month));
+    slices.push(focusSlice('anulaciones_empresa', ['(toda la empresa)'], cancelMonths, ['cancelled'], rows));
+  }
+
+  if (hotels.length) {
+    const hotelMonths = months.named.length ? months.named : [months.current];
+    const axesForHotel = saleAxes.length ? saleAxes : ['checkin', 'checkout'];
+    const rows = hotelRows.filter(
+      (r) => hotels.some((h) => foldEs(r.hotel) === foldEs(h)) && hotelMonths.includes(r.month)
+    );
+    slices.push(focusSlice('venta_hotel', hotels, hotelMonths, axesForHotel, rows));
+  } else if (saleAxes.length) {
+    const companyMonths = months.all.length ? months.all : [months.current];
+    const rows = companyRows.filter((r) => companyMonths.includes(r.month));
+    slices.push(focusSlice('venta_empresa', ['(toda la empresa)'], companyMonths, saleAxes, rows));
+  }
+
+  return {
+    ok: slices.length > 0,
+    slices,
+    open_cancel: wantsOpen || axes.includes('cancelled') ? (sales.pending_cancel || []).length : undefined,
+    note: 'Totales ya filtrados para esta pregunta. Respondé por slice, sin mezclar hotel/mes/eje.',
+  };
+}
+
+function compactSnapshot(snap, userText) {
   const sales = snap.modules?.dashboard?.sales;
   const florToday = snap.modules?.flor?.flor?.today;
   const florY = snap.modules?.flor?.flor?.yesterday;
@@ -293,11 +483,14 @@ function compactSnapshot(snap) {
           month: sales.month,
           pending: sales.pending,
           weeks: sales.weeks,
+          axes: sales.axes || null,
+          by_month: sales.by_month || [],
           by_hotel_month: sales.by_hotel_month || [],
           recent: sales.recent,
           pending_cancel: sales.pending_cancel || [],
           pending_modify: sales.pending_modify || [],
           error: sales.error,
+          sales_focus: focusSalesFromQuestion(userText, sales, snap),
         }
       : { error: snap.modules?.dashboard?.error || 'sin datos' },
     visits: visits || { error: snap.modules?.web?.error || 'sin datos' },
@@ -420,7 +613,7 @@ async function callGemini({ userText, history, snapshot }) {
   if (!GEMINI_API_KEY) {
     return fallbackReply(snapshot, userText);
   }
-  const compact = compactSnapshot(snapshot);
+  const compact = compactSnapshot(snapshot, userText);
   const contents = [];
   if (Array.isArray(history)) {
     for (const m of history.slice(-8)) {
@@ -439,7 +632,7 @@ async function callGemini({ userText, history, snapshot }) {
     },
     contents,
     generationConfig: {
-      temperature: 0.3,
+      temperature: compact.sales?.sales_focus?.ok ? 0.1 : 0.3,
       maxOutputTokens: 2048,
     },
   };
@@ -461,15 +654,29 @@ async function callGemini({ userText, history, snapshot }) {
 }
 
 function fallbackReply(snapshot, userText, geminiErr) {
-  const c = compactSnapshot(snapshot);
+  const c = compactSnapshot(snapshot, userText);
   const failed = (c.health || []).filter((h) => !h.ok);
   const lines = [];
   lines.push(`**Resumen ${c.ymd}** (sin modelo de IA${geminiErr ? `: ${geminiErr}` : ': falta GEMINI_API_KEY'}).`);
   lines.push('');
   lines.push(`- Ventas hoy: ${c.sales?.today?.count ?? 0} reservas · $${Number(c.sales?.today?.amount || 0).toLocaleString('es-AR')}`);
   lines.push(
-    `- Mes: ${c.sales?.month?.count ?? 0} reservas · $${Number(c.sales?.month?.amount || 0).toLocaleString('es-AR')}`
+    `- Mes: ${c.sales?.month?.count ?? 0} reservas cargadas · $${Number(c.sales?.month?.amount || 0).toLocaleString('es-AR')} · anuladas: ${c.sales?.month?.cancelled_count ?? 0}`
   );
+  const focus = c.sales?.sales_focus;
+  if (focus?.slices?.length) {
+    lines.push('');
+    lines.push('**Consulta filtrada:**');
+    for (const slice of focus.slices) {
+      lines.push(`- ${slice.topic} · ${(slice.hotels || []).join(', ')} · ${(slice.months || []).join(', ')}`);
+      for (const [axis, tot] of Object.entries(slice.totals || {})) {
+        lines.push(`  · ${axis}: ${tot.count} reservas · $${Number(tot.amount || 0).toLocaleString('es-AR')}`);
+      }
+    }
+    if (Number.isFinite(focus.open_cancel)) {
+      lines.push(`- Pedidos de anulación abiertos: ${focus.open_cancel}`);
+    }
+  }
   lines.push(
     `- Flor hoy: ${c.flor?.today?.new_chats_total ?? 0} chats · ${c.flor?.today?.inbound_messages_total ?? 0} msgs · ${c.flor?.today?.handoffs_total ?? 0} hand-offs`
   );
