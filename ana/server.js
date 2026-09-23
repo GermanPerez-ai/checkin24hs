@@ -14,6 +14,7 @@ const {
   listIdeas,
   patchTask,
   convertIdea,
+  deleteIdea,
   boardSummary,
   looksLikeCopilot,
 } = require('./copilot');
@@ -331,6 +332,15 @@ app.patch('/api/copilot/tasks/:id', requireAuth, async (req, res) => {
 app.post('/api/copilot/ideas/:id/convert', requireAuth, async (req, res) => {
   try {
     const out = await convertIdea(req.params.id);
+    res.json(out);
+  } catch (e) {
+    res.status(400).json({ error: e.message || String(e) });
+  }
+});
+
+app.delete('/api/copilot/ideas/:id', requireAuth, async (req, res) => {
+  try {
+    const out = await deleteIdea(req.params.id);
     res.json(out);
   } catch (e) {
     res.status(400).json({ error: e.message || String(e) });

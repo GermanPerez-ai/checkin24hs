@@ -398,6 +398,12 @@ async function createTask(fields) {
   return Array.isArray(ins.data) ? ins.data[0] : ins.data;
 }
 
+function sanitizeIdeaSteps(steps) {
+  return (Array.isArray(steps) ? steps : [])
+    .map((s) => String(s || '').trim())
+    .filter((s) => s && !/^asignar due[nñ]o$/i.test(s));
+}
+
 async function createIdea(fields) {
   const ins = await supabaseInsert('executive_ideas', {
     raw_prompt: String(fields.raw_prompt || '').slice(0, 8000),
@@ -425,7 +431,7 @@ async function captureOneItem(parsed, { raw, source, confirmWhatsApp }) {
     const idea = await createIdea({
       raw_prompt: raw,
       category: parsed.category,
-      structured_plan: { title: parsed.title, steps: subtasks.length ? subtasks : ['Definir alcance', 'Asignar dueño', 'Primer hito'] },
+      structured_plan: { title: parsed.title, steps: sanitizeIdeaSteps(subtasks) },
     });
     const reply = `Idea capturada: *${parsed.title || 'sin título'}*. Quedó en la Incubadora.`;
     if (confirmWhatsApp) await sendWhatsApp(reply).catch(() => null);
@@ -544,7 +550,7 @@ async function convertIdea(id) {
   if (!ok || !data?.[0]) throw new Error('Idea no encontrada');
   const idea = data[0];
   const plan = idea.structured_plan || {};
-  const steps = Array.isArray(plan.steps) ? plan.steps : [];
+  const steps = sanitizeIdeaSteps(plan.steps);
   const task = await createTask({
     title: plan.title || String(idea.raw_prompt).slice(0, 80),
     description: [idea.raw_prompt, steps.length ? `Pasos: ${steps.join(' · ')}` : ''].filter(Boolean).join('\n'),
@@ -557,6 +563,14 @@ async function convertIdea(id) {
     status: 'converted_to_project',
   });
   return { ok: true, task, idea_id: id };
+}
+
+async function deleteIdea(id) {
+  const res = await supabasePatch('executive_ideas', `id=eq.${encodeURIComponent(id)}`, {
+    status: 'archived',
+  });
+  if (!res.ok) throw new Error(`No se pudo eliminar la idea (${res.status})`);
+  return { ok: true, id };
 }
 
 async function boardSummary() {
@@ -674,6 +688,7 @@ module.exports = {
   listIdeas,
   patchTask,
   convertIdea,
+  deleteIdea,
   boardSummary,
   runSlaAutoTasks,
   runHealthAutoTasks,
