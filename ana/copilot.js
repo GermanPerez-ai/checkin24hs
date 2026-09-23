@@ -12,6 +12,55 @@ const GOOGLE_CLIENT_SECRET = String(
 ).trim();
 const GOOGLE_CALENDAR_REFRESH_TOKEN = String(process.env.GOOGLE_CALENDAR_REFRESH_TOKEN || '').trim();
 const GOOGLE_CALENDAR_ID = String(process.env.GOOGLE_CALENDAR_ID || 'primary').trim() || 'primary';
+const ART_TZ = 'America/Argentina/Buenos_Aires';
+
+function artParts(iso) {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: ART_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(d);
+  const g = (t) => (parts.find((p) => p.type === t) || {}).value || '';
+  return { y: g('year'), m: g('month'), d: g('day'), hh: g('hour'), mm: g('minute'), ss: g('second') };
+}
+
+function formatArtDateTime(iso) {
+  const p = artParts(iso);
+  if (!p) return String(iso || '');
+  return `${p.d}/${p.m}/${p.y} ${p.hh}:${p.mm}`;
+}
+
+function artYmdFromIso(iso) {
+  const p = artParts(iso);
+  if (!p) return String(iso || '').slice(0, 10);
+  return `${p.y}-${p.m}-${p.d}`;
+}
+
+function artWallClock(iso) {
+  const p = artParts(iso);
+  if (!p) return null;
+  return `${p.y}-${p.m}-${p.d}T${p.hh}:${p.mm}:${p.ss}`;
+}
+
+/** Hora de feria/agenda = Argentina. Si Gemini manda hora naive o Z, la tratamos como -03:00. */
+function normalizeArtDateTime(value) {
+  if (!value) return null;
+  const s = String(value).trim();
+  if (!s) return null;
+  const hasOffset = /[zZ]|[+-]\d{2}:?\d{2}$/.test(s);
+  if (hasOffset && !/[zZ]$/.test(s)) return s;
+  const naive = s.replace(/[zZ]$/, '').replace(/\.\d+$/, '');
+  const base = naive.includes('T') ? naive : `${naive}T00:00:00`;
+  const withSec = /T\d{2}:\d{2}:\d{2}$/.test(base) ? base : /T\d{2}:\d{2}$/.test(base) ? `${base}:00` : `${base}T00:00:00`;
+  return `${withSec}-03:00`;
+}
 
 const CATEGORIES = ['b2b_hoteles', 'sistemas_code', 'marketing_ads', 'gestion_personal', 'operaciones'];
 const PRIORITIES = ['P1', 'P2', 'P3'];
@@ -166,8 +215,9 @@ async function googleAccessToken() {
 
 async function insertGoogleCalendar(parsed) {
   if (!googleCalendarReady() || !parsed.start_time) return { connected: false, skipped: true };
-  const start = parsed.start_time;
-  const end = parsed.end_time || new Date(new Date(start).getTime() + 45 * 60000).toISOString();
+  const start = artWallClock(parsed.start_time) || parsed.start_time;
+  const endIso = parsed.end_time || new Date(new Date(parsed.start_time).getTime() + 45 * 60000).toISOString();
+  const end = artWallClock(endIso) || endIso;
   const access = await googleAccessToken();
   const res = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(GOOGLE_CALENDAR_ID)}/events`,
@@ -217,7 +267,7 @@ Reglas:
 - include=true solo las que el usuario pidió agendar. Si dijo "confirmadas", include=true SOLO si el texto dice Confirmada. Rechazada, Disponible, Pendiente de confirmación → include=false.
 - type=meeting si hay horario. idea si es pensamiento/incubadora. task el resto.
 - title corto: "Nombre — Empresa". description con stand y estado.
-- Horarios America/Argentina/Buenos_Aires, ISO con offset -03:00. Si no hay fecha, usá la fecha de la imagen o hoy.
+- Horarios America/Argentina/Buenos_Aires. SIEMPRE ISO con offset -03:00 (ejemplo 11:00 → 2026-09-28T11:00:00-03:00). NUNCA uses Z ni UTC. 13:00 es 13 no 1.
 - category b2b_hoteles para hoteles/OTA/stands de feria; sistemas_code código/Flor; marketing_ads ads; gestion_personal personal.
 - Campos cortos. Sin markdown.`;
 }
@@ -244,9 +294,9 @@ async function createTask(fields) {
     priority: asPriority(fields.priority),
     status: asStatus(fields.status || 'pending'),
     is_meeting: Boolean(fields.is_meeting),
-    start_time: fields.start_time || null,
-    end_time: fields.end_time || null,
-    due_date: fields.due_date || (fields.start_time ? String(fields.start_time).slice(0, 10) : null),
+    start_time: normalizeArtDateTime(fields.start_time),
+    end_time: normalizeArtDateTime(fields.end_time),
+    due_date: fields.due_date || (fields.start_time ? artYmdFromIso(normalizeArtDateTime(fields.start_time) || fields.start_time) : null),
     source: fields.source || 'web_dashboard',
     source_ref: fields.source_ref || null,
     google_calendar_event_id: fields.google_calendar_event_id || null,
@@ -275,6 +325,8 @@ async function createIdea(fields) {
 }
 
 async function captureOneItem(parsed, { raw, source, confirmWhatsApp }) {
+  parsed.start_time = normalizeArtDateTime(parsed.start_time);
+  parsed.end_time = normalizeArtDateTime(parsed.end_time);
   const type = String(parsed.type || 'task').toLowerCase();
   const subtasks = Array.isArray(parsed.subtasks)
     ? parsed.subtasks.map((s) => String(s)).filter(Boolean).slice(0, 8)
@@ -307,16 +359,16 @@ async function captureOneItem(parsed, { raw, source, confirmWhatsApp }) {
     category: parsed.category,
     priority: parsed.priority || (isMeeting ? 'P2' : 'P2'),
     is_meeting: isMeeting,
-    start_time: parsed.start_time || null,
-    end_time: parsed.end_time || null,
-    due_date: parsed.due_date || null,
+    start_time: normalizeArtDateTime(parsed.start_time),
+    end_time: normalizeArtDateTime(parsed.end_time),
+    due_date: parsed.due_date || (parsed.start_time ? artYmdFromIso(normalizeArtDateTime(parsed.start_time) || parsed.start_time) : null),
     source,
     google_calendar_event_id: calendar.event_id || null,
     google_task_id: gtask.task_id || null,
   });
 
   const when = parsed.start_time
-    ? new Date(parsed.start_time).toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })
+    ? formatArtDateTime(normalizeArtDateTime(parsed.start_time) || parsed.start_time)
     : parsed.due_date || 'sin horario';
   let reply = `${isMeeting ? 'Reunión' : 'Tarea'} *${parsed.title}* · ${parsed.priority || 'P2'} · ${when}`;
   if (calendar.html_link) reply += `\nCalendar: ${calendar.html_link}`;
@@ -423,7 +475,7 @@ async function boardSummary() {
   const [open, ideas] = await Promise.all([listTasks({}), listIdeas()]);
   const items = open.items || [];
   const p1 = items.filter((t) => t.priority === 'P1' && t.status !== 'completed');
-  const meetingsToday = items.filter((t) => t.is_meeting && String(t.start_time || t.due_date || '').slice(0, 10) === today);
+  const meetingsToday = items.filter((t) => t.is_meeting && artYmdFromIso(t.start_time || t.due_date) === today);
   return {
     error: open.error || ideas.error,
     google_calendar: { connected: googleCalendarReady(), calendar_id: GOOGLE_CALENDAR_ID },
@@ -489,7 +541,7 @@ async function morningBriefingExtras() {
   const p1 = (board.p1 || []).slice(0, 8).map((t) => `• ${t.title}`).join('\n');
   const meets = (board.meetings_today || [])
     .slice(0, 6)
-    .map((t) => `• ${t.title}${t.start_time ? ' · ' + String(t.start_time).slice(11, 16) : ''}`)
+    .map((t) => `• ${t.title}${t.start_time ? ' · ' + formatArtDateTime(t.start_time) : ''}`)
     .join('\n');
   const lines = [
     board.counts.p1 ? `P1 pendientes: *${board.counts.p1}*\n${p1}` : 'P1 pendientes: ninguna',
@@ -504,7 +556,7 @@ async function runEveningWrap() {
   const { items } = await listTasks({});
   const dueToday = (items || []).filter((t) => {
     const due = String(t.due_date || '').slice(0, 10);
-    const start = String(t.start_time || '').slice(0, 10);
+    const start = artYmdFromIso(t.start_time);
     return due === today || start === today;
   });
   const open = dueToday.filter((t) => t.status === 'pending' || t.status === 'in_progress');
