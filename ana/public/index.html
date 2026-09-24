@@ -193,6 +193,30 @@
                         </div>
                     </div>
 
+                    <div class="glass-panel p-5 rounded-2xl">
+                        <div class="flex items-center justify-between gap-3 flex-wrap mb-3">
+                            <div>
+                                <h3 class="text-base font-bold text-white">Web checkin24hs.com</h3>
+                                <p class="text-xs text-slate-400">Visitas al sitio y consultas WhatsApp del botón (número 1580)</p>
+                            </div>
+                            <button onclick="switchTab('marketing')" class="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-slate-300">Ver detalle</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="text-slate-500 text-[11px] uppercase font-mono">
+                                    <tr>
+                                        <th class="pb-2 pr-3">Periodo</th>
+                                        <th class="pb-2 pr-3">Visitantes</th>
+                                        <th class="pb-2 pr-3">Vistas</th>
+                                        <th class="pb-2 pr-3">Consultas WA</th>
+                                        <th class="pb-2">Personas</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="webOverviewBody" class="divide-y divide-slate-800/60 text-slate-200"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div class="lg:col-span-2 glass-panel p-5 rounded-2xl">
                             <h3 class="text-base font-bold text-white mb-1">Reservas (4 semanas)</h3>
@@ -227,7 +251,8 @@
 
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <div class="lg:col-span-2 glass-panel p-5 rounded-2xl">
-                            <h3 class="text-base font-bold text-white mb-4">Reservas recientes</h3>
+                            <h3 class="text-base font-bold text-white mb-1">Reservas recientes</h3>
+                            <p class="text-xs text-slate-400 mb-4">Fecha de realización = cuando se cargó en el dashboard.</p>
                             <div id="feedRecent" class="space-y-3 text-sm text-slate-400 max-h-80 overflow-y-auto">Cargando…</div>
                         </div>
                         <div class="glass-panel p-5 rounded-2xl">
@@ -254,7 +279,7 @@
                             <button onclick="sendQuickPrompt('Venta en USD del Hotel Termas de Puyehue en agosto 2026: 1) por fecha de check-in 2) por fecha de check-out. Mostrá ambas por separado (reservas no canceladas). Si el mes ya pasó, usá 2026-08 en by_hotel_month.')" class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 whitespace-nowrap">Puyehue agosto</button>
                             <button onclick="sendQuickPrompt('¿Con cuántos hoteles activos trabajamos en Chile? Listá los nombres y el país según el catálogo. Distinguí hotel vs paquete.')" class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 whitespace-nowrap">Hoteles Chile</button>
                             <button onclick="sendQuickPrompt('Del catálogo activo: 1) cuántos tienen piscina o pileta 2) cuáles son de aguas termales / termas. Listá nombres.')" class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 whitespace-nowrap">Piletas y termas</button>
-                            <button onclick="sendQuickPrompt('Resumen de marketing: Google Ads y Meta últimos 7 y 30 días. Gasto, clics, CPC, conversiones y top campañas. Si no está conectado, decí exactamente qué env falta. No inventes números.')" class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 whitespace-nowrap">Ads 7 días</button>
+                            <button onclick="sendQuickPrompt('Consultas web al WhatsApp 1580 y visitas al sitio: hoy, 7 días, 30 días y 60 días. Separá visitantes, vistas y consultas. Top hoteles/packs. No inventes números.')" class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 whitespace-nowrap">Web y consultas</button>
                             <button onclick="sendQuickPrompt('ANA, generá el informe comercial WhatsApp de los últimos 7 días en PDF: quién pidió tarifa y quién cerró el precio, Flor vs vendedor.')" class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 whitespace-nowrap">Control 7 días PDF</button>
                         </div>
                         <form onsubmit="handleChatSubmit(event)" class="p-4 border-t border-slate-800/80 flex items-center space-x-2">
@@ -382,6 +407,21 @@
 
                 <div id="tab-marketing" class="tab-content hidden space-y-6">
                     <h2 class="text-xl font-bold text-white">Web &amp; anuncios</h2>
+                    <div class="glass-panel p-5 rounded-2xl overflow-x-auto">
+                        <p class="text-xs text-slate-400 mb-3">Visitas (sitio) + consultas WhatsApp del botón “más info” al 1580. No cuenta quien abre el chat y no envía.</p>
+                        <table class="w-full text-left text-sm">
+                            <thead class="text-slate-500 text-[11px] uppercase font-mono">
+                                <tr>
+                                    <th class="pb-2 pr-3">Periodo</th>
+                                    <th class="pb-2 pr-3">Visitantes</th>
+                                    <th class="pb-2 pr-3">Vistas</th>
+                                    <th class="pb-2 pr-3">Consultas WA</th>
+                                    <th class="pb-2">Personas</th>
+                                </tr>
+                            </thead>
+                            <tbody id="webMarketingBody" class="divide-y divide-slate-800/60 text-slate-200"></tbody>
+                        </table>
+                    </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="glass-panel p-4 rounded-xl">
                             <p class="text-xs text-slate-400">Visitantes hoy</p>
@@ -394,6 +434,16 @@
                         <div class="glass-panel p-4 rounded-xl">
                             <p class="text-xs text-slate-400">UTM / origen</p>
                             <p id="webUtm" class="text-sm font-medium text-slate-200 mt-1">—</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div class="glass-panel p-5 rounded-2xl">
+                            <p class="text-xs text-slate-400 uppercase font-mono mb-3">Hoteles / packs más consultados (60 días)</p>
+                            <div id="webConsultaTop" class="space-y-2 text-sm text-slate-300">—</div>
+                        </div>
+                        <div class="glass-panel p-5 rounded-2xl">
+                            <p class="text-xs text-slate-400 uppercase font-mono mb-3">Últimas consultas web</p>
+                            <div id="webConsultaRecent" class="space-y-2 text-sm text-slate-300">—</div>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -547,13 +597,37 @@ let AGENDA = { tasks: [], ideas: [] };
         const [y, m, d] = s.split('-');
         return d + '/' + m + '/' + y;
     }
+    function fmtDateAr(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return fmtDate(iso);
+        return d.toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
+    }
     function stayDates(r) {
         const cin = fmtDate(r.check_in);
         const cout = fmtDate(r.check_out);
         if (cin && cout) return cin + ' → ' + cout;
         if (cin) return 'Check-in ' + cin;
-        const created = fmtDate(r.created_at);
-        return created ? 'Carga ' + created : '';
+        return '';
+    }
+    function webPeriodRows(visits, consultas) {
+        const rows = [
+            { key: 'today', label: 'Hoy' },
+            { key: 'last_7d', label: '7 días' },
+            { key: 'last_30d', label: '30 días' },
+            { key: 'last_60d', label: '60 días' },
+        ];
+        return rows.map(r => {
+            const v = visits?.[r.key] || {};
+            const c = consultas?.[r.key] || {};
+            return `<tr>
+                <td class="py-2 pr-3 text-slate-300">${r.label}</td>
+                <td class="py-2 pr-3 font-semibold text-white">${v.visitors != null ? v.visitors : '—'}</td>
+                <td class="py-2 pr-3">${v.pageviews != null ? v.pageviews : '—'}</td>
+                <td class="py-2 pr-3 font-semibold text-teal-300">${c.count != null ? c.count : '—'}</td>
+                <td class="py-2 text-slate-400">${c.unique != null ? c.unique : '—'}</td>
+            </tr>`;
+        }).join('');
     }
     function ageLabel(hours) {
         const h = Number(hours);
@@ -699,6 +773,7 @@ let AGENDA = { tasks: [], ideas: [] };
         const sales = s.modules?.dashboard?.sales;
         const flor = s.modules?.flor?.flor;
         const visits = s.modules?.web?.visits;
+        const consultas = s.modules?.web?.consultas;
         const hotels = s.modules?.empresa?.hotels;
         const checks = s.modules?.monitor?.checks || [];
         const failed = checks.filter(c => !c.ok);
@@ -711,7 +786,9 @@ let AGENDA = { tasks: [], ideas: [] };
 
         $('hdrSales').textContent = sales ? (sales.today.count + ' · ' + money(sales.today.amount)) : 'sin datos';
         $('hdrFlor').textContent = flor?.today ? (flor.today.new_chats_total + ' chats') : 'sin datos';
-        $('hdrWeb').textContent = visits?.today ? (visits.today.visitors + ' pers.') : 'sin datos';
+        $('hdrWeb').textContent = visits?.today
+            ? (visits.today.visitors + ' vis' + (consultas?.today ? ' · ' + consultas.today.count + ' cons' : ''))
+            : 'sin datos';
 
         $('kpiMonthAmount').textContent = sales ? money(sales.month.amount) : 'sin datos';
         $('kpiMonthSub').textContent = sales
@@ -748,6 +825,24 @@ let AGENDA = { tasks: [], ideas: [] };
         $('webPageviews').textContent = visits?.today ? String(visits.today.pageviews) : '—';
         const utm = (visits?.today?.top_utm || []).slice(0, 3).map(u => (u.source || u.utm_source || '?') + ' (' + (u.visitors || u.hits || 0) + ')').join(', ');
         $('webUtm').textContent = utm || 'sin UTM hoy';
+        const webRows = webPeriodRows(visits, consultas);
+        if ($('webOverviewBody')) $('webOverviewBody').innerHTML = webRows;
+        if ($('webMarketingBody')) $('webMarketingBody').innerHTML = webRows;
+        if ($('webConsultaTop')) {
+            const top = consultas?.top || [];
+            $('webConsultaTop').innerHTML = top.length
+                ? top.map(t => `<div class="flex justify-between gap-3"><span class="truncate">${esc(t.name)}</span><span class="font-mono text-teal-300 shrink-0">${t.count}</span></div>`).join('')
+                : '<p class="text-slate-500">Sin consultas web en 60 días.</p>';
+        }
+        if ($('webConsultaRecent')) {
+            const rec = consultas?.recent || [];
+            $('webConsultaRecent').innerHTML = rec.length
+                ? rec.map(t => `<div class="flex justify-between gap-3">
+                    <span class="truncate">${esc(t.product || (t.kind === 'general' ? 'Consulta general' : t.kind))}</span>
+                    <span class="text-[11px] text-slate-500 shrink-0">${esc(fmtDateAr(t.at))}</span>
+                  </div>`).join('')
+                : '<p class="text-slate-500">Sin consultas recientes.</p>';
+        }
 
         const ads = s.modules?.ads || {};
         const g = ads.google || {};
@@ -783,13 +878,15 @@ let AGENDA = { tasks: [], ideas: [] };
         const recent = sales?.recent || [];
         $('feedRecent').innerHTML = recent.length
             ? recent.map(r => {
-                const dates = stayDates(r);
+                const made = fmtDateAr(r.created_at);
+                const stay = stayDates(r);
                 const who = r.customer ? ' · ' + esc(r.customer) : '';
                 return `<div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800/80 flex justify-between gap-3">
                 <div class="min-w-0">
                   <p class="text-xs font-semibold text-slate-200 truncate">${esc(r.hotel)}</p>
                   <p class="text-[11px] text-slate-400">${esc(r.code)} · ${esc(r.status)}${who}</p>
-                  ${dates ? `<p class="text-[11px] text-teal-300/90 mt-0.5 font-mono">${esc(dates)}</p>` : ''}
+                  ${made ? `<p class="text-[11px] text-teal-300/90 mt-0.5 font-mono">Realizada ${esc(made)}</p>` : ''}
+                  ${stay ? `<p class="text-[11px] text-slate-500">Estadía ${esc(stay)}</p>` : ''}
                 </div>
                 <span class="text-xs font-mono text-slate-300 shrink-0">${r.amount ? money(r.amount) : '—'}</span>
               </div>`;

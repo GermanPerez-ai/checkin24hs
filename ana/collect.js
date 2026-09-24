@@ -178,40 +178,176 @@ function normalizeOpsDay(ymd, data) {
   };
 }
 
+function visitRange(fromYmd, toYmd) {
+  return {
+    from: arDayBounds(fromYmd).from,
+    to: arDayBounds(toYmd).to,
+    ymd: fromYmd === toYmd ? fromYmd : `${fromYmd}→${toYmd}`,
+  };
+}
+
+function normalizeVisitStats(ymd, data) {
+  return {
+    ymd,
+    visitors: Number(data?.visitors ?? 0),
+    pageviews: Number(data?.pageviews ?? 0),
+    top_utm: Array.isArray(data?.top_utm) ? data.top_utm : [],
+    top_pages: Array.isArray(data?.top_pages) ? data.top_pages : [],
+  };
+}
+
 async function fetchVisitStats() {
   const today = arYmd();
   const yesterday = addYmd(today, -1);
-  const out = { today: null, yesterday: null, error: null };
+  const out = {
+    today: null,
+    yesterday: null,
+    last_7d: null,
+    last_30d: null,
+    last_60d: null,
+    error: null,
+  };
+  const ranges = [
+    { key: 'today', ...visitRange(today, today) },
+    { key: 'yesterday', ...visitRange(yesterday, yesterday) },
+    { key: 'last_7d', ...visitRange(addYmd(today, -6), today) },
+    { key: 'last_30d', ...visitRange(addYmd(today, -29), today) },
+    { key: 'last_60d', ...visitRange(addYmd(today, -59), today) },
+  ];
   try {
-    for (const r of [
-      { label: 'hoy', ...arDayBounds(today) },
-      { label: 'ayer', ...arDayBounds(yesterday) },
-    ]) {
-      const { ok, status, data } = await supabaseRpc('site_visit_stats', {
-        p_from: r.from,
-        p_to: r.to,
-      });
-      if (!ok) {
+    const results = await Promise.all(
+      ranges.map((r) =>
+        supabaseRpc('site_visit_stats', { p_from: r.from, p_to: r.to }).then((res) => ({ r, res }))
+      )
+    );
+    for (const { r, res } of results) {
+      if (!res.ok) {
         out.error =
-          status === 404
+          res.status === 404
             ? 'Falta migración de visitas (site_visit_stats) en Supabase'
-            : `Supabase visitas ${status}`;
+            : `Supabase visitas ${res.status}`;
         return out;
       }
-      const stats = {
-        ymd: r.ymd,
-        visitors: Number(data?.visitors ?? 0),
-        pageviews: Number(data?.pageviews ?? 0),
-        top_utm: Array.isArray(data?.top_utm) ? data.top_utm : [],
-        top_pages: Array.isArray(data?.top_pages) ? data.top_pages : [],
-      };
-      if (r.label === 'hoy') out.today = stats;
-      else out.yesterday = stats;
+      out[r.key] = normalizeVisitStats(r.ymd, res.data);
     }
   } catch (e) {
     out.error = e.message || String(e);
   }
   return out;
+}
+
+function classifyWebConsulta(text) {
+  const t = String(text || '');
+  if (/vi la promo en checkin24hs/i.test(t)) {
+    const m = t.match(/quiero info:\s*(.+)$/i);
+    return { kind: 'promo', product: (m ? m[1] : '').trim().slice(0, 80) };
+  }
+  const hotel = t.match(/m[aá]s info del hotel\s+(.+)$/i);
+  if (hotel) return { kind: 'hotel', product: hotel[1].trim().slice(0, 80) };
+  const pack = t.match(/m[aá]s info del pack\s+(.+)$/i);
+  if (pack) return { kind: 'pack', product: pack[1].trim().slice(0, 80) };
+  const about = t.match(/sobre:\s*(.+)$/i);
+  if (about) return { kind: 'general', product: about[1].trim().slice(0, 80) };
+  return { kind: 'general', product: '' };
+}
+
+function emptyConsultaBucket() {
+  return { count: 0, unique: 0, hotel: 0, pack: 0, promo: 0, general: 0 };
+}
+
+async function fetchWebConsultas() {
+  const today = arYmd();
+  const bounds = {
+    today: visitRange(today, today),
+    last_7d: visitRange(addYmd(today, -6), today),
+    last_30d: visitRange(addYmd(today, -29), today),
+    last_60d: visitRange(addYmd(today, -59), today),
+  };
+  const fromIso = bounds.last_60d.from;
+  const toIso = bounds.last_60d.to;
+  const rows = [];
+  try {
+    for (let offset = 0; offset < 8000; offset += 1000) {
+      const q = [
+        'select=phone,message,body,is_from_me,whatsapp_instance,sent_at,created_at',
+        `sent_at=gte.${encodeURIComponent(fromIso)}`,
+        `sent_at=lt.${encodeURIComponent(toIso)}`,
+        'is_from_me=eq.false',
+        'or=(message.ilike.*consulta desde checkin24hs*,body.ilike.*consulta desde checkin24hs*,message.ilike.*promo en checkin24hs*,body.ilike.*promo en checkin24hs*)',
+        'order=sent_at.desc',
+        'limit=1000',
+        `offset=${offset}`,
+      ].join('&');
+      const { ok, status, data } = await supabaseSelect('whatsapp_messages', q);
+      if (!ok) {
+        return { error: `Supabase consultas web ${status}`, ...Object.fromEntries(Object.keys(bounds).map((k) => [k, emptyConsultaBucket()])), top: [], recent: [] };
+      }
+      const page = Array.isArray(data) ? data : [];
+      rows.push(...page);
+      if (page.length < 1000) break;
+    }
+  } catch (e) {
+    return {
+      error: e.message || String(e),
+      today: emptyConsultaBucket(),
+      last_7d: emptyConsultaBucket(),
+      last_30d: emptyConsultaBucket(),
+      last_60d: emptyConsultaBucket(),
+      top: [],
+      recent: [],
+    };
+  }
+
+  const WEB = /consulta desde checkin24hs\.com|promo en checkin24hs\.com/i;
+  const inbound = rows.filter((m) => WEB.test(String(m.message || m.body || '')));
+  const summarize = (from, to) => {
+    const t0 = new Date(from).getTime();
+    const t1 = new Date(to).getTime();
+    const slice = inbound.filter((m) => {
+      const t = new Date(m.sent_at || m.created_at).getTime();
+      return Number.isFinite(t) && t >= t0 && t < t1;
+    });
+    const bucket = emptyConsultaBucket();
+    const phones = new Set();
+    for (const m of slice) {
+      const { kind } = classifyWebConsulta(m.message || m.body);
+      bucket.count += 1;
+      bucket[kind] = (bucket[kind] || 0) + 1;
+      phones.add(String(m.phone || ''));
+    }
+    bucket.unique = phones.size;
+    return bucket;
+  };
+
+  const products = {};
+  for (const m of inbound) {
+    const { kind, product } = classifyWebConsulta(m.message || m.body);
+    if (!product) continue;
+    const key = `${kind}:${product}`;
+    if (!products[key]) products[key] = { kind, name: product, count: 0 };
+    products[key].count += 1;
+  }
+
+  return {
+    error: null,
+    source: 'whatsapp L2 · botón web al 1580',
+    today: summarize(bounds.today.from, bounds.today.to),
+    last_7d: summarize(bounds.last_7d.from, bounds.last_7d.to),
+    last_30d: summarize(bounds.last_30d.from, bounds.last_30d.to),
+    last_60d: summarize(bounds.last_60d.from, bounds.last_60d.to),
+    top: Object.values(products)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8),
+    recent: inbound.slice(0, 8).map((m) => {
+      const { kind, product } = classifyWebConsulta(m.message || m.body);
+      return {
+        at: m.sent_at || m.created_at,
+        kind,
+        product,
+        phone: String(m.phone || '').slice(-4),
+      };
+    }),
+  };
 }
 
 async function fetchWhatsappChatStats() {
@@ -872,13 +1008,17 @@ async function fetchPromotions() {
   };
 }
 
-function ideasFromSnapshot({ health, visits, flor, sales, mail, ads }) {
+function ideasFromSnapshot({ health, visits, flor, sales, mail, ads, consultas }) {
   const ideas = [];
   const failed = (health || []).filter((r) => !r.ok);
   if (failed.length) {
     ideas.push(`Atender ${failed.length} chequeo(s) en rojo: ${failed.map((r) => r.name).join(', ')}.`);
   }
   if (visits?.error) ideas.push(`Visitas web sin datos: ${visits.error}`);
+  if (consultas?.error) ideas.push(`Consultas web WhatsApp sin datos: ${consultas.error}`);
+  else if (consultas?.last_7d?.count === 0 && Number(visits?.last_7d?.visitors || 0) > 20) {
+    ideas.push('Hubo visitas a la web en 7 días y 0 consultas WhatsApp del botón (1580). Revisar el CTA.');
+  }
   if (flor?.error) ideas.push(`Métricas Flor sin datos: ${flor.error}`);
   if (sales?.error) ideas.push(`Reservas sin datos: ${sales.error}`);
   const y = flor?.yesterday;
@@ -927,7 +1067,7 @@ function ideasFromSnapshot({ health, visits, flor, sales, mail, ads }) {
 async function buildSnapshot() {
   const generated_at = new Date().toISOString();
   const timezone = 'America/Argentina/Buenos_Aires';
-  const [health, visits, flor, sales, hotels, promotions, mail, ads] = await Promise.all([
+  const [health, visits, flor, sales, hotels, promotions, mail, ads, consultas] = await Promise.all([
     fetchHealth(),
     fetchVisitStats(),
     fetchWhatsappChatStats(),
@@ -936,6 +1076,7 @@ async function buildSnapshot() {
     fetchPromotions(),
     fetchInbox(20),
     fetchAdsSnapshot(),
+    fetchWebConsultas(),
   ]);
   let copilot = { connected: false, reason: 'sin cargar' };
   try {
@@ -952,7 +1093,12 @@ async function buildSnapshot() {
     modules: {
       monitor: { connected: true, checks: health },
       dashboard: sales.error ? { connected: false, error: sales.error } : { connected: true, sales },
-      web: visits.error ? { connected: false, error: visits.error } : { connected: true, visits },
+      web: {
+        connected: !visits.error,
+        error: visits.error || null,
+        visits,
+        consultas,
+      },
       flor: flor.error ? { connected: false, error: flor.error, source: flor.source } : { connected: true, source: flor.source, flor },
       ads,
       copilot,
@@ -967,7 +1113,7 @@ async function buildSnapshot() {
         ? { connected: false, error: hotels.error, promotions }
         : { connected: true, hotels, promotions },
     },
-    ideas: ideasFromSnapshot({ health, visits, flor, sales, mail, ads }),
+    ideas: ideasFromSnapshot({ health, visits, flor, sales, mail, ads, consultas }),
   };
   return snapshot;
 }

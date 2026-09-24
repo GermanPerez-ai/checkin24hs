@@ -99,7 +99,7 @@ Eres ANA, la Inteligencia de Negocios y Asistente Ejecutiva Central de Checkin24
 - Anulaciones del mes: sales.by_month[month].cancelled_count y cancelled_amount, o sales.month.cancelled_* para el mes actual. "Anulación pedida" NO cuenta como anulada: solo estado **Cancelada**. Pedidos abiertos: pending_cancel.
 - Si el SNAPSHOT trae **sales_focus** y ok=true, esos totales ya están filtrados para ESTA pregunta: respondé **por cada slice** (no mezcles hotel, mes ni eje). No recalcules a mano ni cambies el redondeo. Si un slice tiene matched_rows=0, decí 0 en el recorte (sales.range_from).
 - Recorte: sales.range_from; si truncated=true, advertí que el listado puede estar topeado.
-- Web: visitas (site_pageviews) y UTM.
+- Web: visitas (site_pageviews) hoy / 7 / 30 / 60 días. Consultas WhatsApp del botón de la web al 1580: web.consultas (today, last_7d, last_30d, last_60d: count + unique; top hoteles/packs). No inventes esos números.
 - Ads: si ads.google.connected o ads.meta.connected, usá last_7d / last_30d / campaigns (spend, clicks, impressions, cpc, ctr, conversions, roas) con la currency que traiga cada plataforma. Nunca inventes gasto. Si connected=false, decí qué falta (missing_env o error) y no estimes CPC/ROAS.
 - Ads spend/clics: solo de la API. Nunca inventes Ad Spend Anomaly si no hay datos conectados.
 - Flor IA / WhatsApp: chats, hand-offs, SLA si viene en el snapshot, estado de L1–L4 (Monitor).
@@ -702,6 +702,7 @@ function compactSnapshot(snap, userText) {
   const florToday = snap.modules?.flor?.flor?.today;
   const florY = snap.modules?.flor?.flor?.yesterday;
   const visits = snap.modules?.web?.visits;
+  const consultas = snap.modules?.web?.consultas;
   return {
     ymd: snap.ymd,
     generated_at: snap.generated_at,
@@ -734,6 +735,7 @@ function compactSnapshot(snap, userText) {
         }
       : { error: snap.modules?.dashboard?.error || 'sin datos' },
     visits: visits || { error: snap.modules?.web?.error || 'sin datos' },
+    consultas: consultas || { error: 'sin datos' },
     flor: {
       source: snap.modules?.flor?.source || null,
       error: snap.modules?.flor?.error || null,
@@ -1042,7 +1044,15 @@ function fallbackReply(snapshot, userText, geminiErr) {
   lines.push(
     `- Flor hoy: ${c.flor?.today?.new_chats_total ?? 0} chats · ${c.flor?.today?.inbound_messages_total ?? 0} msgs · ${c.flor?.today?.handoffs_total ?? 0} hand-offs`
   );
-  lines.push(`- Web hoy: ${c.visits?.today?.visitors ?? 0} personas · ${c.visits?.today?.pageviews ?? 0} vistas`);
+  lines.push(
+    `- Web hoy: ${c.visits?.today?.visitors ?? 0} personas · ${c.visits?.today?.pageviews ?? 0} vistas · ${c.consultas?.today?.count ?? 0} consultas WA`
+  );
+  lines.push(
+    `- Web 7d: ${c.visits?.last_7d?.visitors ?? 0} pers. · ${c.visits?.last_7d?.pageviews ?? 0} vistas · ${c.consultas?.last_7d?.count ?? 0} consultas (${c.consultas?.last_7d?.unique ?? 0} personas)`
+  );
+  lines.push(
+    `- Web 60d: ${c.visits?.last_60d?.visitors ?? 0} pers. · ${c.consultas?.last_60d?.count ?? 0} consultas (${c.consultas?.last_60d?.unique ?? 0} personas)`
+  );
   if (c.ads?.google?.connected) {
     lines.push(`- Google Ads 7d: ${c.ads.google.currency} ${c.ads.google.last_7d?.spend ?? 0}`);
   } else {
