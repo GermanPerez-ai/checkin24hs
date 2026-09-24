@@ -57,7 +57,9 @@
                     <p class="text-[11px] text-slate-400 font-mono uppercase">Checkin24hs · acceso interno</p>
                 </div>
             </div>
-            <p class="text-xs text-slate-400">Clave de ANA (variable <span class="font-mono">ANA_PASSWORD</span> en el servidor).</p>
+            <p class="text-xs text-slate-400">Acceso interno. Cada persona entra con su usuario y clave.</p>
+            <input id="loginUser" type="text" autocomplete="username" placeholder="Usuario"
+                class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500">
             <input id="loginPassword" type="password" autocomplete="current-password" placeholder="Clave"
                 class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500">
             <p id="loginError" class="hidden text-xs text-rose-400"></p>
@@ -129,6 +131,7 @@
                 </nav>
             </div>
             <div class="p-3 border-t border-slate-800/80">
+            <p id="anaLoggedUser" class="text-[10px] text-slate-500 text-center mb-2 font-mono">—</p>
                 <button onclick="logoutAna()" class="w-full flex items-center justify-center space-x-2 px-3 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white text-xs font-semibold">
                     <i data-lucide="log-out" class="w-4 h-4"></i><span>Cerrar sesión</span>
                 </button>
@@ -605,6 +608,7 @@ let AGENDA = { tasks: [], ideas: [] };
             const me = await api('/api/me');
             if (me.ok) {
                 $('loginGate').classList.add('hidden');
+                if ($('anaLoggedUser')) $('anaLoggedUser').textContent = me.user ? ('sesion · ' + me.user) : '';
                 await refreshSnapshot(false);
                 return;
             }
@@ -616,8 +620,16 @@ let AGENDA = { tasks: [], ideas: [] };
         e.preventDefault();
         $('loginError').classList.add('hidden');
         try {
-            await api('/api/login', { method: 'POST', body: JSON.stringify({ password: $('loginPassword').value }) });
+            const login = await api('/api/login', {
+                method: 'POST',
+                body: JSON.stringify({
+                    user: ($('loginUser') && $('loginUser').value) || '',
+                    password: $('loginPassword').value
+                })
+            });
             $('loginPassword').value = '';
+            if ($('loginUser')) $('loginUser').value = '';
+            if ($('anaLoggedUser')) $('anaLoggedUser').textContent = login.user ? ('sesion · ' + login.user) : '';
             $('loginGate').classList.add('hidden');
             await refreshSnapshot(true);
         } catch (err) {

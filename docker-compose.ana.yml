@@ -2,7 +2,7 @@
 # En el VPS, con red easypanel:
 #   docker compose -f docker-compose.ana.yml up -d --build
 # DNS: A ana.checkin24hs.com → IP del VPS (Traefik saca el cert).
-# Env mínimas: ANA_PASSWORD, GEMINI_API_KEY, SUPABASE_ANON_KEY
+# Env mínimas: ANA_USER1 + ANA_PASSWORD1, ANA_USER2 + ANA_PASSWORD2, GEMINI_API_KEY, SUPABASE_ANON_KEY
 
 services:
   ana:
@@ -13,6 +13,10 @@ services:
     environment:
       - PORT=8080
       - ANA_PASSWORD=${ANA_PASSWORD}
+      - ANA_USER1=${ANA_USER1:-ana}
+      - ANA_PASSWORD1=${ANA_PASSWORD1:-}
+      - ANA_USER2=${ANA_USER2:-}
+      - ANA_PASSWORD2=${ANA_PASSWORD2:-}
       - ANA_SESSION_SECRET=${ANA_SESSION_SECRET:-}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.5-flash}

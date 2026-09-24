@@ -20,10 +20,46 @@ const {
 } = require('./copilot');
 
 const PORT = parseInt(process.env.PORT || '8080', 10) || 8080;
-const ANA_PASSWORD = String(process.env.ANA_PASSWORD || '').trim();
+const ANA_PASSWORD = String(process.env.ANA_PASSWORD || process.env.ANA_PASSWORD1 || '').trim();
 const SESSION_SECRET = process.env.ANA_SESSION_SECRET || ANA_PASSWORD || 'ana-dev-only';
 const COOKIE_NAME = 'ana_session';
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+function loadAnaUsers() {
+  const users = [];
+  const u1 = String(process.env.ANA_USER1 || 'ana').trim().toLowerCase() || 'ana';
+  const p1 = String(process.env.ANA_PASSWORD1 || process.env.ANA_PASSWORD || '').trim();
+  if (p1) users.push({ user: u1, password: p1 });
+  const u2 = String(process.env.ANA_USER2 || '').trim().toLowerCase();
+  const p2 = String(process.env.ANA_PASSWORD2 || '').trim();
+  if (u2 && p2) users.push({ user: u2, password: p2 });
+  return users;
+}
+
+const ANA_USERS = loadAnaUsers();
+const AUTH_CONFIGURED = ANA_USERS.length > 0;
+
+function passwordMatches(given, expected) {
+  const a = Buffer.from(String(given || ''));
+  const b = Buffer.from(String(expected || ''));
+  if (a.length !== b.length || a.length === 0) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
+function findUserByLogin(username, password) {
+  const u = String(username || '').trim().toLowerCase();
+  const p = String(password || '');
+  if (!p) return null;
+  if (u) {
+    const row = ANA_USERS.find((x) => x.user === u);
+    if (row && passwordMatches(p, row.password)) return row.user;
+    return null;
+  }
+  for (const row of ANA_USERS) {
+    if (passwordMatches(p, row.password)) return row.user;
+  }
+  return null;
+}
 const GEMINI_API_KEY = String(process.env.GEMINI_API_KEY || '').trim();
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const ANA_JOBS_SECRET = String(process.env.ANA_JOBS_SECRET || '').trim();
@@ -81,25 +117,27 @@ app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '15mb' }));
 
-function signSession(exp) {
-  const payload = String(exp);
+function signSession(exp, user) {
+  const payload = `${exp}.${encodeURIComponent(String(user || 'ana'))}`;
   const sig = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('hex');
   return `${payload}.${sig}`;
 }
 
 function verifySession(token) {
-  if (!token || typeof token !== 'string') return false;
-  const i = token.indexOf('.');
-  if (i < 1) return false;
-  const payload = token.slice(0, i);
-  const sig = token.slice(i + 1);
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length < 3) return null;
+  const sig = parts.pop();
+  const payload = parts.join('.');
   const expected = crypto.createHmac('sha256', SESSION_SECRET).update(payload).digest('hex');
   const a = Buffer.from(sig);
   const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  if (!crypto.timingSafeEqual(a, b)) return false;
-  const exp = Number(payload);
-  return Number.isFinite(exp) && Date.now() < exp;
+  if (a.length !== b.length) return null;
+  if (!crypto.timingSafeEqual(a, b)) return null;
+  const exp = Number(parts[0]);
+  const user = decodeURIComponent(parts.slice(1).join('.') || 'ana');
+  if (!Number.isFinite(exp) || Date.now() >= exp) return null;
+  return { user };
 }
 
 function readCookie(req, name) {
@@ -135,16 +173,17 @@ function clearSessionCookie(res) {
 }
 
 function requireAuth(req, res, next) {
-  if (!ANA_PASSWORD) {
+  if (!AUTH_CONFIGURED) {
     if (process.env.ANA_ALLOW_OPEN === '1') return next();
     return res.status(503).json({
-      error: 'ANA_PASSWORD no configurada. Definila en EasyPanel antes de usar ANA en producción.',
+      error: 'No hay usuarios de ANA. Definí ANA_USER1/ANA_PASSWORD1 y ANA_USER2/ANA_PASSWORD2 en EasyPanel.',
     });
   }
-  const token = readCookie(req, COOKIE_NAME);
-  if (!verifySession(token)) {
+  const session = verifySession(readCookie(req, COOKIE_NAME));
+  if (!session) {
     return res.status(401).json({ error: 'No autenticado' });
   }
+  req.anaUser = session.user;
   next();
 }
 
@@ -184,30 +223,29 @@ app.get('/api/health', (_req, res) => {
     ok: true,
     service: 'ana',
     gemini: Boolean(GEMINI_API_KEY),
-    authRequired: Boolean(ANA_PASSWORD),
+    authRequired: AUTH_CONFIGURED,
     jobs: Boolean(ANA_JOBS_SECRET),
   });
 });
 
 app.get('/api/me', (req, res) => {
-  if (!ANA_PASSWORD) {
+  if (!AUTH_CONFIGURED) {
     return res.json({ ok: process.env.ANA_ALLOW_OPEN === '1', authRequired: true, configured: false });
   }
-  const token = readCookie(req, COOKIE_NAME);
-  res.json({ ok: verifySession(token), authRequired: true, configured: true });
+  const session = verifySession(readCookie(req, COOKIE_NAME));
+  res.json({ ok: Boolean(session), authRequired: true, configured: true, user: session?.user || null });
 });
 
 app.post('/api/login', (req, res) => {
-  if (!ANA_PASSWORD) {
-    return res.status(503).json({ error: 'ANA_PASSWORD no configurada en el servidor' });
+  if (!AUTH_CONFIGURED) {
+    return res.status(503).json({ error: 'No hay usuarios de ANA configurados en el servidor' });
   }
+  const username = String(req.body?.user || req.body?.username || req.body?.email || '');
   const password = String(req.body?.password || '');
-  const a = Buffer.from(password);
-  const b = Buffer.from(ANA_PASSWORD);
-  const match = a.length === b.length && crypto.timingSafeEqual(a, b);
-  if (!match) return res.status(401).json({ error: 'Clave incorrecta' });
-  setSessionCookie(req, res, signSession(Date.now() + SESSION_TTL_MS));
-  res.json({ ok: true });
+  const user = findUserByLogin(username, password);
+  if (!user) return res.status(401).json({ error: 'Usuario o clave incorrectos' });
+  setSessionCookie(req, res, signSession(Date.now() + SESSION_TTL_MS, user));
+  res.json({ ok: true, user });
 });
 
 app.post('/api/logout', (_req, res) => {
@@ -1061,6 +1099,6 @@ app.use(express.static(path.join(__dirname, 'public'), { index: false, extension
 
 app.listen(PORT, () => {
   console.log(`ANA escuchando en :${PORT}`);
-  console.log(`  Auth: ${ANA_PASSWORD ? 'clave configurada' : 'FALTA ANA_PASSWORD'}`);
+  console.log(`  Auth: ${AUTH_CONFIGURED ? ANA_USERS.map((u) => u.user).join(' + ') : 'FALTAN USUARIOS'}`);
   console.log(`  Gemini: ${GEMINI_API_KEY ? GEMINI_MODEL : 'no configurado (fallback snapshot)'}`);
 });
