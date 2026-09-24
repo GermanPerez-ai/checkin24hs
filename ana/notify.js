@@ -31,6 +31,25 @@ async function sendWhatsApp(text) {
   return { ok: true };
 }
 
+async function sendWhatsAppDocument({ fileName, mimetype, base64, caption }) {
+  if (!ALERT_PHONE) return { ok: false, error: 'Falta ANA_ALERT_PHONE' };
+  const res = await fetch(`${WA_API}/api/send-media`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      number: ALERT_PHONE,
+      type: 'document',
+      dataBase64: base64,
+      mimetype: mimetype || 'application/pdf',
+      fileName: fileName || 'informe.pdf',
+      caption: String(caption || '').slice(0, 1024),
+    }),
+  });
+  const body = await res.text();
+  if (!res.ok) return { ok: false, error: `WhatsApp media ${res.status}: ${body.slice(0, 200)}` };
+  return { ok: true };
+}
+
 async function sendTelegram(text) {
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return { ok: false, skipped: true };
   const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
@@ -89,4 +108,4 @@ async function dispatchAlert({ kind, fingerprint, text, payload = {} }) {
   return { ok: sentOk || ins.ok, skipped: false, channels, log: ins };
 }
 
-module.exports = { dispatchAlert, sendWhatsApp, alreadySent, ALERT_PHONE };
+module.exports = { dispatchAlert, sendWhatsApp, sendWhatsAppDocument, alreadySent, ALERT_PHONE };

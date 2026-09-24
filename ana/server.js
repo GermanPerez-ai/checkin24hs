@@ -9,6 +9,11 @@ const { fetchBody } = require('./mail');
 const { runJob } = require('./jobs');
 const { buildProposalFromPrompt, buildPromoFromPrompt } = require('./proposals');
 const {
+  looksLikeSalesControl,
+  generateSalesControlReport,
+  getLastSalesControl,
+} = require('./sales-control');
+const {
   captureFromText,
   listTasks,
   listIdeas,
@@ -108,7 +113,8 @@ Eres ANA, la Inteligencia de Negocios y Asistente Ejecutiva Central de Checkin24
 - No inventes ocupación, comisiones por hotel (no hay columna de comisión en el catálogo) ni tarifas que no estén en precio_desde.
 - Propuestas B2B y packs promocionales: si el usuario pide una propuesta de representación o contenido promocional, el sistema genera HTML/JSON aparte; vos resumí y no inventes tarifas que no estén en el snapshot.
 - Copiloto / agenda: snapshot.copilot (counts, p1, meetings_today). Crear con "anotá / agendame / idea:". Calendar: copilot.google_calendar.connected.
-- Alertas: flash 08:00, fricción Flor cada 2 h, QA semanal, cierre 19:00. No dispares envíos desde el chat.
+- Control comercial WhatsApp (últimos 7 días): job weekly-sales-control, lunes 10:00 ART. PDF con quién pidió tarifa y quién cerró precio (Flor vs vendedor). Si el usuario pide el informe, el sistema lo genera y da el PDF; no inventes esos conteos. Los mensajes salientes del vendedor en el celular se registran desde 2026-09-24.
+- Alertas: flash 08:00, fricción Flor cada 2 h, QA semanal 09:30, control comercial PDF lunes 10:00, cierre 19:00. No dispares envíos desde el chat.
 
 Abajo tenés un SNAPSHOT JSON real. Basate solo en eso y en el mensaje del usuario.`;
 
@@ -315,6 +321,46 @@ app.post('/api/jobs/:name', requireJobAuth, async (req, res) => {
   } catch (e) {
     console.warn('ANA job route', name, e.message || e);
     res.status(200).json({ ok: false, error: e.message || String(e), job: name });
+  }
+});
+
+function salesControlPublic(report) {
+  if (!report) return null;
+  return {
+    at: report.at,
+    from: report.from,
+    to: report.to,
+    filename: report.filename,
+    kpis: report.kpis,
+    summary: report.summaryText,
+    openPreview: report.openPreview || [],
+    pdf_bytes: report.pdfBuffer ? report.pdfBuffer.length : 0,
+  };
+}
+
+app.get('/api/sales-control/latest.json', requireAuth, async (req, res) => {
+  try {
+    let report = getLastSalesControl();
+    if (!report && req.query.refresh === '1') {
+      report = await generateSalesControlReport();
+    }
+    if (!report) return res.json({ ok: true, from: null });
+    res.json({ ok: true, ...salesControlPublic(report) });
+  } catch (e) {
+    res.status(500).json({ error: e.message || String(e) });
+  }
+});
+
+app.get('/api/sales-control/latest.pdf', requireAuth, async (_req, res) => {
+  try {
+    let report = getLastSalesControl();
+    if (!report) report = await generateSalesControlReport();
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${report.filename}"`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(report.pdfBuffer);
+  } catch (e) {
+    res.status(500).json({ error: e.message || String(e) });
   }
 });
 
@@ -1053,7 +1099,15 @@ app.post('/api/chat', requireAuth, async (req, res) => {
     const snapshot = await getSnapshot({ force: true });
     const intent = detectCommercialIntent(text);
     let artifact = null;
-    if (intent === 'proposal') {
+    if (looksLikeSalesControl(text)) {
+      const report = await generateSalesControlReport();
+      artifact = {
+        kind: 'sales-control',
+        summary: report.summaryText,
+        filename: report.filename,
+        pdfUrl: '/api/sales-control/latest.pdf',
+      };
+    } else if (intent === 'proposal') {
       artifact = await buildProposalFromPrompt(text, snapshot.ymd);
     } else if (intent === 'promo') {
       artifact = await buildPromoFromPrompt(text, snapshot.ymd);
@@ -1070,15 +1124,21 @@ app.post('/api/chat', requireAuth, async (req, res) => {
       ok: true,
       reply: artifact ? `${artifact.summary}\n\n${reply}` : reply,
       artifact: artifact
-        ? {
-            kind: artifact.kind,
-            html: artifact.html,
-            json: artifact.json || null,
-            filename:
-              artifact.kind === 'promo'
-                ? `pack-${(artifact.hotel?.name || 'destino').replace(/\s+/g, '-')}.html`
-                : `propuesta-${(artifact.hotel?.name || 'hotel').replace(/\s+/g, '-')}.html`,
-          }
+        ? artifact.kind === 'sales-control'
+          ? {
+              kind: 'sales-control',
+              filename: artifact.filename,
+              pdfUrl: artifact.pdfUrl,
+            }
+          : {
+              kind: artifact.kind,
+              html: artifact.html,
+              json: artifact.json || null,
+              filename:
+                artifact.kind === 'promo'
+                  ? `pack-${(artifact.hotel?.name || 'destino').replace(/\s+/g, '-')}.html`
+                  : `propuesta-${(artifact.hotel?.name || 'hotel').replace(/\s+/g, '-')}.html`,
+            }
         : null,
       ymd: snapshot.ymd,
       gemini: Boolean(GEMINI_API_KEY),

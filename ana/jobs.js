@@ -8,7 +8,8 @@ const {
   supabaseSelect,
   supabaseInsert,
 } = require('./collect');
-const { dispatchAlert } = require('./notify');
+const { dispatchAlert, sendWhatsAppDocument } = require('./notify');
+const { generateSalesControlReport } = require('./sales-control');
 const {
   morningBriefingExtras,
   runSlaAutoTasks,
@@ -380,11 +381,47 @@ async function runCopilotAuto() {
   return { ok: true, sla: sla.length, health: health.length, created: made.length };
 }
 
+async function runWeeklySalesControl() {
+  const report = await generateSalesControlReport();
+  const alert = await dispatchAlert({
+    kind: 'weekly_sales_control',
+    fingerprint: `sales-control:${report.from}:${report.to}`,
+    text: report.whatsappText,
+    payload: { kpis: report.kpis, filename: report.filename },
+  });
+  let media = { skipped: true };
+  if (!alert.skipped) {
+    media = await sendWhatsAppDocument({
+      fileName: report.filename,
+      mimetype: 'application/pdf',
+      base64: report.pdfBuffer.toString('base64'),
+      caption: report.whatsappText,
+    });
+  }
+  return {
+    ok: true,
+    from: report.from,
+    to: report.to,
+    filename: report.filename,
+    kpis: report.kpis,
+    pdf_bytes: report.pdfBuffer.length,
+    alert,
+    media,
+  };
+}
+
 async function runJob(name) {
   try {
     if (name === 'morning-flash' || name === 'morning_flash') return await runMorningFlash();
     if (name === 'flor-friction' || name === 'flor_friction') return await runFlorFriction();
     if (name === 'weekly-qa' || name === 'weekly_qa') return await runWeeklyQa();
+    if (
+      name === 'weekly-sales-control' ||
+      name === 'weekly_sales_control' ||
+      name === 'sales-control'
+    ) {
+      return await runWeeklySalesControl();
+    }
     if (name === 'lifecycle-followup' || name === 'lifecycle_followup') return await runLifecycleFollowup();
     if (name === 'copilot-auto' || name === 'copilot_auto') return await runCopilotAuto();
     if (name === 'copilot-evening' || name === 'copilot_evening' || name === 'evening-wrap') {
@@ -402,6 +439,7 @@ module.exports = {
   runMorningFlash,
   runFlorFriction,
   runWeeklyQa,
+  runWeeklySalesControl,
   runLifecycleFollowup,
   runCopilotAuto,
   runEveningWrap,

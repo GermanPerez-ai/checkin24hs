@@ -15,6 +15,9 @@ CRON_TZ=America/Argentina/Buenos_Aires
 # Calidad Flor semanal (lunes 09:30)
 30 9 * * 1 curl -fsS -X POST -H "X-Ana-Jobs-Secret: SECRET" https://ana.checkin24hs.com/api/jobs/weekly-qa >> /var/log/ana-jobs.log 2>&1
 
+# Control comercial WhatsApp PDF (lunes 10:00)
+0 10 * * 1 curl -fsS -X POST -H "X-Ana-Jobs-Secret: SECRET" https://ana.checkin24hs.com/api/jobs/weekly-sales-control >> /var/log/ana-jobs.log 2>&1
+
 # Seguimiento pedidos anulación/modificación al hotel (cada 4 h)
 20 */4 * * * curl -fsS -X POST -H "X-Ana-Jobs-Secret: SECRET" https://ana.checkin24hs.com/api/jobs/lifecycle-followup >> /var/log/ana-jobs.log 2>&1
 
