@@ -6417,6 +6417,58 @@ async function persistirMediaMensajeWhatsApp(waMsg, hint) {
 }
 
 /**
+ * Mensaje que el vendedor mandó desde el celular / app de WhatsApp (fromMe humano).
+ * Se guarda como is_from_me=true e is_from_flor=false para que el dashboard y ANA lo vean.
+ * No usar para ecos de Flor ni de /api/send (esos ya se persisten al enviar).
+ */
+async function persistHumanPhoneOutboundMessage(msg, phoneRaw) {
+    const phone = String(phoneRaw || '').replace(/@.*$/, '').trim();
+    if (!phone) return null;
+    const inner = unwrapBaileysInnerMessage(msg?.message) || msg?.message;
+    if (!inner) return null;
+
+    const tieneImagen = !!inner.imageMessage;
+    const tieneAudio = !!(inner.audioMessage || inner.pttMessage);
+    const tieneVideo = !!inner.videoMessage;
+    const tieneDocumento = !!inner.documentMessage;
+    const tieneSticker = !!inner.stickerMessage;
+
+    let texto = String(
+        inner.conversation ||
+        inner.extendedTextMessage?.text ||
+        inner.imageMessage?.caption ||
+        inner.videoMessage?.caption ||
+        inner.documentMessage?.caption ||
+        ''
+    ).trim();
+    if (!texto && inner.locationMessage) texto = '[Ubicación]';
+    if (!texto && inner.contactMessage) texto = '[Contacto]';
+    if (!texto && tieneSticker) texto = '[Sticker]';
+    if (!texto && tieneImagen) texto = '[Imagen]';
+    if (!texto && tieneAudio) texto = '[Audio]';
+    if (!texto && tieneVideo) texto = '[Video]';
+    if (!texto && tieneDocumento) texto = '[Documento] ' + (inner.documentMessage?.fileName || 'archivo');
+    if (!texto) return null;
+
+    let messageType = 'text';
+    if (tieneDocumento) messageType = 'document';
+    else if (tieneVideo) messageType = 'video';
+    else if (tieneImagen || tieneSticker) messageType = 'image';
+    else if (tieneAudio) messageType = 'audio';
+
+    let mediaOpts = null;
+    if (tieneImagen || tieneAudio || tieneVideo || tieneDocumento) {
+        mediaOpts = await persistirMediaMensajeWhatsApp(msg, messageType);
+    }
+
+    const saved = await guardarMensaje(phone, texto, true, null, null, null, messageType, mediaOpts);
+    if (saved) {
+        console.log(`💾 fromMe HUMANO guardado en dashboard | phone=${phone} type=${messageType} preview="${texto.slice(0, 80)}"`);
+    }
+    return saved;
+}
+
+/**
  * Guardar mensaje en Supabase
  * Estructura real: chat_id, phone, message, is_from_me, whatsapp_instance, message_type, media_url
  * @param {string} [chatIdFromDashboard] - Si viene del dashboard, usar este chat_id para no crear chats duplicados
@@ -6493,6 +6545,7 @@ async function guardarMensaje(numero, mensaje, esEnviado = false, respuestaFlor 
             phone: datosConTipo.phone,
             direction: datosConTipo.direction,
             is_from_me: datosConTipo.is_from_me,
+            is_from_flor: datosConTipo.is_from_flor,
             message_preview: (datosConTipo.message || '').substring(0, 50)
         }));
 
@@ -7081,6 +7134,16 @@ async function connectToWhatsApp() {
                     }
                     if (willPauseFromMeHuman) {
                         markFromMeHumanSilenceProcessed(msg.key.id);
+                        const phoneToSave = (primaryForDb && !String(primaryForDb).includes('@'))
+                            ? primaryForDb
+                            : ((jidDigits.length >= 10 && !isOurBotPhoneDigits(jidDigits)) ? ('+' + jidDigits) : null);
+                        if (phoneToSave) {
+                            try {
+                                await persistHumanPhoneOutboundMessage(msg, phoneToSave);
+                            } catch (e) {
+                                console.warn('⚠️ No se guardó fromMe humano en dashboard:', e?.message || e);
+                            }
+                        }
                     }
                     // Cancelar colas Flor en curso: el humano ya tomó el chat
                     clearFlorPendingQueuesForContact(resolved, primaryForDb, jidLocal, remoteJidOut);
