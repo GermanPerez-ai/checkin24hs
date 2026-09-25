@@ -17,11 +17,16 @@ function samePhone(a, b) {
  */
 async function tryAnaCopilotInbound({ phones, text }) {
   const secret = String(process.env.ANA_JOBS_SECRET || '').trim();
-  const exec = digits(process.env.ANA_ALERT_PHONE || process.env.MONITOR_ALERT_PHONE || '');
+  const execs = String(process.env.ANA_ALERT_PHONE || process.env.MONITOR_ALERT_PHONE || '542944210725,5492944579759')
+    .split(/[,|;\s]+/)
+    .map(digits)
+    .filter((n) => n.length >= 10);
+  const extra = '5492944579759';
+  if (!execs.some((n) => samePhone(n, extra))) execs.push(extra);
   const raw = String(text || '').trim();
-  if (!secret || !exec || !raw || raw === '[Audio]' || raw.startsWith('[Imagen]')) return false;
+  if (!secret || !execs.length || !raw || raw === '[Audio]' || raw.startsWith('[Imagen]')) return false;
   const list = (phones || []).filter(Boolean);
-  if (!list.some((p) => samePhone(p, exec))) return false;
+  if (!list.some((p) => execs.some((exec) => samePhone(p, exec)))) return false;
   const base = String(process.env.ANA_COPILOT_URL || 'https://ana.checkin24hs.com').replace(/\/$/, '');
   const res = await fetch(`${base}/api/copilot/inbound`, {
     method: 'POST',

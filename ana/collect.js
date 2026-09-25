@@ -1058,6 +1058,29 @@ function ideasFromSnapshot({ health, visits, flor, sales, mail, ads, consultas }
       `Google Ads: el gasto de 7 días (${ads.google.currency} ${ads.google.last_7d.spend}) superó 2.5× la semana previa.`
     );
   }
+  const meta7 = ads?.meta?.metrics_summary || ads?.meta?.last_7d;
+  if (ads?.meta?.connected && meta7) {
+    if (Number(meta7.frequency) > 3.5) {
+      ideas.push(
+        `Meta: frecuencia ${meta7.frequency} en 7 días (creativo saturado). Rotar placas/video.`
+      );
+    }
+    if (Number(meta7.landing_vs_link_pct) > 0 && Number(meta7.landing_vs_link_pct) < 60) {
+      ideas.push(
+        `Meta: solo ${meta7.landing_vs_link_pct}% de los clics al enlace llega a la landing. Revisar velocidad de checkin24hs.com.`
+      );
+    }
+    const worst = ads.meta.breakdown_highlights?.worst_placement;
+    if (worst && /audience_network/i.test(String(worst))) {
+      ideas.push('Meta: Audience Network está entre los peores placements. Recortar presupuesto ahí.');
+    }
+    const prevCpl = Number(ads.meta.prev_7d?.cost_per_messaging || 0);
+    const nowCpl = Number(meta7.cost_per_messaging || 0);
+    if (prevCpl > 0 && nowCpl > prevCpl * 1.2) {
+      const pct = Math.round(((nowCpl / prevCpl) - 1) * 100);
+      ideas.push(`Meta: el costo por mensaje subió ${pct}% vs la semana previa (${nowCpl} vs ${prevCpl}).`);
+    }
+  }
   if (!ideas.length) {
     ideas.push('Chequeos en verde. Ocupación hotelera no está en la base.');
   }

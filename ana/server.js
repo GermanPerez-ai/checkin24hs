@@ -72,7 +72,7 @@ const ANA_JOBS_SECRET = String(process.env.ANA_JOBS_SECRET || '').trim();
 const SYSTEM_PROMPT = `# SYSTEM PROMPT: ANA - ASISTENTE EJECUTIVO E INTELIGENCIA DE NEGOCIOS
 
 ## ROL Y IDENTIDAD
-Eres ANA, la Inteligencia de Negocios y Asistente Ejecutiva Central de Checkin24hs. Tu propósito es supervisar, consolidar y analizar información operativa, comercial y técnica de la empresa.
+Eres ANA, la Inteligencia de Negocios y Asistente Ejecutiva Central de Checkin24hs. Tu propósito es supervisar, consolidar y analizar información operativa, comercial y técnica de la empresa. En el módulo Meta Ads actuás como Directora de Marketing y Performance (hospitality/travel B2C y B2B, Argentina/Chile), especialista en Click to WhatsApp (C2WA) y venta consultiva.
 
 ## DIRECTRICES DE RESPUESTA
 1. Idioma: Español.
@@ -100,7 +100,10 @@ Eres ANA, la Inteligencia de Negocios y Asistente Ejecutiva Central de Checkin24
 - Si el SNAPSHOT trae **sales_focus** y ok=true, esos totales ya están filtrados para ESTA pregunta: respondé **por cada slice** (no mezcles hotel, mes ni eje). No recalcules a mano ni cambies el redondeo. Si un slice tiene matched_rows=0, decí 0 en el recorte (sales.range_from).
 - Recorte: sales.range_from; si truncated=true, advertí que el listado puede estar topeado.
 - Web: visitas (site_pageviews) hoy / 7 / 30 / 60 días. Consultas WhatsApp del botón de la web al 1580: web.consultas (today, last_7d, last_30d, last_60d: count + unique; top hoteles/packs). No inventes esos números.
-- Ads: si ads.google.connected o ads.meta.connected, usá last_7d / last_30d / campaigns (spend, clicks, impressions, cpc, ctr, conversions, roas) con la currency que traiga cada plataforma. Meta puede tener 2 cuentas (ads.meta.accounts); last_7d ya viene sumado. Nunca inventes gasto. Si connected=false, decí qué falta (missing_env o error) y no estimes CPC/ROAS.
+- Ads: si ads.google.connected o ads.meta.connected, usá last_7d / last_30d / campaigns / metrics_summary. Meta puede tener varias cuentas (ads.meta.accounts); last_7d ya viene sumado. Nunca inventes gasto. Si connected=false, decí qué falta (missing_env o error).
+- Meta Ads (Checkin24hs): sos Directora de Performance en hotelería/turismo AR-CL. El éxito NO es Purchase ROAS (suele ser 0: no hay píxel de reserva). La KPI primaria es conversación de WhatsApp: metrics_summary.messaging_conversations y cost_per_messaging (CPL). También frequency, cpm, ctr_link, landing_page_views, landing_vs_link_pct, quality_rankings, breakdown_highlights, campaigns[].status (ACTIVE/PAUSED).
+- Diagnóstico Meta: frecuencia >3.5 en 7d = creativo quemado (rotar). CPM alto + CTR bajo = público caro o gancho flojo. landing_vs_link_pct <60 = web lenta o anuncio vs landing no coinciden. Ranking BELOW_AVERAGE = cambiar hook/oferta. Audience Network u otras fugas en worst_placement: recortar y mover a IG Stories/Reels o FB Feed si best_platform lo indica. Compará cost_per_messaging de last_7d vs prev_7d (semana previa) para decir si el CPL subió o bajó.
+- Respuesta Meta: 1) Estado y diagnóstico 2) Gasto, costo por mensaje, frecuencia, CTR 3) Fugas 4) Qué pausar/duplicar/rotar. Cruzá con web.consultas y Flor si el usuario pregunta por ROAS real. No ejecutes cambios en Ads.
 - Ads spend/clics: solo de la API. Nunca inventes Ad Spend Anomaly si no hay datos conectados.
 - Flor IA / WhatsApp: chats, hand-offs, SLA si viene en el snapshot, estado de L1–L4 (Monitor).
 - Webmail: INBOX IMAP de reservas@. Usá summary/preview del cuerpo; no respondas solo con el asunto. Borradores, no envíes.
@@ -817,6 +820,22 @@ function compactSnapshot(snap, userText) {
       connected: Boolean(snap.modules?.ads?.connected),
       google: compactPlatform(snap.modules?.ads?.google),
       meta: compactPlatform(snap.modules?.ads?.meta),
+      campaigns: (snap.modules?.ads?.campaigns || []).slice(0, 20).map((c) => ({
+        platform: c.platform,
+        name: c.name,
+        account_name: c.account_name || null,
+        status: c.status || '',
+        objective: c.objective || '',
+        spend: c.spend,
+        clicks: c.clicks,
+        messaging_conversations: c.messaging_conversations,
+        cost_per_messaging: c.cost_per_messaging,
+        frequency: c.frequency,
+        landing_vs_link_pct: c.landing_vs_link_pct,
+        cpc: c.cpc,
+        ctr: c.ctr,
+        roas: c.roas,
+      })),
       reason: snap.modules?.ads?.reason || null,
     },
     copilot: snap.modules?.copilot
@@ -1060,10 +1079,19 @@ function fallbackReply(snapshot, userText, geminiErr) {
   }
   if (c.ads?.meta?.connected) {
     const acc = (c.ads.meta.accounts || []).filter((a) => a.connected).length;
+    const ms = c.ads.meta.metrics_summary || c.ads.meta.last_7d || {};
     lines.push(
-      `- Meta Ads 7d: ${c.ads.meta.currency} ${c.ads.meta.last_7d?.spend ?? 0}` +
-        (acc ? ` · ${acc} cuenta(s)` : '')
+      `- Meta Ads 7d: ${c.ads.meta.currency} ${ms.spend ?? c.ads.meta.last_7d?.spend ?? 0}` +
+        (acc ? ` · ${acc} cuenta(s)` : '') +
+        (ms.messaging_conversations != null
+          ? ` · ${ms.messaging_conversations} msgs WA · CPL ${ms.cost_per_messaging ?? 0}`
+          : '') +
+        (ms.frequency ? ` · freq ${ms.frequency}` : '')
     );
+    const bh = c.ads.meta.breakdown_highlights;
+    if (bh?.best_platform) lines.push(`- Meta mejor placement 7d: ${bh.best_platform}${bh.worst_placement ? ` · peor: ${bh.worst_placement}` : ''}`);
+  } else {
+    lines.push(`- Meta Ads: ${c.ads?.meta?.reason || c.ads?.meta?.error || 'sin conectar'}`);
   }
   lines.push(`- Monitor: ${failed.length ? failed.map((f) => f.name).join(', ') : 'todo OK'}`);
   const pc = c.sales?.pending_cancel || [];
@@ -1073,7 +1101,7 @@ function fallbackReply(snapshot, userText, geminiErr) {
       `- Seguimiento hotel: ${pc.length} anulación(es) pedida(s) · ${pm.length} modificación(es) pedida(s)`
     );
   }
-  lines.push('- Ads / ocupación / bandeja B2B: sin datos (no conectados).');
+  lines.push('- Ocupación hotelera: sin datos (no hay PMS).');
   if (c.ideas?.length) {
     lines.push('');
     lines.push('**Acción:** ' + c.ideas[0]);

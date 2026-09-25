@@ -8,7 +8,7 @@ const ASK =
 const HAS_PRICE =
   /USD\s*\d|\d+\s*USD|US\$\s*\d|\$\s*\d{2,}|\d{2,}\s*(d[oó]lares|usd)|la tarifa es|tarifa (es|desde) de/i;
 const COTIZAR = /cotizar\.checkin24hs/i;
-const ALERT_PHONE = /2944210725|2944200748/;
+const ALERT_PHONE = /2944210725|2944200748|2944579759/;
 const VENDOR_PERSIST_FROM = '2026-09-24';
 const PAGE = 1000;
 const MAX_ROWS = 20000;

@@ -202,7 +202,7 @@ services:
       - MONITOR_DASHBOARD_URL=https://dashboard.checkin24hs.com
       - MONITOR_COTIZADOR_URL=https://cotizar.checkin24hs.com
       - ANA_JOBS_SECRET=${ANA_JOBS_SECRET:-}
-      - ANA_ALERT_PHONE=${ANA_ALERT_PHONE:-542944210725}
+      - ANA_ALERT_PHONE=${ANA_ALERT_PHONE:-542944210725,5492944579759}
       - ANA_DAILY_SALES_GOAL_USD=${ANA_DAILY_SALES_GOAL_USD:-}
     networks:
       - easypanel

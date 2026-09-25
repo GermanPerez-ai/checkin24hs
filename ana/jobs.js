@@ -100,7 +100,11 @@ async function runMorningFlash() {
         return `Google Ads 7d: *${g.currency || ''} ${g.last_7d?.spend ?? 0}* · ${g.last_7d?.clicks ?? 0} clics`;
       }
       if (m?.connected) {
-        return `Meta Ads 7d: *${m.currency || ''} ${m.last_7d?.spend ?? 0}*`;
+        const ms = m.metrics_summary || m.last_7d || {};
+        return `Meta Ads 7d: *${m.currency || ''} ${ms.spend ?? 0}*` +
+          (ms.messaging_conversations
+            ? ` · ${ms.messaging_conversations} msgs WA · CPL ${ms.cost_per_messaging ?? 0}`
+            : '');
       }
       return 'Ads: APIs pendientes de env (no se estima gasto).';
     })(),

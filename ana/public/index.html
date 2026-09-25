@@ -280,6 +280,7 @@
                             <button onclick="sendQuickPrompt('¿Con cuántos hoteles activos trabajamos en Chile? Listá los nombres y el país según el catálogo. Distinguí hotel vs paquete.')" class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 whitespace-nowrap">Hoteles Chile</button>
                             <button onclick="sendQuickPrompt('Del catálogo activo: 1) cuántos tienen piscina o pileta 2) cuáles son de aguas termales / termas. Listá nombres.')" class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 whitespace-nowrap">Piletas y termas</button>
                             <button onclick="sendQuickPrompt('Consultas web al WhatsApp 1580 y visitas al sitio: hoy, 7 días, 30 días y 60 días. Separá visitantes, vistas y consultas. Top hoteles/packs. No inventes números.')" class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 whitespace-nowrap">Web y consultas</button>
+                            <button onclick="sendQuickPrompt('ANA, analizá Meta Ads últimos 7 días como experta en performance hotelería: gasto, conversaciones WhatsApp, costo por mensaje, frecuencia, CTR, landing vs clics, rankings, mejor y peor placement. ¿Qué está activa, qué pausar, qué rotar? No uses ROAS de compra si está en 0. No inventes números.')" class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 whitespace-nowrap">Meta 7 días</button>
                             <button onclick="sendQuickPrompt('ANA, generá el informe comercial WhatsApp de los últimos 7 días en PDF: quién pidió tarifa y quién cerró el precio, Flor vs vendedor.')" class="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300 whitespace-nowrap">Control 7 días PDF</button>
                         </div>
                         <form onsubmit="handleChatSubmit(event)" class="p-4 border-t border-slate-800/80 flex items-center space-x-2">
@@ -446,6 +447,25 @@
                             <div id="webConsultaRecent" class="space-y-2 text-sm text-slate-300">—</div>
                         </div>
                     </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="glass-panel p-4 rounded-xl">
+                            <p class="text-xs text-slate-400">Msgs WhatsApp · 7d</p>
+                            <p id="adsMetaMsgs" class="text-xl font-bold text-white">—</p>
+                        </div>
+                        <div class="glass-panel p-4 rounded-xl">
+                            <p class="text-xs text-slate-400">Costo por mensaje</p>
+                            <p id="adsMetaCpl" class="text-xl font-bold text-white">—</p>
+                        </div>
+                        <div class="glass-panel p-4 rounded-xl">
+                            <p class="text-xs text-slate-400">Frecuencia 7d</p>
+                            <p id="adsMetaFreq" class="text-xl font-bold text-white">—</p>
+                        </div>
+                        <div class="glass-panel p-4 rounded-xl">
+                            <p class="text-xs text-slate-400">Landing / clic enlace</p>
+                            <p id="adsMetaLanding" class="text-xl font-bold text-white">—</p>
+                        </div>
+                    </div>
+                    <p id="adsMetaBreak" class="text-xs text-slate-400"></p>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div class="glass-panel p-4 rounded-xl">
                             <p class="text-xs text-slate-400">Google Ads · 7 días</p>
@@ -479,10 +499,11 @@
                                 <tr>
                                     <th class="pb-3">Plataforma</th>
                                     <th class="pb-3">Campaña</th>
+                                    <th class="pb-3">Estado</th>
                                     <th class="pb-3">Gasto</th>
                                     <th class="pb-3">Clics</th>
-                                    <th class="pb-3">CPC</th>
-                                    <th class="pb-3">ROAS</th>
+                                    <th class="pb-3">Msgs WA</th>
+                                    <th class="pb-3">CPL</th>
                                 </tr>
                             </thead>
                             <tbody id="adsCampaignsBody" class="divide-y divide-slate-800/60 text-slate-200"></tbody>
@@ -861,19 +882,41 @@ let AGENDA = { tasks: [], ideas: [] };
         $('adsMetaStatus').className = 'text-xs mt-1 ' + (m.connected ? 'text-emerald-400' : 'text-amber-300');
         $('adsGoogleSpend').textContent = g.connected ? moneyAds(g.last_7d?.spend, g.currency) : 'sin API';
         $('adsMetaSpend').textContent = m.connected ? moneyAds(m.last_7d?.spend, m.currency) : 'sin API';
+        const ms = m.metrics_summary || m.last_7d || {};
+        if ($('adsMetaMsgs')) $('adsMetaMsgs').textContent = m.connected ? String(ms.messaging_conversations ?? '—') : '—';
+        if ($('adsMetaCpl')) $('adsMetaCpl').textContent = m.connected && ms.cost_per_messaging ? moneyAds(ms.cost_per_messaging, m.currency) : (m.connected ? 's/msg' : '—');
+        if ($('adsMetaFreq')) $('adsMetaFreq').textContent = m.connected && ms.frequency != null ? String(ms.frequency) : '—';
+        if ($('adsMetaLanding')) $('adsMetaLanding').textContent = m.connected && ms.landing_vs_link_pct ? (ms.landing_vs_link_pct + '%') : '—';
+        if ($('adsMetaBreak')) {
+            const bh = m.breakdown_highlights || {};
+            const bits = [];
+            if (bh.best_platform) bits.push('Mejor: ' + bh.best_platform);
+            if (bh.worst_placement) bits.push('Peor: ' + bh.worst_placement);
+            if (bh.top_region) bits.push('Región: ' + bh.top_region);
+            $('adsMetaBreak').textContent = bits.join(' · ');
+        }
         const clicks7 = (g.last_7d?.clicks || 0) + (m.last_7d?.clicks || 0);
         $('adsClicks7').textContent = (g.connected || m.connected) ? String(clicks7) : '—';
+        function campStatus(s) {
+            const v = String(s || '').toUpperCase();
+            if (v === 'ACTIVE') return 'Activa';
+            if (v === 'PAUSED' || v === 'CAMPAIGN_PAUSED' || v === 'ADSET_PAUSED') return 'Pausada';
+            if (v === 'WITH_ISSUES') return 'Problemas';
+            if (v === 'PENDING_REVIEW') return 'Revisión';
+            return s || '—';
+        }
         const camps = ads.campaigns || [];
         $('adsCampaignsBody').innerHTML = camps.length
             ? camps.slice(0, 20).map(c => `<tr>
                 <td class="py-2 text-slate-400">${esc(c.platform || '')}</td>
                 <td class="py-2">${esc(c.account_name ? (c.name + ' · ' + c.account_name) : c.name)}</td>
+                <td class="py-2 text-xs ${String(c.status).toUpperCase()==='ACTIVE' ? 'text-emerald-400' : 'text-slate-400'}">${esc(campStatus(c.status))}</td>
                 <td class="py-2 font-mono">${moneyAds(c.spend, c.platform === 'meta' ? m.currency : g.currency)}</td>
                 <td class="py-2">${c.clicks || 0}</td>
-                <td class="py-2">${c.cpc || 0}</td>
-                <td class="py-2">${c.roas || 0}</td>
-            </tr>`).join('')
-            : '<tr><td class="py-3 text-slate-500" colspan="6">Sin campañas (conectá las APIs o no hay gasto en 30 días).</td></tr>';
+                <td class="py-2">${c.messaging_conversations ?? '—'}</td>
+                <td class="py-2">${c.cost_per_messaging ? moneyAds(c.cost_per_messaging, m.currency) : '—'}</td>
+              </tr>`).join('')
+            : '<tr><td class="py-3 text-slate-500" colspan="7">Sin campañas (conectá las APIs o no hay gasto en 30 días).</td></tr>';
         const setup = $('adsSetupBox');
         if (setup) setup.classList.toggle('hidden', Boolean(g.connected || m.connected));
 

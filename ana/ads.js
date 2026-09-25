@@ -289,27 +289,189 @@ async function fetchGoogleAds() {
   }
 }
 
-function metaPurchaseValue(row) {
-  const values = Array.isArray(row.action_values) ? row.action_values : [];
-  const hit = values.find((a) => /purchase/i.test(String(a.action_type || '')));
-  if (hit) return Number(hit.value) || 0;
+const MSG_ACTION_TYPES = [
+  'onsite_conversion.messaging_conversation_started_7d',
+  'onsite_conversion.messaging_first_reply',
+  'onsite_conversion.total_messaging_connection',
+  'onsite_conversion.click_to_whatsapp',
+  'click_to_whatsapp',
+  'onsite_conversion.messaging_user_subscribed',
+];
+
+const ACCOUNT_STATUS_LABEL = {
+  1: 'ACTIVE',
+  2: 'DISABLED',
+  3: 'UNSETTLED',
+  7: 'PENDING_RISK_REVIEW',
+  8: 'PENDING_SETTLEMENT',
+  9: 'IN_GRACE_PERIOD',
+  100: 'PENDING_CLOSURE',
+  101: 'CLOSED',
+};
+
+function actionValue(list, types) {
+  if (!Array.isArray(list) || !types?.length) return 0;
+  for (const t of types) {
+    const hit = list.find((a) => String(a.action_type || '') === t);
+    if (hit) return Number(hit.value) || 0;
+  }
   return 0;
 }
 
-function metaPurchases(row) {
-  const actions = Array.isArray(row.actions) ? row.actions : [];
-  const hit = actions.find((a) => /purchase/i.test(String(a.action_type || '')));
+function actionValueFuzzy(list, re) {
+  if (!Array.isArray(list)) return 0;
+  const hit = list.find((a) => re.test(String(a.action_type || '')));
   return hit ? Number(hit.value) || 0 : 0;
 }
 
-function metaRowToTotals(row) {
-  return withRates({
+function centsToAmount(raw) {
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n === 0) return 0;
+  return round2(n / 100);
+}
+
+function emptyMetaMetrics() {
+  return {
+    spend: 0,
+    impressions: 0,
+    reach: 0,
+    frequency: 0,
+    cpm: 0,
+    clicks: 0,
+    link_clicks: 0,
+    ctr: 0,
+    ctr_link: 0,
+    cpc: 0,
+    cpc_link: 0,
+    landing_page_views: 0,
+    cost_per_landing_view: 0,
+    landing_vs_link_pct: 0,
+    messaging_conversations: 0,
+    cost_per_messaging: 0,
+    conversions: 0,
+    conversion_value: 0,
+    roas: 0,
+    cpp: 0,
+  };
+}
+
+function deriveMetaRates(row) {
+  const m = { ...emptyMetaMetrics(), ...row };
+  m.spend = round2(m.spend);
+  m.frequency = m.reach > 0 ? round2(m.impressions / m.reach) : Number(m.frequency || 0);
+  m.cpm = m.impressions > 0 ? round2((m.spend / m.impressions) * 1000) : 0;
+  m.cpp = m.reach > 0 ? round2((m.spend / m.reach) * 1000) : 0;
+  m.ctr = m.impressions > 0 ? round2((m.clicks / m.impressions) * 100) : 0;
+  m.ctr_link = m.impressions > 0 ? round2((m.link_clicks / m.impressions) * 100) : 0;
+  m.cpc = m.clicks > 0 ? round2(m.spend / m.clicks) : 0;
+  m.cpc_link = m.link_clicks > 0 ? round2(m.spend / m.link_clicks) : 0;
+  m.cost_per_landing_view = m.landing_page_views > 0 ? round2(m.spend / m.landing_page_views) : 0;
+  m.landing_vs_link_pct =
+    m.link_clicks > 0 ? round2((m.landing_page_views / m.link_clicks) * 100) : 0;
+  m.cost_per_messaging =
+    m.messaging_conversations > 0 ? round2(m.spend / m.messaging_conversations) : 0;
+  m.roas = m.spend > 0 ? round2(m.conversion_value / m.spend) : 0;
+  return m;
+}
+
+function addMetaMetrics(a, b) {
+  return deriveMetaRates({
+    spend: (a.spend || 0) + (b.spend || 0),
+    impressions: (a.impressions || 0) + (b.impressions || 0),
+    reach: (a.reach || 0) + (b.reach || 0),
+    clicks: (a.clicks || 0) + (b.clicks || 0),
+    link_clicks: (a.link_clicks || 0) + (b.link_clicks || 0),
+    landing_page_views: (a.landing_page_views || 0) + (b.landing_page_views || 0),
+    messaging_conversations: (a.messaging_conversations || 0) + (b.messaging_conversations || 0),
+    conversions: (a.conversions || 0) + (b.conversions || 0),
+    conversion_value: (a.conversion_value || 0) + (b.conversion_value || 0),
+  });
+}
+
+function metaInsightsFromRow(row) {
+  const actions = row.actions || [];
+  const costs = row.cost_per_action_type || [];
+  const messaging =
+    actionValue(actions, MSG_ACTION_TYPES) ||
+    actionValueFuzzy(actions, /messaging_conversation_started|messaging_first_reply|click_to_whatsapp|total_messaging_connection/i);
+  const cpaMsg =
+    actionValue(costs, MSG_ACTION_TYPES) ||
+    actionValueFuzzy(costs, /messaging_conversation_started|messaging_first_reply|click_to_whatsapp/i);
+  const link_clicks =
+    Number(row.inline_link_clicks || 0) || actionValue(actions, ['link_click']);
+  const landing_page_views = actionValue(actions, ['landing_page_view', 'omni_landing_page_view']);
+  const out = deriveMetaRates({
     spend: Number(row.spend || 0),
     impressions: Number(row.impressions || 0),
+    reach: Number(row.reach || 0),
+    frequency: Number(row.frequency || 0),
     clicks: Number(row.clicks || 0),
-    conversions: metaPurchases(row),
-    conversion_value: metaPurchaseValue(row),
+    link_clicks,
+    landing_page_views,
+    messaging_conversations: messaging,
+    conversions: actionValueFuzzy(actions, /purchase/i),
+    conversion_value: actionValueFuzzy(row.action_values, /purchase/i),
   });
+  if (cpaMsg > 0 && out.messaging_conversations > 0) out.cost_per_messaging = round2(cpaMsg);
+  return out;
+}
+
+function metaRowToTotals(row) {
+  return metaInsightsFromRow(row);
+}
+
+function rankingScore(v) {
+  const s = String(v || '').toUpperCase();
+  if (s.includes('BELOW')) return 3;
+  if (s === 'AVERAGE') return 2;
+  if (s.includes('ABOVE')) return 1;
+  return 0;
+}
+
+function worstRanking(values) {
+  let best = '';
+  let score = 0;
+  for (const v of values) {
+    const sc = rankingScore(v);
+    if (sc > score) {
+      score = sc;
+      best = String(v);
+    }
+  }
+  return best || null;
+}
+
+function pickBreakdownWinner(rows, keyFn) {
+  if (!rows.length) return null;
+  const scored = rows
+    .map((r) => ({
+      label: keyFn(r),
+      spend: r.metrics.spend || 0,
+      msgs: r.metrics.messaging_conversations || 0,
+      cpm: r.metrics.cost_per_messaging || 0,
+    }))
+    .filter((r) => r.label);
+  if (!scored.length) return null;
+  scored.sort((a, b) => {
+    if (b.msgs !== a.msgs) return b.msgs - a.msgs;
+    if (a.msgs > 0 && b.msgs > 0) return a.cpm - b.cpm;
+    return b.spend - a.spend;
+  });
+  return scored[0].label;
+}
+
+function pickBreakdownLoser(rows, keyFn) {
+  const totalSpend = rows.reduce((n, r) => n + (r.metrics.spend || 0), 0);
+  const scored = rows
+    .map((r) => ({
+      label: keyFn(r),
+      spend: r.metrics.spend || 0,
+      msgs: r.metrics.messaging_conversations || 0,
+    }))
+    .filter((r) => r.label && r.spend > 0 && r.spend >= totalSpend * 0.05);
+  if (!scored.length) return null;
+  scored.sort((a, b) => a.msgs - b.msgs || b.spend - a.spend);
+  return scored[0].label;
 }
 
 async function metaGet(path, search, accessToken) {
@@ -319,7 +481,7 @@ async function metaGet(path, search, accessToken) {
   }
   const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
-    signal: AbortSignal.timeout(15000),
+    signal: AbortSignal.timeout(20000),
   });
   const json = await res.json().catch(() => ({}));
   if (!res.ok || json.error) {
@@ -328,61 +490,223 @@ async function metaGet(path, search, accessToken) {
   return json;
 }
 
+async function metaGetSafe(path, search, accessToken) {
+  try {
+    return await metaGet(path, search, accessToken);
+  } catch (e) {
+    return { data: [], error: redact(e.message || e) };
+  }
+}
+
+const INSIGHT_CORE =
+  'spend,impressions,reach,frequency,cpm,clicks,inline_link_clicks,ctr,actions,action_values,cost_per_action_type,campaign_id,campaign_name';
+const INSIGHT_AD =
+  `${INSIGHT_CORE},ad_id,ad_name,adset_name,quality_ranking,engagement_rate_ranking,conversion_rate_ranking`;
+
+async function fetchMetaInsights(act, accessToken, extra) {
+  const params = {
+    fields: extra.fields || INSIGHT_CORE,
+    level: extra.level || 'account',
+    limit: extra.limit || '25',
+  };
+  if (extra.time_range) {
+    params.time_range = JSON.stringify(extra.time_range);
+  } else {
+    params.date_preset = extra.date_preset || 'last_7d';
+  }
+  if (extra.breakdowns) params.breakdowns = extra.breakdowns;
+  return metaGetSafe(`${act}/insights`, params, accessToken);
+}
+
+function artYmdDaysAgo(daysAgo) {
+  const art = new Date(Date.now() - 3 * 3600 * 1000);
+  art.setUTCDate(art.getUTCDate() - Number(daysAgo || 0));
+  return art.toISOString().slice(0, 10);
+}
+
+function mapBreakdownRows(json, keys) {
+  return (json.data || []).map((row) => ({
+    dims: Object.fromEntries(keys.map((k) => [k, row[k] || ''])),
+    metrics: metaInsightsFromRow(row),
+  }));
+}
+
 async function fetchMetaAccount(accountId, accessToken) {
   const act = `act_${accountId}`;
-  const insightFields =
-    'spend,impressions,clicks,cpc,ctr,reach,actions,action_values,campaign_id,campaign_name';
-  const [account, last7, last30, campaigns] = await Promise.all([
-    metaGet(act, { fields: 'name,currency,account_status' }, accessToken),
+  const [
+    account,
+    campStruct,
+    last7,
+    last30,
+    prev7,
+    camp7,
+    camp30,
+    ads7,
+    place,
+    device,
+    demo,
+    region,
+  ] = await Promise.all([
     metaGet(
-      `${act}/insights`,
+      act,
+      { fields: 'name,currency,account_status,disable_reason,amount_spent' },
+      accessToken
+    ),
+    metaGetSafe(
+      `${act}/campaigns`,
       {
-        fields: 'spend,impressions,clicks,actions,action_values',
-        date_preset: 'last_7d',
-        level: 'account',
+        fields:
+          'id,name,status,effective_status,objective,daily_budget,lifetime_budget,budget_remaining,start_time,stop_time',
+        limit: '50',
+        effective_status: JSON.stringify([
+          'ACTIVE',
+          'PAUSED',
+          'CAMPAIGN_PAUSED',
+          'WITH_ISSUES',
+          'IN_PROCESS',
+          'PENDING_REVIEW',
+        ]),
       },
       accessToken
     ),
-    metaGet(
-      `${act}/insights`,
-      {
-        fields: 'spend,impressions,clicks,actions,action_values',
-        date_preset: 'last_30d',
-        level: 'account',
-      },
-      accessToken
-    ),
-    metaGet(
-      `${act}/insights`,
-      {
-        fields: insightFields,
-        date_preset: 'last_30d',
-        level: 'campaign',
-        limit: '25',
-      },
-      accessToken
-    ),
+    fetchMetaInsights(act, accessToken, { date_preset: 'last_7d', level: 'account' }),
+    fetchMetaInsights(act, accessToken, { date_preset: 'last_30d', level: 'account' }),
+    fetchMetaInsights(act, accessToken, {
+      level: 'account',
+      time_range: { since: artYmdDaysAgo(14), until: artYmdDaysAgo(8) },
+    }),
+    fetchMetaInsights(act, accessToken, { date_preset: 'last_7d', level: 'campaign', limit: '25' }),
+    fetchMetaInsights(act, accessToken, { date_preset: 'last_30d', level: 'campaign', limit: '25' }),
+    fetchMetaInsights(act, accessToken, {
+      date_preset: 'last_7d',
+      level: 'ad',
+      fields: INSIGHT_AD,
+      limit: '15',
+    }),
+    fetchMetaInsights(act, accessToken, {
+      date_preset: 'last_7d',
+      level: 'account',
+      breakdowns: 'publisher_platform,platform_position',
+    }),
+    fetchMetaInsights(act, accessToken, {
+      date_preset: 'last_7d',
+      level: 'account',
+      breakdowns: 'impression_device',
+    }),
+    fetchMetaInsights(act, accessToken, {
+      date_preset: 'last_7d',
+      level: 'account',
+      breakdowns: 'age,gender',
+    }),
+    fetchMetaInsights(act, accessToken, {
+      date_preset: 'last_7d',
+      level: 'account',
+      breakdowns: 'region',
+    }),
   ]);
-  const last7t = (last7.data || []).reduce((acc, row) => addTotals(acc, metaRowToTotals(row)), emptyTotals());
-  const last30t = (last30.data || []).reduce((acc, row) => addTotals(acc, metaRowToTotals(row)), emptyTotals());
-  const campaignRows = (campaigns.data || []).map((row) => ({
-    id: String(row.campaign_id || ''),
-    name: row.campaign_name || 'Campaña',
-    account_id: accountId,
-    account_name: account.name || act,
-    status: '',
-    ...metaRowToTotals(row),
+
+  const last7t = (last7.data || []).reduce((acc, row) => addMetaMetrics(acc, metaInsightsFromRow(row)), emptyMetaMetrics());
+  const last30t = (last30.data || []).reduce((acc, row) => addMetaMetrics(acc, metaInsightsFromRow(row)), emptyMetaMetrics());
+  const prev7t = (prev7.data || []).reduce((acc, row) => addMetaMetrics(acc, metaInsightsFromRow(row)), emptyMetaMetrics());
+  const structById = new Map((campStruct.data || []).map((c) => [String(c.id), c]));
+  const campaignRows = (camp30.data || []).map((row) => {
+    const id = String(row.campaign_id || '');
+    const st = structById.get(id) || {};
+    return {
+      id,
+      name: row.campaign_name || st.name || 'Campaña',
+      account_id: accountId,
+      account_name: account.name || act,
+      status: st.effective_status || st.status || '',
+      objective: st.objective || '',
+      daily_budget: centsToAmount(st.daily_budget),
+      lifetime_budget: centsToAmount(st.lifetime_budget),
+      start_time: st.start_time || null,
+      stop_time: st.stop_time || null,
+      last_7d: null,
+      ...metaInsightsFromRow(row),
+    };
+  });
+  const camp7ById = new Map(
+    (camp7.data || []).map((row) => [String(row.campaign_id || ''), metaInsightsFromRow(row)])
+  );
+  for (const c of campaignRows) {
+    if (camp7ById.has(c.id)) c.last_7d = camp7ById.get(c.id);
+  }
+  for (const [id, st] of structById) {
+    if (campaignRows.some((c) => c.id === id)) continue;
+    campaignRows.push({
+      id,
+      name: st.name || 'Campaña',
+      account_id: accountId,
+      account_name: account.name || act,
+      status: st.effective_status || st.status || '',
+      objective: st.objective || '',
+      daily_budget: centsToAmount(st.daily_budget),
+      lifetime_budget: centsToAmount(st.lifetime_budget),
+      start_time: st.start_time || null,
+      stop_time: st.stop_time || null,
+      last_7d: camp7ById.get(id) || emptyMetaMetrics(),
+      ...emptyMetaMetrics(),
+    });
+  }
+  campaignRows.sort((a, b) => b.spend - a.spend);
+
+  const ads = (ads7.data || []).map((row) => ({
+    id: String(row.ad_id || ''),
+    name: row.ad_name || 'Anuncio',
+    campaign: row.campaign_name || '',
+    adset: row.adset_name || '',
+    quality_ranking: row.quality_ranking || null,
+    engagement_rate_ranking: row.engagement_rate_ranking || null,
+    conversion_rate_ranking: row.conversion_rate_ranking || null,
+    ...metaInsightsFromRow(row),
   }));
+  const quality_rankings = {
+    quality: worstRanking(ads.map((a) => a.quality_ranking)) || null,
+    engagement: worstRanking(ads.map((a) => a.engagement_rate_ranking)) || null,
+    conversion: worstRanking(ads.map((a) => a.conversion_rate_ranking)) || null,
+  };
+  last7t.quality_rankings = quality_rankings;
+
+  const placements = mapBreakdownRows(place, ['publisher_platform', 'platform_position']);
+  const devices = mapBreakdownRows(device, ['impression_device']);
+  const demos = mapBreakdownRows(demo, ['age', 'gender']);
+  const regions = mapBreakdownRows(region, ['region']);
+  const placeLabel = (r) =>
+    [r.dims.publisher_platform, r.dims.platform_position].filter(Boolean).join('_') || null;
+  const breakdown_highlights = {
+    best_platform: pickBreakdownWinner(placements, placeLabel),
+    worst_placement: pickBreakdownLoser(placements, placeLabel),
+    top_device: pickBreakdownWinner(devices, (r) => r.dims.impression_device || null),
+    top_region: pickBreakdownWinner(regions, (r) => r.dims.region || null),
+    top_demo: pickBreakdownWinner(demos, (r) => [r.dims.age, r.dims.gender].filter(Boolean).join(' ') || null),
+  };
+
+  const statusCode = Number(account.account_status);
   return {
     connected: true,
     account_id: accountId,
     act_id: act,
     name: account.name || 'Meta Ads',
     currency: account.currency || 'ARS',
-    account_status: account.account_status,
+    account_status: ACCOUNT_STATUS_LABEL[statusCode] || String(account.account_status || ''),
+    disable_reason: account.disable_reason || null,
+    amount_spent_lifetime: centsToAmount(account.amount_spent),
     last_7d: last7t,
+    prev_7d: prev7t,
     last_30d: last30t,
-    campaigns: campaignRows,
+    campaigns: campaignRows.slice(0, 25),
+    ads: ads.slice(0, 12),
+    breakdowns: { placements, devices, demos, regions },
+    breakdown_highlights,
+    quality_rankings,
+    metrics_summary: {
+      date_preset: 'last_7d',
+      ...last7t,
+      quality_rankings,
+    },
+    insight_errors: [last7.error, last30.error, camp30.error, place.error, region.error].filter(Boolean),
   };
 }
 
@@ -414,9 +738,11 @@ async function fetchMetaAds() {
           act_id: `act_${c.id}`,
           name: `act_${c.id}`,
           error: `Falta ${c.tokenEnv}`,
-          last_7d: emptyTotals(),
-          last_30d: emptyTotals(),
+          last_7d: emptyMetaMetrics(),
+          prev_7d: emptyMetaMetrics(),
+          last_30d: emptyMetaMetrics(),
           campaigns: [],
+          breakdown_highlights: {},
         };
       }
       try {
@@ -428,16 +754,38 @@ async function fetchMetaAds() {
           act_id: `act_${c.id}`,
           name: `act_${c.id}`,
           error: redact(e.message || e),
-          last_7d: emptyTotals(),
-          last_30d: emptyTotals(),
+          last_7d: emptyMetaMetrics(),
+          prev_7d: emptyMetaMetrics(),
+          last_30d: emptyMetaMetrics(),
           campaigns: [],
+          breakdown_highlights: {},
         };
       }
     })
   );
   const ok = parts.filter((p) => p.connected);
-  const last7t = ok.reduce((acc, p) => addTotals(acc, p.last_7d), emptyTotals());
-  const last30t = ok.reduce((acc, p) => addTotals(acc, p.last_30d), emptyTotals());
+  const last7t = ok.reduce((acc, p) => addMetaMetrics(acc, p.last_7d || emptyMetaMetrics()), emptyMetaMetrics());
+  const last30t = ok.reduce((acc, p) => addMetaMetrics(acc, p.last_30d || emptyMetaMetrics()), emptyMetaMetrics());
+  const prev7t = ok.reduce((acc, p) => addMetaMetrics(acc, p.prev_7d || emptyMetaMetrics()), emptyMetaMetrics());
+  const quality_rankings = {
+    quality: worstRanking(ok.map((p) => p.quality_rankings?.quality)),
+    engagement: worstRanking(ok.map((p) => p.quality_rankings?.engagement)),
+    conversion: worstRanking(ok.map((p) => p.quality_rankings?.conversion)),
+  };
+  last7t.quality_rankings = quality_rankings;
+  const placements = ok.flatMap((p) => p.breakdowns?.placements || []);
+  const devices = ok.flatMap((p) => p.breakdowns?.devices || []);
+  const demos = ok.flatMap((p) => p.breakdowns?.demos || []);
+  const regions = ok.flatMap((p) => p.breakdowns?.regions || []);
+  const placeLabel = (r) =>
+    [r.dims?.publisher_platform, r.dims?.platform_position].filter(Boolean).join('_') || null;
+  const breakdown_highlights = {
+    best_platform: pickBreakdownWinner(placements, placeLabel),
+    worst_placement: pickBreakdownLoser(placements, placeLabel),
+    top_device: pickBreakdownWinner(devices, (r) => r.dims?.impression_device || null),
+    top_region: pickBreakdownWinner(regions, (r) => r.dims?.region || null),
+    top_demo: pickBreakdownWinner(demos, (r) => [r.dims?.age, r.dims?.gender].filter(Boolean).join(' ') || null),
+  };
   const campaignRows = parts
     .flatMap((p) => p.campaigns || [])
     .sort((a, b) => b.spend - a.spend)
@@ -456,8 +804,17 @@ async function fetchMetaAds() {
     currencies,
     account_status: ok.length === parts.length ? 'ok' : `${ok.length}/${parts.length} cuentas`,
     last_7d: last7t,
+    prev_7d: prev7t,
     last_30d: last30t,
     campaigns: campaignRows,
+    ads: ok.flatMap((p) => p.ads || []).slice(0, 20),
+    breakdown_highlights,
+    quality_rankings,
+    metrics_summary: {
+      date_preset: 'last_7d',
+      ...last7t,
+      quality_rankings,
+    },
     accounts: parts.map((p) => ({
       account_id: p.account_id,
       act_id: p.act_id,
@@ -466,7 +823,11 @@ async function fetchMetaAds() {
       connected: Boolean(p.connected),
       error: p.error || null,
       last_7d: p.last_7d,
+      prev_7d: p.prev_7d || null,
       last_30d: p.last_30d,
+      metrics_summary: p.metrics_summary || null,
+      breakdown_highlights: p.breakdown_highlights || null,
+      account_status: p.account_status || null,
     })),
     partial: ok.length > 0 && ok.length < parts.length,
     warnings: errors,
@@ -487,21 +848,58 @@ function compactPlatform(p) {
       act_id: a.act_id,
       connected: a.connected,
       error: a.error || null,
-      last_7d: a.last_7d || null,
+      account_status: a.account_status || null,
+      last_7d: a.last_7d
+        ? {
+            spend: a.last_7d.spend,
+            messaging_conversations: a.last_7d.messaging_conversations,
+            cost_per_messaging: a.last_7d.cost_per_messaging,
+            frequency: a.last_7d.frequency,
+            cpm: a.last_7d.cpm,
+            ctr_link: a.last_7d.ctr_link,
+            landing_vs_link_pct: a.last_7d.landing_vs_link_pct,
+          }
+        : null,
+      breakdown_highlights: a.breakdown_highlights || null,
     })),
     last_7d: p.last_7d || null,
     prev_7d: p.prev_7d || null,
     last_30d: p.last_30d || null,
+    metrics_summary: p.metrics_summary || null,
+    breakdown_highlights: p.breakdown_highlights || null,
+    quality_rankings: p.quality_rankings || null,
+    ads: (p.ads || []).slice(0, 8).map((a) => ({
+      name: a.name,
+      campaign: a.campaign,
+      spend: a.spend,
+      messaging_conversations: a.messaging_conversations,
+      cost_per_messaging: a.cost_per_messaging,
+      quality_ranking: a.quality_ranking,
+      engagement_rate_ranking: a.engagement_rate_ranking,
+      conversion_rate_ranking: a.conversion_rate_ranking,
+    })),
     campaigns: (p.campaigns || []).slice(0, 15).map((c) => ({
       name: c.name,
       status: c.status || '',
+      objective: c.objective || '',
       spend: c.spend,
       clicks: c.clicks,
       impressions: c.impressions,
       conversions: c.conversions,
+      messaging_conversations: c.messaging_conversations,
+      cost_per_messaging: c.cost_per_messaging,
+      frequency: c.frequency,
+      landing_vs_link_pct: c.landing_vs_link_pct,
       cpc: c.cpc,
       ctr: c.ctr,
       roas: c.roas,
+      last_7d: c.last_7d
+        ? {
+            spend: c.last_7d.spend,
+            messaging_conversations: c.last_7d.messaging_conversations,
+            cost_per_messaging: c.last_7d.cost_per_messaging,
+          }
+        : null,
     })),
     missing_env: p.missing_env || [],
     reason: p.reason || null,
