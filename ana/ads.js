@@ -31,6 +31,16 @@ function redact(err) {
     .slice(0, 400);
 }
 
+function friendlyMetaError(msg) {
+  const s = redact(msg);
+  if (/Falta META_ADS_TOKEN/i.test(s)) return s;
+  if (/permission|does not exist|cannot be loaded|#200|#10\b|not authorized|missing permissions|unsupported get request/i.test(s)) {
+    return 'Sin permiso en este act_: el usuario del sistema del token no está asignado a esta cuenta (mismo BM no alcanza).';
+  }
+  if (/rate limit|too many calls|#17|#4\b/i.test(s)) return 'Meta limitó las consultas. Reintentá en unos minutos.';
+  return s;
+}
+
 function missingList(pairs) {
   return pairs.filter(([, v]) => !String(v || '').trim()).map(([k]) => k);
 }
@@ -80,12 +90,16 @@ function loadMetaAccountConfigs() {
       token: own,
       slot: n,
       tokenEnv: `META_ADS_TOKEN_${n}`,
+      has_own_token: Boolean(own),
     };
   });
-  const fallback = configs.find((c) => c.token)?.token || shared;
+  const donor = configs.find((c) => c.token);
+  const fallback = donor?.token || shared;
+  const fallbackEnv = donor?.tokenEnv || (shared ? 'META_ADS_ACCESS_TOKEN' : null);
   return configs.map((c) => ({
     ...c,
     token: c.token || fallback || '',
+    token_from: c.token ? c.tokenEnv : fallbackEnv,
   }));
 }
 
@@ -503,6 +517,25 @@ async function metaGetSafe(path, search, accessToken) {
   }
 }
 
+async function fetchTokenAdAccounts(accessToken) {
+  const json = await metaGet('me/adaccounts', {
+    fields: 'id,account_id,name,currency,account_status',
+    limit: '50',
+  }, accessToken);
+  return (json.data || [])
+    .map((row) => {
+      const id = digitsOnly(row.account_id || row.id);
+      return {
+        id,
+        act_id: id ? `act_${id}` : '',
+        name: row.name || (id ? `act_${id}` : 'Cuenta'),
+        currency: row.currency || null,
+        account_status: ACCOUNT_STATUS_LABEL[Number(row.account_status)] || String(row.account_status || ''),
+      };
+    })
+    .filter((a) => a.id);
+}
+
 const INSIGHT_CORE =
   'spend,impressions,reach,frequency,cpm,clicks,inline_link_clicks,ctr,actions,action_values,cost_per_action_type,campaign_id,campaign_name';
 const INSIGHT_AD =
@@ -715,6 +748,23 @@ async function fetchMetaAccount(accountId, accessToken) {
   };
 }
 
+function emptyAccountStub(c, error) {
+  return {
+    connected: false,
+    account_id: c.id,
+    act_id: `act_${c.id}`,
+    name: c.name || `act_${c.id}`,
+    error,
+    token_from: c.token_from || null,
+    discovered: Boolean(c.discovered),
+    last_7d: emptyMetaMetrics(),
+    prev_7d: emptyMetaMetrics(),
+    last_30d: emptyMetaMetrics(),
+    campaigns: [],
+    breakdown_highlights: {},
+  };
+}
+
 async function fetchMetaAds() {
   const configs = loadMetaAccountConfigs();
   const missing = metaMissing();
@@ -734,40 +784,65 @@ async function fetchMetaAds() {
   if (!configs.some((c) => c.token)) {
     return { ...base, configured: false, reason: `Faltan env: ${missing.join(', ')}` };
   }
-  const parts = await Promise.all(
-    configs.map(async (c) => {
-      if (!c.token) {
-        return {
-          connected: false,
-          account_id: c.id,
-          act_id: `act_${c.id}`,
-          name: `act_${c.id}`,
-          error: `Falta ${c.tokenEnv}`,
-          last_7d: emptyMetaMetrics(),
-          prev_7d: emptyMetaMetrics(),
-          last_30d: emptyMetaMetrics(),
-          campaigns: [],
-          breakdown_highlights: {},
-        };
-      }
-      try {
-        return await fetchMetaAccount(c.id, c.token);
-      } catch (e) {
-        return {
-          connected: false,
-          account_id: c.id,
-          act_id: `act_${c.id}`,
-          name: `act_${c.id}`,
-          error: redact(e.message || e),
-          last_7d: emptyMetaMetrics(),
-          prev_7d: emptyMetaMetrics(),
-          last_30d: emptyMetaMetrics(),
-          campaigns: [],
-          breakdown_highlights: {},
-        };
-      }
-    })
-  );
+  const token = configs.find((c) => c.token)?.token;
+  const tokenFrom = configs.find((c) => c.token)?.token_from || null;
+  let tokenSees = [];
+  let tokenSeesError = null;
+  if (token) {
+    try {
+      tokenSees = await fetchTokenAdAccounts(token);
+    } catch (e) {
+      tokenSeesError = friendlyMetaError(e.message || e);
+    }
+  }
+  const seenIds = new Set(tokenSees.map((a) => a.id));
+  const extras = tokenSees
+    .filter((a) => !configs.some((c) => c.id === a.id))
+    .slice(0, 4)
+    .map((a, i) => ({
+      id: a.id,
+      name: a.name,
+      token,
+      token_from: tokenFrom,
+      slot: configs.length + i + 1,
+      tokenEnv: tokenFrom,
+      discovered: true,
+      visible: true,
+    }));
+  const jobs = [
+    ...configs.map((c) => ({
+      ...c,
+      visible: tokenSees.length ? seenIds.has(c.id) : true,
+    })),
+    ...extras,
+  ];
+
+  const parts = [];
+  for (const c of jobs) {
+    if (!c.token) {
+      parts.push(emptyAccountStub(c, `Falta ${c.tokenEnv}`));
+      continue;
+    }
+    if (tokenSees.length && !c.visible) {
+      parts.push(
+        emptyAccountStub(
+          c,
+          'El token no ve este act_. En Meta asignaste otra cuenta, o el usuario del sistema del token no es el mismo (dashboard).'
+        )
+      );
+      continue;
+    }
+    try {
+      const row = await fetchMetaAccount(c.id, c.token);
+      parts.push({
+        ...row,
+        token_from: c.token_from || null,
+        discovered: Boolean(c.discovered),
+      });
+    } catch (e) {
+      parts.push(emptyAccountStub(c, friendlyMetaError(e.message || e)));
+    }
+  }
   const ok = parts.filter((p) => p.connected);
   const last7t = ok.reduce((acc, p) => addMetaMetrics(acc, p.last_7d || emptyMetaMetrics()), emptyMetaMetrics());
   const last30t = ok.reduce((acc, p) => addMetaMetrics(acc, p.last_30d || emptyMetaMetrics()), emptyMetaMetrics());
@@ -808,6 +883,9 @@ async function fetchMetaAds() {
     currency: currencies[0] || 'ARS',
     currencies,
     account_status: ok.length === parts.length ? 'ok' : `${ok.length}/${parts.length} cuentas`,
+    token_from: tokenFrom,
+    token_can_see: tokenSees,
+    token_can_see_error: tokenSeesError,
     last_7d: last7t,
     prev_7d: prev7t,
     last_30d: last30t,
@@ -833,6 +911,8 @@ async function fetchMetaAds() {
       metrics_summary: p.metrics_summary || null,
       breakdown_highlights: p.breakdown_highlights || null,
       account_status: p.account_status || null,
+      token_from: p.token_from || null,
+      discovered: Boolean(p.discovered),
     })),
     partial: ok.length > 0 && ok.length < parts.length,
     warnings: errors,
@@ -865,6 +945,8 @@ function compactPlatform(p) {
             landing_vs_link_pct: a.last_7d.landing_vs_link_pct,
           }
         : null,
+      token_from: a.token_from || null,
+      discovered: Boolean(a.discovered),
       breakdown_highlights: a.breakdown_highlights || null,
     })),
     last_7d: p.last_7d || null,
@@ -873,6 +955,9 @@ function compactPlatform(p) {
     metrics_summary: p.metrics_summary || null,
     breakdown_highlights: p.breakdown_highlights || null,
     quality_rankings: p.quality_rankings || null,
+    token_from: p.token_from || null,
+    token_can_see: p.token_can_see || [],
+    token_can_see_error: p.token_can_see_error || null,
     ads: (p.ads || []).slice(0, 8).map((a) => ({
       name: a.name,
       campaign: a.campaign,

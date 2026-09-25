@@ -492,6 +492,7 @@
                             <p id="adsMetaStatus" class="text-xs text-amber-300 mt-1">Sin token</p>
                         </div>
                     </div>
+                    <div id="adsMetaAccounts" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
                     <div class="glass-panel p-5 rounded-2xl overflow-x-auto">
                         <p class="text-xs text-slate-400 uppercase font-mono mb-3">Campañas 30 días</p>
                         <table class="w-full text-left text-sm">
@@ -880,6 +881,28 @@ let AGENDA = { tasks: [], ideas: [] };
             ? ('Conectado · ' + (m.currency || '') + (m.accounts ? ' · ' + m.accounts.filter(a => a.connected).length + '/' + m.accounts.length + ' cuentas' : ''))
             : (m.error || m.reason || 'Falta META_ADS_ACCESS_TOKEN');
         $('adsMetaStatus').className = 'text-xs mt-1 ' + (m.connected ? 'text-emerald-400' : 'text-amber-300');
+        const metaAccBox = $('adsMetaAccounts');
+        if (metaAccBox) {
+            const accs = m.accounts || [];
+            const sees = m.token_can_see || [];
+            const seeLine = sees.length
+                ? `<p class="text-xs text-slate-400 md:col-span-2">El token ve ${sees.length} cuenta(s) en Meta: ${esc(sees.map(x => (x.name || x.act_id) + ' · ' + x.act_id).join(' · '))}</p>`
+                : (m.token_can_see_error ? `<p class="text-xs text-amber-300 md:col-span-2">${esc(m.token_can_see_error)}</p>` : '');
+            metaAccBox.innerHTML = seeLine + accs.map((a) => {
+                const ok = Boolean(a.connected);
+                const spend = a.last_7d?.spend != null ? moneyAds(a.last_7d.spend, a.currency || m.currency) : '—';
+                const detail = ok
+                    ? (`Conectada · ${a.currency || ''} · 7d ${spend}` + (a.account_status ? ` · ${a.account_status}` : ''))
+                    : (a.error || 'Sin token / sin permiso');
+                const extra = [a.discovered ? 'detectada por el token' : '', a.token_from ? ('token ' + a.token_from) : ''].filter(Boolean).join(' · ');
+                return `<div class="glass-panel p-4 rounded-xl">
+                    <p class="text-xs text-slate-400">${esc(a.name || 'Meta')}</p>
+                    <p class="text-sm font-bold text-white mt-1 font-mono">${esc(a.act_id || a.account_id || '')}</p>
+                    <p class="text-xs mt-1 ${ok ? 'text-emerald-400' : 'text-amber-300'}">${esc(detail)}</p>
+                    ${extra ? `<p class="text-[11px] text-slate-500 mt-1">${esc(extra)}</p>` : ''}
+                </div>`;
+            }).join('');
+        }
         $('adsGoogleSpend').textContent = g.connected ? moneyAds(g.last_7d?.spend, g.currency) : 'sin API';
         $('adsMetaSpend').textContent = m.connected ? moneyAds(m.last_7d?.spend, m.currency) : 'sin API';
         const ms = m.metrics_summary || m.last_7d || {};
