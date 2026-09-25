@@ -33,7 +33,9 @@ function redact(err) {
 
 function friendlyMetaError(msg) {
   const s = redact(msg);
-  if (/Falta META_ADS_TOKEN/i.test(s)) return s;
+  if (/cannot parse access token|invalid oauth access token/i.test(s)) {
+    return 'Token inválido en esa env (placeholder o mal copiado). ANA va a usar el token válido de otra cuenta.';
+  }
   if (/permission|does not exist|cannot be loaded|#200|#10\b|not authorized|missing permissions|unsupported get request/i.test(s)) {
     return 'Sin permiso en este act_: el usuario del sistema del token no está asignado a esta cuenta (mismo BM no alcanza).';
   }
@@ -65,26 +67,40 @@ const META_AD_ACCOUNT_IDS = parseIdList(
   '1118825316603711,1254251819602084,1607183710965099,706633807356464'
 );
 
+function sanitizeMetaToken(raw) {
+  const s = String(raw || '')
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .replace(/^Bearer\s+/i, '')
+    .replace(/\s+/g, '');
+  if (!s) return '';
+  if (/^(TOKEN_CUENTA_\d+|changeme|placeholder|undefined|null|none|your_token_here)$/i.test(s)) return '';
+  if (s.length < 40) return '';
+  if (!/^EAA[A-Za-z0-9]+/.test(s)) return '';
+  return s;
+}
+
 function loadMetaAccountConfigs() {
   const ids = [...META_AD_ACCOUNT_IDS];
   for (let i = 1; i <= 8; i += 1) {
     const extra = digitsOnly(process.env[`META_AD_ACCOUNT_${i}`] || '');
     if (extra && !ids.includes(extra)) ids.push(extra);
   }
-  const shared = String(process.env.META_ADS_ACCESS_TOKEN || '').trim();
+  const shared = sanitizeMetaToken(process.env.META_ADS_ACCESS_TOKEN);
   const listed = String(process.env.META_ADS_ACCESS_TOKENS || '')
     .split('|')
-    .map((s) => s.trim())
+    .map((s) => sanitizeMetaToken(s))
     .filter(Boolean);
   const configs = ids.map((id, idx) => {
     const n = idx + 1;
-    const own =
-      String(process.env[`META_ADS_ACCESS_TOKEN_${id}`] || '').trim() ||
-      String(process.env[`META_ADS_TOKEN_${id}`] || '').trim() ||
-      String(process.env[`META_ADS_TOKEN_${n}`] || '').trim() ||
-      String(process.env[`META_ADS_ACCESS_TOKEN_${n}`] || '').trim() ||
-      listed[idx] ||
-      '';
+    const own = sanitizeMetaToken(
+      process.env[`META_ADS_ACCESS_TOKEN_${id}`] ||
+        process.env[`META_ADS_TOKEN_${id}`] ||
+        process.env[`META_ADS_TOKEN_${n}`] ||
+        process.env[`META_ADS_ACCESS_TOKEN_${n}`] ||
+        listed[idx] ||
+        ''
+    );
     return {
       id,
       token: own,
@@ -784,16 +800,28 @@ async function fetchMetaAds() {
   if (!configs.some((c) => c.token)) {
     return { ...base, configured: false, reason: `Faltan env: ${missing.join(', ')}` };
   }
-  const token = configs.find((c) => c.token)?.token;
-  const tokenFrom = configs.find((c) => c.token)?.token_from || null;
+  let token = null;
+  let tokenFrom = null;
   let tokenSees = [];
   let tokenSeesError = null;
-  if (token) {
+  const tried = [];
+  for (const c of configs) {
+    if (!c.token || tried.includes(c.token)) continue;
+    tried.push(c.token);
     try {
-      tokenSees = await fetchTokenAdAccounts(token);
+      tokenSees = await fetchTokenAdAccounts(c.token);
+      token = c.token;
+      tokenFrom = c.token_from || c.tokenEnv;
+      tokenSeesError = null;
+      break;
     } catch (e) {
       tokenSeesError = friendlyMetaError(e.message || e);
     }
+  }
+  if (!token) {
+    const donor = configs.find((c) => c.token);
+    token = donor?.token || '';
+    tokenFrom = donor?.token_from || null;
   }
   const seenIds = new Set(tokenSees.map((a) => a.id));
   const extras = tokenSees
@@ -840,6 +868,21 @@ async function fetchMetaAds() {
         discovered: Boolean(c.discovered),
       });
     } catch (e) {
+      const msg = String(e.message || e);
+      if (token && c.token !== token && /cannot parse|invalid oauth/i.test(msg)) {
+        try {
+          const row = await fetchMetaAccount(c.id, token);
+          parts.push({
+            ...row,
+            token_from: tokenFrom,
+            discovered: Boolean(c.discovered),
+          });
+          continue;
+        } catch (e2) {
+          parts.push(emptyAccountStub(c, friendlyMetaError(e2.message || e2)));
+          continue;
+        }
+      }
       parts.push(emptyAccountStub(c, friendlyMetaError(e.message || e)));
     }
   }
