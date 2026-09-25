@@ -45,8 +45,51 @@ const GOOGLE_ADS_DEVELOPER_TOKEN = String(process.env.GOOGLE_ADS_DEVELOPER_TOKEN
 const GOOGLE_ADS_CLIENT_ID = String(process.env.GOOGLE_ADS_CLIENT_ID || '').trim();
 const GOOGLE_ADS_CLIENT_SECRET = String(process.env.GOOGLE_ADS_CLIENT_SECRET || '').trim();
 const GOOGLE_ADS_REFRESH_TOKEN = String(process.env.GOOGLE_ADS_REFRESH_TOKEN || '').trim();
-const META_AD_ACCOUNT_ID = digitsOnly(process.env.META_AD_ACCOUNT_ID || '');
-const META_ADS_ACCESS_TOKEN = String(process.env.META_ADS_ACCESS_TOKEN || '').trim();
+function parseIdList(raw, fallback) {
+  const src = String(raw || '').trim() || String(fallback || '');
+  return [...new Set(src.split(/[,\s]+/).map(digitsOnly).filter(Boolean))];
+}
+
+const META_AD_ACCOUNT_IDS = parseIdList(
+  process.env.META_AD_ACCOUNT_IDS || process.env.META_AD_ACCOUNT_ID,
+  '1118825316603711,1254251819602084,1607183710965099,706633807356464'
+);
+
+function loadMetaAccountConfigs() {
+  const ids = [...META_AD_ACCOUNT_IDS];
+  for (let i = 1; i <= 8; i += 1) {
+    const extra = digitsOnly(process.env[`META_AD_ACCOUNT_${i}`] || '');
+    if (extra && !ids.includes(extra)) ids.push(extra);
+  }
+  const shared = String(process.env.META_ADS_ACCESS_TOKEN || '').trim();
+  const listed = String(process.env.META_ADS_ACCESS_TOKENS || '')
+    .split('|')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return ids.map((id, idx) => {
+    const n = idx + 1;
+    const token =
+      String(process.env[`META_ADS_ACCESS_TOKEN_${id}`] || '').trim() ||
+      String(process.env[`META_ADS_TOKEN_${id}`] || '').trim() ||
+      String(process.env[`META_ADS_TOKEN_${n}`] || '').trim() ||
+      String(process.env[`META_ADS_ACCESS_TOKEN_${n}`] || '').trim() ||
+      listed[idx] ||
+      shared;
+    return {
+      id,
+      token,
+      slot: n,
+      tokenEnv: `META_ADS_TOKEN_${n}`,
+    };
+  });
+}
+
+function metaMissing() {
+  const configs = loadMetaAccountConfigs();
+  if (!configs.length) return ['META_AD_ACCOUNT_ID'];
+  const missing = configs.filter((c) => !c.token).map((c) => c.tokenEnv);
+  return missing;
+}
 
 let googleTokenCache = { access: '', exp: 0 };
 
@@ -56,13 +99,6 @@ function googleMissing() {
     ['GOOGLE_ADS_CLIENT_ID', GOOGLE_ADS_CLIENT_ID],
     ['GOOGLE_ADS_CLIENT_SECRET', GOOGLE_ADS_CLIENT_SECRET],
     ['GOOGLE_ADS_REFRESH_TOKEN', GOOGLE_ADS_REFRESH_TOKEN],
-  ]);
-}
-
-function metaMissing() {
-  return missingList([
-    ['META_AD_ACCOUNT_ID', META_AD_ACCOUNT_ID],
-    ['META_ADS_ACCESS_TOKEN', META_ADS_ACCESS_TOKEN],
   ]);
 }
 
@@ -276,13 +312,13 @@ function metaRowToTotals(row) {
   });
 }
 
-async function metaGet(path, search) {
+async function metaGet(path, search, accessToken) {
   const url = new URL(`https://graph.facebook.com/${META_GRAPH_VERSION}/${path}`);
   for (const [k, v] of Object.entries(search || {})) {
     if (v != null && v !== '') url.searchParams.set(k, String(v));
   }
   const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${META_ADS_ACCESS_TOKEN}` },
+    headers: { Authorization: `Bearer ${accessToken}` },
     signal: AbortSignal.timeout(15000),
   });
   const json = await res.json().catch(() => ({}));
@@ -292,65 +328,149 @@ async function metaGet(path, search) {
   return json;
 }
 
-async function fetchMetaAds() {
-  const missing = metaMissing();
-  const base = {
-    connected: false,
-    platform: 'meta',
-    account_id: META_AD_ACCOUNT_ID || null,
-    act_id: META_AD_ACCOUNT_ID ? `act_${META_AD_ACCOUNT_ID}` : null,
-    missing_env: missing,
-    token_ready: missing.length === 0,
-  };
-  if (missing.length) {
-    return { ...base, configured: false, reason: `Faltan env: ${missing.join(', ')}` };
-  }
-  try {
-    const act = `act_${META_AD_ACCOUNT_ID}`;
-    const insightFields =
-      'spend,impressions,clicks,cpc,ctr,reach,actions,action_values,campaign_id,campaign_name';
-    const [account, last7, last30, campaigns] = await Promise.all([
-      metaGet(act, { fields: 'name,currency,account_status' }),
-      metaGet(`${act}/insights`, {
+async function fetchMetaAccount(accountId, accessToken) {
+  const act = `act_${accountId}`;
+  const insightFields =
+    'spend,impressions,clicks,cpc,ctr,reach,actions,action_values,campaign_id,campaign_name';
+  const [account, last7, last30, campaigns] = await Promise.all([
+    metaGet(act, { fields: 'name,currency,account_status' }, accessToken),
+    metaGet(
+      `${act}/insights`,
+      {
         fields: 'spend,impressions,clicks,actions,action_values',
         date_preset: 'last_7d',
         level: 'account',
-      }),
-      metaGet(`${act}/insights`, {
+      },
+      accessToken
+    ),
+    metaGet(
+      `${act}/insights`,
+      {
         fields: 'spend,impressions,clicks,actions,action_values',
         date_preset: 'last_30d',
         level: 'account',
-      }),
-      metaGet(`${act}/insights`, {
+      },
+      accessToken
+    ),
+    metaGet(
+      `${act}/insights`,
+      {
         fields: insightFields,
         date_preset: 'last_30d',
         level: 'campaign',
         limit: '25',
-      }),
-    ]);
-    const last7t = (last7.data || []).reduce((acc, row) => addTotals(acc, metaRowToTotals(row)), emptyTotals());
-    const last30t = (last30.data || []).reduce((acc, row) => addTotals(acc, metaRowToTotals(row)), emptyTotals());
-    const campaignRows = (campaigns.data || []).map((row) => ({
-      id: String(row.campaign_id || ''),
-      name: row.campaign_name || 'Campaña',
-      status: '',
-      ...metaRowToTotals(row),
-    }));
-    return {
-      ...base,
-      connected: true,
-      configured: true,
-      reason: null,
-      name: account.name || 'Meta Ads',
-      currency: account.currency || 'ARS',
-      account_status: account.account_status,
-      last_7d: last7t,
-      last_30d: last30t,
-      campaigns: campaignRows.sort((a, b) => b.spend - a.spend).slice(0, 25),
-    };
-  } catch (e) {
-    return { ...base, configured: true, connected: false, error: redact(e.message || e) };
+      },
+      accessToken
+    ),
+  ]);
+  const last7t = (last7.data || []).reduce((acc, row) => addTotals(acc, metaRowToTotals(row)), emptyTotals());
+  const last30t = (last30.data || []).reduce((acc, row) => addTotals(acc, metaRowToTotals(row)), emptyTotals());
+  const campaignRows = (campaigns.data || []).map((row) => ({
+    id: String(row.campaign_id || ''),
+    name: row.campaign_name || 'Campaña',
+    account_id: accountId,
+    account_name: account.name || act,
+    status: '',
+    ...metaRowToTotals(row),
+  }));
+  return {
+    connected: true,
+    account_id: accountId,
+    act_id: act,
+    name: account.name || 'Meta Ads',
+    currency: account.currency || 'ARS',
+    account_status: account.account_status,
+    last_7d: last7t,
+    last_30d: last30t,
+    campaigns: campaignRows,
+  };
+}
+
+async function fetchMetaAds() {
+  const configs = loadMetaAccountConfigs();
+  const missing = metaMissing();
+  const base = {
+    connected: false,
+    platform: 'meta',
+    account_id: configs[0]?.id || null,
+    act_id: configs[0]?.id ? `act_${configs[0].id}` : null,
+    account_ids: configs.map((c) => c.id),
+    accounts: configs.map((c) => ({ account_id: c.id, act_id: `act_${c.id}` })),
+    missing_env: missing,
+    token_ready: missing.length === 0,
+  };
+  if (!configs.length) {
+    return { ...base, configured: false, reason: 'Faltan env: META_AD_ACCOUNT_ID' };
   }
+  if (!configs.some((c) => c.token)) {
+    return { ...base, configured: false, reason: `Faltan env: ${missing.join(', ')}` };
+  }
+  const parts = await Promise.all(
+    configs.map(async (c) => {
+      if (!c.token) {
+        return {
+          connected: false,
+          account_id: c.id,
+          act_id: `act_${c.id}`,
+          name: `act_${c.id}`,
+          error: `Falta ${c.tokenEnv}`,
+          last_7d: emptyTotals(),
+          last_30d: emptyTotals(),
+          campaigns: [],
+        };
+      }
+      try {
+        return await fetchMetaAccount(c.id, c.token);
+      } catch (e) {
+        return {
+          connected: false,
+          account_id: c.id,
+          act_id: `act_${c.id}`,
+          name: `act_${c.id}`,
+          error: redact(e.message || e),
+          last_7d: emptyTotals(),
+          last_30d: emptyTotals(),
+          campaigns: [],
+        };
+      }
+    })
+  );
+  const ok = parts.filter((p) => p.connected);
+  const last7t = ok.reduce((acc, p) => addTotals(acc, p.last_7d), emptyTotals());
+  const last30t = ok.reduce((acc, p) => addTotals(acc, p.last_30d), emptyTotals());
+  const campaignRows = parts
+    .flatMap((p) => p.campaigns || [])
+    .sort((a, b) => b.spend - a.spend)
+    .slice(0, 25);
+  const currencies = [...new Set(ok.map((p) => p.currency).filter(Boolean))];
+  const names = ok.map((p) => p.name).filter(Boolean);
+  const errors = parts.filter((p) => p.error).map((p) => `${p.act_id}: ${p.error}`);
+  return {
+    ...base,
+    configured: true,
+    connected: ok.length > 0,
+    reason: ok.length ? null : errors.join(' · ') || 'Ninguna cuenta Meta respondió',
+    error: ok.length ? null : errors[0] || null,
+    name: names.length ? names.join(' + ') : 'Meta Ads',
+    currency: currencies[0] || 'ARS',
+    currencies,
+    account_status: ok.length === parts.length ? 'ok' : `${ok.length}/${parts.length} cuentas`,
+    last_7d: last7t,
+    last_30d: last30t,
+    campaigns: campaignRows,
+    accounts: parts.map((p) => ({
+      account_id: p.account_id,
+      act_id: p.act_id,
+      name: p.name,
+      currency: p.currency || null,
+      connected: Boolean(p.connected),
+      error: p.error || null,
+      last_7d: p.last_7d,
+      last_30d: p.last_30d,
+    })),
+    partial: ok.length > 0 && ok.length < parts.length,
+    warnings: errors,
+  };
 }
 
 function compactPlatform(p) {
@@ -361,6 +481,14 @@ function compactPlatform(p) {
     name: p.name || null,
     currency: p.currency || null,
     display_id: p.display_id || p.act_id || p.account_id || null,
+    account_ids: p.account_ids || p.accounts?.map((a) => a.account_id) || null,
+    accounts: (p.accounts || []).map((a) => ({
+      name: a.name,
+      act_id: a.act_id,
+      connected: a.connected,
+      error: a.error || null,
+      last_7d: a.last_7d || null,
+    })),
     last_7d: p.last_7d || null,
     prev_7d: p.prev_7d || null,
     last_30d: p.last_30d || null,

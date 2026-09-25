@@ -100,7 +100,7 @@ Eres ANA, la Inteligencia de Negocios y Asistente Ejecutiva Central de Checkin24
 - Si el SNAPSHOT trae **sales_focus** y ok=true, esos totales ya están filtrados para ESTA pregunta: respondé **por cada slice** (no mezcles hotel, mes ni eje). No recalcules a mano ni cambies el redondeo. Si un slice tiene matched_rows=0, decí 0 en el recorte (sales.range_from).
 - Recorte: sales.range_from; si truncated=true, advertí que el listado puede estar topeado.
 - Web: visitas (site_pageviews) hoy / 7 / 30 / 60 días. Consultas WhatsApp del botón de la web al 1580: web.consultas (today, last_7d, last_30d, last_60d: count + unique; top hoteles/packs). No inventes esos números.
-- Ads: si ads.google.connected o ads.meta.connected, usá last_7d / last_30d / campaigns (spend, clicks, impressions, cpc, ctr, conversions, roas) con la currency que traiga cada plataforma. Nunca inventes gasto. Si connected=false, decí qué falta (missing_env o error) y no estimes CPC/ROAS.
+- Ads: si ads.google.connected o ads.meta.connected, usá last_7d / last_30d / campaigns (spend, clicks, impressions, cpc, ctr, conversions, roas) con la currency que traiga cada plataforma. Meta puede tener 2 cuentas (ads.meta.accounts); last_7d ya viene sumado. Nunca inventes gasto. Si connected=false, decí qué falta (missing_env o error) y no estimes CPC/ROAS.
 - Ads spend/clics: solo de la API. Nunca inventes Ad Spend Anomaly si no hay datos conectados.
 - Flor IA / WhatsApp: chats, hand-offs, SLA si viene en el snapshot, estado de L1–L4 (Monitor).
 - Webmail: INBOX IMAP de reservas@. Usá summary/preview del cuerpo; no respondas solo con el asunto. Borradores, no envíes.
@@ -1059,7 +1059,11 @@ function fallbackReply(snapshot, userText, geminiErr) {
     lines.push(`- Google Ads: ${c.ads?.google?.reason || c.ads?.google?.error || 'sin conectar'}`);
   }
   if (c.ads?.meta?.connected) {
-    lines.push(`- Meta Ads 7d: ${c.ads.meta.currency} ${c.ads.meta.last_7d?.spend ?? 0}`);
+    const acc = (c.ads.meta.accounts || []).filter((a) => a.connected).length;
+    lines.push(
+      `- Meta Ads 7d: ${c.ads.meta.currency} ${c.ads.meta.last_7d?.spend ?? 0}` +
+        (acc ? ` · ${acc} cuenta(s)` : '')
+    );
   }
   lines.push(`- Monitor: ${failed.length ? failed.map((f) => f.name).join(', ') : 'todo OK'}`);
   const pc = c.sales?.pending_cancel || [];

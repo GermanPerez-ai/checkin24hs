@@ -852,10 +852,12 @@ let AGENDA = { tasks: [], ideas: [] };
             ? ('Conectado · ' + (g.currency || ''))
             : (g.error || g.reason || 'Falta developer token + OAuth');
         $('adsGoogleStatus').className = 'text-xs mt-1 ' + (g.connected ? 'text-emerald-400' : 'text-amber-300');
-        $('adsMetaId').textContent = m.act_id || m.account_id || m.name || 'sin cuenta';
+        $('adsMetaId').textContent = (m.accounts && m.accounts.length)
+            ? m.accounts.map(a => a.act_id || a.account_id).join(' + ')
+            : (m.act_id || m.account_id || m.name || 'sin cuenta');
         $('adsMetaStatus').textContent = m.connected
-            ? ('Conectado · ' + (m.currency || ''))
-            : (m.error || m.reason || 'Falta META_AD_ACCOUNT_ID + token');
+            ? ('Conectado · ' + (m.currency || '') + (m.accounts ? ' · ' + m.accounts.filter(a => a.connected).length + '/' + m.accounts.length + ' cuentas' : ''))
+            : (m.error || m.reason || 'Falta META_ADS_ACCESS_TOKEN');
         $('adsMetaStatus').className = 'text-xs mt-1 ' + (m.connected ? 'text-emerald-400' : 'text-amber-300');
         $('adsGoogleSpend').textContent = g.connected ? moneyAds(g.last_7d?.spend, g.currency) : 'sin API';
         $('adsMetaSpend').textContent = m.connected ? moneyAds(m.last_7d?.spend, m.currency) : 'sin API';
@@ -865,7 +867,7 @@ let AGENDA = { tasks: [], ideas: [] };
         $('adsCampaignsBody').innerHTML = camps.length
             ? camps.slice(0, 20).map(c => `<tr>
                 <td class="py-2 text-slate-400">${esc(c.platform || '')}</td>
-                <td class="py-2">${esc(c.name)}</td>
+                <td class="py-2">${esc(c.account_name ? (c.name + ' · ' + c.account_name) : c.name)}</td>
                 <td class="py-2 font-mono">${moneyAds(c.spend, c.platform === 'meta' ? m.currency : g.currency)}</td>
                 <td class="py-2">${c.clicks || 0}</td>
                 <td class="py-2">${c.cpc || 0}</td>
