@@ -66,22 +66,27 @@ function loadMetaAccountConfigs() {
     .split('|')
     .map((s) => s.trim())
     .filter(Boolean);
-  return ids.map((id, idx) => {
+  const configs = ids.map((id, idx) => {
     const n = idx + 1;
-    const token =
+    const own =
       String(process.env[`META_ADS_ACCESS_TOKEN_${id}`] || '').trim() ||
       String(process.env[`META_ADS_TOKEN_${id}`] || '').trim() ||
       String(process.env[`META_ADS_TOKEN_${n}`] || '').trim() ||
       String(process.env[`META_ADS_ACCESS_TOKEN_${n}`] || '').trim() ||
       listed[idx] ||
-      shared;
+      '';
     return {
       id,
-      token,
+      token: own,
       slot: n,
       tokenEnv: `META_ADS_TOKEN_${n}`,
     };
   });
+  const fallback = configs.find((c) => c.token)?.token || shared;
+  return configs.map((c) => ({
+    ...c,
+    token: c.token || fallback || '',
+  }));
 }
 
 function metaMissing() {
