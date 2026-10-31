@@ -24,6 +24,12 @@ const WEB_URL = (process.env.MONITOR_WEB_URL || 'https://www.checkin24hs.com').r
 const DASHBOARD_URL = (process.env.MONITOR_DASHBOARD_URL || 'https://dashboard.checkin24hs.com').replace(/\/$/, '');
 const COTIZADOR_URL = (process.env.MONITOR_COTIZADOR_URL || 'https://cotizar.checkin24hs.com').replace(/\/$/, '');
 const WA_API = (process.env.WHATSAPP_API_URL || 'https://whatsapp.checkin24hs.com').replace(/\/$/, '');
+const WHATSAPP_API_KEY = (process.env.WHATSAPP_API_KEY || '').trim();
+
+if (!WHATSAPP_API_KEY) {
+  console.warn('⚠️ WHATSAPP_API_KEY no configurada - las llamadas al servidor WhatsApp fallarán');
+}
+
 /** Health de cada línea (L1 usa WHATSAPP_API_URL; L2–L4 tienen URL propia). */
 const WA_LINE_APIS = [
   { line: 1, label: 'L1', url: WA_API },
@@ -835,8 +841,12 @@ async function appendSilentLineFailures(results, waStats) {
     try {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), Math.min(TIMEOUT_MS, 10000));
+      const headers = { Accept: 'application/json', 'User-Agent': 'Checkin24hs-SiteMonitor/1.0' };
+      if (WHATSAPP_API_KEY) {
+        headers['x-api-key'] = WHATSAPP_API_KEY;
+      }
       const res = await fetch(`${api.url}/api/status`, {
-        headers: { Accept: 'application/json', 'User-Agent': 'Checkin24hs-SiteMonitor/1.0' },
+        headers,
         signal: controller.signal,
       });
       clearTimeout(timer);
@@ -976,9 +986,16 @@ async function sendWhatsApp(text) {
   if (!ALERT_PHONE) {
     throw new Error('Falta MONITOR_ALERT_PHONE (ej. 54911XXXXXXXX)');
   }
+  if (!WHATSAPP_API_KEY) {
+    throw new Error('Falta WHATSAPP_API_KEY - no se puede enviar alerta por WhatsApp');
+  }
+  const headers = { 'Content-Type': 'application/json' };
+  if (WHATSAPP_API_KEY) {
+    headers['x-api-key'] = WHATSAPP_API_KEY;
+  }
   const res = await fetch(`${WA_API}/api/send`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ number: ALERT_PHONE, text }),
   });
   const body = await res.text();

@@ -3,11 +3,16 @@
 const { supabaseSelect, supabaseInsert } = require('./collect');
 
 const WA_API = (process.env.WHATSAPP_API_URL || 'https://whatsapp.checkin24hs.com').replace(/\/$/, '');
+const WHATSAPP_API_KEY = (process.env.WHATSAPP_API_KEY || '').trim();
 const TELEGRAM_BOT_TOKEN = String(process.env.TELEGRAM_BOT_TOKEN || '').trim();
 const TELEGRAM_CHAT_ID = String(process.env.TELEGRAM_CHAT_ID || '').trim();
 const WEBHOOK_URL = String(process.env.ANA_ALERT_WEBHOOK_URL || '').trim();
 
 const DEFAULT_ALERT_PHONES = ['542944210725', '5492944579759'];
+
+if (!WHATSAPP_API_KEY) {
+  console.warn('⚠️ WHATSAPP_API_KEY no configurada - las notificaciones de WhatsApp pueden fallar');
+}
 
 function digitsPhone(value) {
   return String(value || '')
@@ -48,9 +53,13 @@ async function alreadySent(kind, fingerprint) {
 }
 
 async function postWhatsApp(path, payload) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (WHATSAPP_API_KEY) {
+    headers['x-api-key'] = WHATSAPP_API_KEY;
+  }
   const res = await fetch(`${WA_API}${path}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(payload),
   });
   const body = await res.text();

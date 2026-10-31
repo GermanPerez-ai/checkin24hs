@@ -3,6 +3,24 @@ const path = require('path');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// ===== CONFIGURACIÓN DE PROXY WHATSAPP =====
+const WHATSAPP_SERVER_URL = (process.env.WHATSAPP_API_URL || 'https://whatsapp.checkin24hs.com').replace(/\/$/, '');
+const WHATSAPP_API_KEY = (process.env.WHATSAPP_API_KEY || '').trim();
+
+if (!WHATSAPP_API_KEY) {
+    console.warn('');
+    console.warn('⚠️⚠️⚠️ ADVERTENCIA DE SEGURIDAD ⚠️⚠️⚠️');
+    console.warn('WHATSAPP_API_KEY no configurada.');
+    console.warn('El proxy del dashboard NO podrá comunicarse con el servidor WhatsApp.');
+    console.warn('Configura WHATSAPP_API_KEY para habilitar la funcionalidad de WhatsApp.');
+    console.warn('');
+} else {
+    console.log('🔒 Proxy WhatsApp habilitado con API key');
+}
+
+// Middleware para parsear JSON (necesario para los endpoints de proxy)
+app.use(express.json({ limit: '30mb' }));
+
 // Prevenir caché para dashboard.html y archivos principales - HEADERS ULTRA AGRESIVOS
 app.use((req, res, next) => {
     if (req.path === '/' || req.path === '/dashboard.html' || req.path.endsWith('.html') || req.path.endsWith('.js')) {
@@ -43,6 +61,52 @@ app.get('/api/version', (req, res) => {
         });
     }
 });
+
+// ===== PROXY ENDPOINTS PARA WHATSAPP (protege la API key en el servidor) =====
+// Los endpoints de proxy reenvían las peticiones al servidor WhatsApp agregando la API key
+
+async function proxyToWhatsApp(req, res, endpoint, method = 'POST') {
+    if (!WHATSAPP_API_KEY) {
+        return res.status(503).json({
+            error: 'Servicio no disponible',
+            message: 'El servidor no está configurado para comunicarse con WhatsApp (falta WHATSAPP_API_KEY)'
+        });
+    }
+
+    try {
+        const url = `${WHATSAPP_SERVER_URL}${endpoint}`;
+        const headers = {
+            'Content-Type': 'application/json',
+            'x-api-key': WHATSAPP_API_KEY
+        };
+
+        const fetchOptions = {
+            method: method,
+            headers: headers
+        };
+
+        if (method !== 'GET' && req.body) {
+            fetchOptions.body = JSON.stringify(req.body);
+        }
+
+        const response = await fetch(url, fetchOptions);
+        const data = await response.json();
+
+        res.status(response.status).json(data);
+    } catch (error) {
+        console.error(`Error en proxy WhatsApp (${endpoint}):`, error);
+        res.status(500).json({
+            error: 'Error de proxy',
+            message: error.message
+        });
+    }
+}
+
+app.post('/api/whatsapp-proxy/send', (req, res) => proxyToWhatsApp(req, res, '/api/send', 'POST'));
+app.post('/api/whatsapp-proxy/send-audio', (req, res) => proxyToWhatsApp(req, res, '/api/send-audio', 'POST'));
+app.post('/api/whatsapp-proxy/send-media', (req, res) => proxyToWhatsApp(req, res, '/api/send-media', 'POST'));
+app.get('/api/whatsapp-proxy/status', (req, res) => proxyToWhatsApp(req, res, '/api/status', 'GET'));
+app.get('/api/whatsapp-proxy/qr', (req, res) => proxyToWhatsApp(req, res, '/api/qr', 'GET'));
 
 // Manejar favicon.ico para evitar error 404 (PRIMERO para evitar que express.static lo busque)
 app.get('/favicon.ico', (req, res) => {
