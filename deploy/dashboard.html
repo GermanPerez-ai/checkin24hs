@@ -7,14 +7,14 @@
     <meta name="robots" content="noindex, nofollow">
     <meta name="googlebot" content="noindex, nofollow">
     <!-- VERSIÓN: dashboard.html v2.1.0 - 2025-01-27 -->
-    <!-- BUILD: #83 - 2026-02-02 - Servidor = dashboard.html raíz (igual a local). Si vuelve estructura vieja = redeploy con caché. -->
+    <!-- BUILD: #84 - 2026-10-31 - WhatsApp API key auth: proxy interceptor + server.js x-api-key -->
     <!-- CRÍTICO: Definir showSection LO PRIMERO - antes de cualquier otro código -->
     <script>
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-09-24T12:28:09Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 284; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-10-31T15:13:00Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 285; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2295,6 +2295,112 @@
     <!-- <script src="migrate-to-supabase.js"></script> -->
 </head>
 <body>
+    <!-- 🔒 WhatsApp API Proxy Interceptor - NO REMOVER -->
+    <script>
+    (function() {
+        'use strict';
+        
+        console.log('🔒 WhatsApp API Proxy interceptor iniciado');
+        
+        // URLs de servidores WhatsApp que deben ser proxeadas
+        const WHATSAPP_HOSTS = [
+            'whatsapp.checkin24hs.com',
+            'whatsapp2.checkin24hs.com', 
+            'whatsapp3.checkin24hs.com',
+            'whatsapp4.checkin24hs.com',
+            'api1.checkin24hs.com'
+        ];
+        
+        // Mapeo de rutas del servidor WhatsApp al proxy local
+        const PROXY_ROUTES = {
+            '/api/send': '/whatsapp-send',
+            '/api/send-audio': '/whatsapp-send-audio',
+            '/api/send-media': '/whatsapp-send-media'
+        };
+        
+        /**
+         * Verifica si una URL debe ser proxeada
+         */
+        function shouldProxy(url) {
+            if (!url) return false;
+            try {
+                const urlObj = new URL(url, window.location.origin);
+                const hostname = urlObj.hostname;
+                const pathname = urlObj.pathname;
+                
+                // Verificar si es una URL del servidor WhatsApp
+                const isWhatsAppHost = WHATSAPP_HOSTS.some(host => hostname.includes(host));
+                
+                // Verificar si es una ruta que necesita proxy
+                const needsProxy = Object.keys(PROXY_ROUTES).some(route => pathname.includes(route));
+                
+                return isWhatsAppHost && needsProxy;
+            } catch (e) {
+                return false;
+            }
+        }
+        
+        /**
+         * Convierte una URL del servidor WhatsApp a URL del proxy local
+         */
+        function convertToProxyUrl(url) {
+            try {
+                const urlObj = new URL(url, window.location.origin);
+                const pathname = urlObj.pathname;
+                
+                // Buscar la ruta que coincida
+                for (const [original, proxy] of Object.entries(PROXY_ROUTES)) {
+                    if (pathname.includes(original)) {
+                        // Devolver solo la ruta del proxy (relativa al origen actual)
+                        return proxy;
+                    }
+                }
+                
+                return url;
+            } catch (e) {
+                console.error('Error convirtiendo URL a proxy:', e);
+                return url;
+            }
+        }
+        
+        /**
+         * Interceptar fetch global
+         */
+        const originalFetch = window.fetch;
+        window.fetch = function(url, options = {}) {
+            if (shouldProxy(url)) {
+                const proxyUrl = convertToProxyUrl(url);
+                console.log('🔒 Proxeando llamada WhatsApp:', url, '→', proxyUrl);
+                return originalFetch(proxyUrl, options);
+            }
+            return originalFetch(url, options);
+        };
+        
+        /**
+         * Interceptar XMLHttpRequest (por si algún código viejo lo usa)
+         */
+        const OriginalXHR = window.XMLHttpRequest;
+        window.XMLHttpRequest = function() {
+            const xhr = new OriginalXHR();
+            const originalOpen = xhr.open;
+            
+            xhr.open = function(method, url, async, user, password) {
+                let finalUrl = url;
+                
+                if (shouldProxy(url)) {
+                    finalUrl = convertToProxyUrl(url);
+                    console.log('🔒 Proxeando XHR WhatsApp:', url, '→', finalUrl);
+                }
+                
+                return originalOpen.call(this, method, finalUrl, async, user, password);
+            };
+            
+            return xhr;
+        };
+        
+        console.log('✅ WhatsApp API Proxy interceptor configurado');
+    })();
+    </script>
     <!-- showSection ya está definido en la línea 6 del head -->
     
     <!-- Pantalla de Login -->
