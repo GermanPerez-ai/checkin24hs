@@ -55,10 +55,11 @@ Los fallos ocurren cuando:
 docker logs checkin24hs_whatsapp 2>&1 | grep -i "error.*flor\|error.*gemini\|error 403\|error 400\|error 404\|timeout.*flor" | tail -50
 ```
 
-### 2. Ver el estado de GEMINI_API_KEY al arranque:
+### 2. Ver el estado de GEMINI_API_KEY al arranque (CRÍTICO):
 ```bash
-docker logs checkin24hs_whatsapp 2>&1 | grep -i "gemini_api_key\|gemini.*configurad" | head -10
+docker logs checkin24hs_whatsapp 2>&1 | grep -i "gemini_api_key\|gemini.*configurad\|gemini.*no funcionará" | head -10
 ```
+**Si ves "⚠️ GEMINI_API_KEY no configurada. Flor IA no funcionará."** → La API key NO está configurada (ver Solución temporal más abajo)
 
 ### 3. Ver TODOS los logs relacionados con Flor desde las 13:30:
 ```bash
@@ -106,4 +107,8 @@ Si GEMINI_API_KEY no está configurada o es inválida:
 
 ## 📋 Siguiente paso
 
-German debe ejecutar los comandos de diagnóstico 1, 3 y 6 y reportar la salida.
+**German debe ejecutar PRIMERO el comando #2** (verificar GEMINI_API_KEY al arranque).
+
+Si ve el warning "GEMINI_API_KEY no configurada", esa es la causa raíz → seguir Solución temporal.
+
+Si NO ve ese warning, ejecutar comandos #1, #3 y #6 para diagnosticar más.
