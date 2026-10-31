@@ -22,7 +22,8 @@ const {
     default: makeWASocket,
     DisconnectReason,
     useMultiFileAuthState,
-    fetchLatestBaileysVersion
+    fetchLatestBaileysVersion,
+    makeCacheableSignalKeyStore
 } = baileysLib;
 /** Copia :device entre JIDs (LID→PN); reduce retries "message not available" en Business + LID. */
 const transferDeviceFn = typeof baileysLib.transferDevice === 'function' ? baileysLib.transferDevice : null;
@@ -65,6 +66,7 @@ const axios = require('axios');
 const { getLinkPreview } = require('link-preview-js');
 const { handleHuiloGroupMessage, isWhatsAppGroupJid } = require('./huilo-group-reservations');
 const { handleCorralcoGroupMessage } = require('./corralco-group-reservations');
+const NodeCache = require('node-cache');
 
 console.log('🚀 Iniciando servidor WhatsApp con Baileys...');
 
@@ -552,14 +554,27 @@ function maybeTriggerFlorCryptoProtection(detail) {
         );
     }
     if (level !== 'hard' || !FLOR_CRYPTO_SOFT_RECONNECT) return;
-    if (now - florCryptoLastSoftReconnectAt < FLOR_CRYPTO_RECONNECT_COOLDOWN_MS) return;
-    if (typeof scheduleWaReconnect !== 'function') return;
-    florCryptoLastSoftReconnectAt = now;
-    console.warn(
-        '🔄 Soft-reconnect por cripto hard (' + n + ' eventos). No wipea auth. Cooldown ' +
-        Math.round(FLOR_CRYPTO_RECONNECT_COOLDOWN_MS / 60000) + ' min.'
-    );
-    scheduleWaReconnect(8000, 'crypto hard protection n=' + n);
+    
+    // TUNED: Only reconnect if >50 errors (raised from default) AND cooldown expired
+    // This prevents reconnects from destroying valid sessions
+    const lastReconnect = now - florCryptoLastSoftReconnectAt;
+    if (n >= 50 && lastReconnect >= FLOR_CRYPTO_RECONNECT_COOLDOWN_MS) {
+        if (typeof scheduleWaReconnect !== 'function') return;
+        florCryptoLastSoftReconnectAt = now;
+        console.warn(
+            '🔄 Soft-reconnect por cripto hard (' + n + ' eventos, threshold 50+). ' +
+            'Último reconnect hace ' + Math.round(lastReconnect / 60000) + ' min. ' +
+            'No wipea auth. Cooldown ' + Math.round(FLOR_CRYPTO_RECONNECT_COOLDOWN_MS / 60000) + ' min.'
+        );
+        scheduleWaReconnect(8000, 'crypto hard protection n=' + n);
+    } else if (n >= 50) {
+        console.warn(
+            '🛡️ Cripto hard (' + n + ' eventos) pero cooldown activo (' +
+            Math.round(lastReconnect / 60000) + '/' + 
+            Math.round(FLOR_CRYPTO_RECONNECT_COOLDOWN_MS / 60000) + ' min). ' +
+            'No reconecta para preservar sesiones válidas.'
+        );
+    }
 }
 
 function createFlorBaileysLogger() {
@@ -660,6 +675,14 @@ const florOutboundProtoForRetry = new Map();
 const FLOR_OUTBOUND_PROTO_MAX = 5000;
 const FLOR_OUTBOUND_PROTO_TTL_MS = 3 * 60 * 60 * 1000;
 
+// msgRetryCounterCache for Baileys retry handling (fixes "Esperando mensaje")
+const msgRetryCounterCache = new NodeCache({ 
+    stdTTL: 3600,     // 1 hour TTL
+    checkperiod: 600,  // cleanup every 10 min
+    useClones: false   // performance optimization
+});
+console.log('✅ msgRetryCounterCache initialized');
+
 function rememberFlorOutboundProtoForRetry(key, message) {
     if (!key?.id || !message) return;
     const id = String(key.id);
@@ -673,10 +696,109 @@ function rememberFlorOutboundProtoForRetry(key, message) {
 
 async function getFlorMessageForBaileysRetry(key) {
     if (!key?.id) return undefined;
+    
+    // 1. Fast path: check outbound messages in RAM
     const ent = florOutboundProtoForRetry.get(String(key.id));
-    if (!ent?.message) return undefined;
-    if (Date.now() - ent.ts > FLOR_OUTBOUND_PROTO_TTL_MS) return undefined;
-    return ent.message;
+    if (ent?.message && Date.now() - ent.ts <= FLOR_OUTBOUND_PROTO_TTL_MS) {
+        console.log(`🔄 getMessage: outbound from RAM for ${key.id}`);
+        return ent.message;
+    }
+    
+    // 2. CRITICAL: Query Supabase for INBOUND messages (fixes "Esperando mensaje")
+    if (supabase && key.id) {
+        try {
+            const { data, error } = await supabase
+                .from('whatsapp_messages')
+                .select('baileys_message_proto')
+                .eq('baileys_message_id', String(key.id))
+                .maybeSingle();
+            
+            if (!error && data?.baileys_message_proto) {
+                try {
+                    const proto = JSON.parse(data.baileys_message_proto);
+                    console.log(`🔄 getMessage: INBOUND from Supabase for ${key.id} (fixes "Esperando mensaje")`);
+                    return proto;
+                } catch (parseErr) {
+                    console.warn(`⚠️ getMessage: failed to parse proto for ${key.id}:`, parseErr.message);
+                }
+            }
+        } catch (err) {
+            console.warn(`⚠️ getMessage: Supabase query failed for ${key.id}:`, err.message);
+        }
+    }
+    
+    // 3. Not found - customer will see "Esperando mensaje"
+    console.warn(`⚠️ getMessage: NOT FOUND for ${key.id} → customer sees "Esperando mensaje"`);
+    trackPersistentDecryptFailure(key.remoteJid, key.id);
+    return undefined;
+}
+
+/** Track persistent decrypt failures per contact for recovery */
+const persistentDecryptFailures = new Map(); // remoteJid -> { count, lastAttempt, messageId }
+
+function trackPersistentDecryptFailure(remoteJid, messageId) {
+    if (!remoteJid) return;
+    
+    const now = Date.now();
+    const entry = persistentDecryptFailures.get(remoteJid) || { count: 0, lastAttempt: 0 };
+    
+    // Reset if last attempt was >1 hour ago
+    if (now - entry.lastAttempt > 3600000) {
+        entry.count = 0;
+    }
+    
+    entry.count++;
+    entry.lastAttempt = now;
+    entry.messageId = messageId;
+    persistentDecryptFailures.set(remoteJid, entry);
+    
+    console.warn(`🔐 Decrypt failure ${entry.count} for ${remoteJid} (msg ${messageId})`);
+    
+    // After 2 failures, clear contact session
+    if (entry.count === 2) {
+        clearContactSessionOnDecryptFail(remoteJid);
+    }
+    
+    // After 3 failures, notify team
+    if (entry.count === 3) {
+        notifyTeamAboutDecryptFailure(remoteJid);
+    }
+}
+
+async function clearContactSessionOnDecryptFail(remoteJid) {
+    if (!sock || !remoteJid) return;
+    
+    try {
+        console.warn(`🔐 Clearing session for ${remoteJid} due to persistent decrypt failures`);
+        
+        // Clear from Baileys session store
+        if (sock.authState?.keys?.clear) {
+            await sock.authState.keys.clear(remoteJid);
+            console.log(`✅ Session cleared for ${remoteJid}, will re-establish on next message`);
+        } else {
+            console.warn(`⚠️ Cannot clear session for ${remoteJid}: keys.clear not available`);
+        }
+    } catch (err) {
+        console.error(`❌ Failed to clear session for ${remoteJid}:`, err.message);
+    }
+}
+
+async function notifyTeamAboutDecryptFailure(remoteJid) {
+    const phone = remoteJid.split('@')[0];
+    const message = `🚨 *ALERTA: Fallo de Descifrado Persistente*\n\nCliente: ${phone}\nEstado: No se pueden descifrar mensajes\nImpacto: Cliente ve "Esperando mensaje"\n\n⚠️ Acción requerida: Contactar al cliente por otro medio o reiniciar línea WhatsApp.`;
+    
+    console.error(`🚨 DECRYPT ALERT: ${phone} - persistent failures`);
+    console.error(message);
+    
+    // TODO: Optional - send to monitoring group if configured
+    // const monitoringGroupId = process.env.WHATSAPP_MONITORING_GROUP_ID;
+    // if (monitoringGroupId && sock) {
+    //     try {
+    //         await sock.sendMessage(monitoringGroupId, { text: message });
+    //     } catch (err) {
+    //         console.error('Failed to notify monitoring group:', err.message);
+    //     }
+    // }
 }
 
 /** JID entrante con :device si existe (mejor fuente para transferDevice). */
@@ -6779,12 +6901,18 @@ async function connectToWhatsApp() {
 
     const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, `auth_info_baileys_${CONFIG.INSTANCE_NUMBER}`));
     
+    // Wrap with cacheable signal key store for performance (reduces session corruption)
+    const cacheableState = {
+        creds: state.creds,
+        keys: makeCacheableSignalKeyStore(state.keys, createFlorBaileysLogger())
+    };
+    
     const { version, isLatest } = await fetchLatestBaileysVersion();
     console.log(`📦 Baileys WA Web version=[${version.join('.')}] isLatest=${isLatest} | connect gen=${myGen}`);
     
     sock = makeWASocket({
         logger: createFlorBaileysLogger(),
-        auth: state,
+        auth: cacheableState,
         version,
         browser: ['Chrome', 'Desktop', '1.0.0'],
         
@@ -6804,6 +6932,7 @@ async function connectToWhatsApp() {
         shouldSyncAppState: () => false,
         shouldIgnoreJid: () => false,
         getMessage: getFlorMessageForBaileysRetry,
+        msgRetryCounterCache,
         appStateSyncTimeoutMs: 0,
     });
 
