@@ -51,7 +51,7 @@ async function getGroupInfo() {
         
         console.log('✅ WhatsApp conectado');
         console.log(`   📱 Teléfono: ${statusResponse.data.phone || 'desconocido'}`);
-        console.log(`   👤 Nombre: ${statusResponse.data.name || 'desconocido'}\n');
+        console.log(`   👤 Nombre: ${statusResponse.data.name || 'desconocido'}\n`);
         
         // Intentar obtener grupos desde el endpoint /api/groups
         console.log('🔍 Obteniendo lista de grupos...\n');
