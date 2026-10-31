@@ -13,6 +13,35 @@ const net = require('net');
 
 const WHATSAPP_PROXY_TARGET = 'https://whatsapp.checkin24hs.com';
 
+// ===== CONFIGURACIÓN DE API KEYS =====
+// API key principal (fallback para todas las instancias)
+const WHATSAPP_API_KEY = (process.env.WHATSAPP_API_KEY || '').trim();
+
+// API keys por instancia (opcional, con fallback a WHATSAPP_API_KEY)
+const WHATSAPP_API_KEYS = {
+  1: (process.env.WHATSAPP1_API_KEY || WHATSAPP_API_KEY).trim(),
+  2: (process.env.WHATSAPP2_API_KEY || WHATSAPP_API_KEY).trim(),
+  3: (process.env.WHATSAPP3_API_KEY || WHATSAPP_API_KEY).trim(),
+  4: (process.env.WHATSAPP4_API_KEY || WHATSAPP_API_KEY).trim(),
+};
+
+if (!WHATSAPP_API_KEY) {
+  console.warn('');
+  console.warn('⚠️⚠️⚠️ ADVERTENCIA DE SEGURIDAD ⚠️⚠️⚠️');
+  console.warn('WHATSAPP_API_KEY no configurada.');
+  console.warn('El proxy del dashboard NO podrá comunicarse con el servidor WhatsApp protegido.');
+  console.warn('Configura WHATSAPP_API_KEY para habilitar autenticación.');
+  console.warn('');
+} else {
+  console.log('🔒 Dashboard proxy con API key habilitada');
+  Object.keys(WHATSAPP_API_KEYS).forEach(n => {
+    if (WHATSAPP_API_KEYS[n]) {
+      const isCustom = WHATSAPP_API_KEYS[n] !== WHATSAPP_API_KEY;
+      console.log(`   L${n}: ${isCustom ? 'clave específica' : 'clave principal'}`);
+    }
+  });
+}
+
 /** Proxy estado/QR: red interna Docker primero, luego URL pública (evita 404 Traefik + CORS en dashboard). */
 const WHATSAPP_INSTANCE_TARGETS = {
   1: {
@@ -75,6 +104,14 @@ function proxyWhatsAppGet(instance, apiPath, reqHeaders, res) {
     res.end(JSON.stringify({ error: 'Instancia WhatsApp no configurada: ' + instance }));
     return;
   }
+  
+  // Agregar API key si está configurada
+  const apiKey = WHATSAPP_API_KEYS[inst];
+  const headers = { ...reqHeaders };
+  if (apiKey) {
+    headers['x-api-key'] = apiKey;
+  }
+  
   const urls = [targets.internal, targets.public];
   const tryAt = (idx) => {
     if (idx >= urls.length) {
@@ -83,7 +120,7 @@ function proxyWhatsAppGet(instance, apiPath, reqHeaders, res) {
       return;
     }
     const fullUrl = urls[idx] + apiPath;
-    proxyHttpGet(fullUrl, reqHeaders, (err, code, body, headers) => {
+    proxyHttpGet(fullUrl, headers, (err, code, body, headers) => {
       if (err || !code || code === 404 || code >= 502) {
         console.warn('[WhatsApp proxy] L' + inst, fullUrl, err?.message || ('HTTP ' + code));
         tryAt(idx + 1);
@@ -454,7 +491,9 @@ const server = http.createServer((req, res) => {
   // Proxy WhatsApp: /whatsapp-send, /api/whatsapp-send (por si Traefik solo reenvía /api/*)
   const isProxySend = urlPath === '/whatsapp-send' || urlPath === '/api/whatsapp-send' || urlPath.endsWith('/whatsapp-send');
   const isProxyAudio = urlPath === '/whatsapp-send-audio' || urlPath === '/api/whatsapp-send-audio' || urlPath.endsWith('/whatsapp-send-audio');
-  if (req.method === 'OPTIONS' && (isProxySend || isProxyAudio)) {
+  const isProxyMedia = urlPath === '/whatsapp-send-media' || urlPath === '/api/whatsapp-send-media' || urlPath.endsWith('/whatsapp-send-media');
+  
+  if (req.method === 'OPTIONS' && (isProxySend || isProxyAudio || isProxyMedia)) {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -464,22 +503,32 @@ const server = http.createServer((req, res) => {
     res.end();
     return;
   }
-  if (req.method === 'POST' && (isProxySend || isProxyAudio)) {
-    const targetPath = isProxyAudio ? '/api/send-audio' : '/api/send';
+  
+  if (req.method === 'POST' && (isProxySend || isProxyAudio || isProxyMedia)) {
+    const targetPath = isProxyAudio ? '/api/send-audio' 
+                     : isProxyMedia ? '/api/send-media'
+                     : '/api/send';
     let body = [];
     req.on('data', (chunk) => body.push(chunk));
     req.on('end', () => {
       const rawBody = Buffer.concat(body);
       const targetUrl = new URL(WHATSAPP_PROXY_TARGET + targetPath);
+      const headers = {
+        'Content-Type': 'application/json',
+        'Content-Length': rawBody.length
+      };
+      
+      // Agregar API key si está configurada (usa la de L1 por defecto)
+      if (WHATSAPP_API_KEYS[1]) {
+        headers['x-api-key'] = WHATSAPP_API_KEYS[1];
+      }
+      
       const opts = {
         hostname: targetUrl.hostname,
         port: targetUrl.port || 443,
         path: targetUrl.pathname,
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': rawBody.length
-        }
+        headers
       };
       const proxyReq = https.request(opts, (proxyRes) => {
         res.writeHead(proxyRes.statusCode || 200, {

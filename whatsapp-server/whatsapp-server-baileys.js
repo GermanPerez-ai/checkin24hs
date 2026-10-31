@@ -5482,10 +5482,16 @@ async function procesarConFlor(mensaje, contexto = {}, imageParts = []) {
             const errMsg403 = errBody403?.error?.message || errBody403?.message || (typeof errBody403 === 'string' ? errBody403 : '');
             console.error('❌ Error 403 de Gemini:', errMsg403 || 'API key sin permisos o cuota excedida.');
             if (errBody403 && typeof errBody403 === 'object') console.error('   Detalle:', JSON.stringify(errBody403).slice(0, 500));
+            console.error('   💡 Verifica que GEMINI_API_KEY esté configurada correctamente en las variables de entorno.');
         } else if (error.code === 'ECONNABORTED') {
-            console.error('❌ Timeout al procesar con Flor (30s).');
+            console.error('❌ Timeout al procesar con Flor (45s).');
         } else {
             console.error('❌ Error procesando con Flor:', error.message || error.response?.data || error);
+            if (error.response) {
+                console.error('   HTTP Status:', error.response.status);
+                console.error('   Response data:', typeof error.response.data === 'object' ? JSON.stringify(error.response.data).slice(0, 800) : String(error.response.data).slice(0, 500));
+            }
+            if (error.config?.url) console.error('   URL:', error.config.url.replace(/key=[^&]+/, 'key=***'));
         }
         console.log('🔄 Usando respuesta predefinida: noEntendido');
         const msg = maybeResetContextAndNoEntendido(phoneKey, responses.noEntendido);
