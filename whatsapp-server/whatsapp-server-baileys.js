@@ -156,7 +156,7 @@ function corsOrigin(origin, cb) {
     return cb(null, false);
 }
 
-const CORS_ALLOW_HEADERS = 'Content-Type, Authorization, Accept, X-Requested-With';
+const CORS_ALLOW_HEADERS = 'Content-Type, Authorization, Accept, X-Requested-With, x-api-key';
 const CORS_ALLOW_METHODS = 'GET, POST, OPTIONS, PUT, DELETE';
 
 // Primero: OPTIONS y cabeceras en TODAS las respuestas (incl. preflight desde el dashboard).
@@ -179,7 +179,7 @@ app.use((req, res, next) => {
 app.use(cors({
     origin: corsOrigin,
     methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'X-Requested-With', 'x-api-key'],
     credentials: false
 }));
 
@@ -194,6 +194,94 @@ app.options('*', (req, res) => {
 
 // Límite alto para /api/send-media (archivos en base64 ~33% más grandes que el original)
 app.use(express.json({ limit: '30mb' }));
+
+// ===== AUTENTICACIÓN POR API KEY =====
+const API_KEY = (process.env.WHATSAPP_API_KEY || '').trim();
+const API_KEY_REQUIRED = process.env.NODE_ENV === 'production' || process.env.REQUIRE_API_KEY === 'true';
+
+if (!API_KEY) {
+    if (API_KEY_REQUIRED) {
+        console.error('');
+        console.error('❌❌❌ CRITICAL SECURITY ERROR ❌❌❌');
+        console.error('La variable WHATSAPP_API_KEY no está configurada.');
+        console.error('El servidor NO puede arrancar de forma segura en producción sin una API key.');
+        console.error('Por favor, configura WHATSAPP_API_KEY en las variables de entorno.');
+        console.error('');
+        process.exit(1);
+    } else {
+        console.warn('');
+        console.warn('⚠️⚠️⚠️ ADVERTENCIA DE SEGURIDAD ⚠️⚠️⚠️');
+        console.warn('WHATSAPP_API_KEY no configurada. Los endpoints NO están protegidos.');
+        console.warn('Esto solo es aceptable en desarrollo local.');
+        console.warn('Para producción, configura WHATSAPP_API_KEY y REQUIRE_API_KEY=true');
+        console.warn('');
+    }
+}
+
+/**
+ * Comparación en tiempo constante para prevenir timing attacks.
+ * Siempre compara byte a byte sin short-circuit.
+ */
+function constantTimeCompare(a, b) {
+    if (typeof a !== 'string' || typeof b !== 'string') {
+        return false;
+    }
+    if (a.length !== b.length) {
+        return false;
+    }
+    let mismatch = 0;
+    for (let i = 0; i < a.length; i++) {
+        mismatch |= a.charCodeAt(i) ^ b.charCodeAt(i);
+    }
+    return mismatch === 0;
+}
+
+/**
+ * Middleware de autenticación por API key.
+ * Verifica el header x-api-key o Authorization: Bearer <key>
+ */
+function requireApiKey(req, res, next) {
+    if (!API_KEY) {
+        return next();
+    }
+
+    const apiKeyFromHeader = req.headers['x-api-key'];
+    const authHeader = req.headers['authorization'];
+    let providedKey = null;
+
+    if (apiKeyFromHeader) {
+        providedKey = String(apiKeyFromHeader).trim();
+    } else if (authHeader) {
+        const match = authHeader.match(/^Bearer\s+(.+)$/i);
+        if (match) {
+            providedKey = match[1].trim();
+        }
+    }
+
+    if (!providedKey) {
+        console.warn(`🔒 Acceso denegado a ${req.method} ${req.path} - Sin API key`);
+        return res.status(401).json({
+            error: 'No autorizado',
+            message: 'Se requiere API key. Usa el header x-api-key o Authorization: Bearer <key>'
+        });
+    }
+
+    if (!constantTimeCompare(providedKey, API_KEY)) {
+        console.warn(`🔒 Acceso denegado a ${req.method} ${req.path} - API key inválida`);
+        return res.status(403).json({
+            error: 'Prohibido',
+            message: 'API key inválida'
+        });
+    }
+
+    next();
+}
+
+if (API_KEY) {
+    console.log('🔒 Autenticación por API key habilitada');
+} else {
+    console.log('⚠️  Autenticación por API key deshabilitada (solo desarrollo)');
+}
 
 // ===== CLIENTE DE SUPABASE =====
 let supabase = null;
@@ -8058,8 +8146,8 @@ app.get(['/api/health', '/health'], (req, res) => {
     });
 });
 
-// Obtener QR Code (ambas rutas funcionan)
-app.get(['/api/qr', '/qr'], async (req, res) => {
+// Obtener QR Code (ambas rutas funcionan) - PROTEGIDO
+app.get(['/api/qr', '/qr'], requireApiKey, async (req, res) => {
     res.header('Access-Control-Allow-Origin', '*');
     
     // Detectar si es una petición del navegador (HTML) o API (JSON)
@@ -8310,8 +8398,8 @@ app.get(['/api/qr', '/qr'], async (req, res) => {
     }
 });
 
-// Obtener estado
-app.get(['/api/status', '/status'], (req, res) => {
+// Obtener estado - PROTEGIDO
+app.get(['/api/status', '/status'], requireApiKey, (req, res) => {
     res.header('Access-Control-Allow-Origin', '*');
     
     // Detectar si es una petición del navegador (HTML) o API (JSON)
@@ -8548,8 +8636,8 @@ function normalizarNumeroParaEnvio(numero) {
     return num;
 }
 
-// Enviar mensaje (chat_id opcional: si lo envía el dashboard, se usa para guardar en el mismo chat y que los mensajes aparezcan)
-app.post('/api/send', async (req, res) => {
+// Enviar mensaje (chat_id opcional: si lo envía el dashboard, se usa para guardar en el mismo chat y que los mensajes aparezcan) - PROTEGIDO
+app.post('/api/send', requireApiKey, async (req, res) => {
     try {
         const { number, text, chat_id: chatIdFromDashboard } = req.body;
 
@@ -8635,9 +8723,9 @@ function webmToOgg(buffer) {
     });
 }
 
-// Enviar audio (voz) - usado por el dashboard cuando el asesor envía nota de voz (chat_id opcional)
+// Enviar audio (voz) - usado por el dashboard cuando el asesor envía nota de voz (chat_id opcional) - PROTEGIDO
 // ptt: true = nota de voz en WhatsApp. WebM se convierte a OGG para mejor compatibilidad.
-app.post('/api/send-audio', async (req, res) => {
+app.post('/api/send-audio', requireApiKey, async (req, res) => {
     try {
         const { number, audioBase64, mimetype, chat_id: chatIdFromDashboard } = req.body;
         if (!number || !audioBase64) {
@@ -8685,7 +8773,7 @@ app.post('/api/send-audio', async (req, res) => {
 });
 
 // Enviar imagen, video o documento - usado por el dashboard (chat_id opcional)
-app.post('/api/send-media', async (req, res) => {
+app.post('/api/send-media', requireApiKey, async (req, res) => {
     try {
         const { number, type, dataBase64, mimetype, fileName, caption, chat_id: chatIdFromDashboard } = req.body;
         if (!number || !type || !dataBase64) {
@@ -8833,7 +8921,7 @@ async function guardarConversacionCanal(canal, externalId, displayName, userMess
 }
 
 // API para procesar mensaje con Flor IA (web, Instagram, Facebook, TikTok, etc.)
-app.post('/api/flor/process', async (req, res) => {
+app.post('/api/flor/process', requireApiKey, async (req, res) => {
     res.header('Access-Control-Allow-Origin', '*');
     try {
         const { message, context = {}, channel, external_id, display_name } = req.body;
