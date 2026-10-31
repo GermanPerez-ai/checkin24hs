@@ -351,10 +351,15 @@ El dashboard NO expone la API key en el navegador. En su lugar:
    - ➕ Lee `WHATSAPP_API_KEY` de variables de entorno
    - ➕ Agrega header `x-api-key` en todas las llamadas a WhatsApp API
 
-3. **serve-dashboard.js**
-   - ➕ Endpoints de proxy: `/api/whatsapp-proxy/*`
+3. **ana/notify.js**
    - ➕ Lee `WHATSAPP_API_KEY` de variables de entorno
-   - ➕ Reenvía peticiones con la API key sin exponerla al navegador
+   - ➕ Agrega header `x-api-key` en todas las llamadas a WhatsApp API
+   - ➕ Warning si la API key no está configurada
+
+4. **whatsapp-proxy-adapter.js** (nuevo archivo)
+   - ➕ Intercepta automáticamente fetch y XMLHttpRequest en el navegador
+   - ➕ Redirige transparentemente llamadas de WhatsApp al proxy local
+   - ➕ Puede incluirse en dashboard.html o cualquier app frontend
 
 ---
 
