@@ -63,13 +63,17 @@ GEMINI_API_KEY=TU_API_KEY_AQUÍ
 
 ### 2. Base de datos (Supabase)
 
-Ejecuta la migración en el SQL Editor de Supabase:
+Ejecuta las migraciones en el SQL Editor de Supabase:
 
 ```bash
+# Migración 088: Crear tabla email_monitor_notifications
 supabase-migrations/088_email_monitor_notifications.sql
+
+# Migración 089: Corregir constraint de status (incluye 'marked_existing')
+supabase-migrations/089_fix_email_monitor_status_constraint.sql
 ```
 
-Esto crea la tabla `email_monitor_notifications` para controlar duplicados.
+Esto crea la tabla `email_monitor_notifications` para controlar duplicados y actualiza la constraint de status para soportar todos los estados que usa el código (incluyendo `marked_existing` para el flag `--mark-existing`).
 
 ### 3. Obtener el ID del grupo de WhatsApp
 
