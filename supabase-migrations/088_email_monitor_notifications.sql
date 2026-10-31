@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS public.email_monitor_notifications (
     summary TEXT,
     notified_at TIMESTAMPTZ DEFAULT NOW(),
     status TEXT NOT NULL DEFAULT 'notified'
-        CHECK (status IN ('notified', 'error', 'skipped')),
+        CHECK (status IN ('processing', 'notified', 'error', 'skipped')),
     error_detail TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );

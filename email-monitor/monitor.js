@@ -131,6 +131,21 @@ function cleanEmailText(text) {
 }
 
 /**
+ * Extrae texto de HTML (fallback para correos HTML-only)
+ */
+function extractTextFromHTML(html) {
+    if (!html) return '';
+    
+    // Remover tags HTML básico
+    return html
+        .replace(/<style[^>]*>.*?<\/style>/gis, '')
+        .replace(/<script[^>]*>.*?<\/script>/gis, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+/**
  * Extrae información relevante del correo
  */
 function extractEmailInfo(parsed) {
@@ -143,7 +158,14 @@ function extractEmailInfo(parsed) {
         : fromAddr;
     
     const subject = (parsed.subject || 'Sin asunto').trim();
-    const cleanedText = cleanEmailText(parsed.text);
+    
+    // Preferir texto plano, pero si está vacío usar HTML
+    let rawText = parsed.text || '';
+    if (!rawText || rawText.trim().length < 10) {
+        rawText = extractTextFromHTML(parsed.html);
+    }
+    
+    const cleanedText = cleanEmailText(rawText);
     
     return {
         messageId: parsed.messageId,
@@ -199,11 +221,14 @@ async function generateAISummary(info) {
     }
     
     try {
+        // Limitar texto para evitar prompts muy largos (max ~800 chars para Gemini)
+        const textoParaIA = info.text.substring(0, 800);
+        
         const prompt = `Eres un asistente que resume correos de hoteles sobre reservas.
 
 Correo de: ${info.fromName} (${info.from})
 Asunto: ${info.subject}
-Texto: ${info.text}
+Texto: ${textoParaIA}
 
 Genera un resumen ejecutivo de máximo 100 caracteres que responda: ¿Quién envió el correo y qué dice sobre la reserva?
 Formato: "Hotel X: [acción/estado]"
@@ -289,10 +314,35 @@ async function markAsProcessed(info, summary, status = 'notified', errorDetail =
             });
         
         if (error) {
-            console.warn('⚠️  Error guardando en Supabase:', error.message);
+            throw error;
         }
     } catch (error) {
         console.warn('⚠️  Error guardando en Supabase:', error.message);
+        throw error;
+    }
+}
+
+/**
+ * Actualiza el estado de un correo ya registrado
+ */
+async function updateProcessedStatus(messageId, status, errorDetail = null) {
+    if (!supabase) return;
+    
+    try {
+        const { error } = await supabase
+            .from('email_monitor_notifications')
+            .update({
+                status: status,
+                error_detail: errorDetail,
+                notified_at: status === 'notified' ? new Date().toISOString() : undefined
+            })
+            .eq('message_id', messageId);
+        
+        if (error) {
+            console.warn('⚠️  Error actualizando estado en Supabase:', error.message);
+        }
+    } catch (error) {
+        console.warn('⚠️  Error actualizando estado en Supabase:', error.message);
     }
 }
 
@@ -362,6 +412,11 @@ async function processEmail(uid, client) {
         // Extraer información
         const info = extractEmailInfo(parsed);
         
+        // Verificar que sea realmente una respuesta/hilo (evitar newsletters)
+        if (!filter.isReply) {
+            return { status: 'filtered', reason: 'No es respuesta (falta In-Reply-To/References)' };
+        }
+        
         // Verificar duplicados
         if (await isAlreadyProcessed(info.messageId)) {
             return { status: 'duplicate', messageId: info.messageId };
@@ -369,7 +424,7 @@ async function processEmail(uid, client) {
         
         console.log(`\n📧 Procesando: ${info.subject}`);
         console.log(`   De: ${info.fromName} <${info.from}>`);
-        console.log(`   ${filter.isReply ? '↩️  Respuesta' : '📨 Correo nuevo'}`);
+        console.log(`   ↩️  Es respuesta`);
         
         // Generar resumen
         const summary = await generateAISummary(info);
@@ -381,9 +436,23 @@ async function processEmail(uid, client) {
             console.log(`De: ${info.fromName} <${info.from}>`);
             console.log(`Asunto: ${info.subject}`);
             console.log(`Resumen: ${summary}`);
-            console.log(`Texto: ${info.text.substring(0, 300)}...`);
+            console.log(`Texto (primeros 200 chars): ${info.text.substring(0, 200)}...`);
             console.log('-'.repeat(60));
             return { status: 'dry-run', info, summary };
+        }
+        
+        // PREVENIR RACE CONDITION: Registrar ANTES de enviar
+        // Si falla el insert por duplicado (unique constraint), otro proceso ya lo está manejando
+        try {
+            await markAsProcessed(info, summary, 'processing');
+        } catch (error) {
+            // Si falla por constraint único, es porque otro proceso lo insertó primero
+            if (error.message && (error.message.includes('duplicate') || error.message.includes('unique'))) {
+                console.log('   ⚠️  Otro proceso ya está procesando este correo');
+                return { status: 'duplicate', messageId: info.messageId };
+            }
+            // Otro tipo de error, continuar de todos modos
+            console.warn('   ⚠️  Error pre-registrando (continuando):', error.message);
         }
         
         // Enviar a WhatsApp
@@ -391,13 +460,13 @@ async function processEmail(uid, client) {
             await sendWhatsAppNotification(info, summary);
             console.log('   ✅ Notificado por WhatsApp');
             
-            // Marcar como procesado
-            await markAsProcessed(info, summary, 'notified');
+            // Actualizar estado a 'notified'
+            await updateProcessedStatus(info.messageId, 'notified', null);
             
             return { status: 'notified', info, summary };
         } catch (error) {
             console.error('   ❌ Error enviando a WhatsApp:', error.message);
-            await markAsProcessed(info, summary, 'error', error.message);
+            await updateProcessedStatus(info.messageId, 'error', error.message);
             return { status: 'error', error: error.message };
         }
         
