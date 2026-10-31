@@ -96,12 +96,19 @@ WHATSAPP_API_KEY=3K7mP9qR2sT4uV6wX8yZ0aB1cD2eF3gH
 WHATSAPP_API_URL=https://whatsapp.checkin24hs.com
 ```
 
-**IMPORTANTE**: El dashboard ahora debe usar rutas proxy locales en lugar de llamar directamente al servidor WhatsApp. Las rutas del proxy son:
-- `/api/whatsapp-proxy/send` → `https://whatsapp.checkin24hs.com/api/send`
-- `/api/whatsapp-proxy/send-audio` → `https://whatsapp.checkin24hs.com/api/send-audio`
-- `/api/whatsapp-proxy/send-media` → `https://whatsapp.checkin24hs.com/api/send-media`
-- `/api/whatsapp-proxy/status` → `https://whatsapp.checkin24hs.com/api/status`
-- `/api/whatsapp-proxy/qr` → `https://whatsapp.checkin24hs.com/api/qr`
+**IMPORTANTE - Actualizar dashboard.html**:
+
+El dashboard.html debe usar el adapter que intercepta las llamadas automáticamente. Agrega esta línea al **inicio** del `<body>` en dashboard.html (antes de cualquier otro script):
+
+```html
+<script src="./whatsapp-proxy-adapter.js"></script>
+```
+
+El archivo `whatsapp-proxy-adapter.js` ya está incluido en el repositorio. Este script intercepta automáticamente todas las llamadas a `https://whatsapp.checkin24hs.com/api/*` y las redirige a `/api/whatsapp-proxy/*` (el proxy local).
+
+**ALTERNATIVA - Si no quieres modificar dashboard.html**:
+
+Puedes servir el dashboard.html con el adapter inyectado automáticamente modificando serve-dashboard.js. Esto ya está documentado en el código del adapter.
 
 ---
 
