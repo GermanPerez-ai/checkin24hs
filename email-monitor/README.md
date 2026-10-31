@@ -52,6 +52,7 @@ SUPABASE_SERVICE_ROLE_KEY=TU_SERVICE_ROLE_KEY_AQUÍ
 
 # WhatsApp
 WHATSAPP_API_URL=http://localhost:3001
+WHATSAPP_API_KEY=TU_API_KEY_AQUÍ
 WHATSAPP_GROUP_ID=TU_GROUP_ID_AQUÍ
 
 # IA (opcional - mejora los resúmenes)
@@ -295,6 +296,19 @@ Verifica que el archivo `.env` exista y tenga la contraseña configurada.
    ```
 2. Verifica el puerto en `WHATSAPP_API_URL` (default: 3001)
 3. Revisa los logs del servidor WhatsApp
+
+### Error: 401 Unauthorized o 403 Forbidden
+
+El servidor de WhatsApp requiere autenticación (PR #2):
+
+1. Verifica que `WHATSAPP_API_KEY` esté configurada en `.env`
+2. La API key debe ser **exactamente igual** a la del servidor WhatsApp
+3. Verifica que el servidor WhatsApp tenga `WHATSAPP_API_KEY` configurada
+4. Si no tenés la clave, generá una nueva:
+   ```bash
+   openssl rand -base64 32
+   ```
+5. Configurá la misma clave en ambos servicios (servidor WhatsApp y monitor)
 
 ### Error: "AUTHENTICATIONFAILED" (IMAP)
 

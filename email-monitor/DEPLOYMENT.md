@@ -149,6 +149,7 @@ En la configuración del servicio, agrega:
 SUPABASE_URL=...
 SUPABASE_ANON_KEY=...
 GEMINI_API_KEY=...
+WHATSAPP_API_KEY=...  # ⚠️ LA MISMA que el servidor WhatsApp (PR #2)
 
 # Nuevas (Monitor de Email)
 IMAP_HOST=imap.hostinger.com
@@ -156,11 +157,14 @@ IMAP_PORT=993
 IMAP_USER=reservas@checkin24hs.com
 IMAP_PASS=tu_password_hostinger
 IMAP_SECURE=1
+WHATSAPP_API_KEY=tu_api_key_whatsapp  # Misma que el servidor
 WHATSAPP_GROUP_ID=120363123456789012@g.us
 SUPABASE_SERVICE_ROLE_KEY=tu_service_role_key
 ```
 
-**⚠️ Nota**: Para `SUPABASE_SERVICE_ROLE_KEY`, usa la key de servicio (no la anon key).
+**⚠️ Notas importantes**:
+- Para `SUPABASE_SERVICE_ROLE_KEY`, usa la key de servicio (no la anon key)
+- `WHATSAPP_API_KEY` debe ser **exactamente igual** en el servidor WhatsApp y el monitor (ver PR #2)
 
 ## 🔐 Configuración de Credenciales
 
@@ -181,7 +185,22 @@ Obtén la contraseña del correo `reservas@checkin24hs.com`:
 4. Copia la `service_role` key (NO la `anon` key)
 5. ⚠️ Esta key tiene permisos totales, manéjala con cuidado
 
-### 3. ID del Grupo de WhatsApp
+### 3. API Key del servidor de WhatsApp
+
+**Importante**: Esta es la clave de seguridad agregada en el PR #2.
+
+1. Debe ser la **misma** `WHATSAPP_API_KEY` que configuraste en el servidor de WhatsApp
+2. Si aún no la generaste:
+   ```bash
+   openssl rand -base64 32
+   ```
+3. Configurala en **ambos** servicios:
+   - Servidor WhatsApp: `WHATSAPP_API_KEY`
+   - Monitor de email: `WHATSAPP_API_KEY`
+
+**⚠️ Si no coincide**: Las notificaciones fallarán con error 403 Forbidden.
+
+### 4. ID del Grupo de WhatsApp
 
 Ver `README.md` sección "Obtener el ID del grupo de WhatsApp" o ejecutar:
 
@@ -189,7 +208,7 @@ Ver `README.md` sección "Obtener el ID del grupo de WhatsApp" o ejecutar:
 node get-whatsapp-group-id.js
 ```
 
-### 4. API Key de Gemini (Opcional)
+### 5. API Key de Gemini (Opcional)
 
 1. Ve a: https://aistudio.google.com/app/apikey
 2. Crea una API key nueva
@@ -345,8 +364,29 @@ echo $WHATSAPP_GROUP_ID
 # Debe tener formato: 120363123456789012@g.us
 
 # Verificar que el servidor de WhatsApp esté conectado
-curl http://localhost:3001/api/status
+# (requiere API key desde PR #2)
+curl -H "x-api-key: TU_API_KEY" http://localhost:3001/api/status
 ```
+
+### Error 401 Unauthorized / 403 Forbidden
+
+El servidor de WhatsApp ahora requiere autenticación (PR #2):
+
+```bash
+# Verificar que la API key esté configurada
+echo $WHATSAPP_API_KEY
+
+# Verificar que coincida con la del servidor WhatsApp
+# Comparar con la variable en el servicio whatsapp-server-baileys
+
+# Test manual con curl
+curl -H "x-api-key: TU_API_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"number":"120363XXX@g.us","text":"Test"}' \
+     http://localhost:3001/api/send
+```
+
+**Solución**: Asegurate que `WHATSAPP_API_KEY` sea **exactamente igual** en ambos servicios.
 
 ### No detecta correos nuevos
 

@@ -14,15 +14,27 @@ require('dotenv').config();
 const axios = require('axios');
 
 const WHATSAPP_API_URL = process.env.WHATSAPP_API_URL || 'http://localhost:3001';
+const WHATSAPP_API_KEY = process.env.WHATSAPP_API_KEY;
 
 async function getGroupInfo() {
     console.log('🔍 Obteniendo información de grupos de WhatsApp...\n');
     console.log(`📡 Conectando a: ${WHATSAPP_API_URL}\n`);
     
+    if (!WHATSAPP_API_KEY) {
+        console.warn('⚠️  WHATSAPP_API_KEY no configurada en .env');
+        console.warn('   Si el servidor requiere autenticación, esta llamada fallará.\n');
+    }
+    
     try {
         // Verificar estado de conexión
+        const headers = {};
+        if (WHATSAPP_API_KEY) {
+            headers['x-api-key'] = WHATSAPP_API_KEY;
+        }
+        
         const statusResponse = await axios.get(`${WHATSAPP_API_URL}/api/status`, {
-            timeout: 5000
+            timeout: 5000,
+            headers: headers
         });
         
         if (statusResponse.data.status !== 'open') {

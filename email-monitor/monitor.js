@@ -34,6 +34,7 @@ const CONFIG = {
     },
     whatsapp: {
         apiUrl: process.env.WHATSAPP_API_URL || 'http://localhost:3001',
+        apiKey: process.env.WHATSAPP_API_KEY,
         groupId: process.env.WHATSAPP_GROUP_ID
     },
     gemini: {
@@ -55,6 +56,7 @@ function validateConfig() {
     if (!CONFIG.imap.auth.pass) errors.push('IMAP_PASS no configurado');
     if (!CONFIG.supabase.url) errors.push('SUPABASE_URL no configurado');
     if (!CONFIG.supabase.serviceRoleKey) errors.push('SUPABASE_SERVICE_ROLE_KEY no configurado');
+    if (!CONFIG.whatsapp.apiKey) errors.push('WHATSAPP_API_KEY no configurado');
     if (!CONFIG.whatsapp.groupId) errors.push('WHATSAPP_GROUP_ID no configurado');
     
     if (errors.length > 0) {
@@ -375,7 +377,10 @@ ${info.text.substring(0, 800)}${info.text.length > 800 ? '...' : ''}
             },
             {
                 timeout: 30000,
-                headers: { 'Content-Type': 'application/json' }
+                headers: {
+                    'Content-Type': 'application/json',
+                    'x-api-key': CONFIG.whatsapp.apiKey
+                }
             }
         );
         

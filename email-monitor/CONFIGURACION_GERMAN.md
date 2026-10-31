@@ -29,7 +29,25 @@ Este documento lista **TODO lo que necesitás configurar** para que el monitor d
 
 **⚠️ Cuidado:** Esta key tiene acceso total a la base. No la compartas ni la subas a git.
 
-### C. ID del grupo de WhatsApp
+### C. API Key del servidor de WhatsApp
+
+**¿Qué es?** Una clave de seguridad para autenticarte con el servidor de WhatsApp (agregada en PR #2)
+
+**¿Dónde la consigo?**
+Es la **misma API key** que configuraste para el servidor de WhatsApp en el PR #2.
+
+Si todavía no la generaste:
+1. Generá una clave segura (32 caracteres):
+   ```bash
+   openssl rand -base64 32
+   ```
+2. Guardala en un lugar seguro (LastPass, 1Password, etc)
+3. Configurala como `WHATSAPP_API_KEY` en el servidor de WhatsApp
+4. Usá la **misma clave** aquí
+
+**⚠️ Importante:** La API key debe ser exactamente la misma que tiene el servidor de WhatsApp. Si no coincide, las notificaciones fallarán con error 403 Forbidden.
+
+### D. ID del grupo de WhatsApp
 
 **¿Qué es?** El identificador único del grupo donde querés recibir las notificaciones
 
@@ -54,7 +72,7 @@ El script te guía paso a paso.
 **Opción 3 - Agregando código temporal:**
 Ver `README.md` sección "Obtener el ID del grupo"
 
-### D. API Key de Gemini (OPCIONAL)
+### E. API Key de Gemini (OPCIONAL)
 
 **¿Qué es?** Una clave para usar la IA de Google que genera resúmenes mejores
 
@@ -93,6 +111,7 @@ IMAP_PASS=TU_PASSWORD_AQUÍ
 SUPABASE_SERVICE_ROLE_KEY=TU_SERVICE_ROLE_KEY_AQUÍ
 
 # ===== WHATSAPP =====
+WHATSAPP_API_KEY=LA_MISMA_QUE_EL_SERVIDOR_WHATSAPP
 WHATSAPP_GROUP_ID=120363123456789012@g.us
 
 # ===== IA (opcional) =====
@@ -269,14 +288,15 @@ Hostinger tiene límites de conexiones IMAP simultáneas. Por eso el monitor:
 
 ## ✅ Resumen: Lo mínimo que necesitás
 
-1. ✅ Contraseña de Hostinger
+1. ✅ Contraseña de Hostinger (para IMAP)
 2. ✅ Service role key de Supabase
-3. ✅ ID del grupo de WhatsApp
-4. ✅ Completar el `.env`
-5. ✅ Ejecutar la migración SQL
-6. ✅ Probar con `--dry-run`
-7. ✅ Configurar PM2 o cron
-8. ✅ Monitorear que funciona
+3. ✅ API key del servidor de WhatsApp (misma del PR #2)
+4. ✅ ID del grupo de WhatsApp
+5. ✅ Completar el `.env`
+6. ✅ Ejecutar la migración SQL
+7. ✅ Probar con `--dry-run`
+8. ✅ Configurar PM2 o cron
+9. ✅ Monitorear que funciona
 
 **Tiempo estimado de configuración:** 15-30 minutos
 
