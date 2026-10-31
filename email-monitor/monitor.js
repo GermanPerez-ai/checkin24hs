@@ -62,9 +62,35 @@ const CONFIG = {
         .split(',')
         .map(s => s.trim().toLowerCase())
         .filter(Boolean),
+    agents: parseAgentNames(process.env.AGENT_NAMES || 'Mariano;German:Germán|German Perez|germanperez;Nazareno:Naza;Axel:Axel Bisio|axelbisio'),
     dryRun: process.argv.includes('--dry-run') || process.env.DRY_RUN === '1',
     markExisting: process.argv.includes('--mark-existing') || process.argv.includes('--seed')
 };
+
+/**
+ * Parsea la configuración de agentes desde AGENT_NAMES
+ * Formato: Nombre;Nombre2:alias1|alias2;Nombre3
+ * Retorna: [{ name: 'Nombre', aliases: ['nombre', 'alias1', 'alias2'] }, ...]
+ */
+function parseAgentNames(agentNamesStr) {
+    if (!agentNamesStr) return [];
+    
+    return agentNamesStr.split(';').map(entry => {
+        const parts = entry.split(':');
+        const name = parts[0].trim();
+        const aliases = parts.length > 1 
+            ? parts[1].split('|').map(a => a.trim().toLowerCase())
+            : [];
+        
+        // Agregar el nombre mismo como alias (en minúsculas)
+        const allAliases = [name.toLowerCase(), ...aliases];
+        
+        return {
+            name: name,
+            aliases: [...new Set(allAliases)] // Remover duplicados
+        };
+    }).filter(agent => agent.name);
+}
 
 // Validar configuración esencial
 function validateConfig() {
@@ -163,6 +189,104 @@ function getWhatsAppDestinations(email) {
         type: 'group',
         destinations: CONFIG.whatsapp.groupId ? [CONFIG.whatsapp.groupId] : []
     };
+}
+
+// ===== DETECCIÓN DE AGENTES =====
+
+/**
+ * Detecta qué agente de Checkin24hs solicitó la reserva
+ * Busca en orden de prioridad:
+ * 1. Mensaje original citado / firma (después de "De:/From:/El...escribió")
+ * 2. Saludo al inicio ("Hola Mariano", "Estimado Axel")
+ * 3. Headers To/Cc con direcciones personales
+ * 
+ * @param {string} rawText - Texto completo del email SIN limpiar (incluye citas)
+ * @param {object} parsed - Email parseado completo (para headers)
+ * @returns {string} - Nombre del agente o 'no identificado'
+ */
+function detectAgent(rawText, parsed) {
+    if (!rawText) return 'no identificado';
+    
+    const textLower = rawText.toLowerCase();
+    
+    // 1. PRIORIDAD: Buscar en el mensaje original citado / firma
+    // Buscar después de patrones como "De:", "From:", "El ... escribió:", "On ... wrote:"
+    const quotedPatterns = [
+        /(?:de|from):\s*([^\n]+)/gi,
+        /(?:el|on)\s+[^\n]*?,\s*([^\n<]+?)(?:\s+escribió|wrote|schrieb)/gi,
+        /^-{2,}\s*$/gm,  // Línea de firma
+    ];
+    
+    for (const pattern of quotedPatterns) {
+        const matches = textLower.matchAll(pattern);
+        for (const match of matches) {
+            const context = match[1] || textLower.slice(match.index, match.index + 200);
+            const agent = findAgentInText(context);
+            if (agent) return agent;
+        }
+    }
+    
+    // Buscar en firmas de email (emails como axelbisio@hotmail.com)
+    const emailMatches = textLower.match(/[\w.-]+@[\w.-]+\.\w+/g);
+    if (emailMatches) {
+        for (const email of emailMatches) {
+            const agent = findAgentInText(email);
+            if (agent) return agent;
+        }
+    }
+    
+    // 2. Buscar en saludos al inicio del mensaje (primeras 5 líneas)
+    const firstLines = textLower.split('\n').slice(0, 5).join('\n');
+    const greetingPatterns = [
+        /(?:hola|estimado|estimada|querido|querida|buen\s+día|buenos\s+días)\s+([a-záéíóúñ]+)/gi,
+        /([a-záéíóúñ]+)\s*,?\s*(?:como\s+estas|cómo\s+estás|buen\s+día)/gi
+    ];
+    
+    for (const pattern of greetingPatterns) {
+        const matches = firstLines.matchAll(pattern);
+        for (const match of matches) {
+            const name = match[1];
+            const agent = findAgentInText(name);
+            if (agent) return agent;
+        }
+    }
+    
+    // 3. Buscar en headers To/Cc
+    const recipients = [];
+    if (parsed.to && parsed.to.value) {
+        recipients.push(...parsed.to.value.map(r => r.address || '').filter(Boolean));
+    }
+    if (parsed.cc && parsed.cc.value) {
+        recipients.push(...parsed.cc.value.map(r => r.address || '').filter(Boolean));
+    }
+    
+    for (const email of recipients) {
+        const agent = findAgentInText(email.toLowerCase());
+        if (agent) return agent;
+    }
+    
+    return 'no identificado';
+}
+
+/**
+ * Busca coincidencias de agentes en un texto dado
+ * @param {string} text - Texto donde buscar (en minúsculas)
+ * @returns {string|null} - Nombre del agente encontrado o null
+ */
+function findAgentInText(text) {
+    if (!text) return null;
+    
+    const textLower = text.toLowerCase();
+    
+    for (const agent of CONFIG.agents) {
+        for (const alias of agent.aliases) {
+            if (textLower.includes(alias)) {
+                return agent.name;
+            }
+        }
+    }
+    
+    return null;
 }
 
 // Inicializar Supabase
@@ -269,12 +393,17 @@ function extractEmailInfo(parsed) {
     
     const cleanedText = cleanEmailText(rawText);
     
+    // Detectar qué agente solicitó (usar texto completo con citas)
+    const requestedBy = detectAgent(rawText, parsed);
+    
     return {
         messageId: parsed.messageId,
         from: fromAddr,
         fromName: fromName,
         subject: subject,
         text: cleanedText,
+        rawText: rawText,  // Texto completo para otras operaciones
+        requestedBy: requestedBy,
         date: parsed.date
     };
 }
@@ -467,6 +596,7 @@ async function sendWhatsAppNotification(info, summary) {
 📨 *De:* ${info.fromName}
 📧 *Email:* ${info.from}
 📋 *Asunto:* ${info.subject}
+👤 *Solicitado por:* ${info.requestedBy}
 
 💬 *Resumen:*
 ${summary}
@@ -570,6 +700,7 @@ async function processEmail(uid, client) {
         console.log(`   De: ${info.fromName} <${info.from}>`);
         console.log(`   ↩️  Es respuesta`);
         console.log(`   📍 Tipo: ${routing.type === 'group' ? 'HOTEL (grupo)' : 'PROVEEDOR (individual)'}`);
+        console.log(`   👤 Solicitado por: ${info.requestedBy}`);
         
         // Generar resumen
         const summary = await generateAISummary(info);
@@ -600,6 +731,7 @@ async function processEmail(uid, client) {
             console.log(`\n   Mensaje que se enviaría:\n${'-'.repeat(60)}`);
             console.log(`De: ${info.fromName} <${info.from}>`);
             console.log(`Asunto: ${info.subject}`);
+            console.log(`Solicitado por: ${info.requestedBy}`);
             console.log(`Tipo: ${routing.type === 'group' ? 'HOTEL -> Grupo' : 'PROVEEDOR -> Individual'}`);
             console.log(`Destino: ${routing.destinations.join(', ')}`);
             console.log(`Resumen: ${summary}`);
