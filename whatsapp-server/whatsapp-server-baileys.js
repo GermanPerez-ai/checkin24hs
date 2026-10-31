@@ -8604,10 +8604,20 @@ app.post('/api/send', async (req, res) => {
             return res.status(400).json({ error: 'WhatsApp no está conectado' });
         }
 
-        const raw = String(number || '').replace(/^\+/, '').replace(/\D/g, '').trim();
-        const num = normalizarNumeroParaEnvio(number) || raw;
-        console.log('📥 /api/send recibido number:', JSON.stringify(number), '-> para envío:', num, num !== raw ? '(Argentina normalizado)' : '');
-        const jid = num.includes('@') ? num : `${num}@s.whatsapp.net`;
+        // Si el número ya contiene @, es un JID completo (grupo @g.us o usuario @s.whatsapp.net)
+        // Usarlo tal cual sin normalizar
+        let num, jid;
+        if (String(number).includes('@')) {
+            num = String(number).trim();
+            jid = num;
+            console.log('📥 /api/send recibido JID completo:', JSON.stringify(number), '-> usando:', jid);
+        } else {
+            // Es un número de teléfono plano, normalizar para Argentina si es necesario
+            const raw = String(number || '').replace(/^\+/, '').replace(/\D/g, '').trim();
+            num = normalizarNumeroParaEnvio(number) || raw;
+            jid = `${num}@s.whatsapp.net`;
+            console.log('📥 /api/send recibido number:', JSON.stringify(number), '-> para envío:', num, num !== raw ? '(Argentina normalizado)' : '');
+        }
         // Emoji según tipo: cotización (📋) o mensaje manual del asesor (💬)
         const esCotizacion = /cotizaci[oó]n|cotizar|cotizar\.checkin24hs|tu cotizaci[oó]n|te enviamos.*cotizaci[oó]n/i.test(String(text));
         const textoConEmoji = añadirEmojiMensaje(text, esCotizacion ? 'cotizacion' : 'manual');
@@ -8712,8 +8722,15 @@ app.post('/api/send-audio', async (req, res) => {
                 console.error('Conversión webm→ogg falló, enviando webm:', e.message);
             }
         }
-        const num = normalizarNumeroParaEnvio(number) || String(number).replace(/^\+/, '').replace(/\D/g, '').trim();
-        const jid = num.includes('@') ? num : `${num}@s.whatsapp.net`;
+        // Si el número ya contiene @, es un JID completo (grupo @g.us o usuario @s.whatsapp.net)
+        let num, jid;
+        if (String(number).includes('@')) {
+            num = String(number).trim();
+            jid = num;
+        } else {
+            num = normalizarNumeroParaEnvio(number) || String(number).replace(/^\+/, '').replace(/\D/g, '').trim();
+            jid = `${num}@s.whatsapp.net`;
+        }
         // Rate-limit global + cola por JID (antes bypaseaba y saturaba Baileys en ráfagas)
         await sendOutboundMessage(sock, jid, { audio: buffer, mimetype: mime, ptt: true }, 'api-audio');
         await guardarMensaje(num.replace(/@.*$/, ''), '[Audio]', true, null, null, chatIdFromDashboard || null);
@@ -8748,8 +8765,15 @@ app.post('/api/send-media', async (req, res) => {
         if (buffer.length === 0) {
             return res.status(400).json({ error: 'dataBase64 inválido' });
         }
-        const num = normalizarNumeroParaEnvio(number) || String(number).replace(/^\+/, '').replace(/\D/g, '').trim();
-        const jid = num.includes('@') ? num : `${num}@s.whatsapp.net`;
+        // Si el número ya contiene @, es un JID completo (grupo @g.us o usuario @s.whatsapp.net)
+        let num, jid;
+        if (String(number).includes('@')) {
+            num = String(number).trim();
+            jid = num;
+        } else {
+            num = normalizarNumeroParaEnvio(number) || String(number).replace(/^\+/, '').replace(/\D/g, '').trim();
+            jid = `${num}@s.whatsapp.net`;
+        }
         const tipo = String(type).toLowerCase();
         const cap = (caption || '').slice(0, 1024);
         if (tipo === 'image') {
