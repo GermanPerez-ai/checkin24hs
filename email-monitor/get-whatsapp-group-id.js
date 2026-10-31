@@ -14,7 +14,7 @@ require('dotenv').config();
 const axios = require('axios');
 
 const WHATSAPP_API_URL = process.env.WHATSAPP_API_URL || 'http://localhost:3001';
-const WHATSAPP_API_KEY = process.env.WHATSAPP_API_KEY;
+const WHATSAPP_API_KEY = (process.env.WHATSAPP_API_KEY || '').trim().replace(/[\r\n]/g, '');
 
 async function getGroupInfo() {
     console.log('🔍 Obteniendo información de grupos de WhatsApp...\n');
@@ -37,48 +37,75 @@ async function getGroupInfo() {
             headers: headers
         });
         
-        if (statusResponse.data.status !== 'open') {
+        // La respuesta tiene formato: { connected: true, whatsapp: "connected", ... }
+        const isConnected = statusResponse.data.connected === true || 
+                           statusResponse.data.whatsapp === 'connected';
+        
+        if (!isConnected) {
             console.error('❌ WhatsApp no está conectado');
-            console.error(`   Estado actual: ${statusResponse.data.status}`);
+            console.error(`   Estado actual: connected=${statusResponse.data.connected}, whatsapp=${statusResponse.data.whatsapp}`);
             console.error('\n💡 Asegúrate de que el servidor de WhatsApp esté corriendo y conectado.');
             console.error('   Para conectar, escanea el QR en: ' + WHATSAPP_API_URL);
             process.exit(1);
         }
         
-        console.log('✅ WhatsApp conectado\n');
-        console.log('📋 Para obtener el ID del grupo, tienes dos opciones:\n');
+        console.log('✅ WhatsApp conectado');
+        console.log(`   📱 Teléfono: ${statusResponse.data.phone || 'desconocido'}`);
+        console.log(`   👤 Nombre: ${statusResponse.data.name || 'desconocido'}\n');
         
-        console.log('OPCIÓN 1: Revisar los logs del servidor de Baileys');
-        console.log('──────────────────────────────────────────────────');
-        console.log('1. Envía un mensaje a cualquier grupo desde el celular conectado');
-        console.log('2. Revisa los logs del servidor de WhatsApp:');
-        console.log('   pm2 logs whatsapp-1 --lines 50');
-        console.log('3. Busca líneas como: "Mensaje recibido de: 120363...@g.us"');
-        console.log('4. Copia ese ID (formato: 120363123456789012@g.us)\n');
+        // Intentar obtener grupos desde el endpoint /api/groups
+        console.log('🔍 Obteniendo lista de grupos...\n');
         
-        console.log('OPCIÓN 2: Usar el endpoint /api/groups (si está disponible)');
-        console.log('──────────────────────────────────────────────────');
-        console.log('Si el servidor tiene un endpoint de grupos, puedes hacer:');
-        console.log('   curl ' + WHATSAPP_API_URL + '/api/groups');
-        console.log('   (Este endpoint debe agregarse al servidor si no existe)\n');
-        
-        console.log('OPCIÓN 3: Agregar código temporal al servidor');
-        console.log('──────────────────────────────────────────────────');
-        console.log('Agrega este código al archivo whatsapp-server-baileys.js');
-        console.log('después de que se conecte (dentro del handler connection.update):');
-        console.log('');
-        console.log('   if (update.connection === "open") {');
-        console.log('       const groups = await sock.groupFetchAllParticipating();');
-        console.log('       console.log("📱 Grupos disponibles:");');
-        console.log('       Object.values(groups).forEach(g => {');
-        console.log('           console.log(`   ${g.subject}: ${g.id}`);');
-        console.log('       });');
-        console.log('   }');
-        console.log('\nLuego reinicia el servidor y busca en los logs.\n');
-        
-        console.log('Una vez que tengas el ID del grupo (ej: 120363123456789012@g.us),');
-        console.log('agrégalo al archivo .env:\n');
-        console.log('   WHATSAPP_GROUP_ID=120363123456789012@g.us\n');
+        try {
+            const groupsResponse = await axios.get(`${WHATSAPP_API_URL}/api/groups`, {
+                timeout: 10000,
+                headers: headers
+            });
+            
+            if (groupsResponse.data.success && groupsResponse.data.groups) {
+                const groups = groupsResponse.data.groups;
+                
+                if (groups.length === 0) {
+                    console.log('⚠️  No se encontraron grupos de WhatsApp');
+                    console.log('   Verifica que el número conectado esté en grupos.\n');
+                } else {
+                    console.log(`✅ Encontrados ${groups.length} grupo(s):\n`);
+                    console.log('═'.repeat(70));
+                    
+                    groups.forEach((group, index) => {
+                        console.log(`\n${index + 1}. 📱 ${group.subject}`);
+                        console.log(`   ID: ${group.id}`);
+                        console.log(`   Participantes: ${group.size || 'desconocido'}`);
+                    });
+                    
+                    console.log('\n' + '═'.repeat(70));
+                    console.log('\n💡 Para usar uno de estos grupos:');
+                    console.log('   1. Copia el ID del grupo deseado');
+                    console.log('   2. Agrégalo al archivo .env:\n');
+                    console.log('      WHATSAPP_GROUP_ID=120363123456789012@g.us\n');
+                }
+            } else {
+                throw new Error('Respuesta inválida del servidor');
+            }
+        } catch (groupsError) {
+            // Si el endpoint no existe, dar instrucciones alternativas
+            console.log('⚠️  No se pudo obtener la lista de grupos automáticamente');
+            console.log(`   Error: ${groupsError.message}\n`);
+            console.log('📋 Opciones para obtener el ID del grupo:\n');
+            
+            console.log('OPCIÓN 1: Revisar los logs del servidor de Baileys');
+            console.log('──────────────────────────────────────────────────');
+            console.log('1. Envía un mensaje a cualquier grupo desde el celular conectado');
+            console.log('2. Revisa los logs del servidor de WhatsApp:');
+            console.log('   pm2 logs whatsapp-1 --lines 50');
+            console.log('3. Busca líneas como: "Mensaje recibido de: 120363...@g.us"');
+            console.log('4. Copia ese ID (formato: 120363123456789012@g.us)\n');
+            
+            console.log('OPCIÓN 2: Agregar el endpoint /api/groups al servidor');
+            console.log('──────────────────────────────────────────────────');
+            console.log('Este PR ya incluye el endpoint necesario.');
+            console.log('Redeploy el servidor WhatsApp y vuelve a ejecutar este script.\n');
+        }
         
     } catch (error) {
         if (error.code === 'ECONNREFUSED') {

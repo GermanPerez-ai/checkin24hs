@@ -51,7 +51,9 @@ SUPABASE_URL=https://lmoeuyasuvoqhtvhkyia.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=TU_SERVICE_ROLE_KEY_AQUÍ
 
 # WhatsApp
-WHATSAPP_API_URL=http://localhost:3001
+# En producción (Docker Swarm): https://whatsapp.checkin24hs.com
+# En desarrollo local: http://localhost:3001
+WHATSAPP_API_URL=https://whatsapp.checkin24hs.com
 WHATSAPP_API_KEY=TU_API_KEY_AQUÍ
 WHATSAPP_GROUP_ID=TU_GROUP_ID_AQUÍ
 

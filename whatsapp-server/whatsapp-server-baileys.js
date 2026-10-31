@@ -8525,6 +8525,49 @@ app.get(['/api/status', '/status'], (req, res) => {
     res.json(statusData);
 });
 
+// Obtener lista de grupos de WhatsApp
+app.get('/api/groups', async (req, res) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    
+    try {
+        if (connectionStatus !== 'open' || !sock) {
+            return res.status(503).json({ 
+                success: false, 
+                error: 'WhatsApp no está conectado',
+                connected: false
+            });
+        }
+        
+        // Obtener todos los grupos donde participa el número conectado
+        const groups = await sock.groupFetchAllParticipating();
+        
+        // Formatear la respuesta con información útil
+        const groupsList = Object.values(groups).map(group => ({
+            id: group.id,
+            subject: group.subject,
+            size: group.size || (group.participants ? group.participants.length : 0),
+            owner: group.owner,
+            creation: group.creation,
+            desc: group.desc,
+            descOwner: group.descOwner,
+            descTime: group.descTime
+        }));
+        
+        res.json({
+            success: true,
+            groups: groupsList,
+            count: groupsList.length
+        });
+        
+    } catch (error) {
+        console.error('Error obteniendo grupos:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message || 'Error al obtener grupos'
+        });
+    }
+});
+
 /**
  * Normaliza número para envío WhatsApp. En Argentina (54) el móvil debe ser 54 9 XX XXXX XXXX (13 dígitos).
  * Si llega 542944210725 (54 + 10 dígitos = 12) se convierte a 5492944210725 (54 + 9 + 10 = 13) para que llegue al teléfono.

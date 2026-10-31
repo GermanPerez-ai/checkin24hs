@@ -122,7 +122,7 @@ GEMINI_API_KEY=TU_API_KEY_AQUÍ_SI_QUERÉS
 - `IMAP_HOST`: ya está configurado con Hostinger
 - `IMAP_USER`: ya es `reservas@checkin24hs.com`
 - `SUPABASE_URL`: ya está configurado
-- `WHATSAPP_API_URL`: si el servidor de WhatsApp está en el mismo servidor, dejalo como está
+- `WHATSAPP_API_URL`: en producción usa `https://whatsapp.checkin24hs.com` (los servicios corren en Docker Swarm, localhost:3001 NO es accesible desde el host)
 
 ## 🗄️ 3. Ejecutar la migración de base de datos
 

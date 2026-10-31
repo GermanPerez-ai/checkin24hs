@@ -34,7 +34,7 @@ const CONFIG = {
     },
     whatsapp: {
         apiUrl: process.env.WHATSAPP_API_URL || 'http://localhost:3001',
-        apiKey: process.env.WHATSAPP_API_KEY,
+        apiKey: (process.env.WHATSAPP_API_KEY || '').trim().replace(/[\r\n]/g, ''),
         groupId: process.env.WHATSAPP_GROUP_ID
     },
     gemini: {
