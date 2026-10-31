@@ -24,7 +24,8 @@ const CONFIG = {
         },
         tls: {
             rejectUnauthorized: process.env.IMAP_TLS_REJECT_UNAUTHORIZED !== '0'
-        }
+        },
+        logger: false
     },
     mailbox: process.env.IMAP_MAILBOX || 'INBOX',
     sinceDays: parseInt(process.env.IMAP_SINCE_DAYS || '7', 10),
@@ -35,7 +36,11 @@ const CONFIG = {
     whatsapp: {
         apiUrl: process.env.WHATSAPP_API_URL || 'http://localhost:3001',
         apiKey: (process.env.WHATSAPP_API_KEY || '').trim().replace(/[\r\n]/g, ''),
-        groupId: process.env.WHATSAPP_GROUP_ID
+        groupId: process.env.WHATSAPP_GROUP_ID,
+        providerNumbers: (process.env.WHATSAPP_PROVIDER_NUMBERS || '5492944210725,5492944579759')
+            .split(',')
+            .map(n => n.trim().replace(/\D/g, ''))
+            .filter(Boolean)
     },
     gemini: {
         apiKey: process.env.GEMINI_API_KEY || '',
@@ -45,7 +50,20 @@ const CONFIG = {
         .split(',')
         .map(k => k.trim().toLowerCase())
         .filter(Boolean),
-    dryRun: process.argv.includes('--dry-run') || process.env.DRY_RUN === '1'
+    providerDomains: (process.env.PROVIDER_DOMAINS || 'tanica.com,ratehawk.com,emergingtravel.com')
+        .split(',')
+        .map(d => d.trim().toLowerCase())
+        .filter(Boolean),
+    hotelDomains: (process.env.HOTEL_DOMAINS || '')
+        .split(',')
+        .map(d => d.trim().toLowerCase())
+        .filter(Boolean),
+    internalSenders: (process.env.INTERNAL_SENDERS || 'checkin24hs.com,checkin24hs@gmail.com,axelbisio@hotmail.com')
+        .split(',')
+        .map(s => s.trim().toLowerCase())
+        .filter(Boolean),
+    dryRun: process.argv.includes('--dry-run') || process.env.DRY_RUN === '1',
+    markExisting: process.argv.includes('--mark-existing') || process.argv.includes('--seed')
 };
 
 // Validar configuración esencial
@@ -57,7 +75,9 @@ function validateConfig() {
     if (!CONFIG.supabase.url) errors.push('SUPABASE_URL no configurado');
     if (!CONFIG.supabase.serviceRoleKey) errors.push('SUPABASE_SERVICE_ROLE_KEY no configurado');
     if (!CONFIG.whatsapp.apiKey) errors.push('WHATSAPP_API_KEY no configurado');
-    if (!CONFIG.whatsapp.groupId) errors.push('WHATSAPP_GROUP_ID no configurado');
+    if (!CONFIG.whatsapp.groupId && CONFIG.whatsapp.providerNumbers.length === 0) {
+        errors.push('WHATSAPP_GROUP_ID o WHATSAPP_PROVIDER_NUMBERS deben estar configurados');
+    }
     
     if (errors.length > 0) {
         console.error('❌ Errores de configuración:');
@@ -68,6 +88,81 @@ function validateConfig() {
     }
     
     return true;
+}
+
+// ===== CLASIFICACIÓN DE REMITENTES =====
+
+/**
+ * Verifica si un correo es de un remitente interno (no debe notificarse)
+ */
+function isInternalSender(email) {
+    const emailLower = email.toLowerCase();
+    return CONFIG.internalSenders.some(sender => {
+        // Si el sender contiene @, es un email completo
+        if (sender.includes('@')) {
+            return emailLower === sender;
+        }
+        // Si no, es un dominio (ej: checkin24hs.com)
+        return emailLower.endsWith('@' + sender);
+    });
+}
+
+/**
+ * Clasifica el tipo de remitente: 'provider', 'hotel', o 'internal'
+ */
+function classifySender(email) {
+    const emailLower = email.toLowerCase();
+    
+    // Verificar si es interno
+    if (isInternalSender(emailLower)) {
+        return 'internal';
+    }
+    
+    // Extraer dominio
+    const domain = emailLower.split('@')[1];
+    if (!domain) return 'hotel'; // Por defecto hotel si no hay dominio
+    
+    // Verificar si es proveedor
+    if (CONFIG.providerDomains.some(d => domain === d || domain.endsWith('.' + d))) {
+        return 'provider';
+    }
+    
+    // Verificar si está en la lista explícita de hoteles (si existe)
+    if (CONFIG.hotelDomains.length > 0) {
+        if (CONFIG.hotelDomains.some(d => domain === d || domain.endsWith('.' + d))) {
+            return 'hotel';
+        }
+        // Si hay lista de hoteles pero no matchea, tratar como provider
+        return 'provider';
+    }
+    
+    // Por defecto: si no es proveedor conocido, es hotel
+    return 'hotel';
+}
+
+/**
+ * Obtiene los destinatarios WhatsApp según el tipo de remitente
+ * Retorna: { type: 'group'|'providers'|'internal', destinations: [...] }
+ */
+function getWhatsAppDestinations(email) {
+    const senderType = classifySender(email);
+    
+    if (senderType === 'internal') {
+        return { type: 'internal', destinations: [] };
+    }
+    
+    if (senderType === 'provider') {
+        return {
+            type: 'providers',
+            destinations: CONFIG.whatsapp.providerNumbers
+        };
+    }
+    
+    // Hotel
+    return {
+        type: 'group',
+        destinations: CONFIG.whatsapp.groupId ? [CONFIG.whatsapp.groupId] : []
+    };
 }
 
 // Inicializar Supabase
@@ -98,10 +193,15 @@ function isReservationRelated(parsed) {
 }
 
 /**
- * Limpia el texto del correo removiendo firmas y citas
+ * Limpia el texto del correo removiendo firmas, citas y ruido
  */
 function cleanEmailText(text) {
     if (!text) return '';
+    
+    // Remover placeholders de imágenes inline [cid:...] y similares
+    text = text.replace(/\[cid:[^\]]+\]/gi, '');
+    text = text.replace(/\[image:[^\]]+\]/gi, '');
+    text = text.replace(/\[https?:\/\/[^\]]+\.(jpg|jpeg|png|gif|bmp|webp)\]/gi, '');
     
     const lines = text.split('\n');
     const cleaned = [];
@@ -351,9 +451,17 @@ async function updateProcessedStatus(messageId, status, errorDetail = null) {
 // ===== WHATSAPP =====
 
 /**
- * Envía notificación al grupo de WhatsApp
+ * Envía notificación por WhatsApp a los destinatarios correctos
+ * Retorna: { sent: number, destinations: string[], type: 'group'|'providers'|'internal' }
  */
 async function sendWhatsAppNotification(info, summary) {
+    const routing = getWhatsAppDestinations(info.from);
+    
+    // Si es remitente interno, no enviar nada
+    if (routing.type === 'internal') {
+        return { sent: 0, destinations: [], type: 'internal' };
+    }
+    
     const message = `📧 *Nueva respuesta sobre reserva*
 
 📨 *De:* ${info.fromName}
@@ -368,33 +476,58 @@ ${info.text.substring(0, 800)}${info.text.length > 800 ? '...' : ''}
 
 ⏰ ${new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}`;
 
-    try {
-        const response = await axios.post(
-            `${CONFIG.whatsapp.apiUrl}/api/send`,
-            {
-                number: CONFIG.whatsapp.groupId,
-                text: message
-            },
-            {
-                timeout: 30000,
-                headers: {
-                    'Content-Type': 'application/json',
-                    'x-api-key': CONFIG.whatsapp.apiKey
+    const results = [];
+    
+    for (const destination of routing.destinations) {
+        try {
+            const response = await axios.post(
+                `${CONFIG.whatsapp.apiUrl}/api/send`,
+                {
+                    number: destination,
+                    text: message
+                },
+                {
+                    timeout: 30000,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-api-key': CONFIG.whatsapp.apiKey
+                    }
                 }
+            );
+            
+            if (response.data && response.data.success) {
+                results.push({ destination, success: true });
+            } else {
+                results.push({ destination, success: false, error: response.data?.error || 'Unknown error' });
             }
-        );
-        
-        if (response.data && response.data.success) {
-            return true;
+        } catch (error) {
+            const errorMsg = error.response 
+                ? `Error ${error.response.status}: ${error.response.data?.error || error.message}`
+                : error.message;
+            results.push({ destination, success: false, error: errorMsg });
         }
-        
-        throw new Error(response.data?.error || 'Error desconocido del servidor WhatsApp');
-    } catch (error) {
-        if (error.response) {
-            throw new Error(`Error ${error.response.status}: ${error.response.data?.error || error.message}`);
-        }
-        throw error;
     }
+    
+    const successCount = results.filter(r => r.success).length;
+    const failedDestinations = results.filter(r => !r.success);
+    
+    if (successCount === 0) {
+        const firstError = failedDestinations[0]?.error || 'Error desconocido';
+        throw new Error(`No se pudo enviar a ningún destinatario: ${firstError}`);
+    }
+    
+    if (failedDestinations.length > 0) {
+        console.warn(`   ⚠️  Enviado a ${successCount}/${routing.destinations.length} destinatarios`);
+        failedDestinations.forEach(f => {
+            console.warn(`      ❌ ${f.destination}: ${f.error}`);
+        });
+    }
+    
+    return {
+        sent: successCount,
+        destinations: routing.destinations,
+        type: routing.type
+    };
 }
 
 // ===== MONITOR PRINCIPAL =====
@@ -422,6 +555,12 @@ async function processEmail(uid, client) {
             return { status: 'filtered', reason: 'No es respuesta (falta In-Reply-To/References)' };
         }
         
+        // Verificar si es remitente interno (excluir)
+        const routing = getWhatsAppDestinations(info.from);
+        if (routing.type === 'internal') {
+            return { status: 'internal', reason: 'Remitente interno excluido' };
+        }
+        
         // Verificar duplicados
         if (await isAlreadyProcessed(info.messageId)) {
             return { status: 'duplicate', messageId: info.messageId };
@@ -430,20 +569,43 @@ async function processEmail(uid, client) {
         console.log(`\n📧 Procesando: ${info.subject}`);
         console.log(`   De: ${info.fromName} <${info.from}>`);
         console.log(`   ↩️  Es respuesta`);
+        console.log(`   📍 Tipo: ${routing.type === 'group' ? 'HOTEL (grupo)' : 'PROVEEDOR (individual)'}`);
         
         // Generar resumen
         const summary = await generateAISummary(info);
         console.log(`   📝 Resumen: ${summary}`);
         
+        // Mostrar destino
+        if (routing.type === 'group') {
+            console.log(`   📲 Destino: Grupo ${routing.destinations[0]}`);
+        } else if (routing.type === 'providers') {
+            console.log(`   📲 Destino: ${routing.destinations.length} número(s) proveedor: ${routing.destinations.join(', ')}`);
+        }
+        
+        // Modo mark-existing: solo registrar sin enviar
+        if (CONFIG.markExisting) {
+            try {
+                await markAsProcessed(info, summary, 'marked_existing');
+                console.log('   ✅ Marcado como existente (no se envía)');
+                return { status: 'marked', info, summary };
+            } catch (error) {
+                console.warn('   ⚠️  Error marcando como existente:', error.message);
+                return { status: 'error', error: error.message };
+            }
+        }
+        
+        // Modo dry-run: mostrar pero no enviar
         if (CONFIG.dryRun) {
             console.log('   🧪 [DRY-RUN] No se envía a WhatsApp ni se marca como procesado');
             console.log(`\n   Mensaje que se enviaría:\n${'-'.repeat(60)}`);
             console.log(`De: ${info.fromName} <${info.from}>`);
             console.log(`Asunto: ${info.subject}`);
+            console.log(`Tipo: ${routing.type === 'group' ? 'HOTEL -> Grupo' : 'PROVEEDOR -> Individual'}`);
+            console.log(`Destino: ${routing.destinations.join(', ')}`);
             console.log(`Resumen: ${summary}`);
             console.log(`Texto (primeros 200 chars): ${info.text.substring(0, 200)}...`);
             console.log('-'.repeat(60));
-            return { status: 'dry-run', info, summary };
+            return { status: 'dry-run', info, summary, routing };
         }
         
         // PREVENIR RACE CONDITION: Registrar ANTES de enviar
@@ -462,13 +624,13 @@ async function processEmail(uid, client) {
         
         // Enviar a WhatsApp
         try {
-            await sendWhatsAppNotification(info, summary);
-            console.log('   ✅ Notificado por WhatsApp');
+            const result = await sendWhatsAppNotification(info, summary);
+            console.log(`   ✅ Notificado: ${result.sent} mensaje(s) enviado(s)`);
             
             // Actualizar estado a 'notified'
             await updateProcessedStatus(info.messageId, 'notified', null);
             
-            return { status: 'notified', info, summary };
+            return { status: 'notified', info, summary, result };
         } catch (error) {
             console.error('   ❌ Error enviando a WhatsApp:', error.message);
             await updateProcessedStatus(info.messageId, 'error', error.message);
@@ -496,11 +658,18 @@ async function monitor() {
         console.log('🧪 Modo DRY-RUN activado: no se enviarán notificaciones\n');
     }
     
+    if (CONFIG.markExisting) {
+        console.log('🏷️  Modo MARK-EXISTING activado: se marcarán correos sin enviar\n');
+    }
+    
     console.log('📋 Configuración:');
     console.log(`   IMAP: ${CONFIG.imap.auth.user}@${CONFIG.imap.host}`);
     console.log(`   Buzón: ${CONFIG.mailbox}`);
     console.log(`   Desde: hace ${CONFIG.sinceDays} días`);
-    console.log(`   WhatsApp: ${CONFIG.whatsapp.groupId}`);
+    console.log(`   WhatsApp Grupo (hoteles): ${CONFIG.whatsapp.groupId || 'No configurado'}`);
+    console.log(`   WhatsApp Números (proveedores): ${CONFIG.whatsapp.providerNumbers.join(', ')}`);
+    console.log(`   Proveedores conocidos: ${CONFIG.providerDomains.join(', ')}`);
+    console.log(`   Remitentes internos (excluidos): ${CONFIG.internalSenders.join(', ')}`);
     console.log(`   IA: ${CONFIG.gemini.apiKey ? 'Habilitada' : 'Deshabilitada (resumen simple)'}`);
     console.log(`   Palabras clave: ${CONFIG.filterKeywords.join(', ')}\n`);
     
@@ -534,13 +703,15 @@ async function monitor() {
             notified: 0,
             filtered: 0,
             duplicate: 0,
+            internal: 0,
+            marked: 0,
             error: 0,
-            dryRun: 0
+            'dry-run': 0
         };
         
         for (const uid of messages) {
             const result = await processEmail(uid, client);
-            stats[result.status]++;
+            stats[result.status] = (stats[result.status] || 0) + 1;
         }
         
         // Resumen
@@ -548,9 +719,17 @@ async function monitor() {
         console.log('📊 RESUMEN');
         console.log('='.repeat(60));
         console.log(`Total procesados: ${stats.total}`);
-        console.log(`✅ Notificados: ${stats.notified}`);
-        console.log(`🧪 Dry-run: ${stats.dryRun}`);
+        
+        if (CONFIG.markExisting) {
+            console.log(`🏷️  Marcados como existentes: ${stats.marked}`);
+        } else if (CONFIG.dryRun) {
+            console.log(`🧪 Dry-run (se enviarían): ${stats['dry-run']}`);
+        } else {
+            console.log(`✅ Notificados: ${stats.notified}`);
+        }
+        
         console.log(`🔍 Filtrados: ${stats.filtered}`);
+        console.log(`🏢 Internos (excluidos): ${stats.internal}`);
         console.log(`♻️  Duplicados: ${stats.duplicate}`);
         console.log(`❌ Errores: ${stats.error}`);
         console.log('='.repeat(60) + '\n');

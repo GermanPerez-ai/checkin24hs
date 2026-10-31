@@ -137,6 +137,21 @@ Si quieres resúmenes con IA:
 
 ## 🚀 Uso
 
+### 📍 Ruteo Automático por Tipo de Remitente
+
+El monitor clasifica automáticamente los correos y los envía al destino correcto:
+
+- **🏨 HOTELES** (confirmaciones, cancelaciones, cambios de fecha) → **Grupo de WhatsApp** (WHATSAPP_GROUP_ID)
+  - Ejemplos: huilohuilo.com, termashuife.cl, puyehue.cl, jahuel.cl, etc.
+  
+- **📦 PROVEEDORES/AGENCIAS** (tanica.com, ratehawk, wholesalers) → **Números individuales** (WHATSAPP_PROVIDER_NUMBERS)
+  - Configurables por dominio en PROVIDER_DOMAINS
+  
+- **🏢 INTERNOS** (checkin24hs.com, correos internos) → **No se notifican** (excluidos automáticamente)
+  - Configurables en INTERNAL_SENDERS
+
+**Clasificación**: Todo lo que no esté en PROVIDER_DOMAINS se considera hotel y va al grupo.
+
 ### Modo prueba (dry-run)
 
 Revisa qué correos detectaría sin enviar notificaciones:
@@ -149,6 +164,30 @@ o
 
 ```bash
 node monitor.js --dry-run
+```
+
+Muestra para cada correo:
+- ✅ Tipo (HOTEL o PROVEEDOR)
+- ✅ Destino (grupo o números individuales)
+- ✅ Resumen y primeros 200 caracteres
+
+### Marcar correos existentes (primera vez)
+
+**IMPORTANTE**: Antes de la primera ejecución real, marca todos los correos existentes como procesados para evitar notificar correos antiguos:
+
+```bash
+node monitor.js --mark-existing
+```
+
+Este comando:
+- ✅ Busca todos los correos en el rango configurado (IMAP_SINCE_DAYS)
+- ✅ Los marca como procesados en Supabase
+- ✅ NO envía ninguna notificación
+- ✅ Permite que la primera ejecución real solo procese correos nuevos
+
+También disponible como:
+```bash
+node monitor.js --seed
 ```
 
 ### Modo producción
@@ -244,6 +283,32 @@ SUPABASE_SERVICE_ROLE_KEY=tu_key
 WHATSAPP_GROUP_ID=120363123456789012@g.us
 GEMINI_API_KEY=tu_key_opcional
 ```
+
+## ⚙️ Configuración Avanzada
+
+### Ruteo y Clasificación
+
+```bash
+# Números WhatsApp para proveedores/agencias (separados por comas, solo dígitos)
+WHATSAPP_PROVIDER_NUMBERS=5492944210725,5492944579759
+
+# Dominios de proveedores/agencias (correos de estos dominios van a números individuales)
+PROVIDER_DOMAINS=tanica.com,ratehawk.com,emergingtravel.com
+
+# Dominios de hoteles (opcional - para clasificación explícita)
+# Si está vacío, cualquier email que no sea proveedor se considera hotel
+HOTEL_DOMAINS=
+
+# Remitentes internos a EXCLUIR (no se notifican)
+INTERNAL_SENDERS=checkin24hs.com,checkin24hs@gmail.com,axelbisio@hotmail.com
+```
+
+### Mejoras en el Procesamiento
+
+El monitor incluye:
+- ✅ **Silenciado de logs IMAP**: No muestra debug de imapflow para logs más limpios
+- ✅ **Limpieza de [cid:...] placeholders**: Remueve referencias a imágenes inline del texto
+- ✅ **Clasificación automática**: Hotels → grupo, Providers → individual, Internos → no notificar
 
 ## 🔍 Palabras Clave
 
