@@ -676,6 +676,9 @@ const florOutboundProtoForRetry = new Map();
 const FLOR_OUTBOUND_PROTO_MAX = 5000;
 const FLOR_OUTBOUND_PROTO_TTL_MS = 3 * 60 * 60 * 1000;
 
+// Cache for INBOUND message stubs (ciphertext/undecryptable) - needed for retry receipts to work
+const florInboundStubForRetry = new Map();
+
 // msgRetryCounterCache for Baileys retry handling (fixes "Esperando mensaje")
 const msgRetryCounterCache = new NodeCache({ 
     stdTTL: 3600,     // 1 hour TTL
@@ -696,16 +699,28 @@ function rememberFlorOutboundProtoForRetry(key, message) {
 }
 
 async function getFlorMessageForBaileysRetry(key) {
-    if (!key?.id) return undefined;
+    if (!key?.id) {
+        console.log(`🔄 getMessage called with no key.id`);
+        return undefined;
+    }
+    
+    console.log(`🔄 getMessage: CALLED for key.id=${key.id}, remoteJid=${key.remoteJid}, fromMe=${key.fromMe}`);
     
     // 1. Fast path: check outbound messages in RAM
     const ent = florOutboundProtoForRetry.get(String(key.id));
     if (ent?.message && Date.now() - ent.ts <= FLOR_OUTBOUND_PROTO_TTL_MS) {
-        console.log(`🔄 getMessage: outbound from RAM for ${key.id}`);
+        console.log(`🔄 getMessage: ✅ FOUND outbound from RAM for ${key.id}`);
         return ent.message;
     }
     
-    // 2. CRITICAL: Query Supabase for INBOUND messages (fixes "Esperando mensaje")
+    // 2. Check inbound stub messages cache (for retry receipts)
+    const stubEnt = florInboundStubForRetry.get(String(key.id));
+    if (stubEnt?.message && Date.now() - stubEnt.ts <= FLOR_OUTBOUND_PROTO_TTL_MS) {
+        console.log(`🔄 getMessage: ✅ FOUND inbound stub from RAM for ${key.id} (enables retry)`);
+        return stubEnt.message;
+    }
+    
+    // 3. Query Supabase for INBOUND messages (fixes "Esperando mensaje")
     if (supabase && key.id) {
         try {
             const { data, error } = await supabase
@@ -717,7 +732,7 @@ async function getFlorMessageForBaileysRetry(key) {
             if (!error && data?.baileys_message_proto) {
                 try {
                     const proto = JSON.parse(data.baileys_message_proto);
-                    console.log(`🔄 getMessage: INBOUND from Supabase for ${key.id} (fixes "Esperando mensaje")`);
+                    console.log(`🔄 getMessage: ✅ FOUND INBOUND from Supabase for ${key.id}`);
                     return proto;
                 } catch (parseErr) {
                     console.warn(`⚠️ getMessage: failed to parse proto for ${key.id}:`, parseErr.message);
@@ -728,8 +743,9 @@ async function getFlorMessageForBaileysRetry(key) {
         }
     }
     
-    // 3. Not found - customer will see "Esperando mensaje"
-    console.warn(`⚠️ getMessage: NOT FOUND for ${key.id} → customer sees "Esperando mensaje"`);
+    // 4. Not found - Baileys may log "recv retry request, but message not available"
+    console.warn(`⚠️ getMessage: ❌ NOT FOUND for ${key.id} (remoteJid=${key.remoteJid})`);
+    console.warn(`   → This means retry receipts won't work - sender will see "Esperando mensaje"`);
     trackPersistentDecryptFailure(key.remoteJid, key.id);
     return undefined;
 }
@@ -7415,7 +7431,54 @@ async function connectToWhatsApp() {
                         }
                     }
                 }
-                console.log(`⚠️ Mensaje sin contenido (message es null/undefined)`);
+                
+                // Enhanced logging for message stubs (ciphertext/undecryptable messages)
+                const debugInfo = {
+                    remoteJid: msg.key?.remoteJid,
+                    participant: msg.key?.participant,
+                    fromMe: msg.key?.fromMe,
+                    id: msg.key?.id,
+                    messageStubType: msg.messageStubType,
+                    messageStubParameters: msg.messageStubParameters,
+                    messageTimestamp: msg.messageTimestamp,
+                    pushName: msg.pushName,
+                    verifiedBizName: msg.verifiedBizName
+                };
+                
+                // Try to extract sender phone from envelope even without decrypted content
+                const senderPn = extractSenderPnFromMessageDeep(msg);
+                if (senderPn) {
+                    debugInfo.senderPn = senderPn;
+                }
+                
+                console.log(`⚠️ Mensaje sin contenido (message es null/undefined, posible CIPHERTEXT/stub)`);
+                console.log(`   Debug info:`, JSON.stringify(debugInfo, null, 2));
+                
+                // Check if this is a retry-eligible message (not a stub like "contact changed number")
+                const isMessageStub = msg.messageStubType != null;
+                if (isMessageStub) {
+                    console.log(`   → Es un messageStub (tipo ${msg.messageStubType}), no es mensaje descifrable`);
+                } else {
+                    console.log(`   → NO es stub, puede ser CIPHERTEXT no descifrado - retry debería recuperarlo`);
+                    
+                    // CRITICAL: Cache the FULL message (including envelope) for getMessage to find during retry
+                    // Baileys needs this to respond to retry receipts from the sender
+                    if (msg.key?.id && msg) {
+                        const msgId = String(msg.key.id);
+                        florInboundStubForRetry.set(msgId, { message: msg, ts: Date.now() });
+                        // Cleanup old entries
+                        while (florInboundStubForRetry.size > FLOR_OUTBOUND_PROTO_MAX) {
+                            const first = florInboundStubForRetry.keys().next().value;
+                            if (first == null) break;
+                            florInboundStubForRetry.delete(first);
+                        }
+                        console.log(`   → ✅ Cached stub message ${msgId} for getMessage/retry (cache size: ${florInboundStubForRetry.size})`);
+                    }
+                    
+                    // Log to help diagnose retry mechanism
+                    console.log(`   → msgRetryCounterCache debe trackear retry para key.id=${msg.key?.id}`);
+                }
+                
                 continue;
             }
 
