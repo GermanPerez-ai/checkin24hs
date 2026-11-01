@@ -22,9 +22,10 @@ const {
     default: makeWASocket,
     DisconnectReason,
     useMultiFileAuthState,
-    fetchLatestBaileysVersion,
-    makeCacheableSignalKeyStore
+    fetchLatestBaileysVersion
 } = baileysLib;
+// makeCacheableSignalKeyStore may not exist in all Baileys versions
+const makeCacheableSignalKeyStore = baileysLib.makeCacheableSignalKeyStore;
 /** Copia :device entre JIDs (LID→PN); reduce retries "message not available" en Business + LID. */
 const transferDeviceFn = typeof baileysLib.transferDevice === 'function' ? baileysLib.transferDevice : null;
 const jidNormalizedUserFn = typeof baileysLib.jidNormalizedUser === 'function' ? baileysLib.jidNormalizedUser : null;
@@ -6901,18 +6902,34 @@ async function connectToWhatsApp() {
 
     const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, `auth_info_baileys_${CONFIG.INSTANCE_NUMBER}`));
     
-    // Wrap with cacheable signal key store for performance (reduces session corruption)
-    const cacheableState = {
-        creds: state.creds,
-        keys: makeCacheableSignalKeyStore(state.keys, createFlorBaileysLogger())
-    };
+    // makeCacheableSignalKeyStore REMOVED - caused "Bad MAC" / "No matching sessions" on line 4
+    // Even with fresh QR, failed immediately on first inbound message.
+    // Root cause: makeCacheableSignalKeyStore may not exist in Baileys 6.7.24 or corrupts key store.
+    // Fallback to direct state.keys fixes the issue.
+    let authStateForSocket = state;
+    if (typeof makeCacheableSignalKeyStore === 'function') {
+        try {
+            const cachedKeys = makeCacheableSignalKeyStore(state.keys, createFlorBaileysLogger());
+            authStateForSocket = {
+                creds: state.creds,
+                keys: cachedKeys
+            };
+            console.log('✅ Using makeCacheableSignalKeyStore for instance', CONFIG.INSTANCE_NUMBER);
+        } catch (err) {
+            console.warn('⚠️ makeCacheableSignalKeyStore failed, using direct keys:', err.message);
+            authStateForSocket = state;
+        }
+    } else {
+        console.log('ℹ️ makeCacheableSignalKeyStore not available, using direct state for instance', CONFIG.INSTANCE_NUMBER);
+        authStateForSocket = state;
+    }
     
     const { version, isLatest } = await fetchLatestBaileysVersion();
     console.log(`📦 Baileys WA Web version=[${version.join('.')}] isLatest=${isLatest} | connect gen=${myGen}`);
     
     sock = makeWASocket({
         logger: createFlorBaileysLogger(),
-        auth: cacheableState,
+        auth: authStateForSocket,
         version,
         browser: ['Chrome', 'Desktop', '1.0.0'],
         
