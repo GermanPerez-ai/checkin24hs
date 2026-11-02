@@ -22,13 +22,18 @@ const {
     default: makeWASocket,
     DisconnectReason,
     useMultiFileAuthState,
-    fetchLatestBaileysVersion
+    fetchLatestBaileysVersion,
+    makeCacheableSignalKeyStore,
+    transferDevice,
+    jidNormalizedUser,
+    isPnUser,
+    isLidUser,
+    isHostedLidUser,
+    isHostedPnUser
 } = baileysLib;
-// makeCacheableSignalKeyStore may not exist in all Baileys versions
-const makeCacheableSignalKeyStore = baileysLib.makeCacheableSignalKeyStore;
 /** Copia :device entre JIDs (LID→PN); reduce retries "message not available" en Business + LID. */
-const transferDeviceFn = typeof baileysLib.transferDevice === 'function' ? baileysLib.transferDevice : null;
-const jidNormalizedUserFn = typeof baileysLib.jidNormalizedUser === 'function' ? baileysLib.jidNormalizedUser : null;
+const transferDeviceFn = typeof transferDevice === 'function' ? transferDevice : null;
+const jidNormalizedUserFn = typeof jidNormalizedUser === 'function' ? jidNormalizedUser : null;
 let downloadMediaMessage;
 try {
     downloadMediaMessage = baileysLib.downloadMediaMessage;
@@ -6918,27 +6923,15 @@ async function connectToWhatsApp() {
 
     const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, `auth_info_baileys_${CONFIG.INSTANCE_NUMBER}`));
     
-    // makeCacheableSignalKeyStore REMOVED - caused "Bad MAC" / "No matching sessions" on line 4
-    // Even with fresh QR, failed immediately on first inbound message.
-    // Root cause: makeCacheableSignalKeyStore may not exist in Baileys 6.7.24 or corrupts key store.
-    // Fallback to direct state.keys fixes the issue.
-    let authStateForSocket = state;
-    if (typeof makeCacheableSignalKeyStore === 'function') {
-        try {
-            const cachedKeys = makeCacheableSignalKeyStore(state.keys, createFlorBaileysLogger());
-            authStateForSocket = {
-                creds: state.creds,
-                keys: cachedKeys
-            };
-            console.log('✅ Using makeCacheableSignalKeyStore for instance', CONFIG.INSTANCE_NUMBER);
-        } catch (err) {
-            console.warn('⚠️ makeCacheableSignalKeyStore failed, using direct keys:', err.message);
-            authStateForSocket = state;
-        }
-    } else {
-        console.log('ℹ️ makeCacheableSignalKeyStore not available, using direct state for instance', CONFIG.INSTANCE_NUMBER);
-        authStateForSocket = state;
-    }
+    // Baileys 7: makeCacheableSignalKeyStore con soporte LID mejorado
+    // Versión 7.x rework de LID/PN session mapping (lidMapping en signal repository)
+    // Esto debería solucionar "Bad MAC" / "No matching sessions" en cuentas LID-migrated
+    const cachedKeys = makeCacheableSignalKeyStore(state.keys, createFlorBaileysLogger());
+    const authStateForSocket = {
+        creds: state.creds,
+        keys: cachedKeys
+    };
+    console.log('✅ Using makeCacheableSignalKeyStore (Baileys 7 LID-aware) for instance', CONFIG.INSTANCE_NUMBER);
     
     const { version, isLatest } = await fetchLatestBaileysVersion();
     console.log(`📦 Baileys WA Web version=[${version.join('.')}] isLatest=${isLatest} | connect gen=${myGen}`);
