@@ -42,6 +42,10 @@ const CONFIG = {
             .map(n => n.trim().replace(/\D/g, ''))
             .filter(Boolean)
     },
+    autoClose: {
+        enabled: process.env.AUTO_CLOSE_RESERVATIONS === '1',
+        dryRun: process.env.AUTO_CLOSE_DRY_RUN !== '0'
+    },
     gemini: {
         apiKey: process.env.GEMINI_API_KEY || '',
         model: process.env.GEMINI_MODEL || 'gemini-2.0-flash-lite'
@@ -499,6 +503,327 @@ Resumen:`;
     }
 }
 
+// ===== AUTO-CIERRE DE RESERVAS =====
+
+/**
+ * Extrae códigos de reserva del subject y body del correo
+ * Busca códigos alfanuméricos (ej: V2K67A, VH6QHS, VG52SH, VX6KZM) o numéricos largos (ej: 598854662, 600986202)
+ * @param {string} subject - Asunto del correo
+ * @param {string} body - Cuerpo del correo (incluye texto citado)
+ * @returns {string[]} - Array de códigos encontrados (sin duplicados)
+ */
+function extractReservationCodes(subject, body) {
+    const codes = new Set();
+    const combined = `${subject}\n${body}`;
+    
+    // Patrón para códigos alfanuméricos: 1-2 letras mayúsculas seguidas de 4-6 caracteres alfanuméricos
+    // Debe contener al menos un dígito para evitar palabras comunes
+    // Ejemplos: V2K67A, VH6QHS, VG52SH, VX6KZM
+    const alphanumericPattern = /\b[A-Z]{1,2}[A-Z0-9]{4,6}\b/g;
+    const alphanumericMatches = combined.match(alphanumericPattern) || [];
+    alphanumericMatches.forEach(code => {
+        // Verificar que contenga al menos un dígito
+        if (/\d/.test(code)) {
+            codes.add(code);
+        }
+    });
+    
+    // Patrón para códigos numéricos largos (8-9 dígitos)
+    // 1. Con contexto relevante (más confiable)
+    const numericWithContextPattern = /(?:reserva|cancelación|cancelacion|anulación|anulacion|código|codigo|code|n[°º]|#|localizador)\s*:?\s*#?\s*(\d{8,9})\b/gi;
+    let match;
+    while ((match = numericWithContextPattern.exec(combined)) !== null) {
+        codes.add(match[1]);
+    }
+    
+    // 2. Sin contexto: buscar números de 8-9 dígitos en el subject después de "Hotel" o al final
+    // Esto captura casos como "ANULAR RESERVA Hotel Huilo-Huilo 598854662"
+    const subjectNumericPattern = /(?:hotel|huilo|puyehue|corralco|tanica)[\s-]+\w+[\s-]+(\d{8,9})\b/gi;
+    while ((match = subjectNumericPattern.exec(subject)) !== null) {
+        codes.add(match[1]);
+    }
+    
+    // 3. Números de 8-9 dígitos al final del subject
+    const endNumericPattern = /\s(\d{8,9})$/i;
+    const endMatch = subject.match(endNumericPattern);
+    if (endMatch) {
+        codes.add(endMatch[1]);
+    }
+    
+    return Array.from(codes);
+}
+
+/**
+ * Detecta si el correo confirma una cancelación o modificación
+ * @param {string} text - Texto completo del correo (limpio)
+ * @param {string} rawText - Texto completo sin limpiar (incluye citas)
+ * @param {string} subject - Asunto del correo
+ * @returns {object|null} - { action: 'cancelacion'|'modificacion', confidence: 'high'|'medium' } o null
+ */
+function detectConfirmation(text, rawText, subject) {
+    const combined = `${subject}\n${text}`.toLowerCase();
+    const rawCombined = `${subject}\n${rawText}`.toLowerCase();
+    
+    // Patrones negativos (hotel NO confirma, no puede, rechaza)
+    const negativePatterns = [
+        /no\s+(?:se\s+)?(?:puede|podemos|es\s+posible)/i,
+        /no\s+(?:confirmamos|confirmó|procedemos|procederemos)/i,
+        /imposible\s+(?:anular|cancelar|modificar)/i,
+        /(?:hotel|establecimiento)\s+(?:no\s+)?(?:acepta|autoriza)/i,
+        /cargo\s+por\s+(?:cancelación|cancelacion|anulación|anulacion)/i,
+        /penalidad/i,
+        /(?:debe|debera|deberá)\s+(?:abonar|pagar)/i
+    ];
+    
+    for (const pattern of negativePatterns) {
+        if (pattern.test(combined)) {
+            return null; // Respuesta negativa o ambigua
+        }
+    }
+    
+    // Patrones de confirmación de ANULACIÓN/CANCELACIÓN
+    const cancellationPatterns = [
+        { pattern: /(?:procedemos\s+a\s+|queda\s+|dejar[áa]\s+)?anulad[oa]/i, confidence: 'high' },
+        { pattern: /(?:procedemos\s+a\s+|queda\s+|dejar[áa]\s+)?cancelad[oa]/i, confidence: 'high' },
+        { pattern: /procedemos\s+a\s+(?:anular|cancelar)/i, confidence: 'high' },
+        { pattern: /(?:confirmamos|confirmo)\s+(?:la\s+)?(?:anulación|anulacion|cancelación|cancelacion)/i, confidence: 'high' },
+        { pattern: /(?:anulación|anulacion|cancelación|cancelacion)\s+(?:confirmada|procesada|realizada|efectuada)/i, confidence: 'high' },
+        { pattern: /n[°º]?\s*(?:de\s+)?(?:cancelación|cancelacion|anulación|anulacion)\s*:?\s*\d+/i, confidence: 'high' }
+    ];
+    
+    for (const { pattern, confidence } of cancellationPatterns) {
+        if (pattern.test(combined)) {
+            return { action: 'cancelacion', confidence };
+        }
+    }
+    
+    // Patrones de confirmación de MODIFICACIÓN
+    // Solo si el subject original menciona MODIFICAR (para evitar falsos positivos)
+    const isModificationRequest = /modificar\s+reserva/i.test(rawCombined);
+    
+    if (isModificationRequest) {
+        const modificationPatterns = [
+            { pattern: /modificación\s+(?:confirmada|procesada|realizada|efectuada|aplicada)/i, confidence: 'high' },
+            { pattern: /(?:confirmamos|confirmo)\s+(?:la\s+)?modificación/i, confidence: 'high' },
+            { pattern: /(?:hemos\s+)?(?:modificado|actualizado)\s+(?:la\s+)?reserva/i, confidence: 'medium' },
+            { pattern: /(?:cambio|cambios)\s+(?:realizado|realizados|aplicado|aplicados)/i, confidence: 'medium' }
+        ];
+        
+        for (const { pattern, confidence } of modificationPatterns) {
+            if (pattern.test(combined)) {
+                return { action: 'modificacion', confidence };
+            }
+        }
+    }
+    
+    return null;
+}
+
+/**
+ * Busca una reserva en Supabase por código y verifica si está en estado abierto
+ * @param {string} code - Código de reserva
+ * @returns {object|null} - Reserva encontrada o null
+ */
+async function findOpenReservation(code) {
+    if (!supabase) return null;
+    
+    try {
+        const { data, error } = await supabase
+            .from('reservations')
+            .select('id,reservation_code,status,hotel_name,customer_name,notes')
+            .or(`reservation_code.eq.${code},reservation_code.ilike.*${code}*`)
+            .in('status', ['Anulación pedida', 'Modificación pedida', 'En gestión'])
+            .limit(1)
+            .maybeSingle();
+        
+        if (error) {
+            console.warn(`   ⚠️  Error buscando reserva ${code}:`, error.message);
+            return null;
+        }
+        
+        return data;
+    } catch (error) {
+        console.warn(`   ⚠️  Error buscando reserva ${code}:`, error.message);
+        return null;
+    }
+}
+
+/**
+ * Actualiza el estado de una reserva y agrega nota de auditoría
+ * @param {object} reservation - Reserva a actualizar
+ * @param {string} newStatus - Nuevo estado ('Cancelada' o 'Confirmada')
+ * @param {object} emailInfo - Información del correo
+ * @param {string} cancellationNumber - Número de cancelación (opcional)
+ * @returns {object} - { ok: boolean, code: string, oldStatus: string, newStatus: string }
+ */
+async function updateReservationStatus(reservation, newStatus, emailInfo, cancellationNumber = null) {
+    if (!supabase) {
+        return { ok: false, error: 'Supabase no disponible' };
+    }
+    
+    try {
+        const now = new Date().toISOString();
+        const dateStr = new Date().toLocaleDateString('es-AR', { 
+            timeZone: 'America/Argentina/Buenos_Aires',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+        
+        // Crear nota de auditoría
+        let auditLine = `[${dateStr}] Auto-cerrado por email-monitor: ${emailInfo.fromName} (${emailInfo.from}) confirmó`;
+        if (cancellationNumber) {
+            auditLine += ` - N° cancelación: ${cancellationNumber}`;
+        }
+        
+        const existingNotes = reservation.notes || '';
+        const updatedNotes = existingNotes 
+            ? `${existingNotes}\n${auditLine}`
+            : auditLine;
+        
+        // Actualizar en Supabase
+        const { error } = await supabase
+            .from('reservations')
+            .update({
+                status: newStatus,
+                notes: updatedNotes,
+                updated_at: now
+            })
+            .eq('id', reservation.id);
+        
+        if (error) {
+            throw error;
+        }
+        
+        return {
+            ok: true,
+            code: reservation.reservation_code,
+            oldStatus: reservation.status,
+            newStatus: newStatus,
+            hotel: reservation.hotel_name,
+            customer: reservation.customer_name
+        };
+    } catch (error) {
+        console.error(`   ❌ Error actualizando reserva ${reservation.reservation_code}:`, error.message);
+        return { 
+            ok: false, 
+            error: error.message,
+            code: reservation.reservation_code 
+        };
+    }
+}
+
+/**
+ * Procesa el auto-cierre de reservas si corresponde
+ * @param {object} info - Información del correo extraída
+ * @param {object} parsed - Email parseado completo
+ * @returns {object|null} - Resultado del procesamiento o null si no aplica
+ */
+async function processAutoClose(info, parsed) {
+    // Verificar si está habilitado
+    if (!CONFIG.autoClose.enabled && !CONFIG.autoClose.dryRun) {
+        return null;
+    }
+    
+    // Verificar que no sea remitente interno
+    const senderType = classifySender(info.from);
+    if (senderType === 'internal') {
+        return null;
+    }
+    
+    // Extraer códigos de reserva
+    const codes = extractReservationCodes(info.subject, info.rawText);
+    if (codes.length === 0) {
+        return { skipped: true, reason: 'no_codes_found' };
+    }
+    
+    // Detectar si es una confirmación
+    const confirmation = detectConfirmation(info.text, info.rawText, info.subject);
+    if (!confirmation) {
+        return { skipped: true, reason: 'not_a_confirmation', codes };
+    }
+    
+    // Determinar el nuevo estado según el tipo de confirmación
+    const newStatus = confirmation.action === 'cancelacion' ? 'Cancelada' : 'Confirmada';
+    
+    // Buscar reservas abiertas que coincidan con los códigos
+    const matches = [];
+    for (const code of codes) {
+        const reservation = await findOpenReservation(code);
+        if (reservation) {
+            matches.push({ code, reservation });
+        }
+    }
+    
+    if (matches.length === 0) {
+        return { 
+            skipped: true, 
+            reason: 'no_open_reservations_found', 
+            codes,
+            confirmation: confirmation.action
+        };
+    }
+    
+    // Extraer número de cancelación si está presente (solo para anulaciones)
+    let cancellationNumber = null;
+    if (confirmation.action === 'cancelacion') {
+        const cancNumPattern = /n[°º]?\s*(?:de\s+)?(?:cancelación|cancelacion|anulación|anulacion)\s*:?\s*#?\s*(\d+)/i;
+        const match = info.rawText.match(cancNumPattern);
+        if (match) {
+            cancellationNumber = match[1];
+        }
+    }
+    
+    const results = [];
+    
+    // Procesar cada reserva
+    for (const { code, reservation } of matches) {
+        if (CONFIG.autoClose.dryRun && !CONFIG.dryRun) {
+            console.log(`   🧪 [AUTO-CLOSE DRY-RUN] Se cerraría: ${code} (${reservation.status} → ${newStatus})`);
+            results.push({
+                dryRun: true,
+                code,
+                oldStatus: reservation.status,
+                newStatus,
+                hotel: reservation.hotel_name
+            });
+        } else if (CONFIG.dryRun) {
+            // Ya estamos en dry-run global, no duplicar el log
+            results.push({
+                dryRun: true,
+                code,
+                oldStatus: reservation.status,
+                newStatus,
+                hotel: reservation.hotel_name
+            });
+        } else {
+            // Actualizar para real
+            const updateResult = await updateReservationStatus(
+                reservation, 
+                newStatus, 
+                info, 
+                cancellationNumber
+            );
+            results.push(updateResult);
+            
+            if (updateResult.ok) {
+                console.log(`   ✅ Reserva ${code} cerrada: ${reservation.status} → ${newStatus}`);
+            } else {
+                console.error(`   ❌ Error cerrando reserva ${code}:`, updateResult.error);
+            }
+        }
+    }
+    
+    return {
+        processed: true,
+        action: confirmation.action,
+        confidence: confirmation.confidence,
+        newStatus,
+        results,
+        cancellationNumber
+    };
+}
+
 // ===== SUPABASE =====
 
 /**
@@ -583,12 +908,27 @@ async function updateProcessedStatus(messageId, status, errorDetail = null) {
  * Envía notificación por WhatsApp a los destinatarios correctos
  * Retorna: { sent: number, destinations: string[], type: 'group'|'providers'|'internal' }
  */
-async function sendWhatsAppNotification(info, summary) {
+async function sendWhatsAppNotification(info, summary, autoCloseResult = null) {
     const routing = getWhatsAppDestinations(info.from);
     
     // Si es remitente interno, no enviar nada
     if (routing.type === 'internal') {
         return { sent: 0, destinations: [], type: 'internal' };
+    }
+    
+    let autoCloseLines = '';
+    
+    // Agregar información de auto-cierre si se procesó
+    if (autoCloseResult?.processed && autoCloseResult.results?.length > 0) {
+        const successful = autoCloseResult.results.filter(r => r.ok || r.dryRun);
+        if (successful.length > 0) {
+            const isDryRun = successful[0].dryRun;
+            const prefix = isDryRun ? '🧪 [DRY-RUN] ' : '✅ ';
+            autoCloseLines = `\n\n${prefix}*Reserva(s) cerrada(s) en dashboard:*\n`;
+            for (const res of successful) {
+                autoCloseLines += `• ${res.code}: ${res.oldStatus} → *${res.newStatus}*\n`;
+            }
+        }
     }
     
     const message = `📧 *Nueva respuesta sobre reserva*
@@ -599,7 +939,7 @@ async function sendWhatsAppNotification(info, summary) {
 👤 *Solicitado por:* ${info.requestedBy}
 
 💬 *Resumen:*
-${summary}
+${summary}${autoCloseLines}
 
 📝 *Mensaje:*
 ${info.text.substring(0, 800)}${info.text.length > 800 ? '...' : ''}
@@ -706,6 +1046,16 @@ async function processEmail(uid, client) {
         const summary = await generateAISummary(info);
         console.log(`   📝 Resumen: ${summary}`);
         
+        // Procesar auto-cierre de reservas
+        let autoCloseResult = null;
+        if (CONFIG.autoClose.enabled || CONFIG.autoClose.dryRun) {
+            autoCloseResult = await processAutoClose(info, parsed);
+            if (autoCloseResult?.processed) {
+                const successful = autoCloseResult.results.filter(r => r.ok || r.dryRun).length;
+                console.log(`   🔄 Auto-cierre: ${successful} reserva(s) procesada(s) (${autoCloseResult.action})`);
+            }
+        }
+        
         // Mostrar destino
         if (routing.type === 'group') {
             console.log(`   📲 Destino: Grupo ${routing.destinations[0]}`);
@@ -718,7 +1068,7 @@ async function processEmail(uid, client) {
             try {
                 await markAsProcessed(info, summary, 'marked_existing');
                 console.log('   ✅ Marcado como existente (no se envía)');
-                return { status: 'marked', info, summary };
+                return { status: 'marked', info, summary, autoClose: autoCloseResult };
             } catch (error) {
                 console.warn('   ⚠️  Error marcando como existente:', error.message);
                 return { status: 'error', error: error.message };
@@ -735,9 +1085,12 @@ async function processEmail(uid, client) {
             console.log(`Tipo: ${routing.type === 'group' ? 'HOTEL -> Grupo' : 'PROVEEDOR -> Individual'}`);
             console.log(`Destino: ${routing.destinations.join(', ')}`);
             console.log(`Resumen: ${summary}`);
+            if (autoCloseResult?.processed) {
+                console.log(`Auto-cierre: ${autoCloseResult.results.length} reserva(s)`);
+            }
             console.log(`Texto (primeros 200 chars): ${info.text.substring(0, 200)}...`);
             console.log('-'.repeat(60));
-            return { status: 'dry-run', info, summary, routing };
+            return { status: 'dry-run', info, summary, routing, autoClose: autoCloseResult };
         }
         
         // PREVENIR RACE CONDITION: Registrar ANTES de enviar
@@ -756,13 +1109,13 @@ async function processEmail(uid, client) {
         
         // Enviar a WhatsApp
         try {
-            const result = await sendWhatsAppNotification(info, summary);
+            const result = await sendWhatsAppNotification(info, summary, autoCloseResult);
             console.log(`   ✅ Notificado: ${result.sent} mensaje(s) enviado(s)`);
             
             // Actualizar estado a 'notified'
             await updateProcessedStatus(info.messageId, 'notified', null);
             
-            return { status: 'notified', info, summary, result };
+            return { status: 'notified', info, summary, result, autoClose: autoCloseResult };
         } catch (error) {
             console.error('   ❌ Error enviando a WhatsApp:', error.message);
             await updateProcessedStatus(info.messageId, 'error', error.message);
@@ -883,4 +1236,12 @@ if (require.main === module) {
     });
 }
 
-module.exports = { monitor, isReservationRelated, cleanEmailText, extractEmailInfo };
+module.exports = { 
+    monitor, 
+    isReservationRelated, 
+    cleanEmailText, 
+    extractEmailInfo,
+    extractReservationCodes,
+    detectConfirmation,
+    processAutoClose
+};
