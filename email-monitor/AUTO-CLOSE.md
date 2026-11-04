@@ -175,6 +175,30 @@ Hotel Puyehue: Confirmó modificación de fechas
 • V2K67A: Modificación pedida → Confirmada (check_in 2026-11-14→2026-11-16, check_out 2026-11-18→2026-11-20, total_amount 1676.25→1800)
 ```
 
+### Verificar en el Dashboard
+
+Los cambios de tarifa y fechas son **visibles automáticamente** en el dashboard:
+
+**Dashboard → Sección Reservas:**
+- Las reservas con cambios de tarifa muestran un badge **ámbar "Tarifa modificada"** 🔶
+  - Tooltip: muestra el monto anterior → nuevo (ej: "$1,676.25 → $1,800")
+- Las reservas con cambios de fechas muestran un badge **ámbar "Fechas modificadas"** 📅
+  - Tooltip: muestra las fechas anteriores → nuevas (ej: "Check-in: 14/11/2026 → 16/11/2026")
+- Los badges aparecen junto al precio o fechas correspondientes
+
+**Ejemplo visual:**
+```
+Código: V2K67A
+...
+Fechas: 
+  Entrada: 16/11/2026
+  Salida: 20/11/2026
+  [📅 Fechas modificadas] ← Badge con tooltip
+
+Total: $1,800
+  [🔶 Tarifa modificada] ← Badge con tooltip
+```
+
 ### Verificar en Supabase
 
 Después de que el monitor procese un correo de confirmación:
@@ -297,6 +321,38 @@ Busca patrones como:
 - Si solo se extrae fecha o solo tarifa → actualiza solo ese dato
 - Si los datos extraídos son ambiguos → **NO auto-cierra**
 - El sistema marca como "requiere revisión manual" y notifica al equipo
+
+## 📊 Visualización en el Dashboard
+
+### Indicadores Visuales de Cambios
+
+El dashboard detecta automáticamente cambios de tarifa y fechas **parseando el campo `notes`** (sin necesidad de cambiar el esquema de la base de datos).
+
+**Badges mostrados:**
+
+1. **Tarifa modificada** 🔶
+   - Badge ámbar junto al precio
+   - Tooltip: "$1,676.25 → $1,800"
+   - Solo aparece si el campo `notes` contiene el patrón `total_amount X→Y`
+
+2. **Fechas modificadas** 📅
+   - Badge ámbar junto a las fechas
+   - Tooltip: "Check-in: 14/11/2026 → 16/11/2026 | Check-out: 18/11/2026 → 20/11/2026"
+   - Solo aparece si el campo `notes` contiene patrones `check_in X→Y` o `check_out X→Y`
+
+### Implementación sin cambio de esquema
+
+La solución actual NO requiere agregar columnas a la base de datos:
+- Parsea el campo `notes` existente en tiempo de renderizado
+- Performance adecuada para el volumen típico de reservas
+- Sin impacto en la BD de producción
+
+### Migración opcional (para optimización futura)
+
+Si en el futuro se necesita filtrar/consultar reservas con cambios de forma más eficiente:
+- Ver archivo `supabase-migrations/OPTIONAL_090_reservation_change_flags.sql`
+- Agrega columnas `has_amount_change` y `has_date_change` (booleanas)
+- **NO ejecutar** a menos que se decida explícitamente optimizar
 
 ## 🚨 Troubleshooting
 
