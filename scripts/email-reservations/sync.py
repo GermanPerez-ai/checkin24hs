@@ -335,8 +335,10 @@ def upsert_reservation(parsed, hotel, agent_name: str):
     if _is_forbidden_hotel_name(hotel.get("name") or ""):
         # Sin UUID inventado: FK hotels exige id real o null
         hotel = {"id": None, "name": hotel.get("name") or "Hotel (revisar)"}
+    
+    new_code = parsed["reservation_code"]
     row = {
-        "reservation_code": parsed["reservation_code"],
+        "reservation_code": new_code,
         "client_name": parsed["client_name"],
         "client_email": parsed.get("client_email") or "",
         "client_phone": parsed.get("client_phone") or "",
@@ -350,6 +352,27 @@ def upsert_reservation(parsed, hotel, agent_name: str):
         "total_amount": parsed.get("total_amount") or 0,
         "notes": parsed.get("notes"),
     }
+    
+    # Buscar si ya existe una reserva con este código o su número base
+    existing = find_reservation_row(new_code)
+    if existing:
+        existing_code = str(existing.get("reservation_code") or "")
+        existing_id = existing.get("id")
+        # Si el código es diferente (ej: '602052775' → '602052775 / CI-261103-021'),
+        # actualizar el código junto con los demás datos
+        if existing_code != new_code and existing_id:
+            print(f"   🔄 Actualizando código: '{existing_code}' → '{new_code}'")
+            path = "reservations?id=eq." + urllib.parse.quote(str(existing_id), safe="")
+            row["updated_at"] = dt.datetime.utcnow().isoformat() + "Z"
+            try:
+                return sb("PATCH", path, row)
+            except RuntimeError as e:
+                if "notes" in str(e).lower() or "column" in str(e).lower():
+                    row.pop("notes", None)
+                    return sb("PATCH", path, row)
+                raise
+    
+    # Si no existe o el código es el mismo, hacer upsert normal
     try:
         return sb("POST", "reservations?on_conflict=reservation_code", [row])
     except RuntimeError as e:
@@ -391,10 +414,25 @@ def _append_note(existing, line: str) -> str:
     return (prev + "\n" if prev else "") + line
 
 
+def _extract_base_numbers(code: str) -> list[str]:
+    """Extrae números base (9-10 dígitos) de un código de confirmación.
+    
+    Ejemplos:
+        '602052775 / CI-261103-021' → ['602052775']
+        '602052775' → ['602052775']
+        '597391343 y 597391675' → ['597391343', '597391675']
+    """
+    if not code:
+        return []
+    nums = re.findall(r"\b\d{9,10}\b", str(code))
+    return list(dict.fromkeys(nums))
+
+
 def find_reservation_row(reservation_code: str):
     code = str(reservation_code or "").strip()
     if not code:
         return None
+    # 1. Búsqueda exacta
     q = (
         "reservations?reservation_code=eq."
         + urllib.parse.quote(code, safe="")
@@ -404,6 +442,25 @@ def find_reservation_row(reservation_code: str):
     existing = sb("GET", q)
     if isinstance(existing, list) and existing:
         return existing[0]
+    
+    # 2. Búsqueda por número base (para códigos Huilo con/sin CI)
+    base_nums = _extract_base_numbers(code)
+    for base_num in base_nums:
+        q_base = (
+            "reservations?reservation_code=ilike."
+            + urllib.parse.quote("*" + base_num + "*", safe="*")
+            + "&select=id,reservation_code,status,check_in,check_out,total_amount,notes,updated_at"
+            + "&limit=5"
+        )
+        existing = sb("GET", q_base)
+        if isinstance(existing, list) and existing:
+            # Verificar que realmente contenga el número base
+            for row in existing:
+                row_code = str(row.get("reservation_code") or "")
+                if base_num in row_code:
+                    return row
+    
+    # 3. Búsqueda genérica (fallback)
     q2 = (
         "reservations?reservation_code=ilike."
         + urllib.parse.quote("*" + code + "*", safe="*")
