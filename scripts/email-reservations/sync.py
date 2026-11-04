@@ -380,7 +380,7 @@ def patch_reservation_agent(reservation_code: str, agent_name: str):
     )
 
 
-_CLOSED_STATUSES = ("Cancelada", "Modificada", "No show")
+_CLOSED_STATUSES = ("Confirmada", "Cancelada", "Modificada", "No show")
 
 
 def _append_note(existing, line: str) -> str:
@@ -397,7 +397,7 @@ def find_reservation_row(reservation_code: str):
     q = (
         "reservations?reservation_code=eq."
         + urllib.parse.quote(code, safe="")
-        + "&select=id,reservation_code,status,check_in,check_out,total_amount,notes"
+        + "&select=id,reservation_code,status,check_in,check_out,total_amount,notes,updated_at"
         + "&limit=1"
     )
     existing = sb("GET", q)
@@ -406,7 +406,7 @@ def find_reservation_row(reservation_code: str):
     q2 = (
         "reservations?reservation_code=ilike."
         + urllib.parse.quote("*" + code + "*", safe="*")
-        + "&select=id,reservation_code,status,check_in,check_out,total_amount,notes"
+        + "&select=id,reservation_code,status,check_in,check_out,total_amount,notes,updated_at"
         + "&limit=3"
     )
     existing = sb("GET", q2)
@@ -415,7 +415,7 @@ def find_reservation_row(reservation_code: str):
     return None
 
 
-def patch_reservation_lifecycle(reservation_code: str, kind: str, parsed: dict | None = None, from_addr: str = ""):
+def patch_reservation_lifecycle(reservation_code: str, kind: str, parsed: dict | None = None, from_addr: str = "", msg_date=None):
     """Ventas pide; el hotel cierra solo si el cuerpo confirma de forma inequívoca."""
     parsed = parsed or {}
     codes = [c for c in ([reservation_code] + list(parsed.get("reservation_codes") or [])) if c]
@@ -427,11 +427,11 @@ def patch_reservation_lifecycle(reservation_code: str, kind: str, parsed: dict |
         seen.append(c)
         row = find_reservation_row(c)
         if row:
-            return _apply_lifecycle_row(row, kind, parsed, from_addr)
+            return _apply_lifecycle_row(row, kind, parsed, from_addr, msg_date)
     return {"ok": False, "reason": "no_existe"}
 
 
-def _apply_lifecycle_row(row: dict, kind: str, parsed: dict, from_addr: str):
+def _apply_lifecycle_row(row: dict, kind: str, parsed: dict, from_addr: str, msg_date=None):
     rid = row.get("id")
     if not rid:
         return {"ok": False, "reason": "sin_id"}
@@ -440,20 +440,60 @@ def _apply_lifecycle_row(row: dict, kind: str, parsed: dict, from_addr: str):
     closed = current in _CLOSED_STATUSES
     verdict = parsed.get("hotel_verdict") or "unclear"
     stamp = dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%MZ")
+    
+    # Check 1: Skip reservations with check_in in the past
+    check_in_str = row.get("check_in")
+    if check_in_str:
+        try:
+            if isinstance(check_in_str, str):
+                check_in_date = dt.datetime.fromisoformat(check_in_str.replace("Z", "+00:00")).date()
+            else:
+                check_in_date = check_in_str
+            if check_in_date < dt.date.today():
+                return {"ok": True, "status": current, "reason": "check_in_pasado", "skip": True}
+        except (ValueError, AttributeError):
+            pass
+    
+    # Check 2: For internal senders, don't downgrade closed statuses
+    if is_internal_sender(from_addr):
+        if closed:
+            return {"ok": True, "status": current, "reason": "ya_cerrada", "skip": True}
+    
+    # Check 3: Skip if verdict is unclear/hotel_reply_unclear/ya_cerrada for any sender
+    if verdict in ("unclear", "hotel_reply_unclear", "ya_cerrada"):
+        return {"ok": True, "status": current, "reason": verdict, "skip": True}
+    
+    # Check 4: For hotel replies, validate email is newer than reservation updated_at
+    if not is_internal_sender(from_addr) and verdict in ("confirm_cancel", "confirm_modify", "reject"):
+        updated_at_str = row.get("updated_at")
+        if updated_at_str and msg_date:
+            try:
+                if isinstance(updated_at_str, str):
+                    updated_at_dt = dt.datetime.fromisoformat(updated_at_str.replace("Z", "+00:00"))
+                else:
+                    updated_at_dt = updated_at_str
+                msg_datetime = dt.datetime.combine(msg_date, dt.time.min)
+                msg_datetime = msg_datetime.replace(tzinfo=dt.timezone.utc)
+                if updated_at_dt.tzinfo is None:
+                    updated_at_dt = updated_at_dt.replace(tzinfo=dt.timezone.utc)
+                
+                if msg_datetime <= updated_at_dt:
+                    return {"ok": True, "status": current, "reason": "email_no_mas_nuevo", "skip": True}
+            except (ValueError, AttributeError, TypeError):
+                pass
+    
     body = {}
 
     if is_internal_sender(from_addr):
-        if closed:
-            return {"ok": True, "status": current, "reason": "ya_cerrada"}
         body["status"] = "Anulación pedida" if kind == "cancel" else "Modificación pedida"
     elif verdict == "confirm_cancel":
         if current == "Cancelada":
-            return {"ok": True, "status": current, "reason": "ya_cerrada"}
+            return {"ok": True, "status": current, "reason": "ya_cerrada", "skip": True}
         body["status"] = "Cancelada"
         body["notes"] = _append_note(row.get("notes"), "[HOTEL confirmó anulación — auto " + stamp + "]")
     elif verdict == "confirm_modify":
         if current == "Modificada":
-            return {"ok": True, "status": current, "reason": "ya_cerrada"}
+            return {"ok": True, "status": current, "reason": "ya_cerrada", "skip": True}
         body["status"] = "Modificada"
         if parsed.get("check_in"):
             body["check_in"] = parsed["check_in"]
@@ -464,13 +504,13 @@ def _apply_lifecycle_row(row: dict, kind: str, parsed: dict, from_addr: str):
         body["notes"] = _append_note(row.get("notes"), "[HOTEL confirmó modificación — auto " + stamp + "]")
     elif verdict == "reject":
         if closed:
-            return {"ok": True, "status": current, "reason": "ya_cerrada"}
+            return {"ok": True, "status": current, "reason": "ya_cerrada", "skip": True}
         if current == "En gestión":
-            return {"ok": True, "status": current, "reason": "ya_cerrada"}
+            return {"ok": True, "status": current, "reason": "ya_cerrada", "skip": True}
         body["status"] = "En gestión"
         body["notes"] = _append_note(row.get("notes"), "[HOTEL no confirmó / no se puede — auto " + stamp + "]")
     else:
-        return {"ok": True, "status": current, "reason": "hotel_reply_unclear"}
+        return {"ok": True, "status": current, "reason": verdict, "skip": True}
 
     path = "reservations?id=eq." + urllib.parse.quote(str(rid), safe="")
     try:
@@ -631,7 +671,7 @@ def main():
                 continue
 
             is_life = bool(parsed_list) and parsed_list[0].get("kind") in ("cancel", "modify")
-            if not args.dry_run and already_imported(message_id, args.retry_skipped) and not is_life:
+            if not args.dry_run and already_imported(message_id, args.retry_skipped):
                 stats["skipped"] += 1
                 continue
 
@@ -669,11 +709,16 @@ def main():
                             print(f"   · cuerpo: {own}")
                         continue
                     try:
-                        result = patch_reservation_lifecycle(code, kind, parsed, from_addr)
+                        result = patch_reservation_lifecycle(code, kind, parsed, from_addr, msg_date(msg))
                         if result.get("ok"):
-                            stats["imported"] += 1
-                            extra = result.get("reason") or result.get("verdict") or ""
-                            print(f"   → {result.get('status')} {code}" + (f" ({extra})" if extra else ""))
+                            if result.get("skip"):
+                                stats["skipped"] += 1
+                                reason = result.get("reason") or ""
+                                print(f"   ⏭️  skip {code} ({reason})")
+                            else:
+                                stats["imported"] += 1
+                                extra = result.get("reason") or result.get("verdict") or ""
+                                print(f"   → {result.get('status')} {code}" + (f" ({extra})" if extra else ""))
                         else:
                             print(f"   ⚠️ no se aplicó {code}: {result.get('reason')}")
                         mark_imported(
@@ -683,7 +728,7 @@ def main():
                                 "hotel_key": hotel_key,
                                 "subject": subject,
                                 "from_addr": from_addr,
-                                "status": "imported" if result.get("ok") else "skipped",
+                                "status": "imported" if (result.get("ok") and not result.get("skip")) else "skipped",
                                 "error_detail": None if result.get("ok") else result.get("reason"),
                             }
                         )
