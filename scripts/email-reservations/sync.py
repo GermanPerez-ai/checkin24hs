@@ -23,6 +23,7 @@ from parse_corralco import looks_corralco, parse_corralco_confirmations
 from parse_huilo import parse_huilo_confirmations, strip_html
 from parse_lifecycle import is_internal_sender, parse_lifecycle_mail
 from parse_puyehue import looks_puyehue, parse_puyehue_mail
+from parse_ratehawk import looks_ratehawk, parse_ratehawk_confirmations
 
 DIR = Path(__file__).resolve().parent
 
@@ -541,6 +542,11 @@ def parse_reservation_mail(from_addr, subject, text, html, msg_dt):
     if life:
         return life.get("hotel_key") or "unknown", [life]
     blob = f"{from_addr} {subject} {text[:2000]} {(html or '')[:500]}".lower()
+    if looks_ratehawk(from_addr, subject, text):
+        rows = parse_ratehawk_confirmations(mail)
+        if rows:
+            return rows[0].get("hotel_key") or "ratehawk", rows
+        return "ratehawk", []
     if looks_puyehue(from_addr, subject, f"{text}\n{html or ''}"):
         row = parse_puyehue_mail(mail)
         if row:
@@ -580,6 +586,8 @@ def agent_for(hotel_key: str, parsed: dict | None = None, pending_agent: str = "
         return "Email Aguas Calientes"
     if hk == "huilo":
         return "Email Huilo"
+    if hk == "ratehawk" or "ratehawk" in hk:
+        return "Email RateHawk"
     if hk and hk != "unknown":
         return "Email " + _pretty_hotel_name(hk)
     return "Email reservas"
@@ -632,7 +640,7 @@ def main():
     print(
         "🏨 Anular/modificar: cualquier hotel del catálogo "
         "(asunto = acción + nombre + código). "
-        "Confirmaciones auto: Huilo, Corralco, Puyehue, Aguas Calientes."
+        "Confirmaciones auto: Huilo, Corralco, Puyehue, Aguas Calientes, RateHawk."
     )
     if not args.dry_run:
         for hk, h in hotels.items():
