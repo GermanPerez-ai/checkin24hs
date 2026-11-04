@@ -27341,6 +27341,16 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         return;
                     }
                     window._importReservationsData = { jsonData, excelHeaders };
+                    
+                    // Detectar formato RateHawk y procesarlo automáticamente
+                    const isRateHawk = detectRateHawkFormat(excelHeaders);
+                    if (isRateHawk) {
+                        console.log('✅ Formato RateHawk detectado - procesamiento automático');
+                        processRateHawkImport(jsonData);
+                        return;
+                    }
+                    
+                    // Formato estándar: mostrar UI de mapeo manual
                     renderImportMapping(excelHeaders);
                     document.getElementById('importStep2').style.display = 'block';
                     document.getElementById('importConfirmBtn').style.display = 'inline-flex';
@@ -27353,6 +27363,295 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 reader.readAsText(file, 'UTF-8');
             } else {
                 reader.readAsArrayBuffer(file);
+            }
+        }
+        
+        function detectRateHawkFormat(headers) {
+            const requiredHeaders = [
+                'Número de reserva',
+                'ID de proveedor',
+                'Estado',
+                'Precio sin servicios adicionales',
+                'Huésped',
+                'Entrada',
+                'Check-out el',
+                'Hotel'
+            ];
+            return requiredHeaders.every(required => 
+                headers.some(h => String(h).trim() === required)
+            );
+        }
+        
+        async function processRateHawkImport(jsonData) {
+            try {
+                let existingReservations = [];
+                if (window.supabaseClient && window.supabaseClient.isInitialized()) {
+                    try {
+                        const fromSupabase = await window.supabaseClient.getReservations();
+                        existingReservations = (fromSupabase || []).map(r => ({
+                            id: r.id,
+                            reservationCode: r.reservation_code || r.reservationCode,
+                            clientName: r.client_name || r.clientName,
+                            clientEmail: r.client_email || r.clientEmail,
+                            clientPhone: r.client_phone || r.clientPhone,
+                            hotelId: r.hotel_id || r.hotelId,
+                            hotelName: r.hotel_name || r.hotelName,
+                            checkIn: r.check_in || r.checkIn,
+                            checkOut: r.check_out || r.checkOut,
+                            reservationDate: r.reservation_date || r.reservationDate,
+                            agentName: r.agent_name || r.agentName,
+                            status: r.status,
+                            totalAmount: r.total_amount != null ? r.total_amount : r.totalAmount,
+                            notes: r.notes || '',
+                            createdAt: r.created_at || r.createdAt,
+                            updatedAt: r.updated_at || r.updatedAt
+                        }));
+                    } catch (e) {
+                        console.warn('⚠️ No se pudieron cargar reservas desde Supabase, usando localStorage:', e);
+                        existingReservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+                    }
+                } else {
+                    existingReservations = JSON.parse(localStorage.getItem('reservationsDB') || '[]');
+                }
+                
+                const reservationsMap = new Map();
+                existingReservations.forEach(res => {
+                    const code = res.reservationCode || res.reservation_code;
+                    if (code) reservationsMap.set(String(code), res);
+                });
+                
+                let added = 0;
+                let updated = 0;
+                let errors = 0;
+                const errorMessages = [];
+                
+                jsonData.forEach((row, index) => {
+                    try {
+                        const reservationCode = String(row['Número de reserva'] || '').trim();
+                        const providerId = String(row['ID de proveedor'] || '').trim();
+                        const estado = String(row['Estado'] || '').trim().toLowerCase();
+                        const precioSinServicios = parseFloat(row['Precio sin servicios adicionales']) || 0;
+                        const moneda = String(row['Precio sin servicios adicionales, moneda'] || 'USD').trim();
+                        const huesped = String(row['Huésped'] || '').trim();
+                        const pagadoEl = row['Pagado el'];
+                        const entrada = row['Entrada'];
+                        const checkOutEl = row['Check-out el'];
+                        const hotel = String(row['Hotel'] || '').trim();
+                        const pais = String(row['País o ruta'] || '').trim();
+                        const ciudad = String(row['Ciudad'] || '').trim();
+                        const cancelacionGratuita = row['Cancelación gratuita'];
+                        const comisionSinServicios = parseFloat(row['Comisión, sin servicios adicionales']) || 0;
+                        const comisionTotal = parseFloat(row['Comisión, total']) || 0;
+                        const comisionPorcentaje = parseFloat(row['Comisión, total, %']) || 0;
+                        
+                        if (!reservationCode || !huesped || !entrada || !checkOutEl || !hotel) {
+                            errors++;
+                            errorMessages.push(`Fila ${index + 2}: Faltan datos requeridos (Código, Huésped, Entrada, Check-out o Hotel)`);
+                            return;
+                        }
+                        
+                        const normalizeRateHawkDate = (dateValue) => {
+                            if (!dateValue) return '';
+                            if (dateValue instanceof Date && !isNaN(dateValue.getTime())) {
+                                const y = dateValue.getFullYear();
+                                const m = String(dateValue.getMonth() + 1).padStart(2, '0');
+                                const d = String(dateValue.getDate()).padStart(2, '0');
+                                return `${y}-${m}-${d}`;
+                            }
+                            const dateStr = String(dateValue).trim();
+                            if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+                                return dateStr.split(' ')[0];
+                            }
+                            return '';
+                        };
+                        
+                        const checkIn = normalizeRateHawkDate(entrada);
+                        const checkOut = normalizeRateHawkDate(checkOutEl);
+                        const reservationDate = normalizeRateHawkDate(pagadoEl) || checkIn;
+                        
+                        if (!checkIn || !checkOut) {
+                            errors++;
+                            errorMessages.push(`Fila ${index + 2}: Fechas inválidas`);
+                            return;
+                        }
+                        
+                        const statusMap = {
+                            'completed': 'Confirmada',
+                            'confirmed': 'Confirmada',
+                            'cancelled': 'Cancelada',
+                            'pending': 'Pendiente',
+                            'no-show': 'No Show'
+                        };
+                        const status = statusMap[estado] || 'Confirmada';
+                        
+                        const hotels = JSON.parse(localStorage.getItem('hotelsDB') || '[]');
+                        const matchedHotel = hotels.find(h => h.name === hotel);
+                        const hotelId = matchedHotel ? matchedHotel.id : '';
+                        
+                        let notesLines = [`Fuente: RateHawk`, `Proveedor ID: ${providerId}`];
+                        if (ciudad) notesLines.push(`Ciudad: ${ciudad}`);
+                        if (pais) notesLines.push(`País: ${pais}`);
+                        if (cancelacionGratuita) {
+                            const cancelDate = normalizeRateHawkDate(cancelacionGratuita);
+                            if (cancelDate) notesLines.push(`Cancelación gratuita hasta: ${cancelDate}`);
+                        }
+                        if (comisionTotal > 0) {
+                            notesLines.push(`Comisión: ${moneda} ${comisionTotal.toFixed(2)} (${comisionPorcentaje.toFixed(2)}%)`);
+                        }
+                        
+                        const existingReservation = reservationsMap.get(reservationCode);
+                        
+                        if (existingReservation) {
+                            const wasCancelled = existingReservation.status === 'Cancelada';
+                            let totalAmount = precioSinServicios;
+                            
+                            if (estado === 'cancelled' && precioSinServicios === 0 && existingReservation.totalAmount > 0) {
+                                notesLines.push(`[Audit] Monto anterior: ${moneda} ${existingReservation.totalAmount.toFixed(2)} (cancelada con precio 0)`);
+                                totalAmount = existingReservation.totalAmount;
+                            }
+                            
+                            if (wasCancelled && estado !== 'cancelled') {
+                                console.warn(`⚠️ No se sobrescribe reserva ${reservationCode} previamente cancelada con estado '${estado}'`);
+                                return;
+                            }
+                            
+                            const existingNotes = existingReservation.notes || '';
+                            const newNotesBlock = notesLines.join(' | ');
+                            const combinedNotes = existingNotes ? `${existingNotes}\n---\n${newNotesBlock}` : newNotesBlock;
+                            
+                            existingReservation.clientName = huesped;
+                            existingReservation.hotelId = hotelId;
+                            existingReservation.hotelName = hotel;
+                            existingReservation.checkIn = checkIn;
+                            existingReservation.checkOut = checkOut;
+                            existingReservation.reservationDate = reservationDate;
+                            existingReservation.status = status;
+                            existingReservation.totalAmount = totalAmount;
+                            existingReservation.notes = combinedNotes;
+                            existingReservation.updatedAt = new Date().toISOString();
+                            updated++;
+                        } else {
+                            const newReservation = {
+                                id: 'res-' + Date.now() + '-' + index,
+                                reservationCode: reservationCode,
+                                clientName: huesped,
+                                clientEmail: '',
+                                clientPhone: '',
+                                hotelId: hotelId,
+                                hotelName: hotel,
+                                checkIn: checkIn,
+                                checkOut: checkOut,
+                                reservationDate: reservationDate,
+                                agentName: '',
+                                status: status,
+                                totalAmount: precioSinServicios,
+                                notes: notesLines.join(' | '),
+                                createdAt: new Date().toISOString(),
+                                updatedAt: new Date().toISOString()
+                            };
+                            
+                            existingReservations.push(newReservation);
+                            reservationsMap.set(reservationCode, newReservation);
+                            added++;
+                            
+                            if (typeof saveUserFromReservation === 'function') {
+                                saveUserFromReservation(newReservation);
+                            }
+                        }
+                    } catch (error) {
+                        errors++;
+                        errorMessages.push(`Fila ${index + 2}: ${error.message}`);
+                        console.error(`Error procesando fila ${index + 2}:`, error);
+                    }
+                });
+                
+                const totalToSync = added + updated;
+                
+                if (window.supabaseClient && window.supabaseClient.isInitialized() && totalToSync > 0) {
+                    console.log(`☁️ Subiendo ${totalToSync} reservas RateHawk a Supabase...`);
+                    
+                    const reservationsToSync = [];
+                    jsonData.forEach((row) => {
+                        const reservationCode = String(row['Número de reserva'] || '').trim();
+                        if (reservationCode) {
+                            const reservation = reservationsMap.get(reservationCode);
+                            if (reservation) reservationsToSync.push(reservation);
+                        }
+                    });
+                    
+                    const batchSize = 10;
+                    for (let i = 0; i < reservationsToSync.length; i += batchSize) {
+                        const batch = reservationsToSync.slice(i, i + batchSize);
+                        
+                        const promises = batch.map(async (reservation) => {
+                            try {
+                                if (!reservation.reservationCode || !reservation.clientName) {
+                                    return { success: false, skipped: true };
+                                }
+                                if (!reservation.checkIn || !reservation.checkOut) {
+                                    return { success: false, skipped: true };
+                                }
+                                
+                                const supabaseReservation = {
+                                    reservation_code: reservation.reservationCode,
+                                    client_name: reservation.clientName,
+                                    client_email: reservation.clientEmail || '',
+                                    client_phone: reservation.clientPhone || '',
+                                    hotel_id: reservation.hotelId || null,
+                                    hotel_name: reservation.hotelName || '',
+                                    check_in: reservation.checkIn,
+                                    check_out: reservation.checkOut,
+                                    reservation_date: reservation.reservationDate || reservation.checkIn,
+                                    agent_name: reservation.agentName || '',
+                                    status: reservation.status || 'Confirmada',
+                                    total_amount: parseFloat(reservation.totalAmount) || 0,
+                                    notes: reservation.notes || ''
+                                };
+                                
+                                await window.supabaseClient.createReservation(supabaseReservation);
+                                return { success: true };
+                            } catch (error) {
+                                console.error('Error sincronizando reserva RateHawk:', reservation.reservationCode, error.message);
+                                return { success: false, error: error.message };
+                            }
+                        });
+                        
+                        const results = await Promise.all(promises);
+                        const successCount = results.filter(r => r.success).length;
+                        console.log(`📤 Lote ${Math.floor(i / batchSize) + 1}: ${successCount}/${batch.length} exitosos`);
+                    }
+                } else {
+                    localStorage.setItem('reservationsDB', JSON.stringify(existingReservations));
+                }
+                
+                closeImportReservationsModal();
+                
+                let message = `✅ Importación RateHawk completada:\n\n`;
+                message += `• ${added} reservas nuevas\n`;
+                message += `• ${updated} reservas actualizadas\n`;
+                if (errors > 0) {
+                    message += `• ${errors} errores\n\n`;
+                    if (errorMessages.length > 0) {
+                        message += `Detalles:\n${errorMessages.slice(0, 5).join('\n')}`;
+                        if (errorMessages.length > 5) {
+                            message += `\n... y ${errorMessages.length - 5} más`;
+                        }
+                    }
+                }
+                alert(message);
+                
+                if (typeof loadReservationsTable === 'function') {
+                    loadReservationsTable();
+                }
+                if (typeof updateReservationsStats === 'function') {
+                    updateReservationsStats();
+                }
+                
+                console.log(`✅ Importación RateHawk completada: ${added} agregadas, ${updated} actualizadas, ${errors} errores`);
+                
+            } catch (error) {
+                console.error('❌ Error al procesar archivo RateHawk:', error);
+                alert('❌ Error al procesar el archivo RateHawk: ' + error.message);
             }
         }
 
