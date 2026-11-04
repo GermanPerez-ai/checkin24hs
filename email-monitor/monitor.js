@@ -630,7 +630,7 @@ async function findOpenReservation(code) {
     try {
         const { data, error } = await supabase
             .from('reservations')
-            .select('id,reservation_code,status,hotel_name,customer_name,notes')
+            .select('id,reservation_code,status,hotel_name,customer_name,notes,check_in,check_out,total_amount')
             .or(`reservation_code.eq.${code},reservation_code.ilike.*${code}*`)
             .in('status', ['Anulación pedida', 'Modificación pedida', 'En gestión'])
             .limit(1)
@@ -649,14 +649,189 @@ async function findOpenReservation(code) {
 }
 
 /**
+ * Extrae fechas del email (check-in y check-out)
+ * Busca patrones de fechas en formatos comunes
+ * @param {string} text - Texto del email
+ * @param {string} rawText - Texto completo sin limpiar
+ * @returns {object|null} - { checkIn: 'YYYY-MM-DD', checkOut: 'YYYY-MM-DD' } o null
+ */
+function extractDatesFromEmail(text, rawText) {
+    const combined = `${text}\n${rawText}`;
+    
+    const dates = new Set();
+    
+    // Patrón ISO format: 2026-11-16
+    const isoMatches = combined.matchAll(/(\d{4})-(\d{2})-(\d{2})/g);
+    for (const match of isoMatches) {
+        const year = parseInt(match[1]);
+        const month = parseInt(match[2]);
+        const day = parseInt(match[3]);
+        
+        if (year >= 2024 && year <= 2030 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const dateObj = new Date(dateStr);
+            
+            // Verificar que la fecha sea válida y futura (o hasta 30 días atrás)
+            const now = new Date();
+            const thirtyDaysAgo = new Date(now);
+            thirtyDaysAgo.setDate(now.getDate() - 30);
+            
+            if (dateObj >= thirtyDaysAgo) {
+                dates.add(dateStr);
+            }
+        }
+    }
+    
+    // Patrón DD/MM/YYYY o DD-MM-YYYY
+    const ddmmyyyyMatches = combined.matchAll(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/g);
+    for (const match of ddmmyyyyMatches) {
+        const day = parseInt(match[1]);
+        const month = parseInt(match[2]);
+        const year = parseInt(match[3]);
+        
+        if (year >= 2024 && year <= 2030 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+            const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+            const dateObj = new Date(dateStr);
+            
+            // Verificar que la fecha sea válida y futura (o hasta 30 días atrás)
+            const now = new Date();
+            const thirtyDaysAgo = new Date(now);
+            thirtyDaysAgo.setDate(now.getDate() - 30);
+            
+            if (dateObj >= thirtyDaysAgo) {
+                dates.add(dateStr);
+            }
+        }
+    }
+    
+    // Convertir a array y ordenar
+    const sortedDates = Array.from(dates).sort((a, b) => {
+        return new Date(a) - new Date(b);
+    });
+    
+    // Si encontramos al menos 2 fechas, la primera es check-in y la segunda check-out
+    if (sortedDates.length >= 2) {
+        return {
+            checkIn: sortedDates[0],
+            checkOut: sortedDates[1]
+        };
+    }
+    
+    return null;
+}
+
+/**
+ * Extrae tarifa/monto del email
+ * Busca patrones de montos en pesos argentinos, USD, o sin símbolo
+ * @param {string} text - Texto del email
+ * @param {string} rawText - Texto completo sin limpiar
+ * @returns {number|null} - Monto encontrado o null
+ */
+function extractAmountFromEmail(text, rawText) {
+    const combined = `${text}\n${rawText}`;
+    
+    // Patrones de montos con contextos relevantes
+    const amountPatterns = [
+        // "total: $1800", "total 1800", "total: 1800.50", "total es 1800"
+        /total\s+(?:es|:)?\s*\$?\s*([\d,]+\.?\d*)/gi,
+        // "tarifa: $1800", "tarifa nueva: 1800", "tarifa es: 1800"
+        /tarifa\s*(?:nueva|es)?\s*:?\s*\$?\s*([\d,]+\.?\d*)/gi,
+        // "monto: $1800", "monto 1800", "monto es 1800"
+        /monto\s*(?:es)?\s*:?\s*\$?\s*([\d,]+\.?\d*)/gi,
+        // "$ 1800", "ARS 1800", "USD 1800"
+        /(?:\$|ARS|USD)\s*([\d,]+\.?\d*)/gi,
+        // "1800.50" después de palabras clave
+        /(?:abonar|pagar|costo|precio)\s*:?\s*\$?\s*([\d,]+\.?\d*)/gi
+    ];
+    
+    const amounts = [];
+    
+    for (const pattern of amountPatterns) {
+        let match;
+        pattern.lastIndex = 0;
+        while ((match = pattern.exec(combined)) !== null) {
+            const amountStr = match[1].replace(/,/g, '');
+            const amount = parseFloat(amountStr);
+            
+            // Validar rango razonable (entre 100 y 1,000,000)
+            if (!isNaN(amount) && amount >= 100 && amount <= 1000000) {
+                amounts.push(amount);
+            }
+        }
+    }
+    
+    // Si encontramos montos, retornar el más frecuente o el primero
+    if (amounts.length > 0) {
+        return amounts[0];
+    }
+    
+    return null;
+}
+
+/**
+ * Determina qué datos cambiar en una modificación de reserva
+ * Compara los datos extraídos del email con los datos actuales de la reserva
+ * @param {object} reservation - Reserva actual
+ * @param {string} rawText - Texto completo del email
+ * @param {string} text - Texto limpio del email
+ * @returns {object|null} - { dates: {...}, amount: ..., auditNotes: [...] } o null si no hay cambios claros
+ */
+function determineReservationChanges(reservation, rawText, text) {
+    const changes = {
+        checkIn: null,
+        checkOut: null,
+        totalAmount: null,
+        auditNotes: []
+    };
+    
+    let hasChanges = false;
+    
+    // Extraer fechas del email
+    const extractedDates = extractDatesFromEmail(text, rawText);
+    if (extractedDates) {
+        const currentCheckIn = reservation.check_in;
+        const currentCheckOut = reservation.check_out;
+        
+        // Si las fechas extraídas son diferentes a las actuales, es un cambio
+        if (currentCheckIn && extractedDates.checkIn !== currentCheckIn) {
+            changes.checkIn = extractedDates.checkIn;
+            changes.auditNotes.push(`check_in ${currentCheckIn}→${extractedDates.checkIn}`);
+            hasChanges = true;
+        }
+        
+        if (currentCheckOut && extractedDates.checkOut !== currentCheckOut) {
+            changes.checkOut = extractedDates.checkOut;
+            changes.auditNotes.push(`check_out ${currentCheckOut}→${extractedDates.checkOut}`);
+            hasChanges = true;
+        }
+    }
+    
+    // Extraer tarifa del email
+    const extractedAmount = extractAmountFromEmail(text, rawText);
+    if (extractedAmount) {
+        const currentAmount = reservation.total_amount;
+        
+        // Si el monto es diferente al actual (con tolerancia de 1%), es un cambio
+        if (currentAmount && Math.abs(extractedAmount - currentAmount) > currentAmount * 0.01) {
+            changes.totalAmount = extractedAmount;
+            changes.auditNotes.push(`total_amount ${currentAmount}→${extractedAmount}`);
+            hasChanges = true;
+        }
+    }
+    
+    return hasChanges ? changes : null;
+}
+
+/**
  * Actualiza el estado de una reserva y agrega nota de auditoría
  * @param {object} reservation - Reserva a actualizar
  * @param {string} newStatus - Nuevo estado ('Cancelada' o 'Confirmada')
  * @param {object} emailInfo - Información del correo
  * @param {string} cancellationNumber - Número de cancelación (opcional)
- * @returns {object} - { ok: boolean, code: string, oldStatus: string, newStatus: string }
+ * @param {object} dataChanges - Cambios en los datos de la reserva (fechas/tarifa) - opcional
+ * @returns {object} - { ok: boolean, code: string, oldStatus: string, newStatus: string, dataChanged: [...] }
  */
-async function updateReservationStatus(reservation, newStatus, emailInfo, cancellationNumber = null) {
+async function updateReservationStatus(reservation, newStatus, emailInfo, cancellationNumber = null, dataChanges = null) {
     if (!supabase) {
         return { ok: false, error: 'Supabase no disponible' };
     }
@@ -676,19 +851,40 @@ async function updateReservationStatus(reservation, newStatus, emailInfo, cancel
             auditLine += ` - N° cancelación: ${cancellationNumber}`;
         }
         
+        // Agregar cambios de datos a la auditoría
+        if (dataChanges && dataChanges.auditNotes && dataChanges.auditNotes.length > 0) {
+            auditLine += `; ${dataChanges.auditNotes.join('; ')}`;
+        }
+        
         const existingNotes = reservation.notes || '';
         const updatedNotes = existingNotes 
             ? `${existingNotes}\n${auditLine}`
             : auditLine;
         
+        // Preparar objeto de actualización
+        const updateData = {
+            status: newStatus,
+            notes: updatedNotes,
+            updated_at: now
+        };
+        
+        // Agregar cambios de datos si existen
+        if (dataChanges) {
+            if (dataChanges.checkIn) {
+                updateData.check_in = dataChanges.checkIn;
+            }
+            if (dataChanges.checkOut) {
+                updateData.check_out = dataChanges.checkOut;
+            }
+            if (dataChanges.totalAmount) {
+                updateData.total_amount = dataChanges.totalAmount;
+            }
+        }
+        
         // Actualizar en Supabase
         const { error } = await supabase
             .from('reservations')
-            .update({
-                status: newStatus,
-                notes: updatedNotes,
-                updated_at: now
-            })
+            .update(updateData)
             .eq('id', reservation.id);
         
         if (error) {
@@ -701,7 +897,8 @@ async function updateReservationStatus(reservation, newStatus, emailInfo, cancel
             oldStatus: reservation.status,
             newStatus: newStatus,
             hotel: reservation.hotel_name,
-            customer: reservation.customer_name
+            customer: reservation.customer_name,
+            dataChanged: dataChanges ? dataChanges.auditNotes : []
         };
     } catch (error) {
         console.error(`   ❌ Error actualizando reserva ${reservation.reservation_code}:`, error.message);
@@ -778,14 +975,37 @@ async function processAutoClose(info, parsed) {
     
     // Procesar cada reserva
     for (const { code, reservation } of matches) {
+        // Determinar cambios de datos si es una modificación
+        let dataChanges = null;
+        if (confirmation.action === 'modificacion') {
+            dataChanges = determineReservationChanges(reservation, info.rawText, info.text);
+            
+            // Si no se pueden determinar los cambios con certeza, NO cerrar automáticamente
+            if (!dataChanges) {
+                console.log(`   ⚠️  [AUTO-CLOSE] Modificación de ${code}: no se pudieron determinar cambios de datos, requiere revisión manual`);
+                results.push({
+                    skipped: true,
+                    code,
+                    reason: 'manual_review_required',
+                    oldStatus: reservation.status,
+                    hotel: reservation.hotel_name
+                });
+                continue;
+            }
+        }
+        
         if (CONFIG.autoClose.dryRun && !CONFIG.dryRun) {
-            console.log(`   🧪 [AUTO-CLOSE DRY-RUN] Se cerraría: ${code} (${reservation.status} → ${newStatus})`);
+            const changesSummary = dataChanges && dataChanges.auditNotes.length > 0 
+                ? ` (${dataChanges.auditNotes.join(', ')})` 
+                : '';
+            console.log(`   🧪 [AUTO-CLOSE DRY-RUN] Se cerraría: ${code} (${reservation.status} → ${newStatus})${changesSummary}`);
             results.push({
                 dryRun: true,
                 code,
                 oldStatus: reservation.status,
                 newStatus,
-                hotel: reservation.hotel_name
+                hotel: reservation.hotel_name,
+                dataChanged: dataChanges ? dataChanges.auditNotes : []
             });
         } else if (CONFIG.dryRun) {
             // Ya estamos en dry-run global, no duplicar el log
@@ -794,7 +1014,8 @@ async function processAutoClose(info, parsed) {
                 code,
                 oldStatus: reservation.status,
                 newStatus,
-                hotel: reservation.hotel_name
+                hotel: reservation.hotel_name,
+                dataChanged: dataChanges ? dataChanges.auditNotes : []
             });
         } else {
             // Actualizar para real
@@ -802,12 +1023,16 @@ async function processAutoClose(info, parsed) {
                 reservation, 
                 newStatus, 
                 info, 
-                cancellationNumber
+                cancellationNumber,
+                dataChanges
             );
             results.push(updateResult);
             
             if (updateResult.ok) {
-                console.log(`   ✅ Reserva ${code} cerrada: ${reservation.status} → ${newStatus}`);
+                const changesSummary = updateResult.dataChanged && updateResult.dataChanged.length > 0
+                    ? ` (${updateResult.dataChanged.join(', ')})`
+                    : '';
+                console.log(`   ✅ Reserva ${code} cerrada: ${reservation.status} → ${newStatus}${changesSummary}`);
             } else {
                 console.error(`   ❌ Error cerrando reserva ${code}:`, updateResult.error);
             }
@@ -926,7 +1151,10 @@ async function sendWhatsAppNotification(info, summary, autoCloseResult = null) {
             const prefix = isDryRun ? '🧪 [DRY-RUN] ' : '✅ ';
             autoCloseLines = `\n\n${prefix}*Reserva(s) cerrada(s) en dashboard:*\n`;
             for (const res of successful) {
-                autoCloseLines += `• ${res.code}: ${res.oldStatus} → *${res.newStatus}*\n`;
+                const dataChangedInfo = res.dataChanged && res.dataChanged.length > 0 
+                    ? ` (${res.dataChanged.join(', ')})` 
+                    : '';
+                autoCloseLines += `• ${res.code}: ${res.oldStatus} → *${res.newStatus}*${dataChangedInfo}\n`;
             }
         }
     }
@@ -1243,5 +1471,8 @@ module.exports = {
     extractEmailInfo,
     extractReservationCodes,
     detectConfirmation,
-    processAutoClose
+    processAutoClose,
+    extractDatesFromEmail,
+    extractAmountFromEmail,
+    determineReservationChanges
 };

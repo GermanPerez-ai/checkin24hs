@@ -820,6 +820,30 @@
             color: #c62828;
         }
         
+        /* Badge para cambios de reserva (tarifa/fechas modificadas) */
+        .reservation-change-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            background-color: #fff3e0;
+            color: #e65100;
+            cursor: help;
+            transition: all 0.2s ease;
+        }
+        
+        .reservation-change-badge:hover {
+            background-color: #ffe0b2;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .reservation-change-badge i {
+            font-size: 0.7rem;
+            margin-right: 2px;
+        }
+        
         .btn-edit, .btn-delete {
             padding: 6px;
             border: none;
@@ -24848,6 +24872,49 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 const totalAmount = reservation.total_amount || reservation.totalAmount || 0;
                 const status = reservation.status || 'Pendiente';
                 const paymentStatus = reservation.payment_status || reservation.paymentStatus || '';
+                const notes = reservation.notes || '';
+                
+                // Detectar cambios de tarifa y fechas
+                const amountChange = parseAmountChangeFromNotes(notes);
+                const dateChanges = parseDateChangesFromNotes(notes);
+                
+                // Construir badge de tarifa modificada
+                let amountBadgeHTML = '';
+                if (amountChange) {
+                    const oldFormatted = Number(amountChange.oldAmount).toLocaleString();
+                    const newFormatted = Number(amountChange.newAmount).toLocaleString();
+                    amountBadgeHTML = `
+                        <div style="margin-top: 4px;">
+                            <span class="reservation-change-badge" title="Tarifa anterior: $${oldFormatted} → Nueva: $${newFormatted}">
+                                <i class="fas fa-edit"></i> Tarifa modificada
+                            </span>
+                        </div>
+                    `;
+                }
+                
+                // Construir badge de fechas modificadas
+                let datesBadgeHTML = '';
+                if (dateChanges) {
+                    const changes = [];
+                    if (dateChanges.checkIn) {
+                        const oldDate = formatReservationCheckDate(dateChanges.checkIn.old);
+                        const newDate = formatReservationCheckDate(dateChanges.checkIn.new);
+                        changes.push(`Check-in: ${oldDate} → ${newDate}`);
+                    }
+                    if (dateChanges.checkOut) {
+                        const oldDate = formatReservationCheckDate(dateChanges.checkOut.old);
+                        const newDate = formatReservationCheckDate(dateChanges.checkOut.new);
+                        changes.push(`Check-out: ${oldDate} → ${newDate}`);
+                    }
+                    const tooltipText = changes.join(' | ');
+                    datesBadgeHTML = `
+                        <div style="margin-top: 4px;">
+                            <span class="reservation-change-badge" title="${tooltipText}">
+                                <i class="fas fa-calendar-alt"></i> Fechas modificadas
+                            </span>
+                        </div>
+                    `;
+                }
                 
                 const row = document.createElement('tr');
                 row.innerHTML = `
@@ -24866,6 +24933,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         <div>
                             <div><strong>Entrada:</strong> ${formatReservationCheckDate(checkIn)}</div>
                             <div><strong>Salida:</strong> ${formatReservationCheckDate(checkOut)}</div>
+                            ${datesBadgeHTML}
                         </div>
                     </td>
                     <td style="text-align: center;">
@@ -24874,6 +24942,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     <td style="text-align: center;">
                         <strong>$${Number(totalAmount).toLocaleString()}</strong>
                         ${paymentStatus ? `<div style="font-size: 0.8em; color: #666;">${paymentStatus}</div>` : ''}
+                        ${amountBadgeHTML}
                     </td>
                     <td style="text-align: center;">
                         <button onclick="viewReservation('${reservation.id}')" class="action-btn view" title="Ver">
@@ -26185,6 +26254,64 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 .replace(/[\u0300-\u036f]/g, '')
                 .replace(/[^a-z0-9]+/g, '-')
                 .replace(/^-|-$/g, '') || 'pendiente';
+        }
+
+        /**
+         * Parsea las notas de una reserva para detectar cambios de tarifa realizados por auto-cierre
+         * Busca patrones como: "total_amount 1676.25→1800"
+         * @param {string} notes - Campo notes de la reserva
+         * @returns {object|null} - { oldAmount: number, newAmount: number } o null
+         */
+        function parseAmountChangeFromNotes(notes) {
+            if (!notes) return null;
+            
+            // Buscar patrón: total_amount VALOR_ANTIGUO→VALOR_NUEVO
+            const pattern = /total_amount\s+([\d.]+)→([\d.]+)/i;
+            const match = notes.match(pattern);
+            
+            if (match) {
+                const oldAmount = parseFloat(match[1]);
+                const newAmount = parseFloat(match[2]);
+                if (!isNaN(oldAmount) && !isNaN(newAmount)) {
+                    return { oldAmount, newAmount };
+                }
+            }
+            
+            return null;
+        }
+
+        /**
+         * Parsea las notas de una reserva para detectar cambios de fechas realizados por auto-cierre
+         * Busca patrones como: "check_in 2026-11-14→2026-11-16" y "check_out 2026-11-18→2026-11-20"
+         * @param {string} notes - Campo notes de la reserva
+         * @returns {object|null} - { checkIn: {old, new}, checkOut: {old, new} } o null
+         */
+        function parseDateChangesFromNotes(notes) {
+            if (!notes) return null;
+            
+            const changes = {};
+            
+            // Buscar cambio de check_in
+            const checkInPattern = /check_in\s+([\d-]+)→([\d-]+)/i;
+            const checkInMatch = notes.match(checkInPattern);
+            if (checkInMatch) {
+                changes.checkIn = {
+                    old: checkInMatch[1],
+                    new: checkInMatch[2]
+                };
+            }
+            
+            // Buscar cambio de check_out
+            const checkOutPattern = /check_out\s+([\d-]+)→([\d-]+)/i;
+            const checkOutMatch = notes.match(checkOutPattern);
+            if (checkOutMatch) {
+                changes.checkOut = {
+                    old: checkOutMatch[1],
+                    new: checkOutMatch[2]
+                };
+            }
+            
+            return (changes.checkIn || changes.checkOut) ? changes : null;
         }
 
         function foldReservationStatus(status) {
