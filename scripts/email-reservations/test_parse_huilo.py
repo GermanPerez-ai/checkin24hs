@@ -215,4 +215,98 @@ assert rows_k[1]["client_name"] == "Bahnmuller, Alan Facundo"
 assert rows_k[2]["children"] == 1
 assert rows_k[0]["check_in"] == "2026-07-16"
 
+# Nuevo formato con CI (imagen adjunta: 602052775 / CI-261103-021)
+fleiss_ci = """
+Estimados,
+
+Envío confirmación de reserva según lo solicitado, favor confirmar que esté todo en orden.
+
+Confirmación de reserva
+
+Nombre: Mario Erwin Fleiss
+Alojamiento: Nothofagus
+Número de confirmación: 602052775 /  CI-261103-021
+Pasajeros: 3 adultos
+Categoría de habitación: superior
+Tipo de habitación: cama mat + rollaway
+Plan de alimentación: pensión completa
+Traslados: Sí __. No_x_
+Fechas: In: 30.12.26  Out: 02.01.27
+"""
+p_fleiss = parse_huilo_confirmation(
+    {
+        "from": "paz.galvez@huilohuilo.com",
+        "subject": "Confirmación Huilo-Huilo Mario Erwin Fleiss - 602052775",
+        "text": fleiss_ci,
+    }
+)
+assert p_fleiss, "Formato nuevo con CI debe parsear"
+# Código normalizado: espacios colapsados, '/' con espacios simples
+assert p_fleiss["reservation_code"] == "602052775 / CI-261103-021"
+assert p_fleiss["client_name"] == "Mario Erwin Fleiss"
+assert p_fleiss["check_in"] == "2026-12-30"
+assert p_fleiss["check_out"] == "2027-01-02"
+assert p_fleiss["adults"] == 3
+
+# Formato CI con múltiples espacios (debe normalizarse)
+ci_multiple_spaces = """
+Confirmación de reserva
+Nombre: Juan Pérez
+Alojamiento: Nothofagus
+Número de confirmación: 601234567  /   CI-261104-999
+Pasajeros: 2 adultos
+Fechas: In: 15-11-26 Out: 17-11-26
+Tarifa final a pagar: USD 500
+"""
+p_ci_spaces = parse_huilo_confirmation(
+    {
+        "from": "paz.galvez@huilohuilo.com",
+        "subject": "Confirmación Juan Pérez",
+        "text": ci_multiple_spaces,
+    }
+)
+assert p_ci_spaces, "CI con múltiples espacios debe parsear"
+assert p_ci_spaces["reservation_code"] == "601234567 / CI-261104-999"
+assert p_ci_spaces["client_name"] == "Juan Pérez"
+
+# Formato antiguo (solo número) debe seguir funcionando
+old_format = """
+Confirmación de reserva
+Nombre: Ana García
+Número de confirmación: 598765432
+Pasajeros: 2 adultos
+Fechas: In: 20-12-26 Out: 22-12-26
+Tarifa final a pagar: USD 600
+"""
+p_old = parse_huilo_confirmation(
+    {
+        "from": "paz.galvez@huilohuilo.com",
+        "subject": "Confirmación Ana García",
+        "text": old_format,
+    }
+)
+assert p_old, "Formato antiguo (solo número) debe seguir funcionando"
+assert p_old["reservation_code"] == "598765432"
+assert p_old["client_name"] == "Ana García"
+
+# Formato antiguo con múltiples códigos (con "y")
+multiple_old = """
+Confirmación de reserva
+Nombre: Pedro López
+Número de confirmación: 599111111 y 599222222
+Pasajeros: 4 adultos
+Fechas: In: 25-12-26 Out: 27-12-26
+Tarifa final a pagar: USD 1000
+"""
+p_multi = parse_huilo_confirmation(
+    {
+        "from": "paz.galvez@huilohuilo.com",
+        "subject": "Confirmación Pedro López",
+        "text": multiple_old,
+    }
+)
+assert p_multi, "Múltiples códigos antiguos deben seguir funcionando"
+assert p_multi["reservation_code"] == "599111111 y 599222222"
+assert p_multi["client_name"] == "Pedro López"
+
 print("OK parse_huilo tests")

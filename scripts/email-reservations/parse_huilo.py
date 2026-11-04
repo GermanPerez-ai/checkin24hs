@@ -208,15 +208,31 @@ def split_confirmation_blocks(text: str):
     return blocks
 
 
+def _normalize_confirmation_code(raw_code: str) -> str:
+    """Normaliza códigos de confirmación: '602052775 /  CI-261103-021' → '602052775 / CI-261103-021'."""
+    if not raw_code:
+        return ""
+    s = re.sub(r"\s+", " ", str(raw_code).strip())
+    s = re.sub(r"\s*/\s*", " / ", s)
+    return s
+
+
 def _from_block(text: str, subject: str, ref_date=None):
     code = field(text, r"N[uú]mero de confirmaci[oó]n")
     if not code:
         m = re.search(r"N[uú]mero de confirmaci[oó]n\s*[:：]?\s*(.+)", text, re.I)
         code = m.group(1).strip() if m else None
     if code:
-        nums = re.findall(r"\b\d{9}\b", code)
-        if nums:
-            code = " y ".join(dict.fromkeys(nums))
+        # Detectar formato nuevo: "602052775 / CI-261103-021" o variantes con espacios
+        has_ci = re.search(r"\bCI-\d{6}-\d{3}\b", code, re.I)
+        if has_ci:
+            # Mantener el formato completo, normalizado
+            code = _normalize_confirmation_code(code)
+        else:
+            # Formato antiguo: solo números, posiblemente múltiples con "y"
+            nums = re.findall(r"\b\d{9}\b", code)
+            if nums:
+                code = " y ".join(dict.fromkeys(nums))
     if not code:
         nums = re.findall(r"\b\d{9}\b", text)
         if nums:
