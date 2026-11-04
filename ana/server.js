@@ -725,6 +725,7 @@ function compactSnapshot(snap, userText) {
           today: sales.today,
           yesterday: sales.yesterday,
           month: sales.month,
+          month_checkin_confirmed: sales.month_checkin_confirmed,
           pending: sales.pending,
           weeks: sales.weeks,
           axes: sales.axes || null,
