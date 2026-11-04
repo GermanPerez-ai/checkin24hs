@@ -28,6 +28,7 @@ San Carlos de Bariloche, Argentina
 
 Nombre del huésped
 Laura Perez
+Pablo Koharic
 
 Check-in
 8 noviembre 2026
@@ -117,16 +118,20 @@ class TestParseRateHawk(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertEqual(row["kind"], "client")
         self.assertEqual(row["reservation_code"], "764257658")
-        self.assertEqual(row["client_name"], "Laura Perez")
+        self.assertEqual(row["client_name"], "Laura Perez, Pablo Koharic")
         self.assertEqual(row["hotel_name"], "RateHawk")
         self.assertEqual(row["hotel_key"], "ratehawk")
         self.assertEqual(row["check_in"], "2026-11-08")
         self.assertEqual(row["check_out"], "2026-11-11")
-        self.assertAlmostEqual(row["total_amount"], 853.0, places=1)
+        # total_amount debe ser PVP (sale price), no el neto
+        # net=853, commission 10% of PVP, so PVP = 853/0.90 = 947.78
+        self.assertAlmostEqual(row["total_amount"], 947.78, places=2)
         self.assertEqual(row["currency"], "USD")
         self.assertEqual(row["status"], "Confirmada")
         self.assertIn("Fuente: RateHawk", row["notes"])
         self.assertIn("Hotel: Llao Llao Resort Golf & Spa", row["notes"])
+        self.assertIn("Neto: USD 853.00", row["notes"])
+        self.assertIn("Comisión: USD 94.78 (10%)", row["notes"])
 
     def test_parse_cancellation(self):
         row = parse_ratehawk_mail(
@@ -169,10 +174,12 @@ class TestParseRateHawk(unittest.TestCase):
         self.assertEqual(row["reservation_code"], "764257658")
         self.assertEqual(row["hotel_name"], "RateHawk")
         self.assertIn("Hotel: Llao Llao Resort Golf & Spa", row["notes"])
-        self.assertEqual(row["client_name"], "Laura Perez")
+        # El email real solo tiene "Laura Perez" (no múltiples huéspedes)
+        self.assertIn("Laura Perez", row["client_name"])
         self.assertEqual(row["check_in"], "2026-11-08")
         self.assertEqual(row["check_out"], "2026-11-11")
-        self.assertGreater(row["total_amount"], 0)
+        # Verificar que total_amount es PVP (sale price), no neto
+        self.assertAlmostEqual(row["total_amount"], 947.78, places=2)
 
     def test_notes_contains_metadata(self):
         row = parse_ratehawk_mail(
@@ -185,6 +192,8 @@ class TestParseRateHawk(unittest.TestCase):
         notes = row["notes"]
         self.assertIn("Fuente: RateHawk", notes)
         self.assertIn("Hotel: Llao Llao Resort Golf & Spa", notes)
+        self.assertIn("Neto: USD 853.00", notes)
+        self.assertIn("Comisión: USD 94.78 (10%)", notes)
         self.assertIn("Cancelación gratuita", notes)
         self.assertIn("Factura", notes)
 

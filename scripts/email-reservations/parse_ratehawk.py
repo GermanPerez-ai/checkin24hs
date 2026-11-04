@@ -128,21 +128,60 @@ def _parse_money(raw: str) -> float:
         return 0.0
 
 
-def _parse_amount(text: str) -> tuple[float, str]:
-    """Extrae 'Importe a pagar' en USD."""
+def _parse_amounts(text: str) -> tuple[float, float, str]:
+    """
+    Extrae total (PVP sale price), net, y currency.
+    Returns (total_pvp, net_amount, currency).
+    
+    RateHawk comisión = 10% del precio de venta (PVP).
+    Entonces: net = PVP * 0.90, o PVP = net / 0.90
+    
+    Busca primero el precio de venta/cliente explícito, luego calcula desde el neto.
+    """
+    currency = "USD"
+    
+    # Primero buscar precio de venta / cliente / PVP explícito
+    sale_patterns = [
+        r"Precio sin servicios adicionales\s*[:：]?\s*([^\n]+)",
+        r"Precio de venta\s*[:：]?\s*([^\n]+)",
+        r"Precio cliente\s*[:：]?\s*([^\n]+)",
+        r"PVP\s*[:：]?\s*([^\n]+)",
+        r"Total\s*[:：]?\s*US\$?\s*([\d.,]+)",
+    ]
+    
+    for pattern in sale_patterns:
+        m = re.search(pattern, text, re.I | re.M)
+        if m:
+            amount_text = m.group(1).strip()
+            amount_match = re.search(r"([\d.,]+)", amount_text)
+            if amount_match:
+                sale_price = _parse_money(amount_match.group(1))
+                if sale_price > 0:
+                    # Calcular neto desde sale price (10% comisión del PVP)
+                    net = round(sale_price * 0.90, 2)
+                    return sale_price, net, currency
+    
+    # Si no hay precio de venta, extraer neto (Importe a pagar)
+    net = 0.0
     m = re.search(r"Importe a pagar\s*[:：]?\s*([^\n]+)", text, re.I | re.M)
     if m:
         amount_text = m.group(1).strip()
         if "$" in amount_text or "USD" in amount_text.upper():
             amount_match = re.search(r"([\d.,]+)", amount_text)
             if amount_match:
-                return _parse_money(amount_match.group(1)), "USD"
+                net = _parse_money(amount_match.group(1))
     
-    m = re.search(r"([\d.,]+)\s*\$", text, re.I)
-    if m:
-        return _parse_money(m.group(1)), "USD"
+    if net == 0.0:
+        m = re.search(r"([\d.,]+)\s*\$", text, re.I)
+        if m:
+            net = _parse_money(m.group(1))
     
-    return 0.0, "USD"
+    # Calcular PVP desde neto: net = PVP * 0.90, entonces PVP = net / 0.90
+    if net > 0:
+        sale_price = round(net / 0.90, 2)
+        return sale_price, net, currency
+    
+    return 0.0, 0.0, currency
 
 
 def _detect_forwarded(subject: str, text: str) -> tuple[str, str]:
@@ -196,11 +235,41 @@ def parse_ratehawk_mail(mail: dict) -> Optional[dict]:
     
     actual_hotel_name = actual_hotel_name.split("\n")[0].strip() if actual_hotel_name else ""
     
-    client_name = (
+    # Extraer todos los huéspedes/pasajeros
+    client_name_raw = (
         field(text, r"Nombre del hu[eé]sped") or
         field(text, r"Hu[eé]sped") or
         ""
     ).strip()
+    
+    # Buscar nombres adicionales después de "Nombre del huésped"
+    guest_section = re.search(
+        r"Nombre del hu[eé]sped\s*\n((?:[^\n]+\n?){1,5})",
+        text,
+        re.I
+    )
+    
+    if guest_section:
+        guest_text = guest_section.group(1)
+        # Separar por líneas y buscar nombres en cada línea
+        lines = [l.strip() for l in guest_text.split("\n") if l.strip()]
+        names = []
+        for line in lines:
+            # Buscar patrón: Nombre Apellido (dos o más palabras capitalizadas)
+            if re.match(r"^[A-Z][a-záéíóúñ]+(?:\s+[A-Z][a-záéíóúñ]+)+$", line):
+                names.append(line)
+            elif re.search(r"Check-in|Check-out|Habitaci[oó]n", line, re.I):
+                # Si llegamos a otra sección, parar
+                break
+        
+        if len(names) > 1:
+            client_name = ", ".join(names)
+        elif names:
+            client_name = names[0]
+        else:
+            client_name = client_name_raw
+    else:
+        client_name = client_name_raw
     
     check_in_raw = field(text, r"Check-in")
     check_out_raw = field(text, r"Check-out")
@@ -217,7 +286,10 @@ def parse_ratehawk_mail(mail: dict) -> Optional[dict]:
     if not check_in or not check_out:
         return None
     
-    total_amount, currency = _parse_amount(text)
+    # Extraer total (PVP sale price) y neto
+    total_pvp, net_amount, currency = _parse_amounts(text)
+    commission_amt = round(total_pvp - net_amount, 2) if total_pvp > 0 and net_amount > 0 else 0.0
+    commission_pct = round((commission_amt / total_pvp * 100), 1) if total_pvp > 0 else 0.0
     
     invoice_number = field(text, r"N[uú]mero de factura") or ""
     due_date = field(text, r"Fecha de vencimiento") or ""
@@ -238,17 +310,15 @@ def parse_ratehawk_mail(mail: dict) -> Optional[dict]:
     if provider_match:
         provider_id = provider_match.group(1)
     
-    commission_match = re.search(r"comisi[oó]n[:\s]*USD\s*([\d.,]+)", text, re.I)
-    commission = _parse_money(commission_match.group(1)) if commission_match else 0.0
-    
     notes_parts = [
         "Fuente: RateHawk",
         f"Hotel: {actual_hotel_name}" if actual_hotel_name else None,
+        f"Neto: USD {net_amount:.2f}" if net_amount > 0 else None,
+        f"Comisión: USD {commission_amt:.2f} ({commission_pct:.0f}%)" if commission_amt > 0 else None,
         f"Proveedor ID: {provider_id}" if provider_id else None,
         f"Factura: {invoice_number}" if invoice_number else None,
         f"Vencimiento: {due_date}" if due_date else None,
         f"Cancelación gratuita hasta: {free_cancel}" if free_cancel else None,
-        f"Comisión: USD {commission:.2f}" if commission > 0 else None,
     ]
     notes = " | ".join(x for x in notes_parts if x)
     
@@ -264,7 +334,7 @@ def parse_ratehawk_mail(mail: dict) -> Optional[dict]:
         "hotel_name": "RateHawk",
         "check_in": check_in,
         "check_out": check_out,
-        "total_amount": total_amount,
+        "total_amount": total_pvp,
         "currency": currency,
         "status": status,
         "notes": notes,
