@@ -5,11 +5,14 @@ Servicio de monitoreo automatizado del correo **reservas@checkin24hs.com** que d
 ## 🎯 Funcionalidad
 
 1. **Monitoreo IMAP**: Revisa periódicamente la bandeja de entrada de reservas@checkin24hs.com (alojado en Hostinger)
-2. **Filtrado inteligente**: Identifica solo respuestas/hilos relacionados con reservas (modificaciones, anulaciones, confirmaciones, vouchers, cupos, etc.)
+2. **Filtrado inteligente**: Identifica dos tipos de emails relevantes:
+   - **Movimientos de reserva**: Modificaciones, anulaciones, confirmaciones, vouchers, cupos
+   - **Comunicaciones de negocio**: Propuestas comerciales, consultas, reuniones, información de proveedores/hoteles
 3. **Extracción de información**: Obtiene remitente (hotel/proveedor), asunto y texto principal sin citas ni firmas
 4. **Resumen ejecutivo**: Genera un resumen corto con IA (opcional) o resumen simple
-5. **Notificación WhatsApp**: Envía al grupo del equipo usando la infraestructura Baileys existente
+5. **Notificación WhatsApp**: Envía al grupo del equipo usando la infraestructura Baileys existente con mensajes diferenciados según tipo
 6. **Control de duplicados**: Registra cada correo procesado en Supabase para no notificar dos veces
+7. **Auto-cierre de reservas**: Detecta confirmaciones de cancelación/modificación y actualiza el estado en Dashboard (solo para emails de reserva)
 
 ## ⚙️ Requisitos Previos
 
@@ -155,6 +158,68 @@ El monitor clasifica automáticamente los correos y los envía al destino correc
   - Configurables en INTERNAL_SENDERS
 
 **Clasificación**: Todo lo que no esté en PROVIDER_DOMAINS se considera hotel y va al grupo.
+
+### 📊 Tipos de Emails y Criterios de Alerta
+
+El monitor clasifica cada email en una de tres categorías:
+
+#### 1. 📧 Movimientos de Reserva
+Emails relacionados con confirmaciones, modificaciones, anulaciones o consultas de reservas existentes.
+
+**Criterios**:
+- Contiene palabras clave de reserva: `reserva`, `modificación`, `anulación`, `cancelación`, `voucher`, `cupo`, `confirmación`
+- Puede incluir código de reserva (alfanumérico o numérico)
+
+**Acción**: 
+- Notifica por WhatsApp con el formato "📧 Nueva respuesta sobre reserva"
+- Identifica el agente que solicitó la reserva (Mariano, German, etc.)
+- Puede disparar auto-cierre de reservas en Dashboard si detecta confirmación de cancelación/modificación
+
+#### 2. 💼 Comunicaciones de Negocio
+Emails comerciales, informativos, propuestas, consultas o aclaraciones del negocio que NO son movimientos de reserva.
+
+**Criterios**:
+- **Es respuesta en un hilo**: Email con headers `In-Reply-To`/`References` o asunto con `RE:`/`RV:` de remitente externo (hotel/proveedor)
+- **O contiene señales claras de negocio**: 
+  - Palabras clave comerciales: `reunión`, `propuesta`, `cotización`, `tarifas`, `convenio`, `comisión`, `disponibilidad`, `consulta`, `información`, `novedades`, `contrato`, `facturación`, `pagos`, `negociación`, `acuerdo`, `oferta`, `promoción`, `programa`, `alianza`
+  - Texto suficientemente largo (>50 caracteres) para evitar emails automáticos
+
+**Acción**: 
+- Notifica por WhatsApp con el formato "💼 Nuevo email comercial/informativo"
+- NO identifica agente (no aplica para comunicaciones comerciales)
+- NO dispara auto-cierre de reservas
+
+**Ejemplo real**: Respuesta de Monica Cornejo (Corralco) proponiendo reunión para conocer novedades del hotel → **alertó correctamente como comercial**
+
+#### 3. 🚫 Filtrados (No Alertan)
+Emails que NO generan notificación:
+
+**Criterios**:
+- **Remitentes internos**: Dominios/emails configurados en `INTERNAL_SENDERS` (ej: checkin24hs.com, axelbisio@hotmail.com)
+- **Newsletters/Marketing masivo**: 
+  - Contiene palabras de newsletter/spam: `unsubscribe`, `newsletter`, `boletín`, `marketing`, `publicidad`, `opt-out`
+  - Tiene header `List-Unsubscribe` (típico de newsletters)
+  - Envío masivo (más de 5 destinatarios en To/Cc)
+- **Emails sin señales relevantes**: No cumplen criterios de reserva ni de negocio
+- **Emails muy cortos**: Menos de 50 caracteres sin contexto de hilo (posibles automáticos)
+
+### ⚙️ Variables de Configuración
+
+Puedes personalizar el comportamiento del filtrado con estas variables en `.env`:
+
+```bash
+# Palabras clave que identifican movimientos de reserva
+FILTER_KEYWORDS=reserva,modificación,anulación,cancelación,voucher,cupo,confirmación
+
+# Palabras clave que identifican comunicaciones de negocio
+# Por defecto incluye: reunión, propuesta, cotización, tarifas, convenio, etc.
+BUSINESS_KEYWORDS=reunión,propuesta,cotización,tarifas,convenio,disponibilidad,consulta,información
+
+# Palabras clave que identifican newsletters/spam (para excluir)
+NEWSLETTER_KEYWORDS=unsubscribe,newsletter,boletín,marketing,publicidad,opt-out
+```
+
+**Defaults seguros**: Si no se configuran, el monitor usa valores predeterminados conservadores que minimizan falsos positivos.
 
 ### Modo prueba (dry-run)
 

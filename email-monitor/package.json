@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node monitor.js",
     "dry-run": "node monitor.js --dry-run",
-    "test": "node test-filter.js && node test-parser.js && node test-agent-detection.js && node test-auto-close.js && node test-reservation-signals.js"
+    "test": "node test.js && node test-filter.js && node test-parser.js && node test-agent-detection.js && node test-auto-close.js && node test-reservation-signals.js",
+    "test:business": "node test.js"
   },
   "engines": {
     "node": ">=18"
