@@ -221,14 +221,25 @@ function detectAgent(rawText, parsed) {
     
     const textLower = rawText.toLowerCase();
     
-    // 0. PRIORIDAD MÁXIMA: firma explícita ("Atte German", "Saludos, Mariano")
+    // 0. PRIORIDAD MÁXIMA: campo explícito "Solicitado por:"
+    const solicitadoPorRe = /solicitado por:\s*([^\n]+)/gi;
+    for (const m of textLower.matchAll(solicitadoPorRe)) {
+        const name = (m[1] || '').trim();
+        if (name && name.length > 0 && name.length < 100) {
+            const agent = findAgentInText(name);
+            if (agent) return agent;
+            return name.split(/\s+/).slice(0, 3).join(' ').replace(/[^\wáéíóúñü\s]/gi, '').trim() || 'no identificado';
+        }
+    }
+    
+    // 1. PRIORIDAD ALTA: firma explícita ("Atte German", "Saludos, Mariano")
     const signRe = /(?:atte\.?|atentamente|saludos|cordialmente|firma)[,:\s]+([^\n]{0,60})/gi;
     for (const m of textLower.matchAll(signRe)) {
         const agent = findAgentInText(m[1]);
         if (agent) return agent;
     }
     
-    // 1. PRIORIDAD: Buscar en el mensaje original citado / firma
+    // 2. PRIORIDAD MEDIA: Buscar en el mensaje original citado / firma
     // Buscar después de patrones como "De:", "From:", "El ... escribió:", "On ... wrote:"
     const quotedPatterns = [
         /(?:de|from):\s*([^\n]+)/gi,
@@ -254,7 +265,7 @@ function detectAgent(rawText, parsed) {
         }
     }
     
-    // 2. Buscar en saludos al inicio del mensaje (primeras 5 líneas)
+    // 3. Buscar en saludos al inicio del mensaje (primeras 5 líneas)
     const firstLines = textLower.split('\n').slice(0, 5).join('\n');
     const greetingPatterns = [
         /(?:hola|estimado|estimada|querido|querida|buen\s+día|buenos\s+días)\s+([a-záéíóúñ]+)/gi,
@@ -270,7 +281,7 @@ function detectAgent(rawText, parsed) {
         }
     }
     
-    // 3. Buscar en headers To/Cc
+    // 4. Buscar en headers To/Cc
     const recipients = [];
     if (parsed.to && parsed.to.value) {
         recipients.push(...parsed.to.value.map(r => r.address || '').filter(Boolean));
