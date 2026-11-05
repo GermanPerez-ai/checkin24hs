@@ -35,7 +35,8 @@ const spamEmail = {
 };
 
 const result2 = isReservationRelated(spamEmail);
-assert.strictEqual(result2, false, 'Debería filtrar correos no relacionados');
+assert.strictEqual(result2.isRelated, false, 'Debería filtrar correos no relacionados');
+assert.strictEqual(result2.reason, 'no_keywords', 'Debería indicar que no tiene palabras clave');
 
 console.log('   ✅ Filtra spam correctamente\n');
 
