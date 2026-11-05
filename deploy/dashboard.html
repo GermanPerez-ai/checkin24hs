@@ -14,7 +14,7 @@
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
         window.DASHBOARD_BUILD = '2026-09-24T12:28:09Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 287; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 288; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2376,7 +2376,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">287</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">288</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -4610,6 +4610,10 @@
             <div class="form-group" style="margin-bottom: 10px;">
                 <label for="hotelActionMailSubject">Asunto</label>
                 <input type="text" id="hotelActionMailSubject" style="width: 100%; padding: 8px;">
+            </div>
+            <div class="form-group" style="margin-bottom: 10px;">
+                <label for="hotelActionMailSolicitante">Solicitado por *</label>
+                <input type="text" id="hotelActionMailSolicitante" placeholder="Nombre del solicitante" style="width: 100%; padding: 8px;">
             </div>
             <div class="form-group" style="margin-bottom: 10px;">
                 <label for="hotelActionMailBody">Mensaje</label>
@@ -26383,13 +26387,13 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             return 'CONSULTA ' + hotel + ' ' + code;
         }
 
-        function buildHotelActionBody(kind, snap) {
+        function buildHotelActionBody(kind, snap, solicitante) {
             const intro = kind === 'anular'
                 ? 'Solicitamos anular la siguiente reserva. El cliente no podrá viajar.'
                 : kind === 'modificar'
                 ? 'Solicitamos modificar la siguiente reserva.'
                 : 'Consulta sobre la siguiente reserva.';
-            return [
+            const parts = [
                 'Hola,',
                 '',
                 intro,
@@ -26400,12 +26404,16 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 'Teléfono: ' + (snap.clientPhone || ''),
                 'Check-in: ' + (snap.checkIn || ''),
                 'Check-out: ' + (snap.checkOut || ''),
-                'Tarifa (USD): ' + (snap.totalAmount || ''),
-                'Aguardo confirmación.',
-                '',
-                'Saludos,',
-                'Checkin24hs — reservas@checkin24hs.com'
-            ].join('\n');
+                'Tarifa (USD): ' + (snap.totalAmount || '')
+            ];
+            if (solicitante && solicitante.trim()) {
+                parts.push('Solicitado por: ' + solicitante.trim());
+            }
+            parts.push('Aguardo confirmación.');
+            parts.push('');
+            parts.push('Saludos,');
+            parts.push('Checkin24hs — reservas@checkin24hs.com');
+            return parts.join('\n');
         }
 
         function closeHotelActionMailModal() {
@@ -26429,6 +26437,11 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             document.getElementById('hotelActionMailTitle').textContent = titles[kind] || 'Pedido al hotel';
             document.getElementById('hotelActionMailTo').value = defaultHotelReservasEmail(snap.hotelName);
             document.getElementById('hotelActionMailSubject').value = buildHotelActionSubject(kind, snap);
+            const solicitanteField = document.getElementById('hotelActionMailSolicitante');
+            if (solicitanteField) {
+                const userName = window.currentUser?.name || '';
+                solicitanteField.value = userName;
+            }
             document.getElementById('hotelActionMailBody').value = buildHotelActionBody(kind, snap);
             const files = document.getElementById('hotelActionMailFiles');
             if (files) files.value = '';
@@ -26481,6 +26494,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             const snap = window._hotelActionSnap || currentEditReservationSnapshot();
             const to = (document.getElementById('hotelActionMailTo').value || '').trim();
             const subject = (document.getElementById('hotelActionMailSubject').value || '').trim();
+            const solicitante = (document.getElementById('hotelActionMailSolicitante').value || '').trim();
             const text = (document.getElementById('hotelActionMailBody').value || '').trim();
             if (!to || !to.includes('@')) {
                 alert('Completá el email del hotel.');
@@ -26489,6 +26503,23 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             if (!subject || !text) {
                 alert('Asunto y mensaje no pueden estar vacíos.');
                 return;
+            }
+            if (!solicitante) {
+                const solicitanteField = document.getElementById('hotelActionMailSolicitante');
+                if (solicitanteField) solicitanteField.focus();
+                alert('Tenés que poner el nombre del solicitante.');
+                return;
+            }
+            let finalText = text;
+            if (!/solicitado por:/i.test(finalText)) {
+                const lines = finalText.split('\n');
+                const insertIdx = lines.findIndex(l => /aguardo|saludos|gracias/i.test(l));
+                if (insertIdx > 0) {
+                    lines.splice(insertIdx, 0, 'Solicitado por: ' + solicitante);
+                } else {
+                    lines.push('Solicitado por: ' + solicitante);
+                }
+                finalText = lines.join('\n');
             }
             const btn = document.getElementById('hotelActionMailSendBtn');
             if (btn) {
@@ -26504,7 +26535,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         kind,
                         to,
                         subject,
-                        text,
+                        text: finalText,
                         code: snap.code,
                         replyTo: 'reservas@checkin24hs.com',
                         attachments
