@@ -54,7 +54,7 @@ const CONFIG = {
         .split(',')
         .map(k => k.trim().toLowerCase())
         .filter(Boolean),
-    providerDomains: (process.env.PROVIDER_DOMAINS || 'tanica.com,ratehawk.com,emergingtravel.com')
+    providerDomains: (process.env.PROVIDER_DOMAINS || 'ratehawk.com,emergingtravel.com')
         .split(',')
         .map(d => d.trim().toLowerCase())
         .filter(Boolean),
@@ -212,6 +212,13 @@ function detectAgent(rawText, parsed) {
     if (!rawText) return 'no identificado';
     
     const textLower = rawText.toLowerCase();
+    
+    // 0. PRIORIDAD MÁXIMA: firma explícita ("Atte German", "Saludos, Mariano")
+    const signRe = /(?:atte\.?|atentamente|saludos|cordialmente|firma)[,:\s]+([^\n]{0,60})/gi;
+    for (const m of textLower.matchAll(signRe)) {
+        const agent = findAgentInText(m[1]);
+        if (agent) return agent;
+    }
     
     // 1. PRIORIDAD: Buscar en el mensaje original citado / firma
     // Buscar después de patrones como "De:", "From:", "El ... escribió:", "On ... wrote:"
