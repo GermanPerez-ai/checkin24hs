@@ -1,4 +1,9 @@
-"""Parser confirmaciones RateHawk (b2b@news.ratehawk.com, b2b@email.ratehawk.com)."""
+"""Parser confirmaciones RateHawk (b2b@news.ratehawk.com, b2b@email.ratehawk.com).
+
+Acepta confirmaciones/cancelaciones reenviadas por el dueño (gap.bariloche@gmail.com)
+o remitentes internos (checkin24hs.com) cuando el asunto coincide con los patrones
+RateHawk o el cuerpo contiene marcadores claros.
+"""
 from __future__ import annotations
 
 import re
@@ -29,25 +34,95 @@ _MARKETING_SKIP = re.compile(
     re.I,
 )
 
+# Remitentes autorizados para reenviar confirmaciones RateHawk
+_AUTHORIZED_FORWARDERS = (
+    "gap.bariloche@gmail.com",
+    "checkin24hs.com",
+)
+
+
+def _is_authorized_forwarder(from_addr: str) -> bool:
+    """Verifica si el remitente está autorizado a reenviar confirmaciones RateHawk."""
+    addr = (from_addr or "").lower().strip()
+    if not addr:
+        return False
+    
+    # Extraer el email de formatos como "Name <email@domain.com>"
+    if "<" in addr and ">" in addr:
+        addr = addr.split("<")[1].split(">")[0].strip()
+    
+    # Verificar si coincide con algún remitente autorizado
+    for authorized in _AUTHORIZED_FORWARDERS:
+        if addr == authorized:
+            return True
+        # Verificar dominios (ej: user@checkin24hs.com)
+        if "@" in addr and addr.endswith("@" + authorized):
+            return True
+        if "@" in addr:
+            domain = addr.split("@")[1]
+            if domain == authorized or domain.endswith("." + authorized):
+                return True
+    
+    return False
+
 
 def looks_ratehawk(from_addr: str, subject: str, text: str = "") -> bool:
-    """Detecta emails transaccionales de RateHawk (no marketing)."""
+    """Detecta emails transaccionales de RateHawk (no marketing).
+    
+    Acepta emails directos de RateHawk (ratehawk.com) o forwards de remitentes
+    autorizados cuando el contenido tiene patrones RateHawk claros.
+    """
     from_lower = (from_addr or "").lower()
+    subject_str = subject or ""
     
-    if not ("ratehawk.com" in from_lower or "b2b@" in from_lower):
+    # Descartar marketing explícito
+    if _MARKETING_SKIP.search(subject_str):
         return False
     
-    if _MARKETING_SKIP.search(subject or ""):
+    # 1. Email directo de RateHawk
+    if "ratehawk.com" in from_lower or "b2b@" in from_lower:
+        if (_SUBJECT_CONFIRM.search(subject_str) or 
+            _SUBJECT_CANCEL.search(subject_str) or
+            _SUBJECT_MODIFY.search(subject_str)):
+            return True
+        blob = f"{subject_str} {text[:1000]}".lower()
+        if "número de reserva" in blob and "ratehawk" in blob:
+            return True
         return False
     
-    if (_SUBJECT_CONFIRM.search(subject or "") or 
-        _SUBJECT_CANCEL.search(subject or "") or
-        _SUBJECT_MODIFY.search(subject or "")):
-        return True
-    
-    blob = f"{subject} {text[:1000]}".lower()
-    if "número de reserva" in blob and "ratehawk" in blob:
-        return True
+    # 2. Forward de remitente autorizado con patrones RateHawk
+    if _is_authorized_forwarder(from_addr):
+        # Verificar patrón en asunto (puede estar en el asunto original del forward)
+        if (_SUBJECT_CONFIRM.search(subject_str) or 
+            _SUBJECT_CANCEL.search(subject_str) or
+            _SUBJECT_MODIFY.search(subject_str)):
+            return True
+        
+        # Verificar marcadores en el cuerpo
+        blob = f"{subject_str} {text[:1000]}".lower()
+        
+        # Marcador directo: "número de reserva" + "ratehawk"
+        if "número de reserva" in blob and "ratehawk" in blob:
+            return True
+        
+        # Marcadores típicos de RateHawk (sin mencionar la marca):
+        # - Patrón de código (8-12 dígitos)
+        # - "Número de reserva" + código numérico
+        # - "Número de factura" con formato RateHawk (ej: 100416222-00002)
+        # - "Reserva en ... confirmada"
+        if "número de reserva" in blob:
+            # Buscar código de 8-12 dígitos cerca
+            if re.search(r"\bnúmero de reserva\s*\n?\s*\d{8,12}\b", blob, re.I):
+                # Verificar otros marcadores RateHawk para confirmar
+                ratehawk_markers = [
+                    r"\bnúmero de factura\b.*\d{9}-\d{5}",  # Formato: 100416222-00002
+                    r"reserva en\b.{1,100}\bconfirmada",
+                    r"importe a pagar.*\$",
+                    r"cancelaci[oó]n gratuita.*antes del",
+                ]
+                for marker in ratehawk_markers:
+                    if re.search(marker, blob, re.I):
+                        return True
     
     return False
 
@@ -136,7 +211,23 @@ def _parse_amounts(text: str) -> tuple[float, float, str]:
     RateHawk comisión = 10% del precio de venta (PVP).
     Entonces: net = PVP * 0.90, o PVP = net / 0.90
     
-    Busca primero el precio de venta/cliente explícito, luego calcula desde el neto.
+    HEURÍSTICA ACTUAL (limitación conocida):
+    1. Si hay "Precio de venta" / "Precio cliente" / "PVP" explícito → es el PVP
+    2. Si solo viene "Importe a pagar" → se ASUME que es el neto (precio de compra)
+       y se calcula PVP = neto / 0.90
+    
+    PROBLEMA: En algunos mails de RateHawk, "Importe a pagar" puede ser el PVP final,
+    no el neto. La distinción solo es clara con etiquetas explícitas en el mail.
+    
+    CASO REAL: Forward de gap.bariloche@gmail.com con "Importe a pagar 947,78$"
+    donde 947.78 es el PVP (precio de venta final), no el neto.
+    
+    SOLUCIÓN RECOMENDADA: Agregar variable de entorno RATEHAWK_IMPORTE_ES_PVP=true
+    para cambiar el comportamiento por defecto (futuro).
+    
+    Por ahora, el comportamiento por defecto es: "Importe a pagar" = neto.
+    Para que se registre como PVP, el mail debe incluir una etiqueta explícita
+    como "Precio de venta", "Precio cliente" o "PVP".
     """
     currency = "USD"
     
@@ -162,6 +253,7 @@ def _parse_amounts(text: str) -> tuple[float, float, str]:
                     return sale_price, net, currency
     
     # Si no hay precio de venta, extraer neto (Importe a pagar)
+    # NOTA: Asume que "Importe a pagar" es el neto (precio de compra)
     net = 0.0
     m = re.search(r"Importe a pagar\s*[:：]?\s*([^\n]+)", text, re.I | re.M)
     if m:
@@ -206,11 +298,13 @@ def parse_ratehawk_mail(mail: dict) -> Optional[dict]:
     subject = str(mail.get("subject") or "")
     from_addr = str(mail.get("from") or "")
     
-    if not looks_ratehawk(from_addr, subject):
-        return None
-    
+    # Extraer el cuerpo primero para verificación completa
     text = _body_text(mail)
     if not text:
+        return None
+    
+    # Verificar si es RateHawk con asunto, from y cuerpo
+    if not looks_ratehawk(from_addr, subject, text):
         return None
     
     subject, text = _detect_forwarded(subject, text)

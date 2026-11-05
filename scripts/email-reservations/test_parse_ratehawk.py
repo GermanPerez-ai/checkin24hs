@@ -155,6 +155,96 @@ class TestParseRateHawk(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertEqual(row["reservation_code"], "764257658")
 
+    def test_forward_from_owner_without_fwd_prefix(self):
+        """Gmail forward sin 'Fwd:' en el asunto (gap.bariloche@gmail.com)."""
+        forwarded_body = """
+Reserva en Llao Llao Resort Golf & Spa confirmada
+
+Nombre del huésped
+Laura Perez
+
+Check-in
+8 noviembre 2026
+
+Check-out
+11 noviembre 2026
+
+Número de reserva
+764257658
+
+Número de factura
+100416222-00002
+
+Importe a pagar
+947,78$
+
+Cancelación gratuita antes del 31 octubre 2026, 13:00 UTC-3
+        """
+        row = parse_ratehawk_mail(
+            self._mail(
+                "Confirmación de reserva referencia 764257658",
+                forwarded_body,
+                from_addr="German Perez <gap.bariloche@gmail.com>"
+            )
+        )
+        self.assertIsNotNone(row, "No se parseó el forward desde gap.bariloche@gmail.com")
+        self.assertEqual(row["reservation_code"], "764257658")
+        self.assertEqual(row["client_name"], "Laura Perez")
+        self.assertEqual(row["hotel_name"], "RateHawk")
+        self.assertEqual(row["check_in"], "2026-11-08")
+        self.assertEqual(row["check_out"], "2026-11-11")
+        # Verificar que total_amount es 947.78 (calculado desde neto)
+        # Si "Importe a pagar 947,78$" se trata como neto, PVP = 947.78/0.90 = 1053.09
+        # PERO el test actual espera que neto=947.78 → PVP=1053.09
+        # O si se documenta que es PVP directo, total_amount = 947.78
+        # Por ahora, siguiendo la heurística actual (Importe a pagar = neto):
+        self.assertAlmostEqual(row["total_amount"], 1053.09, places=2)
+
+    def test_forward_from_internal_domain(self):
+        """Forward desde checkin24hs.com."""
+        row = parse_ratehawk_mail(
+            self._mail(
+                "Confirmación de reserva referencia 764257658",
+                CONFIRM_BODY,
+                from_addr="ventas@checkin24hs.com"
+            )
+        )
+        self.assertIsNotNone(row, "No se parseó el forward desde checkin24hs.com")
+        self.assertEqual(row["reservation_code"], "764257658")
+        self.assertEqual(row["hotel_name"], "RateHawk")
+
+    def test_forward_from_unauthorized_rejected(self):
+        """Forward desde remitente no autorizado debe rechazarse."""
+        row = parse_ratehawk_mail(
+            self._mail(
+                "Confirmación de reserva referencia 764257658",
+                CONFIRM_BODY,
+                from_addr="random@example.com"
+            )
+        )
+        self.assertIsNone(row, "Forward no autorizado fue aceptado incorrectamente")
+
+    def test_forward_with_ratehawk_markers_in_body(self):
+        """Forward detectado por marcadores en el cuerpo (número de reserva + ratehawk)."""
+        body_with_markers = """
+Hotel: Llao Llao Resort Golf & Spa
+Huésped: Laura Perez
+Check-in: 8 noviembre 2026
+Check-out: 11 noviembre 2026
+Número de reserva 764257658
+Reservado vía RateHawk
+Importe a pagar 853,00$
+        """
+        row = parse_ratehawk_mail(
+            self._mail(
+                "Info reserva",  # Asunto sin patrón RateHawk
+                body_with_markers,
+                from_addr="gap.bariloche@gmail.com"
+            )
+        )
+        self.assertIsNotNone(row, "No se detectó RateHawk por marcadores en el cuerpo")
+        self.assertEqual(row["reservation_code"], "764257658")
+
     def test_sample_email_from_file(self):
         """Test con el email real del JSON."""
         sample = load_sample_email()
