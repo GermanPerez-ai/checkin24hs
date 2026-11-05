@@ -188,6 +188,42 @@ def _body_text(mail: dict) -> str:
     return _normalize_ratehawk_text("\n".join(parts))
 
 
+def _is_invalid_hotel_name(name: str) -> bool:
+    """
+    Verifica si un nombre es inválido para ser nombre de hotel.
+    
+    Rechaza palabras de estado comunes en confirmaciones y valores vacíos.
+    """
+    if not name or not name.strip():
+        return True
+    
+    # Normalizar para comparación
+    normalized = name.strip().lower()
+    
+    # Remover tildes para la comparación
+    normalized = (
+        normalized
+        .replace("á", "a")
+        .replace("é", "e")
+        .replace("í", "i")
+        .replace("ó", "o")
+        .replace("ú", "u")
+    )
+    
+    # Palabras de estado prohibidas como nombres de hotel
+    invalid_words = {
+        "confirmada",
+        "confirmado",
+        "cancelada",
+        "cancelado",
+        "modificada",
+        "modificado",
+        "pendiente",
+    }
+    
+    return normalized in invalid_words
+
+
 def _parse_money(raw: str) -> float:
     """Parsea montos con comas o puntos."""
     s = (raw or "").strip()
@@ -320,17 +356,27 @@ def parse_ratehawk_mail(mail: dict) -> Optional[dict]:
     
     is_cancel = bool(_SUBJECT_CANCEL.search(subject))
     
-    actual_hotel_name = field(text, r"Hotel") or ""
-    if not actual_hotel_name:
-        m = re.search(
-            r"Reserva en\s+(.+?)\s+confirmada",
-            text,
-            re.I | re.DOTALL
-        )
-        if m:
-            actual_hotel_name = m.group(1).strip()
+    # Extraer nombre del hotel con prioridad al patrón más confiable
+    actual_hotel_name = ""
     
-    actual_hotel_name = actual_hotel_name.split("\n")[0].strip() if actual_hotel_name else ""
+    # 1. Primero intentar "Reserva en <HOTEL> confirmada" (más confiable)
+    m = re.search(
+        r"Reserva en\s+(.+?)\s+confirmada",
+        text,
+        re.I | re.DOTALL
+    )
+    if m:
+        candidate = m.group(1).strip()
+        candidate = candidate.split("\n")[0].strip()
+        if not _is_invalid_hotel_name(candidate):
+            actual_hotel_name = candidate
+    
+    # 2. Si no funciona, intentar campo "Hotel:"
+    if not actual_hotel_name:
+        candidate = field(text, r"Hotel") or ""
+        candidate = candidate.split("\n")[0].strip()
+        if not _is_invalid_hotel_name(candidate):
+            actual_hotel_name = candidate
     
     # Extraer todos los huéspedes/pasajeros
     client_name_raw = (
@@ -407,9 +453,10 @@ def parse_ratehawk_mail(mail: dict) -> Optional[dict]:
     if provider_match:
         provider_id = provider_match.group(1)
     
+    # Construir notas, incluyendo hotel solo si es válido
     notes_parts = [
         "Fuente: RateHawk",
-        f"Hotel: {actual_hotel_name}" if actual_hotel_name else None,
+        f"Hotel: {actual_hotel_name}" if actual_hotel_name and not _is_invalid_hotel_name(actual_hotel_name) else None,
         f"Neto: USD {net_amount:.2f}" if net_amount > 0 else None,
         f"Comisión: USD {commission_amt:.2f} ({commission_pct:.0f}%)" if commission_amt > 0 else None,
         f"Proveedor ID: {provider_id}" if provider_id else None,

@@ -302,6 +302,143 @@ Importe a pagar 853,00$
         )
         self.assertIsNone(row)
 
+    def test_hotel_name_not_status_word_regression(self):
+        """
+        Regresión: reserva 764257658 se importó con Hotel: confirmada en lugar de 
+        Llao Llao Resort Golf & Spa. El parser extrajo erróneamente una palabra de 
+        estado como nombre de hotel.
+        
+        Este test reproduce un email donde "Hotel: confirmada" aparece como etiqueta 
+        de estado pero el nombre real está en "Reserva en ... confirmada".
+        """
+        buggy_body = """
+Reserva en Llao Llao Resort Golf & Spa confirmada
+
+Confirmación de reserva referencia 764257658
+
+Llao Llao Resort Golf & Spa
+San Carlos de Bariloche, Argentina
+
+Nombre del huésped
+Laura Perez
+
+Check-in
+8 noviembre 2026
+
+Check-out
+11 noviembre 2026
+
+Habitación doble Estándar (cama doble) (cama king size)
+Para 2 adultos
+
+Número de reserva
+764257658
+
+Número de factura
+100416222-00002
+
+Fecha de vencimiento
+30 octubre 2026
+
+Estado de la reserva
+Hotel: confirmada
+
+Importe a pagar
+853,00 $
+
+Condiciones de cancelación
+Cancelación gratuita
+antes del 31 octubre 2026, 13:00 UTC-3
+"""
+        row = parse_ratehawk_mail(
+            self._mail(
+                "Confirmación de reserva referencia 764257658",
+                buggy_body
+            )
+        )
+        self.assertIsNotNone(row)
+        self.assertEqual(row["reservation_code"], "764257658")
+        
+        # El nombre del hotel DEBE ser el real, no una palabra de estado
+        self.assertIn("Hotel: Llao Llao Resort Golf & Spa", row["notes"])
+        self.assertNotIn("Hotel: confirmada", row["notes"])
+        self.assertNotIn("Hotel: confirmado", row["notes"])
+
+    def test_rejects_status_words_as_hotel_names(self):
+        """Verifica que rechaza todas las palabras de estado como nombres de hotel."""
+        status_words = [
+            "confirmada",
+            "confirmado",
+            "Confirmada",
+            "CONFIRMADA",
+            "cancelada",
+            "cancelado",
+            "modificada",
+            "modificado",
+            "pendiente",
+        ]
+        
+        for status_word in status_words:
+            buggy_body = f"""
+Número de reserva
+764257658
+
+Hotel: {status_word}
+
+Nombre del huésped
+Laura Perez
+
+Check-in
+8 noviembre 2026
+
+Check-out
+11 noviembre 2026
+
+Importe a pagar
+853,00 $
+"""
+            row = parse_ratehawk_mail(
+                self._mail(
+                    "Confirmación de reserva referencia 764257658",
+                    buggy_body
+                )
+            )
+            self.assertIsNotNone(row)
+            # No debe incluir "Hotel: <status_word>" en las notas
+            self.assertNotIn(f"Hotel: {status_word}", row["notes"], 
+                           f"Aceptó erróneamente '{status_word}' como nombre de hotel")
+
+    def test_empty_hotel_name_not_included_in_notes(self):
+        """Si no hay nombre de hotel válido, no debe incluir 'Hotel:' en las notas."""
+        body_without_hotel = """
+Número de reserva
+764257658
+
+Nombre del huésped
+Laura Perez
+
+Check-in
+8 noviembre 2026
+
+Check-out
+11 noviembre 2026
+
+Importe a pagar
+853,00 $
+"""
+        row = parse_ratehawk_mail(
+            self._mail(
+                "Confirmación de reserva referencia 764257658",
+                body_without_hotel
+            )
+        )
+        self.assertIsNotNone(row)
+        # No debe incluir "Hotel:" en las notas si no hay un hotel válido
+        notes_lines = row["notes"].split(" | ")
+        hotel_notes = [line for line in notes_lines if line.startswith("Hotel:")]
+        self.assertEqual(len(hotel_notes), 0, 
+                        "No debe incluir 'Hotel:' en las notas cuando no hay hotel válido")
+
 
 if __name__ == "__main__":
     unittest.main()
