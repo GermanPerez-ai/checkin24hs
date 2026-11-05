@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
-"""Sync IMAP → Supabase. Confirmaciones: Huilo, Corralco, Puyehue, Aguas.
-Anular/modificar: cualquier hotel del catálogo (asunto = acción + hotel + código)."""
+"""Sync IMAP → Supabase.
+Confirmaciones: Huilo, Corralco, Puyehue, Aguas Calientes, RateHawk (parsers específicos)
+                + CUALQUIER hotel del catálogo (parser genérico).
+Anular/modificar: CUALQUIER hotel del catálogo (asunto = acción + hotel + código)."""
 from __future__ import annotations
 
 import argparse
@@ -20,6 +22,7 @@ from email.utils import parseaddr, parsedate_to_datetime
 from pathlib import Path
 
 from parse_corralco import looks_corralco, parse_corralco_confirmations
+from parse_generic import parse_generic_confirmation
 from parse_huilo import parse_huilo_confirmations, strip_html
 from parse_lifecycle import is_internal_sender, parse_lifecycle_mail
 from parse_puyehue import looks_puyehue, parse_puyehue_mail
@@ -322,6 +325,37 @@ def mark_imported(row: dict):
     sb("POST", "email_reservation_imports?on_conflict=message_id", [row])
 
 
+def find_reservation_by_natural_key(hotel_id: str, client_name: str, check_in: str) -> dict | None:
+    """Busca reserva por clave natural: hotel+huésped+fecha (para casos sin código)."""
+    if not hotel_id or not client_name or not check_in:
+        return None
+    
+    # Normalizar nombre para búsqueda fuzzy
+    name_normalized = re.sub(r"\s+", " ", str(client_name).strip().lower())[:50]
+    
+    q = (
+        "reservations?select=id,reservation_code,status,check_in,check_out,total_amount,notes,updated_at,client_name"
+        f"&hotel_id=eq.{urllib.parse.quote(str(hotel_id), safe='')}"
+        f"&check_in=eq.{urllib.parse.quote(str(check_in), safe='')}"
+        "&limit=10"
+    )
+    
+    try:
+        data = sb("GET", q)
+        if not isinstance(data, list):
+            return None
+        
+        # Buscar match por nombre (fuzzy)
+        for row in data:
+            row_name = re.sub(r"\s+", " ", str(row.get("client_name") or "").strip().lower())[:50]
+            if row_name == name_normalized:
+                return row
+        
+        return None
+    except Exception:
+        return None
+
+
 def upsert_reservation(parsed, hotel, agent_name: str):
     hotel = dict(hotel or {})
     # Red de seguridad: nunca persistir Cabaña Del Lago / Puerto Varas fantasma
@@ -337,6 +371,14 @@ def upsert_reservation(parsed, hotel, agent_name: str):
         hotel = {"id": None, "name": hotel.get("name") or "Hotel (revisar)"}
     
     new_code = parsed["reservation_code"]
+    is_hotel_confirmation = parsed.get("is_hotel_confirmation", True)
+    
+    # Estado: pedido interno → "En gestión", confirmación del hotel → "Confirmada"
+    # (solo para fuente genérica; parsers específicos siempre son "Confirmada")
+    status = "Confirmada"
+    if parsed.get("source") == "generic" and not is_hotel_confirmation:
+        status = "En gestión"
+    
     row = {
         "reservation_code": new_code,
         "client_name": parsed["client_name"],
@@ -348,20 +390,71 @@ def upsert_reservation(parsed, hotel, agent_name: str):
         "check_out": parsed["check_out"],
         "reservation_date": dt.date.today().isoformat(),
         "agent_name": agent_name,
-        "status": "Confirmada",
+        "status": status,
         "total_amount": parsed.get("total_amount") or 0,
         "notes": parsed.get("notes"),
     }
     
     # Buscar si ya existe una reserva con este código o su número base
     existing = find_reservation_row(new_code)
+    
+    # Si no existe por código, buscar por clave natural (hotel+huésped+fecha)
+    # para evitar duplicar cuando llega confirmación del hotel después del pedido interno
+    if not existing and hotel.get("id"):
+        existing = find_reservation_by_natural_key(
+            hotel.get("id"),
+            parsed["client_name"],
+            parsed["check_in"]
+        )
+    
     if existing:
         existing_code = str(existing.get("reservation_code") or "")
+        existing_status = str(existing.get("status") or "")
         existing_id = existing.get("id")
-        # Si el código es diferente (ej: '602052775' → '602052775 / CI-261103-021'),
-        # actualizar el código junto con los demás datos
-        if existing_code != new_code and existing_id:
-            print(f"   🔄 Actualizando código: '{existing_code}' → '{new_code}'")
+        existing_updated = existing.get("updated_at")
+        
+        # Protección: no degradar estados cerrados (Confirmada, Cancelada, etc)
+        if existing_status in _CLOSED_STATUSES and status not in _CLOSED_STATUSES:
+            print(f"   ⏭️  Skip actualización: reserva ya está en estado '{existing_status}'")
+            return existing
+        
+        # Protección: si es una confirmación del hotel sobre una reserva "En gestión", actualizar a "Confirmada"
+        should_upgrade = (
+            existing_status == "En gestión" 
+            and status == "Confirmada" 
+            and is_hotel_confirmation
+        )
+        
+        # Protección: el email debe ser más nuevo que updated_at
+        if existing_updated:
+            try:
+                from datetime import datetime, timezone
+                if isinstance(existing_updated, str):
+                    existing_dt = datetime.fromisoformat(existing_updated.replace("Z", "+00:00"))
+                else:
+                    existing_dt = existing_updated
+                
+                msg_date = parsed.get("_msg_date")
+                if msg_date:
+                    msg_datetime = datetime.combine(msg_date, datetime.min.time())
+                    msg_datetime = msg_datetime.replace(tzinfo=timezone.utc)
+                    
+                    if existing_dt.tzinfo is None:
+                        existing_dt = existing_dt.replace(tzinfo=timezone.utc)
+                    
+                    if msg_datetime <= existing_dt and not should_upgrade:
+                        print(f"   ⏭️  Skip: email no es más nuevo que la reserva existente")
+                        return existing
+            except (ValueError, AttributeError, TypeError):
+                pass
+        
+        # Actualizar código si es diferente o si es upgrade a Confirmada
+        if (existing_code != new_code or should_upgrade) and existing_id:
+            if existing_code != new_code:
+                print(f"   🔄 Actualizando código: '{existing_code}' → '{new_code}'")
+            if should_upgrade:
+                print(f"   ⬆️  Actualizando estado: '{existing_status}' → '{status}'")
+            
             path = "reservations?id=eq." + urllib.parse.quote(str(existing_id), safe="")
             row["updated_at"] = dt.datetime.utcnow().isoformat() + "Z"
             try:
@@ -595,31 +688,50 @@ def parse_reservation_mail(from_addr, subject, text, html, msg_dt):
     }
     if re.search(r"undeliverable|propuesta comercial|jahuel|delivery status", subject, re.I):
         return None, []
+    
+    # 1. Parsers de modificación/anulación (parse_lifecycle) - prioridad máxima
     life = parse_lifecycle_mail(mail)
     if life:
         return life.get("hotel_key") or "unknown", [life]
+    
     blob = f"{from_addr} {subject} {text[:2000]} {(html or '')[:500]}".lower()
+    
+    # 2. Parsers específicos por hotel (con códigos propios, formatos únicos)
     if looks_ratehawk(from_addr, subject, text):
         rows = parse_ratehawk_confirmations(mail)
         if rows:
             return rows[0].get("hotel_key") or "ratehawk", rows
         return "ratehawk", []
+    
     if looks_puyehue(from_addr, subject, f"{text}\n{html or ''}"):
         row = parse_puyehue_mail(mail)
         if row:
             return row.get("hotel_key") or "puyehue", [row]
         return "puyehue", []
+    
     is_corralco = looks_corralco(from_addr, subject, f"{text}\n{html or ''}")
     is_huilo = "huilohuilo.com" in from_addr.lower() or "huilo" in subject.lower()
+    
     if is_corralco and not is_huilo:
         rows = parse_corralco_confirmations(mail)
         return "corralco", rows
+    
     if is_huilo:
         rows = parse_huilo_confirmations(mail)
         return "huilo", rows
+    
     if "corralco" in blob:
         rows = parse_corralco_confirmations(mail)
         return "corralco", rows
+    
+    # 3. Parser genérico (fallback para cualquier hotel del catálogo)
+    generic = parse_generic_confirmation(mail)
+    if generic:
+        # Agregar msg_date para protección de timestamps en upsert
+        generic["_msg_date"] = msg_dt
+        hotel_key = generic.get("hotel_key") or "unknown"
+        return hotel_key, [generic]
+    
     return None, []
 
 
@@ -630,6 +742,13 @@ def agent_for(hotel_key: str, parsed: dict | None = None, pending_agent: str = "
         return parsed.get("agent_name") or ""
     is_web = bool((parsed or {}).get("is_web")) or str(hotel_key or "").endswith("_web")
     hk = (hotel_key or "").replace("_web", "")
+    
+    # Para parsers genéricos, usar nombre detectado si está disponible
+    if parsed and parsed.get("source") == "generic":
+        hotel_name_detected = parsed.get("hotel_name") or ""
+        if hotel_name_detected and hotel_name_detected != "Hotel (revisar)":
+            return f"Email {hotel_name_detected}"
+    
     if is_web:
         if hk == "aguas_calientes":
             return "Ventas Web Aguas Calientes"
@@ -695,9 +814,10 @@ def main():
         for hk in ("huilo", "corralco", "puyehue", "aguas_calientes"):
             resolve_hotel(hk)
     print(
-        "🏨 Anular/modificar: cualquier hotel del catálogo "
-        "(asunto = acción + nombre + código). "
-        "Confirmaciones auto: Huilo, Corralco, Puyehue, Aguas Calientes, RateHawk."
+        "🏨 Procesamiento:\n"
+        "   · Anular/modificar: CUALQUIER hotel del catálogo (asunto = acción + nombre + código)\n"
+        "   · Confirmaciones: Huilo, Corralco, Puyehue, Aguas Calientes, RateHawk (parsers específicos)\n"
+        "                     + CUALQUIER hotel del catálogo (parser genérico, fallback)"
     )
     if not args.dry_run:
         for hk, h in hotels.items():
