@@ -303,6 +303,7 @@ if (CONFIG.supabase.url && CONFIG.supabase.serviceRoleKey) {
 
 /**
  * Verifica si un correo es una respuesta relacionada con reservas
+ * Retorna información detallada sobre por qué se considera relacionado o no
  */
 function isReservationRelated(parsed) {
     const subject = (parsed.subject || '').toLowerCase();
@@ -311,13 +312,27 @@ function isReservationRelated(parsed) {
     
     // Buscar palabras clave
     const hasKeyword = CONFIG.filterKeywords.some(keyword => combined.includes(keyword));
-    if (!hasKeyword) return false;
+    if (!hasKeyword) {
+        return { 
+            isRelated: false, 
+            reason: 'no_keywords',
+            details: 'No contiene palabras clave de reserva'
+        };
+    }
     
     // Verificar que sea respuesta o parte de un hilo
     // (tiene In-Reply-To o References)
     const isReply = Boolean(parsed.inReplyTo || (parsed.references && parsed.references.length > 0));
     
-    return { isRelated: true, isReply };
+    // Verificar si el asunto indica que es respuesta (RE: o RV:)
+    const hasReplyPrefix = /^(re|rv|fwd|fw):/i.test(subject);
+    
+    return { 
+        isRelated: true, 
+        isReply, 
+        hasReplyPrefix,
+        reason: 'keywords_found'
+    };
 }
 
 /**
@@ -1231,6 +1246,74 @@ ${info.text.substring(0, 800)}${info.text.length > 800 ? '...' : ''}
 // ===== MONITOR PRINCIPAL =====
 
 /**
+ * Verifica si un email tiene señales fuertes de ser un movimiento de reserva
+ * aunque no tenga headers de respuesta
+ */
+function hasStrongReservationSignals(parsed, info, routing) {
+    // SIEMPRE filtrar remitentes internos, sin importar las señales
+    if (routing.type === 'internal') {
+        return { 
+            hasSignals: false, 
+            reason: 'weak_signals',
+            details: 'Remitente interno (siempre filtrado)'
+        };
+    }
+    
+    // Si es respuesta formal, aceptar sin más verificaciones
+    const isReply = Boolean(parsed.inReplyTo || (parsed.references && parsed.references.length > 0));
+    if (isReply) {
+        return { hasSignals: true, reason: 'is_formal_reply' };
+    }
+    
+    const subject = (parsed.subject || '').toLowerCase();
+    const combined = `${subject} ${info.text}`.toLowerCase();
+    
+    // Señal 1: Asunto empieza con RE: o RV: (respuesta sin headers técnicos)
+    const hasReplyPrefix = /^(re|rv|fwd|fw):/i.test(subject);
+    if (hasReplyPrefix) {
+        return { hasSignals: true, reason: 'subject_reply_prefix' };
+    }
+    
+    // Señal 2: Palabras clave fuertes de acción sobre reserva existente
+    const strongActionKeywords = [
+        'confirmamos', 'confirmó', 'confirmo',
+        'modificación', 'modificacion', 'modificamos', 'modificado',
+        'anulación', 'anulacion', 'anulamos', 'anulado', 'anulada',
+        'cancelación', 'cancelacion', 'cancelamos', 'cancelado', 'cancelada',
+        'procedemos a', 'queda anulad', 'queda cancelad'
+    ];
+    const hasStrongAction = strongActionKeywords.some(kw => combined.includes(kw));
+    
+    // Señal 3: Código de reserva presente con CONTEXTO
+    // Para evitar falsos positivos, el código debe estar cerca de palabras relacionadas con reservas
+    const codeWithContextPattern = 
+        // Códigos alfanuméricos cerca de palabras clave
+        /(?:reserva|código|codigo|code|localizador|voucher|confirmación|modificación|anulación)\s*[:#]?\s*[A-Z]{1,2}[A-Z0-9]{4,6}\b/i.test(combined) ||
+        // O en el asunto después de un espacio/guión (ej: "ANULAR RESERVA Hotel Huilo-Huilo 598854662")
+        /(?:reserva|hotel|modificar|anular|cancelar)[\s\-]+[\w\s\-]+\d{8,9}\b/i.test(combined) ||
+        // Códigos numéricos largos con contexto explícito
+        /(?:reserva|código|codigo|n[°º]|#)\s*:?\s*#?\s*\d{8,9}\b/i.test(combined);
+    
+    const hasReservationCode = codeWithContextPattern;
+    
+    // Si tiene acción fuerte Y código con contexto, es señal fuerte
+    // (2 señales sustanciales, no solo "es externo")
+    if (hasStrongAction && hasReservationCode) {
+        return { 
+            hasSignals: true, 
+            reason: 'strong_signals',
+            details: 'Acción confirmada + código de reserva'
+        };
+    }
+    
+    return { 
+        hasSignals: false, 
+        reason: 'weak_signals',
+        details: `Señales insuficientes: action=${hasStrongAction}, code=${hasReservationCode}`
+    };
+}
+
+/**
  * Procesa un correo individual
  */
 async function processEmail(uid, client) {
@@ -1242,21 +1325,24 @@ async function processEmail(uid, client) {
         // Verificar si es relacionado con reservas
         const filter = isReservationRelated(parsed);
         if (!filter.isRelated) {
-            return { status: 'filtered', reason: 'No relacionado con reservas' };
+            return { 
+                status: 'filtered', 
+                reason: filter.reason,
+                details: filter.details 
+            };
         }
         
         // Extraer información
         const info = extractEmailInfo(parsed);
         
-        // Verificar que sea realmente una respuesta/hilo (evitar newsletters)
-        if (!filter.isReply) {
-            return { status: 'filtered', reason: 'No es respuesta (falta In-Reply-To/References)' };
-        }
-        
-        // Verificar si es remitente interno (excluir)
+        // Verificar si es remitente interno (excluir siempre)
         const routing = getWhatsAppDestinations(info.from);
         if (routing.type === 'internal') {
-            return { status: 'internal', reason: 'Remitente interno excluido' };
+            return { 
+                status: 'internal', 
+                reason: 'internal_sender',
+                details: 'Remitente interno excluido'
+            };
         }
         
         // Verificar duplicados
@@ -1264,9 +1350,28 @@ async function processEmail(uid, client) {
             return { status: 'duplicate', messageId: info.messageId };
         }
         
+        // Verificar si tiene señales fuertes de reserva (incluso sin headers de respuesta)
+        const signals = hasStrongReservationSignals(parsed, info, routing);
+        if (!signals.hasSignals) {
+            return { 
+                status: 'filtered', 
+                reason: signals.reason,
+                details: signals.details || 'Email sin señales fuertes de movimiento de reserva'
+            };
+        }
+        
         console.log(`\n📧 Procesando: ${info.subject}`);
         console.log(`   De: ${info.fromName} <${info.from}>`);
-        console.log(`   ↩️  Es respuesta`);
+        
+        // Indicar si es respuesta formal o tiene señales fuertes
+        if (signals.reason === 'is_formal_reply') {
+            console.log(`   ↩️  Respuesta formal (In-Reply-To/References)`);
+        } else if (signals.reason === 'subject_reply_prefix') {
+            console.log(`   ↩️  Respuesta (asunto RE:/RV:)`);
+        } else if (signals.reason === 'strong_signals') {
+            console.log(`   🎯 Señales fuertes de reserva: ${signals.details}`);
+        }
+        
         console.log(`   📍 Tipo: ${routing.type === 'group' ? 'HOTEL (grupo)' : 'PROVEEDOR (individual)'}`);
         console.log(`   👤 Solicitado por: ${info.requestedBy}`);
         
@@ -1419,12 +1524,19 @@ async function monitor() {
             internal: 0,
             marked: 0,
             error: 0,
-            'dry-run': 0
+            'dry-run': 0,
+            // Desglose de razones de filtrado
+            filterReasons: {}
         };
         
         for (const uid of messages) {
             const result = await processEmail(uid, client);
             stats[result.status] = (stats[result.status] || 0) + 1;
+            
+            // Registrar razón de filtrado para diagnóstico
+            if (result.status === 'filtered' && result.reason) {
+                stats.filterReasons[result.reason] = (stats.filterReasons[result.reason] || 0) + 1;
+            }
         }
         
         // Resumen
@@ -1442,7 +1554,22 @@ async function monitor() {
         }
         
         console.log(`🔍 Filtrados: ${stats.filtered}`);
-        console.log(`🏢 Internos (excluidos): ${stats.internal}`);
+        
+        // Desglose de razones de filtrado
+        if (stats.filtered > 0 && Object.keys(stats.filterReasons).length > 0) {
+            console.log('\n   Desglose de filtrados:');
+            const reasonLabels = {
+                'no_keywords': 'Sin palabras clave de reserva',
+                'weak_signals': 'Señales débiles (posible newsletter/spam)',
+                'internal_sender': 'Remitente interno'
+            };
+            for (const [reason, count] of Object.entries(stats.filterReasons)) {
+                const label = reasonLabels[reason] || reason;
+                console.log(`   • ${label}: ${count}`);
+            }
+        }
+        
+        console.log(`\n🏢 Internos (excluidos): ${stats.internal}`);
         console.log(`♻️  Duplicados: ${stats.duplicate}`);
         console.log(`❌ Errores: ${stats.error}`);
         console.log('='.repeat(60) + '\n');
