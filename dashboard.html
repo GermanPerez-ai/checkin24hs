@@ -21467,11 +21467,11 @@ https://maps.app.goo.gl/cxC7gREKNFuoiuj4A
                 }
             });
             
-            // Sincronización automática cada 30 segundos
+            // Sincronización automática cada 5 minutos
             setInterval(() => {
                 console.log('🔄 Sincronización automática...');
                 loadUsersData();
-            }, 30000);
+            }, 300000);
             
             // Configurar suscripciones en tiempo real de Supabase
             setupRealtimeSubscriptions();
@@ -23892,12 +23892,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
         
         // Función para iniciar sincronización automática
         function startAutoSync() {
-            // Sincronizar cada 30 segundos
+            // Sincronizar cada 5 minutos
             setInterval(() => {
                 syncWithIndexHTML();
-            }, 30000);
+            }, 300000);
             
-            console.log('🔄 Sincronización automática iniciada (cada 30 segundos)');
+            console.log('🔄 Sincronización automática iniciada (cada 5 minutos)');
         }
 
         // Variable global para almacenar todos los usuarios
