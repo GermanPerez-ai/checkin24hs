@@ -7,14 +7,14 @@
     <meta name="robots" content="noindex, nofollow">
     <meta name="googlebot" content="noindex, nofollow">
     <!-- VERSIÓN: dashboard.html v2.1.0 - 2025-01-27 -->
-    <!-- BUILD: #83 - 2026-02-02 - Servidor = dashboard.html raíz (igual a local). Si vuelve estructura vieja = redeploy con caché. -->
+    <!-- BUILD: #289 - 2026-11-05 - Email threading para hotel replies (In-Reply-To/References) + mantiene Solicitado por -->
     <!-- CRÍTICO: Definir showSection LO PRIMERO - antes de cualquier otro código -->
     <script>
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
-        window.DASHBOARD_BUILD = '2026-09-24T12:28:09Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 288; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD = '2026-11-05T21:53:00Z'; // Build timestamp - se actualiza con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 289; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2376,7 +2376,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">288</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">289</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -26375,11 +26375,23 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 checkIn: document.getElementById('editCheckIn')?.value || '',
                 checkOut: document.getElementById('editCheckOut')?.value || '',
                 totalAmount: document.getElementById('editTotalAmount')?.value || '',
-                agentName: document.getElementById('editAgentSelect')?.value || ''
+                agentName: document.getElementById('editAgentSelect')?.value || '',
+                originalEmailMessageId: form && form.dataset.originalEmailMessageId || null,
+                originalEmailSubject: form && form.dataset.originalEmailSubject || null
             };
         }
 
         function buildHotelActionSubject(kind, snap) {
+            // Si hay subject original y es anular/modificar, responder en el hilo original
+            if ((kind === 'anular' || kind === 'modificar') && snap.originalEmailSubject) {
+                const orig = String(snap.originalEmailSubject).trim();
+                // Evitar duplicar RE: si ya existe
+                if (/^RE:/i.test(orig)) {
+                    return orig;
+                }
+                return 'RE: ' + orig;
+            }
+            // Fallback: subject nuevo
             const hotel = snap.hotelName || 'Hotel';
             const code = snap.code || '';
             if (kind === 'anular') return 'ANULAR RESERVA ' + hotel + ' ' + code;
@@ -26528,18 +26540,24 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }
             try {
                 const attachments = await readHotelMailAttachments();
+                const payload = {
+                    kind,
+                    to,
+                    subject,
+                    text: finalText,
+                    code: snap.code,
+                    replyTo: 'reservas@checkin24hs.com',
+                    attachments
+                };
+                // Si la reserva tiene Message-ID original guardado, agregarlo para threading
+                if (snap.originalEmailMessageId) {
+                    payload.inReplyTo = snap.originalEmailMessageId;
+                    payload.originalSubject = snap.originalEmailSubject || '';
+                }
                 const res = await fetch('/api/hotel-mail', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        kind,
-                        to,
-                        subject,
-                        text: finalText,
-                        code: snap.code,
-                        replyTo: 'reservas@checkin24hs.com',
-                        attachments
-                    })
+                    body: JSON.stringify(payload)
                 });
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok || !data.ok) {
@@ -26749,6 +26767,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 editForm.dataset.reservationId = reservationId;
                 editForm.dataset.hotelName = hotelName;
                 editForm.dataset.hotelId = hotelId ? String(hotelId) : '';
+                editForm.dataset.originalEmailMessageId = reservation.original_email_message_id || reservation.originalEmailMessageId || '';
+                editForm.dataset.originalEmailSubject = reservation.original_email_subject || reservation.originalEmailSubject || '';
             }
             await loadHotelsForEdit(hotelId, hotelName);
             await loadAgentsForEdit(reservation.agent_name || reservation.agentName);
