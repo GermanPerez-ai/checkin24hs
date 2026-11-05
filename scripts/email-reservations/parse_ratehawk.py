@@ -6,6 +6,7 @@ RateHawk o el cuerpo contiene marcadores claros.
 """
 from __future__ import annotations
 
+import os
 import re
 from typing import Optional
 
@@ -211,25 +212,21 @@ def _parse_amounts(text: str) -> tuple[float, float, str]:
     RateHawk comisión = 10% del precio de venta (PVP).
     Entonces: net = PVP * 0.90, o PVP = net / 0.90
     
-    HEURÍSTICA ACTUAL (limitación conocida):
+    HEURÍSTICA ACTUAL:
     1. Si hay "Precio de venta" / "Precio cliente" / "PVP" explícito → es el PVP
-    2. Si solo viene "Importe a pagar" → se ASUME que es el neto (precio de compra)
-       y se calcula PVP = neto / 0.90
-    
-    PROBLEMA: En algunos mails de RateHawk, "Importe a pagar" puede ser el PVP final,
-    no el neto. La distinción solo es clara con etiquetas explícitas en el mail.
+    2. Si solo viene "Importe a pagar":
+       - Por defecto (RATEHAWK_IMPORTE_ES_PVP=true): se trata como PVP (precio que cobra el agente al cliente)
+       - Con RATEHAWK_IMPORTE_ES_PVP=false: se trata como neto y calcula PVP = neto / 0.90
     
     CASO REAL: Forward de gap.bariloche@gmail.com con "Importe a pagar 947,78$"
-    donde 947.78 es el PVP (precio de venta final), no el neto.
-    
-    SOLUCIÓN RECOMENDADA: Agregar variable de entorno RATEHAWK_IMPORTE_ES_PVP=true
-    para cambiar el comportamiento por defecto (futuro).
-    
-    Por ahora, el comportamiento por defecto es: "Importe a pagar" = neto.
-    Para que se registre como PVP, el mail debe incluir una etiqueta explícita
-    como "Precio de venta", "Precio cliente" o "PVP".
+    donde 947.78 es el PVP (precio de venta final que cobra el agente), no el neto.
+    Con el default actual, total_amount = 947.78, neto = 852.80 (PVP * 0.90).
     """
     currency = "USD"
+    
+    # Leer configuración: ¿"Importe a pagar" es PVP o neto?
+    # Default: true (es el PVP que cobra el agente al cliente)
+    importe_es_pvp = os.environ.get("RATEHAWK_IMPORTE_ES_PVP", "true").lower() in ("true", "1", "yes")
     
     # Primero buscar precio de venta / cliente / PVP explícito
     sale_patterns = [
@@ -252,26 +249,32 @@ def _parse_amounts(text: str) -> tuple[float, float, str]:
                     net = round(sale_price * 0.90, 2)
                     return sale_price, net, currency
     
-    # Si no hay precio de venta, extraer neto (Importe a pagar)
-    # NOTA: Asume que "Importe a pagar" es el neto (precio de compra)
-    net = 0.0
+    # Si no hay precio de venta explícito, extraer "Importe a pagar"
+    amount = 0.0
     m = re.search(r"Importe a pagar\s*[:：]?\s*([^\n]+)", text, re.I | re.M)
     if m:
         amount_text = m.group(1).strip()
         if "$" in amount_text or "USD" in amount_text.upper():
             amount_match = re.search(r"([\d.,]+)", amount_text)
             if amount_match:
-                net = _parse_money(amount_match.group(1))
+                amount = _parse_money(amount_match.group(1))
     
-    if net == 0.0:
+    if amount == 0.0:
         m = re.search(r"([\d.,]+)\s*\$", text, re.I)
         if m:
-            net = _parse_money(m.group(1))
+            amount = _parse_money(m.group(1))
     
-    # Calcular PVP desde neto: net = PVP * 0.90, entonces PVP = net / 0.90
-    if net > 0:
-        sale_price = round(net / 0.90, 2)
-        return sale_price, net, currency
+    if amount > 0:
+        if importe_es_pvp:
+            # "Importe a pagar" es el PVP (precio que cobra el agente al cliente)
+            sale_price = amount
+            net = round(sale_price * 0.90, 2)
+            return sale_price, net, currency
+        else:
+            # "Importe a pagar" es el neto (precio de compra)
+            net = amount
+            sale_price = round(net / 0.90, 2)
+            return sale_price, net, currency
     
     return 0.0, 0.0, currency
 

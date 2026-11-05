@@ -123,15 +123,16 @@ class TestParseRateHawk(unittest.TestCase):
         self.assertEqual(row["hotel_key"], "ratehawk")
         self.assertEqual(row["check_in"], "2026-11-08")
         self.assertEqual(row["check_out"], "2026-11-11")
-        # total_amount debe ser PVP (sale price), no el neto
-        # net=853, commission 10% of PVP, so PVP = 853/0.90 = 947.78
-        self.assertAlmostEqual(row["total_amount"], 947.78, places=2)
+        # total_amount debe ser PVP (sale price) = "Importe a pagar" por defecto
+        # Con RATEHAWK_IMPORTE_ES_PVP=true (default): Importe a pagar 853 → PVP = 853
+        # Neto = 853 * 0.90 = 767.70, Comisión = 85.30 (10% de 853)
+        self.assertAlmostEqual(row["total_amount"], 853.00, places=2)
         self.assertEqual(row["currency"], "USD")
         self.assertEqual(row["status"], "Confirmada")
         self.assertIn("Fuente: RateHawk", row["notes"])
         self.assertIn("Hotel: Llao Llao Resort Golf & Spa", row["notes"])
-        self.assertIn("Neto: USD 853.00", row["notes"])
-        self.assertIn("Comisión: USD 94.78 (10%)", row["notes"])
+        self.assertIn("Neto: USD 767.70", row["notes"])
+        self.assertIn("Comisión: USD 85.30 (10%)", row["notes"])
 
     def test_parse_cancellation(self):
         row = parse_ratehawk_mail(
@@ -193,12 +194,10 @@ Cancelación gratuita antes del 31 octubre 2026, 13:00 UTC-3
         self.assertEqual(row["hotel_name"], "RateHawk")
         self.assertEqual(row["check_in"], "2026-11-08")
         self.assertEqual(row["check_out"], "2026-11-11")
-        # Verificar que total_amount es 947.78 (calculado desde neto)
-        # Si "Importe a pagar 947,78$" se trata como neto, PVP = 947.78/0.90 = 1053.09
-        # PERO el test actual espera que neto=947.78 → PVP=1053.09
-        # O si se documenta que es PVP directo, total_amount = 947.78
-        # Por ahora, siguiendo la heurística actual (Importe a pagar = neto):
-        self.assertAlmostEqual(row["total_amount"], 1053.09, places=2)
+        # Verificar que total_amount es 947.78 (PVP directo del mail)
+        # Con RATEHAWK_IMPORTE_ES_PVP=true (default): Importe a pagar 947.78 → PVP = 947.78
+        # Neto = 947.78 * 0.90 = 853.00, Comisión = 94.78 (10% de 947.78)
+        self.assertAlmostEqual(row["total_amount"], 947.78, places=2)
 
     def test_forward_from_internal_domain(self):
         """Forward desde checkin24hs.com."""
@@ -268,7 +267,8 @@ Importe a pagar 853,00$
         self.assertIn("Laura Perez", row["client_name"])
         self.assertEqual(row["check_in"], "2026-11-08")
         self.assertEqual(row["check_out"], "2026-11-11")
-        # Verificar que total_amount es PVP (sale price), no neto
+        # Verificar que total_amount es PVP (Importe a pagar directo)
+        # Si el mail real tiene "Importe a pagar 947,78$" → PVP = 947.78
         self.assertAlmostEqual(row["total_amount"], 947.78, places=2)
 
     def test_notes_contains_metadata(self):
@@ -282,8 +282,9 @@ Importe a pagar 853,00$
         notes = row["notes"]
         self.assertIn("Fuente: RateHawk", notes)
         self.assertIn("Hotel: Llao Llao Resort Golf & Spa", notes)
-        self.assertIn("Neto: USD 853.00", notes)
-        self.assertIn("Comisión: USD 94.78 (10%)", notes)
+        # Con RATEHAWK_IMPORTE_ES_PVP=true (default): Importe 853 → PVP=853, Neto=767.70
+        self.assertIn("Neto: USD 767.70", notes)
+        self.assertIn("Comisión: USD 85.30 (10%)", notes)
         self.assertIn("Cancelación gratuita", notes)
         self.assertIn("Factura", notes)
 
