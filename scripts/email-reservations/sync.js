@@ -122,7 +122,7 @@ async function findHuiloHotelId() {
   return { id: preferred.id || null, name: preferred.name || 'Huilo Huilo' };
 }
 
-async function upsertReservation(parsed, hotel) {
+async function upsertReservation(parsed, hotel, messageId, subject) {
   const row = {
     reservation_code: parsed.reservation_code,
     client_name: parsed.client_name,
@@ -137,13 +137,17 @@ async function upsertReservation(parsed, hotel) {
     status: 'Confirmada',
     total_amount: parsed.total_amount || 0,
     notes: parsed.notes || null,
+    original_email_message_id: messageId || null,
+    original_email_subject: subject || null,
   };
   try {
     return await sb('POST', 'reservations?on_conflict=reservation_code', [row]);
   } catch (e) {
     const msg = String(e.message || e);
-    if (/notes|column/i.test(msg)) {
+    if (/notes|column|original_email/i.test(msg)) {
       delete row.notes;
+      delete row.original_email_message_id;
+      delete row.original_email_subject;
       return sb('POST', 'reservations?on_conflict=reservation_code', [row]);
     }
     throw e;
@@ -253,7 +257,7 @@ async function main() {
         if (DRY_RUN) continue;
 
         try {
-          await upsertReservation(parsed, hotel);
+          await upsertReservation(parsed, hotel, messageId, subject);
           await markImported({
             message_id: messageId,
             reservation_code: parsed.reservation_code,

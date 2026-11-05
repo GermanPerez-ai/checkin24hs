@@ -335,7 +335,7 @@ function normalizeAttachments(raw) {
   return out;
 }
 
-function buildMailDataPayload({ from, toList, bccList, subject, text, replyTo, attachments }) {
+function buildMailDataPayload({ from, toList, bccList, subject, text, replyTo, attachments, inReplyTo }) {
   const safeSubject = String(subject || '').replace(/[\r\n]+/g, ' ').slice(0, 200);
   const safeText = String(text || '').replace(/\r\n/g, '\n').replace(/\n/g, '\r\n').slice(0, 20000);
   const headers = [
@@ -346,6 +346,15 @@ function buildMailDataPayload({ from, toList, bccList, subject, text, replyTo, a
     'Subject: =?UTF-8?B?' + Buffer.from(safeSubject, 'utf8').toString('base64') + '?=',
     'MIME-Version: 1.0',
   ].filter(Boolean);
+  
+  // Agregar headers para email threading si hay Message-ID original
+  if (inReplyTo && typeof inReplyTo === 'string') {
+    const sanitizedMessageId = String(inReplyTo).replace(/[\r\n]+/g, '').trim();
+    if (sanitizedMessageId) {
+      headers.push('In-Reply-To: ' + sanitizedMessageId);
+      headers.push('References: ' + sanitizedMessageId);
+    }
+  }
   if (!attachments.length) {
     return headers.concat([
       'Content-Type: text/plain; charset=UTF-8',
@@ -377,7 +386,7 @@ function buildMailDataPayload({ from, toList, bccList, subject, text, replyTo, a
   return parts.join('\r\n');
 }
 
-async function sendSmtpMail({ to, bcc, subject, text, replyTo, attachments }) {
+async function sendSmtpMail({ to, bcc, subject, text, replyTo, attachments, inReplyTo }) {
   const host = process.env.SMTP_HOST || 'smtp.hostinger.com';
   const preferredPort = parseInt(process.env.SMTP_PORT || '465', 10);
   const user = (process.env.SMTP_USER || process.env.SMTP_FROM || 'reservas@checkin24hs.com').trim();
@@ -390,7 +399,7 @@ async function sendSmtpMail({ to, bcc, subject, text, replyTo, attachments }) {
   if (!unique.length) throw new Error('Sin destinatarios');
   const files = normalizeAttachments(attachments);
   const dataPayload = buildMailDataPayload({
-    from, toList, bccList, subject, text, replyTo, attachments: files,
+    from, toList, bccList, subject, text, replyTo, attachments: files, inReplyTo,
   });
 
   const attempts = preferredPort === 587
@@ -605,6 +614,7 @@ const server = http.createServer((req, res) => {
           text: body.text,
           replyTo: body.replyTo,
           attachments: body.attachments,
+          inReplyTo: body.inReplyTo || null,
         }).then((sent) => {
           console.log('[hotel-mail]', kind, sent.to.join(','), (body && body.code) || '');
           sendPlainJson(res, 200, { ok: true, ...sent, kind });
