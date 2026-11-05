@@ -54,6 +54,14 @@ const CONFIG = {
         .split(',')
         .map(k => k.trim().toLowerCase())
         .filter(Boolean),
+    businessKeywords: (process.env.BUSINESS_KEYWORDS || 'reunión,reunion,propuesta,cotización,cotizacion,tarifas,tarifa,convenio,comisión,comision,disponibilidad,consulta,información,informacion,novedades,contrato,facturación,facturacion,pagos,pago,negociación,negociacion,acuerdo,oferta,promoción,promocion,programa,alianza,colaboración,colaboracion')
+        .split(',')
+        .map(k => k.trim().toLowerCase())
+        .filter(Boolean),
+    newsletterKeywords: (process.env.NEWSLETTER_KEYWORDS || 'suscri,unsubscribe,newsletter,boletin,boletín,marketing,publicidad,opt-out,darse de baja,desuscribir')
+        .split(',')
+        .map(k => k.trim().toLowerCase())
+        .filter(Boolean),
     providerDomains: (process.env.PROVIDER_DOMAINS || 'ratehawk.com,emergingtravel.com')
         .split(',')
         .map(d => d.trim().toLowerCase())
@@ -343,6 +351,147 @@ function isReservationRelated(parsed) {
 }
 
 /**
+ * Detecta si un email parece ser newsletter/marketing masivo
+ */
+function isNewsletterOrSpam(parsed, text) {
+    const subject = (parsed.subject || '').toLowerCase();
+    const combined = `${subject} ${text}`.toLowerCase();
+    
+    // Verificar palabras clave de newsletter
+    const hasNewsletterKeyword = CONFIG.newsletterKeywords.some(kw => combined.includes(kw));
+    if (hasNewsletterKeyword) {
+        return { isNewsletter: true, reason: 'newsletter_keywords' };
+    }
+    
+    // Verificar List-Unsubscribe header (típico de newsletters)
+    if (parsed.headers && parsed.headers.has('list-unsubscribe')) {
+        return { isNewsletter: true, reason: 'list_unsubscribe_header' };
+    }
+    
+    // Verificar si es masivo (envío a muchos destinatarios)
+    const allRecipients = [];
+    if (parsed.to && parsed.to.value) {
+        allRecipients.push(...parsed.to.value);
+    }
+    if (parsed.cc && parsed.cc.value) {
+        allRecipients.push(...parsed.cc.value);
+    }
+    if (allRecipients.length > 5) {
+        return { isNewsletter: true, reason: 'mass_mailing' };
+    }
+    
+    return { isNewsletter: false };
+}
+
+/**
+ * Detecta si un email es comunicación de negocio (comercial/informativo/propuesta)
+ * Emails de proveedores/hoteles que responden hilos o proponen negocio
+ */
+function isBusinessEmail(parsed, info, senderType) {
+    // Filtrar siempre remitentes internos
+    if (senderType === 'internal') {
+        return { 
+            isBusiness: false, 
+            reason: 'internal_sender',
+            details: 'Remitente interno siempre excluido'
+        };
+    }
+    
+    const subject = (parsed.subject || '').toLowerCase();
+    const text = info.text.toLowerCase();
+    const combined = `${subject} ${text}`;
+    
+    // Verificar si es newsletter/spam
+    const newsletterCheck = isNewsletterOrSpam(parsed, text);
+    if (newsletterCheck.isNewsletter) {
+        return {
+            isBusiness: false,
+            reason: 'newsletter_or_spam',
+            details: `Newsletter detectado: ${newsletterCheck.reason}`
+        };
+    }
+    
+    // CASO 1: Es respuesta en un hilo (In-Reply-To/References o RE:/RV:)
+    // Respuestas de hoteles/proveedores siempre son relevantes
+    const isReply = Boolean(parsed.inReplyTo || (parsed.references && parsed.references.length > 0));
+    const hasReplyPrefix = /^(re|rv|fwd|fw):/i.test(subject);
+    
+    if (isReply || hasReplyPrefix) {
+        return {
+            isBusiness: true,
+            reason: 'reply_in_thread',
+            details: isReply ? 'Respuesta formal (headers)' : 'Respuesta (prefijo asunto)',
+            isReply: true
+        };
+    }
+    
+    // CASO 2: Email nuevo sin hilo - verificar señales claras de negocio
+    // Buscar palabras clave de negocio CON contexto suficiente
+    const hasBusinessKeyword = CONFIG.businessKeywords.some(kw => combined.includes(kw));
+    
+    if (!hasBusinessKeyword) {
+        return {
+            isBusiness: false,
+            reason: 'no_business_signals',
+            details: 'Email nuevo sin señales claras de negocio'
+        };
+    }
+    
+    // Tiene palabras de negocio - verificar que no sea genérico
+    // Emails muy cortos pueden ser automáticos/spam
+    if (text.length < 50) {
+        return {
+            isBusiness: false,
+            reason: 'too_short',
+            details: 'Email demasiado corto (posible automático)'
+        };
+    }
+    
+    // Email nuevo con señales claras de negocio
+    return {
+        isBusiness: true,
+        reason: 'business_keywords',
+        details: `Email de negocio con keywords relevantes`,
+        isReply: false
+    };
+}
+
+/**
+ * Clasifica el tipo de email: 'reservation', 'business', o 'filtered'
+ * @returns { type: 'reservation'|'business'|'filtered', reason: string, details: string }
+ */
+function classifyEmailType(parsed, info, senderType) {
+    // 1. Verificar si es email de reserva
+    const reservationCheck = isReservationRelated(parsed);
+    if (reservationCheck.isRelated) {
+        return {
+            type: 'reservation',
+            reason: reservationCheck.reason,
+            details: 'Email relacionado con movimiento de reserva',
+            reservationInfo: reservationCheck
+        };
+    }
+    
+    // 2. Verificar si es email comercial/informativo
+    const businessCheck = isBusinessEmail(parsed, info, senderType);
+    if (businessCheck.isBusiness) {
+        return {
+            type: 'business',
+            reason: businessCheck.reason,
+            details: businessCheck.details,
+            businessInfo: businessCheck
+        };
+    }
+    
+    // 3. Filtrar todo lo demás
+    return {
+        type: 'filtered',
+        reason: businessCheck.reason || 'no_relevant_signals',
+        details: businessCheck.details || 'Email sin señales de reserva ni negocio'
+    };
+}
+
+/**
  * Limpia el texto del correo removiendo firmas, citas y ruido
  */
 function cleanEmailText(text) {
@@ -436,20 +585,49 @@ function extractEmailInfo(parsed) {
 
 /**
  * Genera un resumen ejecutivo simple (sin IA)
+ * @param {string} emailType - 'reservation' o 'business'
  */
-function generateSimpleSummary(info) {
+function generateSimpleSummary(info, emailType = 'reservation') {
     const hotel = info.fromName || info.from;
-    const action = detectAction(info.subject + ' ' + info.text);
+    const action = detectAction(info.subject + ' ' + info.text, emailType);
     
     return `${hotel}: ${action} - ${info.subject}`;
 }
 
 /**
  * Detecta la acción principal del correo
+ * @param {string} emailType - 'reservation' o 'business'
  */
-function detectAction(text) {
+function detectAction(text, emailType = 'reservation') {
     const lower = text.toLowerCase();
     
+    if (emailType === 'business') {
+        // Detectar acciones de negocio
+        if (lower.includes('reunión') || lower.includes('reunion')) {
+            return 'Propuesta de reunión';
+        }
+        if (lower.includes('propuesta') || lower.includes('oferta')) {
+            return 'Propuesta comercial';
+        }
+        if (lower.includes('cotización') || lower.includes('cotizacion') || lower.includes('tarifa')) {
+            return 'Consulta de tarifas';
+        }
+        if (lower.includes('disponibilidad')) {
+            return 'Consulta de disponibilidad';
+        }
+        if (lower.includes('convenio') || lower.includes('acuerdo') || lower.includes('alianza')) {
+            return 'Propuesta de convenio';
+        }
+        if (lower.includes('información') || lower.includes('informacion') || lower.includes('novedades')) {
+            return 'Información comercial';
+        }
+        if (lower.includes('factura') || lower.includes('pago')) {
+            return 'Consulta de facturación';
+        }
+        return 'Comunicación de negocio';
+    }
+    
+    // Acciones de reserva
     if (lower.includes('confirm') || lower.includes('confirmación') || lower.includes('confirmacion')) {
         return 'Confirmación';
     }
@@ -471,17 +649,35 @@ function detectAction(text) {
 
 /**
  * Genera un resumen ejecutivo usando IA (Gemini)
+ * @param {string} emailType - 'reservation' o 'business'
  */
-async function generateAISummary(info) {
+async function generateAISummary(info, emailType = 'reservation') {
     if (!CONFIG.gemini.apiKey) {
-        return generateSimpleSummary(info);
+        return generateSimpleSummary(info, emailType);
     }
     
     try {
         // Limitar texto para evitar prompts muy largos (max ~800 chars para Gemini)
         const textoParaIA = info.text.substring(0, 800);
         
-        const prompt = `Eres un asistente que resume correos de hoteles sobre reservas.
+        let prompt;
+        if (emailType === 'business') {
+            prompt = `Eres un asistente que resume correos de negocio de hoteles y proveedores.
+
+Correo de: ${info.fromName} (${info.from})
+Asunto: ${info.subject}
+Texto: ${textoParaIA}
+
+Genera un resumen ejecutivo de máximo 100 caracteres que responda: ¿Quién envió el correo y qué propone/consulta/informa?
+Formato: "Contacto/Hotel: [acción/propuesta]"
+Ejemplos:
+- "Mónica Cornejo (Corralco): Propone reunión para conocer novedades"
+- "Hotel Puyehue: Solicita información sobre convenios"
+- "RateHawk: Nueva tarifa disponible para temporada alta"
+
+Resumen:`;
+        } else {
+            prompt = `Eres un asistente que resume correos de hoteles sobre reservas.
 
 Correo de: ${info.fromName} (${info.from})
 Asunto: ${info.subject}
@@ -495,6 +691,7 @@ Ejemplos:
 - "Huilo Huilo: Anulación confirmada"
 
 Resumen:`;
+        }
 
         const response = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/${CONFIG.gemini.model}:generateContent?key=${CONFIG.gemini.apiKey}`,
@@ -518,10 +715,10 @@ Resumen:`;
             return summary.substring(0, 200);
         }
         
-        return generateSimpleSummary(info);
+        return generateSimpleSummary(info, emailType);
     } catch (error) {
         console.warn('⚠️  Error generando resumen con IA, usando resumen simple:', error.message);
-        return generateSimpleSummary(info);
+        return generateSimpleSummary(info, emailType);
     }
 }
 
@@ -1154,8 +1351,9 @@ async function updateProcessedStatus(messageId, status, errorDetail = null) {
 /**
  * Envía notificación por WhatsApp a los destinatarios correctos
  * Retorna: { sent: number, destinations: string[], type: 'group'|'providers'|'internal' }
+ * @param {string} emailType - Tipo de email: 'reservation' o 'business'
  */
-async function sendWhatsAppNotification(info, summary, autoCloseResult = null) {
+async function sendWhatsAppNotification(info, summary, emailType = 'reservation', autoCloseResult = null) {
     const routing = getWhatsAppDestinations(info.from);
     
     // Si es remitente interno, no enviar nada
@@ -1165,8 +1363,8 @@ async function sendWhatsAppNotification(info, summary, autoCloseResult = null) {
     
     let autoCloseLines = '';
     
-    // Agregar información de auto-cierre si se procesó
-    if (autoCloseResult?.processed && autoCloseResult.results?.length > 0) {
+    // Agregar información de auto-cierre si se procesó (solo para reservas)
+    if (emailType === 'reservation' && autoCloseResult?.processed && autoCloseResult.results?.length > 0) {
         const successful = autoCloseResult.results.filter(r => r.ok || r.dryRun);
         if (successful.length > 0) {
             const isDryRun = successful[0].dryRun;
@@ -1181,7 +1379,24 @@ async function sendWhatsAppNotification(info, summary, autoCloseResult = null) {
         }
     }
     
-    const message = `📧 *Nueva respuesta sobre reserva*
+    // Construir mensaje según tipo
+    let message;
+    if (emailType === 'business') {
+        message = `💼 *Nuevo email comercial/informativo*
+
+📨 *De:* ${info.fromName}
+📧 *Email:* ${info.from}
+📋 *Asunto:* ${info.subject}
+
+💬 *Resumen:*
+${summary}
+
+📝 *Mensaje:*
+${info.text.substring(0, 800)}${info.text.length > 800 ? '...' : ''}
+
+⏰ ${new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}`;
+    } else {
+        message = `📧 *Nueva respuesta sobre reserva*
 
 📨 *De:* ${info.fromName}
 📧 *Email:* ${info.from}
@@ -1195,6 +1410,7 @@ ${summary}${autoCloseLines}
 ${info.text.substring(0, 800)}${info.text.length > 800 ? '...' : ''}
 
 ⏰ ${new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}`;
+    }
 
     const results = [];
     
@@ -1253,74 +1469,6 @@ ${info.text.substring(0, 800)}${info.text.length > 800 ? '...' : ''}
 // ===== MONITOR PRINCIPAL =====
 
 /**
- * Verifica si un email tiene señales fuertes de ser un movimiento de reserva
- * aunque no tenga headers de respuesta
- */
-function hasStrongReservationSignals(parsed, info, routing) {
-    // SIEMPRE filtrar remitentes internos, sin importar las señales
-    if (routing.type === 'internal') {
-        return { 
-            hasSignals: false, 
-            reason: 'weak_signals',
-            details: 'Remitente interno (siempre filtrado)'
-        };
-    }
-    
-    // Si es respuesta formal, aceptar sin más verificaciones
-    const isReply = Boolean(parsed.inReplyTo || (parsed.references && parsed.references.length > 0));
-    if (isReply) {
-        return { hasSignals: true, reason: 'is_formal_reply' };
-    }
-    
-    const subject = (parsed.subject || '').toLowerCase();
-    const combined = `${subject} ${info.text}`.toLowerCase();
-    
-    // Señal 1: Asunto empieza con RE: o RV: (respuesta sin headers técnicos)
-    const hasReplyPrefix = /^(re|rv|fwd|fw):/i.test(subject);
-    if (hasReplyPrefix) {
-        return { hasSignals: true, reason: 'subject_reply_prefix' };
-    }
-    
-    // Señal 2: Palabras clave fuertes de acción sobre reserva existente
-    const strongActionKeywords = [
-        'confirmamos', 'confirmó', 'confirmo',
-        'modificación', 'modificacion', 'modificamos', 'modificado',
-        'anulación', 'anulacion', 'anulamos', 'anulado', 'anulada',
-        'cancelación', 'cancelacion', 'cancelamos', 'cancelado', 'cancelada',
-        'procedemos a', 'queda anulad', 'queda cancelad'
-    ];
-    const hasStrongAction = strongActionKeywords.some(kw => combined.includes(kw));
-    
-    // Señal 3: Código de reserva presente con CONTEXTO
-    // Para evitar falsos positivos, el código debe estar cerca de palabras relacionadas con reservas
-    const codeWithContextPattern = 
-        // Códigos alfanuméricos cerca de palabras clave
-        /(?:reserva|código|codigo|code|localizador|voucher|confirmación|modificación|anulación)\s*[:#]?\s*[A-Z]{1,2}[A-Z0-9]{4,6}\b/i.test(combined) ||
-        // O en el asunto después de un espacio/guión (ej: "ANULAR RESERVA Hotel Huilo-Huilo 598854662")
-        /(?:reserva|hotel|modificar|anular|cancelar)[\s\-]+[\w\s\-]+\d{8,9}\b/i.test(combined) ||
-        // Códigos numéricos largos con contexto explícito
-        /(?:reserva|código|codigo|n[°º]|#)\s*:?\s*#?\s*\d{8,9}\b/i.test(combined);
-    
-    const hasReservationCode = codeWithContextPattern;
-    
-    // Si tiene acción fuerte Y código con contexto, es señal fuerte
-    // (2 señales sustanciales, no solo "es externo")
-    if (hasStrongAction && hasReservationCode) {
-        return { 
-            hasSignals: true, 
-            reason: 'strong_signals',
-            details: 'Acción confirmada + código de reserva'
-        };
-    }
-    
-    return { 
-        hasSignals: false, 
-        reason: 'weak_signals',
-        details: `Señales insuficientes: action=${hasStrongAction}, code=${hasReservationCode}`
-    };
-}
-
-/**
  * Procesa un correo individual
  */
 async function processEmail(uid, client) {
@@ -1329,26 +1477,30 @@ async function processEmail(uid, client) {
         const message = await client.fetchOne(uid, { source: true });
         const parsed = await simpleParser(message.source);
         
-        // Verificar si es relacionado con reservas
-        const filter = isReservationRelated(parsed);
-        if (!filter.isRelated) {
-            return { 
-                status: 'filtered', 
-                reason: filter.reason,
-                details: filter.details 
-            };
-        }
-        
-        // Extraer información
+        // Extraer información básica
         const info = extractEmailInfo(parsed);
         
+        // Determinar tipo de remitente
+        const senderType = classifySender(info.from);
+        
         // Verificar si es remitente interno (excluir siempre)
-        const routing = getWhatsAppDestinations(info.from);
-        if (routing.type === 'internal') {
+        if (senderType === 'internal') {
             return { 
                 status: 'internal', 
                 reason: 'internal_sender',
                 details: 'Remitente interno excluido'
+            };
+        }
+        
+        // Clasificar tipo de email
+        const classification = classifyEmailType(parsed, info, senderType);
+        
+        // Si está filtrado, retornar
+        if (classification.type === 'filtered') {
+            return {
+                status: 'filtered',
+                reason: classification.reason,
+                details: classification.details
             };
         }
         
@@ -1357,38 +1509,37 @@ async function processEmail(uid, client) {
             return { status: 'duplicate', messageId: info.messageId };
         }
         
-        // Verificar si tiene señales fuertes de reserva (incluso sin headers de respuesta)
-        const signals = hasStrongReservationSignals(parsed, info, routing);
-        if (!signals.hasSignals) {
-            return { 
-                status: 'filtered', 
-                reason: signals.reason,
-                details: signals.details || 'Email sin señales fuertes de movimiento de reserva'
-            };
-        }
+        // Obtener routing para WhatsApp
+        const routing = getWhatsAppDestinations(info.from);
         
-        console.log(`\n📧 Procesando: ${info.subject}`);
+        // Determinar tipo de email (reservation o business)
+        const emailType = classification.type;
+        
+        console.log(`\n${emailType === 'business' ? '💼' : '📧'} Procesando: ${info.subject}`);
         console.log(`   De: ${info.fromName} <${info.from}>`);
+        console.log(`   📑 Tipo: ${emailType === 'business' ? 'COMERCIAL/INFORMATIVO' : 'RESERVA'}`);
         
-        // Indicar si es respuesta formal o tiene señales fuertes
-        if (signals.reason === 'is_formal_reply') {
-            console.log(`   ↩️  Respuesta formal (In-Reply-To/References)`);
-        } else if (signals.reason === 'subject_reply_prefix') {
-            console.log(`   ↩️  Respuesta (asunto RE:/RV:)`);
-        } else if (signals.reason === 'strong_signals') {
-            console.log(`   🎯 Señales fuertes de reserva: ${signals.details}`);
+        // Indicar si es respuesta o email nuevo
+        if (classification.businessInfo?.isReply || classification.reservationInfo?.isReply) {
+            console.log(`   ↩️  Respuesta en hilo`);
+        } else {
+            console.log(`   📨 Email nuevo con señales relevantes`);
         }
         
-        console.log(`   📍 Tipo: ${routing.type === 'group' ? 'HOTEL (grupo)' : 'PROVEEDOR (individual)'}`);
-        console.log(`   👤 Solicitado por: ${info.requestedBy}`);
+        console.log(`   📍 Remitente: ${routing.type === 'group' ? 'HOTEL (grupo)' : 'PROVEEDOR (individual)'}`);
+        
+        // Solo mostrar "Solicitado por" para emails de reserva
+        if (emailType === 'reservation') {
+            console.log(`   👤 Solicitado por: ${info.requestedBy}`);
+        }
         
         // Generar resumen
-        const summary = await generateAISummary(info);
+        const summary = await generateAISummary(info, emailType);
         console.log(`   📝 Resumen: ${summary}`);
         
-        // Procesar auto-cierre de reservas
+        // Procesar auto-cierre SOLO para emails de reserva
         let autoCloseResult = null;
-        if (CONFIG.autoClose.enabled || CONFIG.autoClose.dryRun) {
+        if (emailType === 'reservation' && (CONFIG.autoClose.enabled || CONFIG.autoClose.dryRun)) {
             autoCloseResult = await processAutoClose(info, parsed);
             if (autoCloseResult?.processed) {
                 const successful = autoCloseResult.results.filter(r => r.ok || r.dryRun).length;
@@ -1408,7 +1559,7 @@ async function processEmail(uid, client) {
             try {
                 await markAsProcessed(info, summary, 'marked_existing');
                 console.log('   ✅ Marcado como existente (no se envía)');
-                return { status: 'marked', info, summary, autoClose: autoCloseResult };
+                return { status: 'marked', info, summary, emailType, autoClose: autoCloseResult };
             } catch (error) {
                 console.warn('   ⚠️  Error marcando como existente:', error.message);
                 return { status: 'error', error: error.message };
@@ -1421,8 +1572,11 @@ async function processEmail(uid, client) {
             console.log(`\n   Mensaje que se enviaría:\n${'-'.repeat(60)}`);
             console.log(`De: ${info.fromName} <${info.from}>`);
             console.log(`Asunto: ${info.subject}`);
-            console.log(`Solicitado por: ${info.requestedBy}`);
-            console.log(`Tipo: ${routing.type === 'group' ? 'HOTEL -> Grupo' : 'PROVEEDOR -> Individual'}`);
+            console.log(`Tipo email: ${emailType}`);
+            if (emailType === 'reservation') {
+                console.log(`Solicitado por: ${info.requestedBy}`);
+            }
+            console.log(`Tipo remitente: ${routing.type === 'group' ? 'HOTEL -> Grupo' : 'PROVEEDOR -> Individual'}`);
             console.log(`Destino: ${routing.destinations.join(', ')}`);
             console.log(`Resumen: ${summary}`);
             if (autoCloseResult?.processed) {
@@ -1430,7 +1584,7 @@ async function processEmail(uid, client) {
             }
             console.log(`Texto (primeros 200 chars): ${info.text.substring(0, 200)}...`);
             console.log('-'.repeat(60));
-            return { status: 'dry-run', info, summary, routing, autoClose: autoCloseResult };
+            return { status: 'dry-run', info, summary, routing, emailType, autoClose: autoCloseResult };
         }
         
         // PREVENIR RACE CONDITION: Registrar ANTES de enviar
@@ -1449,13 +1603,13 @@ async function processEmail(uid, client) {
         
         // Enviar a WhatsApp
         try {
-            const result = await sendWhatsAppNotification(info, summary, autoCloseResult);
+            const result = await sendWhatsAppNotification(info, summary, emailType, autoCloseResult);
             console.log(`   ✅ Notificado: ${result.sent} mensaje(s) enviado(s)`);
             
             // Actualizar estado a 'notified'
             await updateProcessedStatus(info.messageId, 'notified', null);
             
-            return { status: 'notified', info, summary, result, autoClose: autoCloseResult };
+            return { status: 'notified', info, summary, emailType, result, autoClose: autoCloseResult };
         } catch (error) {
             console.error('   ❌ Error enviando a WhatsApp:', error.message);
             await updateProcessedStatus(info.messageId, 'error', error.message);
@@ -1532,6 +1686,11 @@ async function monitor() {
             marked: 0,
             error: 0,
             'dry-run': 0,
+            // Desglose por tipo de email
+            emailTypes: {
+                reservation: 0,
+                business: 0
+            },
             // Desglose de razones de filtrado
             filterReasons: {}
         };
@@ -1539,6 +1698,11 @@ async function monitor() {
         for (const uid of messages) {
             const result = await processEmail(uid, client);
             stats[result.status] = (stats[result.status] || 0) + 1;
+            
+            // Registrar tipo de email procesado
+            if ((result.status === 'notified' || result.status === 'dry-run' || result.status === 'marked') && result.emailType) {
+                stats.emailTypes[result.emailType] = (stats.emailTypes[result.emailType] || 0) + 1;
+            }
             
             // Registrar razón de filtrado para diagnóstico
             if (result.status === 'filtered' && result.reason) {
@@ -1554,10 +1718,22 @@ async function monitor() {
         
         if (CONFIG.markExisting) {
             console.log(`🏷️  Marcados como existentes: ${stats.marked}`);
+            if (stats.emailTypes.reservation > 0 || stats.emailTypes.business > 0) {
+                console.log(`   • 📧 Reservas: ${stats.emailTypes.reservation}`);
+                console.log(`   • 💼 Comerciales: ${stats.emailTypes.business}`);
+            }
         } else if (CONFIG.dryRun) {
             console.log(`🧪 Dry-run (se enviarían): ${stats['dry-run']}`);
+            if (stats.emailTypes.reservation > 0 || stats.emailTypes.business > 0) {
+                console.log(`   • 📧 Reservas: ${stats.emailTypes.reservation}`);
+                console.log(`   • 💼 Comerciales: ${stats.emailTypes.business}`);
+            }
         } else {
             console.log(`✅ Notificados: ${stats.notified}`);
+            if (stats.emailTypes.reservation > 0 || stats.emailTypes.business > 0) {
+                console.log(`   • 📧 Reservas: ${stats.emailTypes.reservation}`);
+                console.log(`   • 💼 Comerciales: ${stats.emailTypes.business}`);
+            }
         }
         
         console.log(`🔍 Filtrados: ${stats.filtered}`);
@@ -1567,7 +1743,9 @@ async function monitor() {
             console.log('\n   Desglose de filtrados:');
             const reasonLabels = {
                 'no_keywords': 'Sin palabras clave de reserva',
-                'weak_signals': 'Señales débiles (posible newsletter/spam)',
+                'no_business_signals': 'Sin señales de negocio',
+                'newsletter_or_spam': 'Newsletter/spam detectado',
+                'too_short': 'Email demasiado corto (posible automático)',
                 'internal_sender': 'Remitente interno'
             };
             for (const [reason, count] of Object.entries(stats.filterReasons)) {
