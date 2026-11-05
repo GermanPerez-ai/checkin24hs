@@ -14,7 +14,7 @@
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
         window.DASHBOARD_BUILD = '2026-09-24T12:28:09Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 286; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 287; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2376,7 +2376,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">286</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">287</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -26599,6 +26599,24 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             }
         }
 
+        // Función helper para extraer el hotel real de las notas de RateHawk
+        function extractRateHawkRealHotel(hotelName, notes) {
+            if (!hotelName || !notes) return hotelName;
+            
+            const hotelLower = String(hotelName).toLowerCase();
+            const notesStr = String(notes);
+            
+            if (hotelLower.includes('ratehawk') && notesStr.includes('Fuente: RateHawk')) {
+                const match = notesStr.match(/Hotel:\s*([^|]+)/);
+                if (match && match[1]) {
+                    const realHotel = match[1].trim();
+                    return `${hotelName} · ${realHotel}`;
+                }
+            }
+            
+            return hotelName;
+        }
+
         // Función para editar reserva
         async function editReservation(reservationId) {
             console.log('✏️ Editando reserva:', reservationId);
@@ -26770,6 +26788,8 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
             const clientEmail = reservation.client_email || reservation.clientEmail || 'N/A';
             const clientPhone = reservation.client_phone || reservation.clientPhone || 'N/A';
             const hotelName = reservation.hotel_name || reservation.hotelName || 'N/A';
+            const notes = reservation.notes || '';
+            const displayHotelName = extractRateHawkRealHotel(hotelName, notes);
             const checkIn = reservation.check_in || reservation.checkIn || 'N/A';
             const checkOut = reservation.check_out || reservation.checkOut || 'N/A';
             const status = reservation.status || 'N/A';
@@ -26798,7 +26818,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     
                     <div style="margin-bottom: 20px;">
                         <h3>🏨 Información de la Reserva</h3>
-                        <p><strong>Hotel:</strong> ${hotelName}</p>
+                        <p><strong>Hotel:</strong> ${displayHotelName}</p>
                         <p><strong>Entrada:</strong> ${formatReservationCheckDate(checkIn)}</p>
                         <p><strong>Salida:</strong> ${formatReservationCheckDate(checkOut)}</p>
                         <p><strong>Agente:</strong> ${agentName}</p>
@@ -26809,6 +26829,12 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                         <p><strong>Estado:</strong> <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; ${reservationStatusBadgeStyle(status)}">${status}</span></p>
                         <p><strong>Total:</strong> $${totalAmount.toLocaleString()} USD</p>
                     </div>
+                    ${notes ? `
+                    <div style="margin-bottom: 20px;">
+                        <h3>📝 Notas</h3>
+                        <p style="white-space: pre-wrap; background: #f5f5f5; padding: 12px; border-radius: 8px; font-size: 14px; color: #333;">${notes}</p>
+                    </div>
+                    ` : ''}
                     
                     <div style="text-align: center;">
                         <button onclick="editReservation('${reservation.id}'); this.closest('.modal').remove()" style="background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 5px; margin-right: 10px; cursor: pointer;">
@@ -27128,11 +27154,14 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                 const clientName = reservation.client_name || reservation.clientName || '';
                 const clientPhone = reservation.client_phone || reservation.clientPhone || reservation.guestPhone || '';
                 const hotelName = reservation.hotel_name || reservation.hotelName || '';
+                const notes = reservation.notes || '';
                 const checkIn = reservation.check_in || reservation.checkIn || '';
                 const checkOut = reservation.check_out || reservation.checkOut || '';
                 const status = reservation.status || '';
                 const total = reservation.total_amount || reservation.totalAmount || 0;
                 const id = reservation.id || '';
+                
+                const displayHotelName = extractRateHawkRealHotel(hotelName, notes);
                 
                 // Color del estado
                 let statusColor = '#4caf50';
@@ -27153,7 +27182,7 @@ ${users.slice(0, 10).map(user => `- ${user.name} (${user.email}) - ${new Date(us
                     <td style="padding: 12px; font-family: monospace; font-size: 12px;">${code}</td>
                     <td style="padding: 12px;">${clientName}</td>
                     <td style="padding: 12px;">${clientPhone || '—'}</td>
-                    <td style="padding: 12px;">${hotelName}</td>
+                    <td style="padding: 12px;">${displayHotelName}</td>
                     <td style="padding: 12px; text-align: center;">
                         <strong>Entrada:</strong> ${formatReservationCheckDate(checkIn)}<br>
                         <strong>Salida:</strong> ${formatReservationCheckDate(checkOut)}
