@@ -16,10 +16,11 @@
 
 ## Requisito para que aparezca el número real
 
-- **Baileys 6.8 o superior** suele exponer `signalRepository.getLIDMappingStore().getPNForLID(lid)`.  
-- Con **Baileys 6.7.x** (como en tu `package.json`: `^6.7.4`) esa API puede no existir; en ese caso:
-  - Opción A: Actualizar a `@whiskeysockets/baileys@^6.8.0` o superior y reiniciar el servidor.  
-  - Opción B: Dejar como está; se seguirá guardando el LID y en el dashboard seguirá "Número no disponible" o "ID: …" para esos contactos.
+- **Baileys 7.x** (actualizado desde 6.7.24): Incluye rework completo de LID/PN session mapping en el signal repository.
+  - Soporte mejorado para `lidMapping` y manejo de sesiones Signal para cuentas LID-migrated.
+  - Soluciona errores "Bad MAC", "No session found to decrypt message", "SessionError: No matching sessions" en línea 4.
+  - La API `signalRepository.getLIDMappingStore().getPNForLID(lid)` está disponible.
+- Con **Baileys 6.7.x** (versión anterior) esa API puede no existir completamente; causaba problemas de descifrado en cuentas LID-migrated.
 
 ## Cómo comprobar
 
