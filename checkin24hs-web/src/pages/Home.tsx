@@ -11,6 +11,7 @@ import { Testimonios } from '../components/Testimonios';
 import { Institucional } from '../components/Institucional';
 import { WhatsAppCta } from '../components/WhatsAppCta';
 import { BannerPromos } from '../components/BannerPromos';
+import { BarceloHeader } from '../components/BarceloHeader';
 import { Footer } from '../components/Footer';
 import { useFlorContext } from '../context/FlorContext';
 import { esAlojamiento, esPaquete } from '../data/destinoPaises';
@@ -84,6 +85,7 @@ export function Home() {
       <Header />
       <main>
         <HeroHome />
+        <Novedades />
         <BannerPromos />
         <SelectorDestinos />
         <AlojamientosCarousel
@@ -95,17 +97,19 @@ export function Home() {
           sectionId="elegidos"
         />
         {(loading || packs.length > 0) && (
-          <AlojamientosCarousel
-            hotels={packs}
-            loading={loading}
-            configError={configError}
-            fetchError={fetchError}
-            title="Nuestros Pack elegidos del mes"
-            sectionId="packs-elegidos"
-            cardVariant="pack"
-          />
+          <>
+            <BarceloHeader />
+            <AlojamientosCarousel
+              hotels={packs}
+              loading={loading}
+              configError={configError}
+              fetchError={fetchError}
+              title=""
+              sectionId="packs-elegidos"
+              cardVariant="pack"
+            />
+          </>
         )}
-        <Novedades />
         <Testimonios />
         <Institucional />
         <WhatsAppCta />

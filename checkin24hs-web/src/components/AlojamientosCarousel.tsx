@@ -42,6 +42,34 @@ function devPreviewHotels(): Hotel[] {
   ];
 }
 
+function devPreviewPacks(): Hotel[] {
+  const base = {
+    wifi: true,
+    desayuno: true,
+    piscina: true,
+    estacionamiento: true,
+    calefaccion: true,
+    pet_friendly: false,
+    metodo_venta: 'cotizacion' as const,
+    url_reserva_directa: null,
+    precio_desde: 120000,
+    puntuacion_num: 8.8,
+    puntuacion_texto: 'Excelente',
+    imagen_principal: 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=512&h=320&fit=crop',
+    galeria_fotos: null,
+    description: null,
+    slug: null,
+    region: null,
+    cantidad_opiniones: null,
+  };
+  return [
+    { ...base, id: 'pack-1', name: 'Barceló Riviera Maya', ciudad: 'Riviera Maya', pais: 'México', slug: 'barcelo-riviera', imagen_principal: 'https://images.unsplash.com/photo-1602002418082-a4443e081dd1?w=512&h=320&fit=crop' },
+    { ...base, id: 'pack-2', name: 'Barceló Bávaro Palace', ciudad: 'Punta Cana', pais: 'República Dominicana', slug: 'barcelo-bavaro', imagen_principal: 'https://images.unsplash.com/photo-1561501878-aabd62634533?w=512&h=320&fit=crop' },
+    { ...base, id: 'pack-3', name: 'Barceló Aruba', ciudad: 'Palm Beach', pais: 'Aruba', slug: 'barcelo-aruba', imagen_principal: 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=512&h=320&fit=crop' },
+    { ...base, id: 'pack-4', name: 'Barceló Ixtapa', ciudad: 'Ixtapa', pais: 'México', slug: 'barcelo-ixtapa', imagen_principal: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=512&h=320&fit=crop' },
+  ];
+}
+
 type Props = {
   hotels: Hotel[];
   loading: boolean;
@@ -70,8 +98,8 @@ export function AlojamientosCarousel({
   const [canScrollRight, setCanScrollRight] = useState(false);
   const trackRef = useRef<HTMLDivElement>(null);
 
-  const useDevPreview = import.meta.env.DEV && !loading && !fetchError && hotels.length === 0 && cardVariant !== 'pack';
-  const displayHotels = useDevPreview ? devPreviewHotels() : hotels;
+  const useDevPreview = import.meta.env.DEV && !loading && !fetchError && hotels.length === 0;
+  const displayHotels = useDevPreview ? (cardVariant === 'pack' ? devPreviewPacks() : devPreviewHotels()) : hotels;
 
   const updateArrows = () => {
     const el = trackRef.current;
@@ -109,7 +137,7 @@ export function AlojamientosCarousel({
       data-alojamientos-layout="carousel"
     >
       <div className="container">
-        <h2 className={styles.title}>{title}</h2>
+        {title && <h2 className={styles.title}>{title}</h2>}
         {useDevPreview && (
           <p className={styles.devHint}>Vista previa local — configurá Supabase para hoteles reales</p>
         )}

@@ -1,9 +1,9 @@
 .hero {
   position: relative;
   width: 100%;
-  min-height: 168px;
-  max-height: 252px;
-  height: 25vw;
+  min-height: 118px;
+  max-height: 176px;
+  height: 17.5vw;
   overflow: hidden;
   background: var(--primary);
 }
@@ -53,9 +53,9 @@
 
 @media (max-width: 768px) {
   .hero {
-    min-height: 144px;
-    height: 31vw;
-    max-height: 192px;
+    min-height: 101px;
+    height: 21.7vw;
+    max-height: 134px;
   }
   .content {
     padding-top: 20px;
