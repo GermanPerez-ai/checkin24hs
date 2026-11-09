@@ -97,17 +97,19 @@ export function Home() {
           sectionId="elegidos"
         />
         {(loading || packs.length > 0) && (
-          <AlojamientosCarousel
-            hotels={packs}
-            loading={loading}
-            configError={configError}
-            fetchError={fetchError}
-            title="Nuestros Pack elegidos del mes"
-            sectionId="packs-elegidos"
-            cardVariant="pack"
-          />
+          <>
+            <BarceloHeader />
+            <AlojamientosCarousel
+              hotels={packs}
+              loading={loading}
+              configError={configError}
+              fetchError={fetchError}
+              title=""
+              sectionId="packs-elegidos"
+              cardVariant="pack"
+            />
+          </>
         )}
-        <BarceloHeader />
         <Testimonios />
         <Institucional />
         <WhatsAppCta />

@@ -109,7 +109,7 @@ export function AlojamientosCarousel({
       data-alojamientos-layout="carousel"
     >
       <div className="container">
-        <h2 className={styles.title}>{title}</h2>
+        {title && <h2 className={styles.title}>{title}</h2>}
         {useDevPreview && (
           <p className={styles.devHint}>Vista previa local — configurá Supabase para hoteles reales</p>
         )}
