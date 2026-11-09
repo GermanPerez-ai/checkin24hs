@@ -7,14 +7,14 @@
     <meta name="robots" content="noindex, nofollow">
     <meta name="googlebot" content="noindex, nofollow">
     <!-- VERSIÓN: dashboard.html v2.1.0 - 2025-01-27 -->
-    <!-- BUILD: #289 - 2026-11-05 - Email threading para hotel replies (In-Reply-To/References) + mantiene Solicitado por -->
+    <!-- BUILD: #292 - 2026-11-09 - Banner Exclusivo Barceló en Banners del sitio (tipo_link=barcelo) -->
     <!-- CRÍTICO: Definir showSection LO PRIMERO - antes de cualquier otro código -->
     <script>
         // Variable global de versión - consultar en consola con: window.DASHBOARD_VERSION
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
         window.DASHBOARD_BUILD = '2026-11-05T21:53:00Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 291; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 292; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2416,7 +2416,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">291</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">292</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -2817,7 +2817,7 @@
             <!-- Banners del sitio (Slider Home checkin24hs.com) -->
             <div id="banners-section" style="display: none;">
                 <h2 class="page-title">🖼️ Banners del sitio (checkin24hs.com)</h2>
-                <p style="color: #666; margin-bottom: 16px;">Carrusel de la Home (tipos URL/Hotel/Flor) y el <strong>banner de Promos</strong> (imagen + botón debajo del hero en la Home → /promos). Desktop ~1200×400; mobile opcional.</p>
+                <p style="color: #666; margin-bottom: 16px;">Carrusel de la Home (tipos URL/Hotel/Flor), el <strong>banner de Promos</strong> (Home → /promos) y el <strong>Banner Exclusivo Barceló</strong> (imagen sobre el carrusel de packs Barceló). Desktop ~1200×400 (carrusel/Promos) o ~1200×280 (Barceló); mobile opcional.</p>
                 <div style="margin-bottom: 16px;">
                     <button class="form-button" onclick="openBannerModal()">
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">add</span>
@@ -3033,6 +3033,7 @@
                             <option value="hotel">Hotel (slug o ID)</option>
                             <option value="flor">Flor IA (abre el chat)</option>
                             <option value="promos">Banner de Promos (Home → /promos)</option>
+                            <option value="barcelo">Banner Exclusivo Barceló (Home)</option>
                         </select>
                     </div>
                     <div class="form-section" style="margin-bottom: 12px;" id="bannerLinkDestinoWrap">
@@ -3087,7 +3088,7 @@
                         emptyMsg.style.display = 'none';
                         tbody.innerHTML = list.map(function(b) {
                             var t = b.tipo_link || 'url';
-                            var tipo = t === 'flor' ? 'Flor IA' : (t === 'hotel' ? 'Hotel' : (t === 'promos' ? 'Banner de Promos' : 'URL'));
+                            var tipo = t === 'flor' ? 'Flor IA' : (t === 'hotel' ? 'Hotel' : (t === 'promos' ? 'Banner de Promos' : (t === 'barcelo' ? 'Banner Exclusivo Barceló' : 'URL')));
                             return '<tr><td>' + (b.orden != null ? b.orden : 0) + '</td><td>' + (b.titulo || '-') + '</td><td>' + (b.texto_boton || '-') + '</td><td>' + tipo + '</td><td style="text-align:center">' + (b.activo ? 'Sí' : 'No') + '</td><td style="text-align:center"><button class="form-button secondary" style="padding:4px 10px;font-size:0.85rem" onclick="window.editBanner(\'' + b.id + '\')">Editar</button> <button class="form-button" style="padding:4px 10px;font-size:0.85rem;background:#c62828" onclick="window.deleteBanner(\'' + b.id + '\')">Eliminar</button></td></tr>';
                         }).join('');
                     } catch (e) {
@@ -3111,6 +3112,14 @@
                         linkInput.value = '/promos';
                         linkInput.readOnly = true;
                         if (linkLabel) linkLabel.textContent = 'Link destino (fijo: /promos — banner en landings)';
+                        if (wrap) wrap.style.opacity = '0.75';
+                    } else if (tipo === 'barcelo') {
+                        if (!document.getElementById('bannerTitulo').value.trim()) {
+                            document.getElementById('bannerTitulo').value = 'Banner Exclusivo Barceló';
+                        }
+                        linkInput.value = '';
+                        linkInput.readOnly = true;
+                        if (linkLabel) linkLabel.textContent = 'Link destino (no aplica — solo imagen en Home)';
                         if (wrap) wrap.style.opacity = '0.75';
                     } else if (tipo === 'flor') {
                         linkInput.value = '#flor';
@@ -3158,7 +3167,7 @@
                                 document.getElementById('bannerTitulo').value = b.titulo || '';
                                 document.getElementById('bannerTextoBoton').value = b.texto_boton || '';
                                 document.getElementById('bannerLinkDestino').value = b.link_destino || (b.tipo_link === 'promos' ? '/promos' : (b.tipo_link === 'flor' ? '#flor' : ''));
-                                if (b.tipo_link === 'promos' || b.tipo_link === 'flor') {
+                                if (b.tipo_link === 'promos' || b.tipo_link === 'flor' || b.tipo_link === 'barcelo') {
                                     document.getElementById('bannerLinkDestino').readOnly = true;
                                 }
                             }
@@ -3205,6 +3214,10 @@
                         linkDestino = '/promos';
                         if (!titulo) titulo = 'Banner de Promos';
                         if (!textoBoton) textoBoton = 'Ofertas';
+                    }
+                    if (tipoLink === 'barcelo') {
+                        linkDestino = '';
+                        if (!titulo) titulo = 'Banner Exclusivo Barceló';
                     }
                     var orden = parseInt(document.getElementById('bannerOrden').value, 10) || 0;
                     var activo = document.getElementById('bannerActivo').checked;
