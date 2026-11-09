@@ -11,6 +11,7 @@ import { Testimonios } from '../components/Testimonios';
 import { Institucional } from '../components/Institucional';
 import { WhatsAppCta } from '../components/WhatsAppCta';
 import { BannerPromos } from '../components/BannerPromos';
+import { BarceloHeader } from '../components/BarceloHeader';
 import { Footer } from '../components/Footer';
 import { useFlorContext } from '../context/FlorContext';
 import { esAlojamiento, esPaquete } from '../data/destinoPaises';
@@ -84,6 +85,7 @@ export function Home() {
       <Header />
       <main>
         <HeroHome />
+        <Novedades />
         <BannerPromos />
         <SelectorDestinos />
         <AlojamientosCarousel
@@ -105,7 +107,7 @@ export function Home() {
             cardVariant="pack"
           />
         )}
-        <Novedades />
+        <BarceloHeader />
         <Testimonios />
         <Institucional />
         <WhatsAppCta />
