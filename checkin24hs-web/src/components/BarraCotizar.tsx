@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { buildWhatsAppTextUrl } from '../config';
 import styles from './BarraCotizar.module.css';
 
+/** Pasar a `true` para activar Buscar (WhatsApp / cotizador). */
+const COTIZADOR_ENABLED = false;
+
 function todayISO(): string {
   const d = new Date();
   const y = d.getFullYear();
@@ -38,7 +41,9 @@ export function BarraCotizar() {
   const [tipo, setTipo] = useState<TipoViaje>('ocio');
   const [openGuests, setOpenGuests] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [soonHint, setSoonHint] = useState(false);
   const guestsRef = useRef<HTMLDivElement>(null);
+  const hintTimer = useRef<number | null>(null);
 
   const huespedes = adultos + ninos;
   const guestsLabel = `${habitaciones} habitación${habitaciones === 1 ? '' : 'es'} para / ${huespedes} huésped${huespedes === 1 ? '' : 'es'}`;
@@ -55,8 +60,22 @@ export function BarraCotizar() {
     return () => document.removeEventListener('mousedown', onDoc);
   }, [openGuests]);
 
+  useEffect(() => () => {
+    if (hintTimer.current) window.clearTimeout(hintTimer.current);
+  }, []);
+
+  const showSoonHint = () => {
+    setSoonHint(true);
+    if (hintTimer.current) window.clearTimeout(hintTimer.current);
+    hintTimer.current = window.setTimeout(() => setSoonHint(false), 2200);
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!COTIZADOR_ENABLED) {
+      showSoonHint();
+      return;
+    }
     const dest = destino.trim();
     if (!dest) {
       setError('Ingresá un destino.');
@@ -87,7 +106,12 @@ export function BarraCotizar() {
   return (
     <section className={styles.section} aria-label="Cotizar viaje">
       <div className="container">
-        <form className={styles.card} onSubmit={handleSubmit}>
+        <form className={styles.card} onSubmit={handleSubmit} aria-describedby={COTIZADOR_ENABLED ? undefined : 'cotizador-proximamente'}>
+          {!COTIZADOR_ENABLED && (
+            <span id="cotizador-proximamente" className={styles.badge}>
+              Próximamente
+            </span>
+          )}
           <div className={styles.row}>
             <label className={`${styles.field} ${styles.destino}`}>
               <span className={styles.fieldLabel}>Destino</span>
@@ -136,7 +160,7 @@ export function BarraCotizar() {
                       if (error) setError(null);
                     }}
                     aria-label="Check-in"
-                    required
+                    required={COTIZADOR_ENABLED}
                   />
                 </label>
                 <span className={styles.dateSplit} aria-hidden>
@@ -154,7 +178,7 @@ export function BarraCotizar() {
                       if (error) setError(null);
                     }}
                     aria-label="Check-out"
-                    required
+                    required={COTIZADOR_ENABLED}
                   />
                 </label>
               </div>
@@ -204,9 +228,21 @@ export function BarraCotizar() {
               )}
             </div>
 
-            <button type="submit" className={styles.buscar}>
-              Buscar
-            </button>
+            <div className={styles.buscarWrap}>
+              <button
+                type="submit"
+                className={`${styles.buscar} ${COTIZADOR_ENABLED ? '' : styles.buscarSoon}`}
+                aria-disabled={!COTIZADOR_ENABLED}
+                title={COTIZADOR_ENABLED ? 'Buscar' : 'Próximamente'}
+              >
+                {COTIZADOR_ENABLED ? 'Buscar' : 'Próximamente'}
+              </button>
+              {soonHint && !COTIZADOR_ENABLED && (
+                <span className={styles.tooltip} role="status">
+                  Próximamente
+                </span>
+              )}
+            </div>
           </div>
 
           <fieldset className={styles.tipo}>
