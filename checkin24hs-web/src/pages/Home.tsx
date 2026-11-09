@@ -14,12 +14,21 @@ import { BannerPromos } from '../components/BannerPromos';
 import { BarceloHeader } from '../components/BarceloHeader';
 import { Footer } from '../components/Footer';
 import { useFlorContext } from '../context/FlorContext';
-import { esAlojamiento, esPaquete } from '../data/destinoPaises';
+import { esAlojamiento } from '../data/destinoPaises';
 import { sortHotelsPuyehueFirst } from '../lib/hoteles';
+
+function isBarceloName(name: string | null | undefined): boolean {
+  const normalized = (name || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+  return normalized.startsWith('barcelo');
+}
 
 export function Home() {
   const [hotels, setHotels] = useState<Hotel[]>([]);
-  const [packs, setPacks] = useState<Hotel[]>([]);
+  const [barcelo, setBarcelo] = useState<Hotel[]>([]);
   const [loading, setLoading] = useState(true);
   const location = useLocation();
   const { setContext } = useFlorContext();
@@ -64,9 +73,8 @@ export function Home() {
         } else if (data) {
           const all = (data as Hotel[]) || [];
           const elegidosHotel = all.filter((h) => !!h.elegido_del_mes && esAlojamiento(h));
-          const elegidosPack = all.filter((h) => !!h.pack_elegido_del_mes && esPaquete(h));
           setHotels(sortHotelsPuyehueFirst(elegidosHotel));
-          setPacks(elegidosPack);
+          setBarcelo(all.filter((h) => isBarceloName(h.name)));
         }
       setLoading(false);
     }).catch((err: unknown) => {
@@ -85,9 +93,7 @@ export function Home() {
       <Header />
       <main>
         <HeroHome />
-        <Novedades />
         <BannerPromos />
-        <SelectorDestinos />
         <AlojamientosCarousel
           hotels={hotels}
           loading={loading}
@@ -96,20 +102,18 @@ export function Home() {
           title="Nuestros elegidos del mes"
           sectionId="elegidos"
         />
-        {(loading || packs.length > 0) && (
-          <>
-            <BarceloHeader />
-            <AlojamientosCarousel
-              hotels={packs}
-              loading={loading}
-              configError={configError}
-              fetchError={fetchError}
-              title=""
-              sectionId="packs-elegidos"
-              cardVariant="pack"
-            />
-          </>
-        )}
+        <BarceloHeader />
+        <AlojamientosCarousel
+          hotels={barcelo}
+          loading={loading}
+          configError={configError}
+          fetchError={fetchError}
+          title=""
+          sectionId="packs-elegidos"
+          cardVariant="pack"
+        />
+        <Novedades />
+        <SelectorDestinos />
         <Testimonios />
         <Institucional />
         <WhatsAppCta />
