@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { buildCotizadorUrl, buildWhatsAppConsultaUrl } from '../config';
-import { getReservaDirectaUrl, hasReservarCarousel, openReservaPopup } from '../lib/hoteles';
+import { getReservaDirectaUrl, openReservaPopup } from '../lib/hoteles';
 import type { Hotel } from '../types';
 import styles from './HotelCard.module.css';
 import packStyles from './PackCard.module.css';
@@ -52,9 +52,10 @@ export function HotelCard({ hotel, variant = 'default' }: { hotel: Hotel; varian
   const isCarousel = variant === 'carousel';
   const waUrl = buildWhatsAppConsultaUrl(hotel.name, 'hotel');
   const reservaUrl = getReservaDirectaUrl(hotel);
-  const showReservarCarousel = isCarousel && hasReservarCarousel(hotel) && !!reservaUrl;
+  const showReservarCarousel = isCarousel && !!reservaUrl;
   const paisLabel = getPaisLabel(hotel);
-  const tituloCarrusel = paisLabel ? `${paisLabel} - ${hotel.name}` : hotel.name;
+  const destinoLabel =
+    [paisLabel || hotel.pais, hotel.ciudad].filter(Boolean).join(' · ') || hotel.location || null;
   const ubicacionLinea = [hotel.ciudad, hotel.pais].filter(Boolean).join(' · ') || hotel.location || null;
 
   if (isCarousel) {
@@ -79,7 +80,7 @@ export function HotelCard({ hotel, variant = 'default' }: { hotel: Hotel; varian
         </div>
         <div className={`${packStyles.bottom} ${styles.overlayFore}`}>
           <div className={packStyles.priceBlock}>
-            <span className={packStyles.ubicacion}>{tituloCarrusel}</span>
+            {destinoLabel && <span className={packStyles.ubicacion}>{destinoLabel}</span>}
             {precio != null && (
               <>
                 <span className={packStyles.desde}>Desde</span>

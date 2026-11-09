@@ -299,14 +299,16 @@
 }
 
 .btnWaOverlay {
+  flex: 1 1 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 10px 14px;
+  width: 100%;
+  padding: 10px 10px;
   border-radius: 12px;
   background: #25d366;
   color: #fff !important;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.01em;
   text-decoration: none !important;
@@ -315,6 +317,7 @@
   font-family: inherit;
   border: none;
   cursor: pointer;
+  box-sizing: border-box;
 }
 
 .btnWaOverlay:hover {
