@@ -74,7 +74,7 @@ export function Home() {
           const all = (data as Hotel[]) || [];
           const elegidosHotel = all.filter((h) => !!h.elegido_del_mes && esAlojamiento(h));
           setHotels(sortHotelsPuyehueFirst(elegidosHotel));
-          setBarcelo(all.filter((h) => isBarceloName(h.name)));
+          setBarcelo(all.filter((h) => !!h.grupo_barcelo || isBarceloName(h.name)));
         }
       setLoading(false);
     }).catch((err: unknown) => {

@@ -7,6 +7,19 @@
 // para evitar QuotaExceededError. localStorage solo se usa como fallback cuando
 // Supabase no está disponible.
 
+function isMissingGrupoBarceloColumn(error) {
+    const code = error && error.code;
+    const text = [error && error.message, error && error.details, error && error.hint]
+        .filter(Boolean).join(' ').toLowerCase();
+    return text.includes('grupo_barcelo') && (
+        code === 'PGRST204' ||
+        code === '42703' ||
+        text.includes('does not exist') ||
+        text.includes('schema cache') ||
+        text.includes('could not find')
+    );
+}
+
 class SupabaseClient {
     constructor() {
         // Cargar configuración
@@ -60,7 +73,7 @@ class SupabaseClient {
 
         const light = opts.light !== false; // por defecto true para evitar statement timeout
         const selectColumns = light
-            ? 'id,name,location,status,google_maps,website,rating,price,description,amenities,coordinates,created_at,updated_at,pais,region,tipo_producto,mostrar_como_hotel,mostrar_como_paquete,elegido_del_mes,pack_elegido_del_mes,precio_desde'
+            ? 'id,name,location,status,google_maps,website,rating,price,description,amenities,coordinates,created_at,updated_at,pais,region,tipo_producto,mostrar_como_hotel,mostrar_como_paquete,elegido_del_mes,pack_elegido_del_mes,grupo_barcelo,precio_desde'
             : '*';
 
         try {
@@ -72,7 +85,21 @@ class SupabaseClient {
             }
             const { data, error } = await query.order('created_at', { ascending: false });
 
-            if (error) throw error;
+            if (error) {
+                if (light && isMissingGrupoBarceloColumn(error)) {
+                    console.warn('⚠️ Columna grupo_barcelo ausente; reintento sin ese campo');
+                    let retry = this.client.from('hotels').select(
+                        'id,name,location,status,google_maps,website,rating,price,description,amenities,coordinates,created_at,updated_at,pais,region,tipo_producto,mostrar_como_hotel,mostrar_como_paquete,elegido_del_mes,pack_elegido_del_mes,precio_desde'
+                    );
+                    if (!includeInactive) {
+                        retry = retry.or('status.eq.active,status.eq.activo,status.eq.Activo,status.is.null');
+                    }
+                    const again = await retry.order('created_at', { ascending: false });
+                    if (again.error) throw again.error;
+                    return again.data || [];
+                }
+                throw error;
+            }
 
             // Supabase es la fuente de verdad: no escribir en localStorage para evitar llenar cuota
             return data || [];
@@ -119,11 +146,19 @@ class SupabaseClient {
         }
 
         try {
-            const { data, error } = await this.client
+            let payload = hotel;
+            let { data, error } = await this.client
                 .from('hotels')
-                .insert([hotel])
+                .insert([payload])
                 .select()
                 .single();
+            if (error && isMissingGrupoBarceloColumn(error) && payload && Object.prototype.hasOwnProperty.call(payload, 'grupo_barcelo')) {
+                const { grupo_barcelo: _omit, ...rest } = payload;
+                payload = rest;
+                const again = await this.client.from('hotels').insert([payload]).select().single();
+                data = again.data;
+                error = again.error;
+            }
             
             if (error) throw error;
             
@@ -170,12 +205,18 @@ class SupabaseClient {
                 images: cleanUpdates.images ? `${Array.isArray(cleanUpdates.images) ? cleanUpdates.images.length : 'N/A'} imagen(es)` : 'null'
             });
             
-            const { data, error } = await this.client
+            let { data, error } = await this.client
                 .from('hotels')
                 .update(cleanUpdates)
                 .eq('id', id)
                 .select()
                 .single();
+            if (error && isMissingGrupoBarceloColumn(error) && Object.prototype.hasOwnProperty.call(cleanUpdates, 'grupo_barcelo')) {
+                delete cleanUpdates.grupo_barcelo;
+                const again = await this.client.from('hotels').update(cleanUpdates).eq('id', id).select().single();
+                data = again.data;
+                error = again.error;
+            }
             
             if (error) {
                 console.error('❌ Error detallado de Supabase:', {

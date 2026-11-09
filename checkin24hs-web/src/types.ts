@@ -101,6 +101,8 @@ export interface Hotel {
   elegido_del_mes?: boolean | null;
   /** Si true, aparece en Home → Nuestros Pack elegidos del mes */
   pack_elegido_del_mes?: boolean | null;
+  /** Si true, aparece en Home → carrusel debajo del banner Barceló (además del nombre Barceló) */
+  grupo_barcelo?: boolean | null;
   /** Ficha modular para la web pública */
   ficha_web?: FichaWeb | null;
   /** Datos específicos de pack/paquete */
