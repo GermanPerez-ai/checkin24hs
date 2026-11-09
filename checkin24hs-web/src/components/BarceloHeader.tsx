@@ -56,6 +56,11 @@ export function BarceloHeader() {
         <div className={styles.media}>
           <img src={src} alt="Barceló Hotels & Resorts" className={styles.bg} />
           <div className={styles.overlay} />
+          <p className={styles.legend}>
+            <span className={styles.stars} aria-hidden>★★★</span>
+            {' '}Exclusivo Checkin24hs{' '}
+            <span className={styles.stars} aria-hidden>★★★</span>
+          </p>
         </div>
       </div>
     </section>
