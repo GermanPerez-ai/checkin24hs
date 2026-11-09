@@ -38,7 +38,7 @@ function devPreviewHotels(): Hotel[] {
     { ...base, id: 'dev-1', name: 'Corralco Resort', ciudad: 'Lonquimay', pais: 'Chile', slug: 'corralco' },
     { ...base, id: 'dev-3', name: 'Huilo Huilo Resort', ciudad: 'Neltume', pais: 'Chile', slug: 'huilo-huilo', imagen_principal: 'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=512&h=320&fit=crop' },
     { ...base, id: 'dev-4', name: 'Hotel Patagonia', ciudad: 'Bariloche', pais: 'Argentina', slug: 'patagonia', imagen_principal: 'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=512&h=320&fit=crop' },
-    { ...base, id: 'dev-5', name: 'Montaña Lodge', ciudad: 'San Martín', pais: 'Argentina', slug: 'montana', imagen_principal: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=512&h=320&fit=crop' },
+    { ...base, id: 'dev-5', name: 'Montaña Lodge', ciudad: 'San Martín', pais: 'Argentina', slug: 'montana', precio_desde: 0, imagen_principal: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=512&h=320&fit=crop' },
   ];
 }
 
@@ -65,7 +65,7 @@ function devPreviewPacks(): Hotel[] {
   return [
     { ...base, id: 'pack-1', name: 'Barceló Riviera Maya', ciudad: 'Riviera Maya', pais: 'México', slug: 'barcelo-riviera', imagen_principal: 'https://images.unsplash.com/photo-1602002418082-a4443e081dd1?w=512&h=320&fit=crop' },
     { ...base, id: 'pack-2', name: 'Barceló Bávaro Palace', ciudad: 'Punta Cana', pais: 'República Dominicana', slug: 'barcelo-bavaro', imagen_principal: 'https://images.unsplash.com/photo-1561501878-aabd62634533?w=512&h=320&fit=crop' },
-    { ...base, id: 'pack-3', name: 'Barceló Aruba', ciudad: 'Palm Beach', pais: 'Aruba', slug: 'barcelo-aruba', imagen_principal: 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=512&h=320&fit=crop' },
+    { ...base, id: 'pack-3', name: 'Barceló Aruba', ciudad: 'Palm Beach', pais: 'Aruba', slug: 'barcelo-aruba', precio_desde: 0, imagen_principal: 'https://images.unsplash.com/photo-1559827260-dc66d52bef19?w=512&h=320&fit=crop' },
     { ...base, id: 'pack-4', name: 'Barceló Ixtapa', ciudad: 'Ixtapa', pais: 'México', slug: 'barcelo-ixtapa', imagen_principal: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?w=512&h=320&fit=crop' },
   ];
 }

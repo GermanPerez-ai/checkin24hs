@@ -270,6 +270,59 @@
   text-decoration: none;
 }
 
+.overlayHit {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.overlayHit:hover {
+  color: inherit;
+  text-decoration: none;
+}
+
+.overlayFore {
+  z-index: 1;
+  pointer-events: none;
+}
+
+.overlayActions {
+  pointer-events: auto;
+}
+
+.overlayActions button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.btnWaOverlay {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #25d366;
+  color: #fff !important;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-decoration: none !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+}
+
+.btnWaOverlay:hover {
+  background: #1ebe5d;
+  color: #fff !important;
+  text-decoration: none !important;
+}
+
 @media (max-width: 768px) {
   .body {
     padding: 20px;

@@ -26,7 +26,7 @@ export function linesFromText(v: string | null | undefined): string[] {
 }
 
 export function formatPackPrice(precio: number | null | undefined, moneda?: string | null): string {
-  if (precio == null || !Number.isFinite(Number(precio))) return '';
+  if (precio == null || !Number.isFinite(Number(precio)) || Number(precio) <= 0) return '';
   const n = Number(precio);
   const cur = (moneda || 'USD').toUpperCase();
   if (cur === 'USD' || cur === 'US$' || cur === 'U$S') {
@@ -41,10 +41,17 @@ export function formatPackPrice(precio: number | null | undefined, moneda?: stri
 export function getPackPrecio(h: Hotel): number | null {
   const fp = getFichaPack(h);
   if (fp.precio_por_persona != null && Number.isFinite(Number(fp.precio_por_persona))) {
-    return Number(fp.precio_por_persona);
+    const n = Number(fp.precio_por_persona);
+    if (n > 0) return n;
   }
-  if (h.precio_desde != null) return Number(h.precio_desde);
-  if (h.price != null) return Number(h.price);
+  if (h.precio_desde != null) {
+    const n = Number(h.precio_desde);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  if (h.price != null) {
+    const n = Number(h.price);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
   return null;
 }
 
