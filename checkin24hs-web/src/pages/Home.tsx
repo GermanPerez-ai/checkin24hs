@@ -93,7 +93,6 @@ export function Home() {
       <Header />
       <main>
         <HeroHome />
-        <Novedades />
         <BannerPromos />
         <SelectorDestinos />
         <AlojamientosCarousel
@@ -114,6 +113,7 @@ export function Home() {
           sectionId="packs-elegidos"
           cardVariant="pack"
         />
+        <Novedades />
         <Testimonios />
         <Institucional />
         <WhatsAppCta />
