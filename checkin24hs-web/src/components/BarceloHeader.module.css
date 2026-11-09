@@ -1,10 +1,16 @@
-.header {
+.section {
+  padding: 20px 0 8px;
+}
+
+.media {
   position: relative;
+  display: block;
   width: 100%;
-  height: 120px;
+  min-height: 200px;
+  aspect-ratio: 2.4 / 1;
+  border-radius: 14px;
   overflow: hidden;
-  background: #1a1a1a;
-  margin-bottom: 0;
+  background: #1a1208;
 }
 
 .bg {
@@ -13,21 +19,22 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: center 35%;
+  object-position: center 22%;
 }
 
 .overlay {
   position: absolute;
   inset: 0;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.15) 0%, rgba(0, 0, 0, 0.05) 100%);
+  pointer-events: none;
 }
 
-@media (max-width: 768px) {
-  .header {
-    height: 80px;
+@media (min-width: 768px) {
+  .section {
+    padding: 24px 0 12px;
   }
-  
-  .bg {
-    object-position: center 40%;
+
+  .media {
+    min-height: 280px;
   }
 }

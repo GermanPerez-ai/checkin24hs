@@ -96,19 +96,17 @@ export function Home() {
           title="Nuestros elegidos del mes"
           sectionId="elegidos"
         />
+        <BarceloHeader />
         {(loading || packs.length > 0) && (
-          <>
-            <BarceloHeader />
-            <AlojamientosCarousel
-              hotels={packs}
-              loading={loading}
-              configError={configError}
-              fetchError={fetchError}
-              title=""
-              sectionId="packs-elegidos"
-              cardVariant="pack"
-            />
-          </>
+          <AlojamientosCarousel
+            hotels={packs}
+            loading={loading}
+            configError={configError}
+            fetchError={fetchError}
+            title=""
+            sectionId="packs-elegidos"
+            cardVariant="pack"
+          />
         )}
         <Testimonios />
         <Institucional />
