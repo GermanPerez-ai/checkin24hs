@@ -12,6 +12,7 @@ import { Institucional } from '../components/Institucional';
 import { WhatsAppCta } from '../components/WhatsAppCta';
 import { BannerPromos } from '../components/BannerPromos';
 import { BarceloHeader } from '../components/BarceloHeader';
+import { BarraCotizar } from '../components/BarraCotizar';
 import { Footer } from '../components/Footer';
 import { useFlorContext } from '../context/FlorContext';
 import { esAlojamiento } from '../data/destinoPaises';
@@ -93,7 +94,7 @@ export function Home() {
       <Header />
       <main>
         <HeroHome />
-        <BannerPromos />
+        <BarraCotizar />
         <AlojamientosCarousel
           hotels={hotels}
           loading={loading}
@@ -112,6 +113,7 @@ export function Home() {
           sectionId="packs-elegidos"
           cardVariant="pack"
         />
+        <BannerPromos />
         <Novedades />
         <SelectorDestinos />
         <Testimonios />
