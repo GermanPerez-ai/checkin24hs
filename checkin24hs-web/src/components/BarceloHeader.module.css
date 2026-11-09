@@ -7,7 +7,6 @@
   display: block;
   width: 100%;
   min-height: 200px;
-  aspect-ratio: 2.4 / 1;
   border-radius: 14px;
   overflow: hidden;
   background: #1a1208;
@@ -19,6 +18,7 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* Sign is upper-left/center; people sit on the right. Crop the sofa, keep the letters. */
   object-position: center 22%;
 }
 
