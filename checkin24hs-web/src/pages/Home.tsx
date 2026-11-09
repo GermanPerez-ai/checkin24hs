@@ -94,7 +94,6 @@ export function Home() {
       <main>
         <HeroHome />
         <BannerPromos />
-        <SelectorDestinos />
         <AlojamientosCarousel
           hotels={hotels}
           loading={loading}
@@ -114,6 +113,7 @@ export function Home() {
           cardVariant="pack"
         />
         <Novedades />
+        <SelectorDestinos />
         <Testimonios />
         <Institucional />
         <WhatsAppCta />
