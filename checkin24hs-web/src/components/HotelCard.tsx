@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { buildCotizadorUrl, buildWhatsAppConsultaUrl } from '../config';
 import { getReservaDirectaUrl, openReservaPopup } from '../lib/hoteles';
+import { formatPackPrice } from '../lib/packs';
 import type { Hotel } from '../types';
 import styles from './HotelCard.module.css';
 import packStyles from './PackCard.module.css';
@@ -47,6 +48,7 @@ export function HotelCard({ hotel, variant = 'default' }: { hotel: Hotel; varian
   const slug = getSlug(hotel);
   const imgUrl = getImageUrl(hotel);
   const precio = getPrecio(hotel);
+  const precioLabel = formatPackPrice(precio, 'USD');
   const metodoVenta = hotel.metodo_venta || 'cotizacion';
   const cotizarUrl = buildCotizadorUrl({ hotel_id: hotel.id });
   const isCarousel = variant === 'carousel';
@@ -81,10 +83,10 @@ export function HotelCard({ hotel, variant = 'default' }: { hotel: Hotel; varian
         <div className={`${packStyles.bottom} ${styles.overlayFore}`}>
           <div className={packStyles.priceBlock}>
             {destinoLabel && <span className={packStyles.ubicacion}>{destinoLabel}</span>}
-            {precio != null && (
+            {precioLabel && (
               <>
                 <span className={packStyles.desde}>Desde</span>
-                <span className={packStyles.amount}>${precio.toLocaleString('es-AR')}</span>
+                <span className={packStyles.amount}>{precioLabel}</span>
                 <span className={packStyles.por}>Por noche</span>
               </>
             )}
@@ -133,9 +135,9 @@ export function HotelCard({ hotel, variant = 'default' }: { hotel: Hotel; varian
           {hotel.pet_friendly && <span className={styles.amenity} title="Pet friendly">Mascotas</span>}
         </div>
         <div className={styles.footer}>
-          {precio != null && (
+          {precioLabel && (
             <span className={styles.precio}>
-              Desde <strong>${precio.toLocaleString('es-AR')}</strong>
+              Desde <strong>{precioLabel}</strong>
             </span>
           )}
           {metodoVenta === 'directa' && hotel.url_reserva_directa ? (
