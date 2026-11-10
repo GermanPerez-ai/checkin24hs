@@ -14,7 +14,7 @@
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
         window.DASHBOARD_BUILD = '2026-11-05T21:53:00Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 293; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 294; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2416,7 +2416,7 @@
             <h2>Checkin24hs Admin</h2>
             <div id="version-display" style="margin-top: 8px; font-size: 0.75rem; color: rgba(255,255,255,0.7); font-weight: normal;">
                 <div>v<span id="version-number">2.1.0</span></div>
-                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">293</span></div>
+                <div style="font-size: 0.7rem; margin-top: 2px;">Build #<span id="build-number">294</span></div>
             </div>
         </div>
         <div class="sidebar-menu">
@@ -6526,6 +6526,7 @@
                                         <option value="México">México</option>
                                         <option value="Brasil">Brasil</option>
                                         <option value="Costa Rica">Costa Rica</option>
+                                        <option value="Nicaragua">Nicaragua</option>
                                         <option value="Panamá">Panamá</option>
                                         <option value="Estados Unidos">Estados Unidos</option>
                                         <option value="Internacional">Internacional</option>
@@ -9840,7 +9841,7 @@ Ej:
 
         const HOTEL_PAISES = [
             'Argentina', 'Chile', 'Caribe', 'México', 'Brasil',
-            'Costa Rica', 'Panamá', 'Estados Unidos', 'Internacional'
+            'Costa Rica', 'Nicaragua', 'Panamá', 'Estados Unidos', 'Internacional'
         ];
 
         const HOTEL_REGIONES_POR_PAIS = {
@@ -9850,6 +9851,7 @@ Ej:
             México: ['Cancún', 'Playa del Carmen', 'Tulum', 'Isla de Cozumel', 'Los Cabos', 'Puerto Vallarta', 'Riviera Nayarit'],
             Brasil: ['Río de Janeiro (Región Sudeste)', 'Recife (Región Nordeste)', 'Florianópolis (Región Sur)', 'Fortaleza (Región Nordeste)'],
             'Costa Rica': [],
+            Nicaragua: [],
             Panamá: [],
             'Estados Unidos': ['Hawái', 'Florida'],
             Internacional: []
