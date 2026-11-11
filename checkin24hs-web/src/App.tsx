@@ -9,6 +9,7 @@ import { PackDetail } from './pages/PackDetail';
 import { Promos } from './pages/Promos';
 import { PromoDetail } from './pages/PromoDetail';
 import { DigitalCard } from './pages/DigitalCard';
+import { Barcelo } from './pages/Barcelo';
 import { TrackPageview } from './components/TrackPageview';
 import './index.css';
 
@@ -21,6 +22,7 @@ function App() {
         <Route path="/chile" element={<DestinoPais />} />
         <Route path="/argentina" element={<DestinoPais />} />
         <Route path="/internacionales" element={<DestinoPais />} />
+        <Route path="/barcelo" element={<Barcelo />} />
         <Route path="/packs" element={<Packs />} />
         <Route path="/pack/:slug" element={<PackDetail />} />
         <Route path="/promos" element={<Promos />} />

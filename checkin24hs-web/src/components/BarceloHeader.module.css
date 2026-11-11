@@ -10,6 +10,38 @@
   border-radius: 14px;
   overflow: hidden;
   background: #1a1208;
+  cursor: pointer;
+  text-decoration: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.media:hover {
+  text-decoration: none;
+  transform: translateY(-2px);
+  box-shadow: var(--card-shadow-hover, 0 4px 12px rgba(0, 53, 128, 0.12));
+}
+
+.media:focus-visible {
+  outline: 3px solid var(--accent-gold, #c9a227);
+  outline-offset: 3px;
+}
+
+/* Botón visible: indica que el banner abre la landing /barcelo */
+.cta {
+  position: absolute;
+  z-index: 2;
+  left: 14px;
+  bottom: 8px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: var(--accent-gold, #c9a227);
+  color: #1a1208;
+  font-size: clamp(0.72rem, 1.3vw, 0.95rem);
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
 }
 
 .bg {
@@ -92,6 +124,16 @@
     padding: 5px 10px;
     font-size: 0.68rem;
     letter-spacing: 0.01em;
+  }
+}
+
+@media (max-width: 430px) {
+  .cta {
+    top: 10px;
+    bottom: auto;
+    left: 10px;
+    padding: 5px 12px;
+    font-size: 0.72rem;
   }
 }
 

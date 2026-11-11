@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import styles from './BarceloHeader.module.css';
 
 const FALLBACK_SRC = '/exclusivo-barcelo.png';
+
+/** Ruta de la landing exclusiva Barceló (ver pages/Barcelo.tsx). */
+export const BARCELO_LANDING_PATH = '/barcelo';
 
 type BarceloBanner = {
   imagen_url: string | null;
@@ -21,8 +25,12 @@ function useIsMobile() {
   return isMobile;
 }
 
-/** Banner gestionado en Dashboard → Banners del sitio → tipo "Banner Exclusivo Barceló". */
-export function BarceloHeader() {
+/**
+ * Imagen del banner gestionado en Dashboard → Banners del sitio → tipo
+ * "Banner Exclusivo Barceló" (slider_ofertas.tipo_link = 'barcelo'), con
+ * fallback a /exclusivo-barcelo.png. Se reutiliza en la landing /barcelo.
+ */
+export function useBarceloBannerSrc(): string {
   const [banner, setBanner] = useState<BarceloBanner | null>(null);
   const isMobile = useIsMobile();
 
@@ -44,24 +52,35 @@ export function BarceloHeader() {
     };
   }, []);
 
-  const src =
+  return (
     (isMobile && banner?.imagen_url_mobile) ||
     banner?.imagen_url ||
     banner?.imagen_url_mobile ||
-    FALLBACK_SRC;
+    FALLBACK_SRC
+  );
+}
+
+/** Banner Barceló de la Home: al hacer clic abre la landing exclusiva /barcelo. */
+export function BarceloHeader() {
+  const src = useBarceloBannerSrc();
 
   return (
     <section className={styles.section} aria-label="Exclusivo Barceló">
       <div className="container">
-        <div className={styles.media}>
+        <Link
+          to={BARCELO_LANDING_PATH}
+          className={styles.media}
+          aria-label="Ver hoteles Exclusivo Barceló"
+        >
           <img src={src} alt="Barceló Hotels & Resorts" className={styles.bg} />
-          <div className={styles.overlay} />
+          <span className={styles.overlay} aria-hidden />
+          <span className={styles.cta}>Ver hoteles Barceló</span>
           <p className={styles.legend}>
             <span className={styles.stars} aria-hidden>★★★</span>
             {' '}Exclusivo Checkin24hs{' '}
             <span className={styles.stars} aria-hidden>★★★</span>
           </p>
-        </div>
+        </Link>
       </div>
     </section>
   );
