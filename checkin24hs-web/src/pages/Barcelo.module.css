@@ -189,9 +189,12 @@
 @media (max-width: 540px) {
   .grid {
     grid-template-columns: 1fr;
+    gap: 28px;
   }
 
+  /* La tarjeta mide al menos 410px: la celda no debe ser mas baja o se pisan */
   .cell {
-    height: 380px;
+    height: auto;
+    min-height: 410px;
   }
 }
