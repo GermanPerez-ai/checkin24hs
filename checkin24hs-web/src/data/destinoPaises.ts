@@ -68,6 +68,7 @@ export const DESTINO_PAISES: Record<PaisSlug, PaisDestinoConfig> = {
       { titulo: 'Hoteles en Puerto Rico', match: ['Puerto Rico'] },
       { titulo: 'Hoteles en Cancún', match: ['Cancún', 'Cancun'] },
       { titulo: 'Hoteles en Playa del Carmen', match: ['Playa del Carmen'] },
+      { titulo: 'Hoteles en Riviera Maya', match: ['Riviera Maya'] },
       { titulo: 'Hoteles en Tulum', match: ['Tulum'] },
       { titulo: 'Hoteles en Isla de Cozumel', match: ['Isla de Cozumel', 'Cozumel'] },
       { titulo: 'Hoteles en Los Cabos', match: ['Los Cabos'] },
