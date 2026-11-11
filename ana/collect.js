@@ -639,10 +639,14 @@ async function fetchSales() {
   const yesterdayRows = active.filter((r) => toArYmd(r.created_at) === yesterday);
   const thisMonth = today.slice(0, 7);
   const monthRows = active.filter((r) => toArYmd(r.created_at).slice(0, 7) === thisMonth);
+  const monthCheckinConfirmedRows = rows.filter((r) => 
+    isConfirmed(r.status) && String(r.check_in || '').slice(0, 7) === thisMonth
+  );
   const pendingRows = rows.filter((r) => isPending(r.status));
   const todaySum = moneySum(todayRows, 'total_amount');
   const yesterdaySum = moneySum(yesterdayRows, 'total_amount');
   const monthSum = moneySum(monthRows, 'total_amount');
+  const monthCheckinConfirmedSum = moneySum(monthCheckinConfirmedRows, 'total_amount');
   const pendingSum = moneySum(pendingRows, 'total_amount');
   const monthCancelled = cancelled.filter((r) => toArYmd(r.updated_at || r.created_at).slice(0, 7) === thisMonth);
 
@@ -722,6 +726,12 @@ async function fetchSales() {
       confirmed: monthRows.filter((r) => isConfirmed(r.status)).length,
       cancelled_count: monthCancelled.length,
       cancelled_amount: moneySum(monthCancelled, 'total_amount').amount,
+    },
+    month_checkin_confirmed: {
+      ymd: thisMonth,
+      count: monthCheckinConfirmedRows.length,
+      amount: monthCheckinConfirmedSum.amount,
+      with_amount: monthCheckinConfirmedSum.n,
     },
     pending: { count: pendingRows.length, amount: pendingSum.amount },
     weeks: weekKeys.map((k) => {
