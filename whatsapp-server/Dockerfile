@@ -1,5 +1,6 @@
-# Dockerfile para WhatsApp Server - Checkin24hs (Flor IA + Baileys)
+# Dockerfile para WhatsApp Server - Checkin24hs (Flor IA + Baileys 7)
 # Optimizado: persistencia de sesión, menos tokens (RAG selectivo), backoff 429.
+# Baileys 7.x: LID/PN session mapping rework para cuentas LID-migrated (fix "Bad MAC" / "No session found")
 
 FROM node:20-slim
 
