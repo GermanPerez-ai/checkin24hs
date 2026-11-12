@@ -3,6 +3,8 @@ import { buildCotizadorUrl, buildWhatsAppConsultaUrl } from '../config';
 import { getReservaDirectaUrl, openReservaPopup } from '../lib/hoteles';
 import { formatPackPrice } from '../lib/packs';
 import type { Hotel } from '../types';
+import type { FlagCode } from '../data/barceloLanding';
+import { CountryFlag } from './CountryFlag';
 import styles from './HotelCard.module.css';
 import packStyles from './PackCard.module.css';
 
@@ -44,7 +46,18 @@ function getPaisLabel(h: Hotel): string | null {
   return null;
 }
 
-export function HotelCard({ hotel, variant = 'default' }: { hotel: Hotel; variant?: 'default' | 'carousel' }) {
+export type HotelCardUbicacion = { label: string; flag?: FlagCode };
+
+export function HotelCard({
+  hotel,
+  variant = 'default',
+  ubicacion,
+}: {
+  hotel: Hotel;
+  variant?: 'default' | 'carousel';
+  /** Si se pasa, reemplaza la línea de país/ciudad (landing Barceló: bandera + país · zona). */
+  ubicacion?: HotelCardUbicacion;
+}) {
   const slug = getSlug(hotel);
   const imgUrl = getImageUrl(hotel);
   const precio = getPrecio(hotel);
@@ -56,9 +69,11 @@ export function HotelCard({ hotel, variant = 'default' }: { hotel: Hotel; varian
   const reservaUrl = getReservaDirectaUrl(hotel);
   const showReservarCarousel = isCarousel && !!reservaUrl;
   const paisLabel = getPaisLabel(hotel);
-  const destinoLabel =
+  const destinoLabelDefault =
     [paisLabel || hotel.pais, hotel.ciudad].filter(Boolean).join(' · ') || hotel.location || null;
-  const ubicacionLinea = [hotel.ciudad, hotel.pais].filter(Boolean).join(' · ') || hotel.location || null;
+  const ubicacionLineaDefault = [hotel.ciudad, hotel.pais].filter(Boolean).join(' · ') || hotel.location || null;
+  const destinoLabel = ubicacion?.label || destinoLabelDefault;
+  const ubicacionLinea = ubicacion?.label || ubicacionLineaDefault;
 
   if (isCarousel) {
     return (
@@ -72,9 +87,13 @@ export function HotelCard({ hotel, variant = 'default' }: { hotel: Hotel; varian
           {ubicacionLinea && (
             <div className={packStyles.meta}>
               <span className={packStyles.metaItem}>
-                <span className={packStyles.icon} aria-hidden>
-                  📍
-                </span>
+                {ubicacion?.flag ? (
+                  <CountryFlag code={ubicacion.flag} />
+                ) : (
+                  <span className={packStyles.icon} aria-hidden>
+                    📍
+                  </span>
+                )}
                 {ubicacionLinea}
               </span>
             </div>

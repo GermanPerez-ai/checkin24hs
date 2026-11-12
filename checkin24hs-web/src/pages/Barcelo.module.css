@@ -147,7 +147,9 @@
 }
 
 .grupoTitulo {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   margin: 0 0 18px;
   padding: 10px 16px;
   font-size: 1.35rem;
@@ -157,6 +159,82 @@
   border: 2px solid var(--primary);
   border-radius: 14px;
   background: color-mix(in srgb, var(--primary) 6%, transparent);
+}
+
+.destinoBloque + .destinoBloque {
+  margin-top: 22px;
+}
+
+.destinoTitulo {
+  margin: 0 0 14px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--primary);
+}
+
+.grupoTitulo,
+.destinoTitulo {
+  position: relative;
+}
+
+.grupoTituloImg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  object-position: center;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.grupoTitulo > :not(.grupoTituloImg),
+.destinoTitulo > :not(.grupoTituloImg) {
+  position: relative;
+  z-index: 1;
+}
+
+/* Solo cuando hay imagen cargada desde el Dashboard. Sin imagen se mantiene el recuadro actual. */
+.grupoTituloFoto {
+  min-height: 88px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+  border-color: transparent;
+  background: #1a1208;
+  overflow: hidden;
+}
+
+.grupoTituloFoto::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(90deg, rgba(0, 53, 128, 0.72), rgba(0, 53, 128, 0.28));
+  pointer-events: none;
+}
+
+.destinoTituloFoto {
+  display: flex;
+  align-items: center;
+  min-height: 64px;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #1a1208;
+}
+
+.destinoTituloFoto::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(90deg, rgba(0, 53, 128, 0.7), rgba(0, 53, 128, 0.25));
+  pointer-events: none;
 }
 
 .grid {

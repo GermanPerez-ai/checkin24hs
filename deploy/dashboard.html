@@ -14,7 +14,7 @@
         window.DASHBOARD_VERSION = '2.1.0';
         window.DASHBOARD_VERSION_DATE = '2025-01-27';
         window.DASHBOARD_BUILD = '2026-11-05T21:53:00Z'; // Build timestamp - se actualiza con cada deploy
-        window.DASHBOARD_BUILD_NUMBER = 295; // Número de build - se incrementa con cada deploy
+        window.DASHBOARD_BUILD_NUMBER = 296; // Número de build - se incrementa con cada deploy
         
         // Mostrar versión en consola al cargar
         console.log('%c📊 CHECKIN24HS DASHBOARD', 'font-size: 16px; font-weight: bold; color: #1976d2;');
@@ -2817,7 +2817,7 @@
             <!-- Banners del sitio (Slider Home checkin24hs.com) -->
             <div id="banners-section" style="display: none;">
                 <h2 class="page-title">🖼️ Banners del sitio (checkin24hs.com)</h2>
-                <p style="color: #666; margin-bottom: 16px;">Carrusel de la Home (tipos URL/Hotel/Flor), el <strong>banner de Promos</strong> (Home → /promos) y el <strong>Banner Exclusivo Barceló</strong> (imagen sobre el carrusel de packs Barceló). Desktop ~1200×400 (carrusel/Promos) o ~1200×280 (Barceló); mobile opcional.</p>
+                <p style="color: #666; margin-bottom: 16px;">Carrusel de la Home (tipos URL/Hotel/Flor), el <strong>banner de Promos</strong> (Home → /promos), el <strong>Banner Exclusivo Barceló</strong> (Home y hero de /barcelo) y los <strong>banners de sección</strong> de la landing /barcelo (un registro por país o destino, con ese nombre de título). Desktop y mobile son campos separados (<code>imagen_url</code> / <code>imagen_url_mobile</code>). Tamaños recomendados: carrusel 1200×300 (desktop) y 1080×473 (mobile); Promos o Barceló Home/hero 1920×720 y 1080×600; sección /barcelo 1200×160 y 1080×200. Mobile es opcional: si no hay, se usa la de desktop. Sin imagen, /barcelo mantiene el recuadro actual.</p>
                 <div style="margin-bottom: 16px;">
                     <button class="form-button" onclick="openBannerModal()">
                         <span class="material-icons" style="vertical-align: middle; margin-right: 8px;">add</span>
@@ -3033,12 +3033,17 @@
                             <option value="hotel">Hotel (slug o ID)</option>
                             <option value="flor">Flor IA (abre el chat)</option>
                             <option value="promos">Banner de Promos (Home → /promos)</option>
-                            <option value="barcelo">Banner Exclusivo Barceló (Home)</option>
+                            <option value="barcelo">Banner Exclusivo Barceló (Home y hero /barcelo)</option>
+                            <option value="barcelo_seccion">Banner sección landing Barceló (/barcelo)</option>
                         </select>
                     </div>
                     <div class="form-section" style="margin-bottom: 12px;" id="bannerLinkDestinoWrap">
                         <label id="bannerLinkDestinoLabel">Link destino (URL, /ruta, o #flor si tipo Flor)</label>
                         <input type="text" id="bannerLinkDestino" placeholder="Ej. /hotel/bariloche o https://... o #flor" style="width: 100%; padding: 8px; box-sizing: border-box;">
+                    </div>
+                    <div class="form-section" style="margin-bottom: 12px; display: none;" id="bannerBarceloSeccionWrap">
+                        <label for="bannerBarceloSeccion">A qué pertenece (país o destino de la landing)</label>
+                        <select id="bannerBarceloSeccion" style="width: 100%; padding: 8px;"></select>
                     </div>
                     <div class="form-section" style="margin-bottom: 12px;">
                         <label>Orden (número)</label>
@@ -3048,12 +3053,12 @@
                         <label id="bannerActivoLabel"><input type="checkbox" id="bannerActivo" checked> Activo (visible en el carrusel o en landings promo)</label>
                     </div>
                     <div class="form-section" style="margin-bottom: 12px;">
-                        <label>Imagen desktop (1200×400)</label>
+                        <label id="bannerImagenDesktopLabel">Imagen desktop (1200×400)</label>
                         <input type="file" id="bannerImagenDesktop" accept="image/*" style="width: 100%;">
                         <span id="bannerImagenDesktopUrl" style="font-size: 0.85rem; color: #666;"></span>
                     </div>
                     <div class="form-section" style="margin-bottom: 16px;">
-                        <label>Imagen mobile (1080×1350, opcional)</label>
+                        <label id="bannerImagenMobileLabel">Imagen mobile (1080×1350, opcional)</label>
                         <input type="file" id="bannerImagenMobile" accept="image/*" style="width: 100%;">
                         <span id="bannerImagenMobileUrl" style="font-size: 0.85rem; color: #666;"></span>
                     </div>
@@ -3067,6 +3072,24 @@
             (function() {
                 var BANNERS_BUCKET = 'banners';
                 var editingBannerId = null;
+
+                var BARCELO_SECCIONES = [
+                    { id: 'republica-dominicana', label: 'República Dominicana' },
+                    { id: 'mexico', label: 'México' },
+                    { id: 'costa-rica', label: 'Costa Rica' },
+                    { id: 'aruba', label: 'Aruba' },
+                    { id: 'nicaragua', label: 'Nicaragua' },
+                    { id: 'punta-cana', label: 'Punta Cana (República Dominicana)' },
+                    { id: 'cancun', label: 'Cancún (México)' },
+                    { id: 'riviera-maya', label: 'Riviera Maya (México)' },
+                    { id: 'playa-del-carmen', label: 'Playa del Carmen (México)' },
+                    { id: 'puerto-vallarta', label: 'Puerto Vallarta (México)' },
+                    { id: 'papagayo', label: 'Papagayo (Costa Rica)' },
+                    { id: 'tamarindo', label: 'Tamarindo (Costa Rica)' },
+                    { id: 'tambor', label: 'Tambor (Costa Rica)' },
+                    { id: 'palm-beach', label: 'Palm Beach (Aruba)' },
+                    { id: 'montelimar', label: 'Montelimar (Nicaragua)' }
+                ];
 
                 window.loadBanners = async function() {
                     var tbody = document.getElementById('bannersTableBody');
@@ -3088,7 +3111,7 @@
                         emptyMsg.style.display = 'none';
                         tbody.innerHTML = list.map(function(b) {
                             var t = b.tipo_link || 'url';
-                            var tipo = t === 'flor' ? 'Flor IA' : (t === 'hotel' ? 'Hotel' : (t === 'promos' ? 'Banner de Promos' : (t === 'barcelo' ? 'Banner Exclusivo Barceló' : 'URL')));
+                            var tipo = t === 'flor' ? 'Flor IA' : (t === 'hotel' ? 'Hotel' : (t === 'promos' ? 'Banner de Promos' : (t === 'barcelo' ? 'Banner Exclusivo Barceló' : (t === 'barcelo_seccion' ? 'Sección landing Barceló' : 'URL'))));
                             return '<tr><td>' + (b.orden != null ? b.orden : 0) + '</td><td>' + (b.titulo || '-') + '</td><td>' + (b.texto_boton || '-') + '</td><td>' + tipo + '</td><td style="text-align:center">' + (b.activo ? 'Sí' : 'No') + '</td><td style="text-align:center"><button class="form-button secondary" style="padding:4px 10px;font-size:0.85rem" onclick="window.editBanner(\'' + b.id + '\')">Editar</button> <button class="form-button" style="padding:4px 10px;font-size:0.85rem;background:#c62828" onclick="window.deleteBanner(\'' + b.id + '\')">Eliminar</button></td></tr>';
                         }).join('');
                     } catch (e) {
@@ -3097,11 +3120,50 @@
                     }
                 };
 
+                function fillBarceloSeccionSelect(selected) {
+                    var sel = document.getElementById('bannerBarceloSeccion');
+                    if (!sel) return;
+                    var current = selected || sel.value || '';
+                    sel.innerHTML = '<option value="">Elegí país o destino</option>' + BARCELO_SECCIONES.map(function(s) {
+                        return '<option value="' + s.id + '">' + s.label + '</option>';
+                    }).join('');
+                    if (current) sel.value = current;
+                    sel.onchange = function() {
+                        var item = BARCELO_SECCIONES.find(function(s) { return s.id === sel.value; });
+                        var linkInput = document.getElementById('bannerLinkDestino');
+                        if (linkInput) linkInput.value = sel.value || '';
+                        var titulo = document.getElementById('bannerTitulo');
+                        if (titulo && item && (!titulo.value.trim() || BARCELO_SECCIONES.some(function(s) { return s.label === titulo.value.trim() || s.label.split(' (')[0] === titulo.value.trim(); }))) {
+                            titulo.value = item.label.split(' (')[0];
+                        }
+                    };
+                }
+                function setBannerImageSizeLabels(tipo) {
+                    var d = document.getElementById('bannerImagenDesktopLabel');
+                    var m = document.getElementById('bannerImagenMobileLabel');
+                    if (!d || !m) return;
+                    if (tipo === 'barcelo') {
+                        d.textContent = 'Imagen desktop (1920×720, también sirve 1200×360)';
+                        m.textContent = 'Imagen mobile (1080×600, opcional)';
+                    } else if (tipo === 'barcelo_seccion') {
+                        d.textContent = 'Imagen desktop (1200×160, opcional: sin imagen se mantiene el recuadro)';
+                        m.textContent = 'Imagen mobile (1080×200, opcional)';
+                    } else if (tipo === 'promos') {
+                        d.textContent = 'Imagen desktop (1200×280)';
+                        m.textContent = 'Imagen mobile (1080×400, opcional)';
+                    } else {
+                        d.textContent = 'Imagen desktop (1200×300)';
+                        m.textContent = 'Imagen mobile (1080×473, opcional)';
+                    }
+                }
                 window.onBannerTipoLinkChange = function() {
                     var tipo = document.getElementById('bannerTipoLink').value || 'url';
                     var linkLabel = document.getElementById('bannerLinkDestinoLabel');
                     var linkInput = document.getElementById('bannerLinkDestino');
                     var wrap = document.getElementById('bannerLinkDestinoWrap');
+                    var seccionWrap = document.getElementById('bannerBarceloSeccionWrap');
+                    if (seccionWrap) seccionWrap.style.display = tipo === 'barcelo_seccion' ? 'block' : 'none';
+                    setBannerImageSizeLabels(tipo);
                     if (tipo === 'promos') {
                         if (!document.getElementById('bannerTitulo').value.trim()) {
                             document.getElementById('bannerTitulo').value = 'Banner de Promos';
@@ -3115,12 +3177,19 @@
                         if (wrap) wrap.style.opacity = '0.75';
                     } else if (tipo === 'barcelo') {
                         if (!document.getElementById('bannerTitulo').value.trim()) {
-                            document.getElementById('bannerTitulo').value = 'Banner Exclusivo Barceló';
+                            document.getElementById('bannerTitulo').value = 'Exclusivo Barceló';
                         }
                         linkInput.value = '';
                         linkInput.readOnly = true;
-                        if (linkLabel) linkLabel.textContent = 'Link destino (no aplica — solo imagen en Home)';
+                        if (linkLabel) linkLabel.textContent = 'Link destino (no aplica — abre /barcelo desde la Home)';
                         if (wrap) wrap.style.opacity = '0.75';
+                    } else if (tipo === 'barcelo_seccion') {
+                        fillBarceloSeccionSelect(linkInput.value || '');
+                        linkInput.readOnly = true;
+                        if (linkLabel) linkLabel.textContent = 'Identificador (se completa al elegir a qué pertenece)';
+                        if (wrap) wrap.style.opacity = '0.75';
+                        var seccionSel = document.getElementById('bannerBarceloSeccion');
+                        if (seccionSel && seccionSel.value && seccionSel.onchange) seccionSel.onchange();
                     } else if (tipo === 'flor') {
                         linkInput.value = '#flor';
                         linkInput.readOnly = true;
@@ -3167,7 +3236,7 @@
                                 document.getElementById('bannerTitulo').value = b.titulo || '';
                                 document.getElementById('bannerTextoBoton').value = b.texto_boton || '';
                                 document.getElementById('bannerLinkDestino').value = b.link_destino || (b.tipo_link === 'promos' ? '/promos' : (b.tipo_link === 'flor' ? '#flor' : ''));
-                                if (b.tipo_link === 'promos' || b.tipo_link === 'flor' || b.tipo_link === 'barcelo') {
+                                if (b.tipo_link === 'promos' || b.tipo_link === 'flor' || b.tipo_link === 'barcelo' || b.tipo_link === 'barcelo_seccion') {
                                     document.getElementById('bannerLinkDestino').readOnly = true;
                                 }
                             }
@@ -3217,7 +3286,16 @@
                     }
                     if (tipoLink === 'barcelo') {
                         linkDestino = '';
-                        if (!titulo) titulo = 'Banner Exclusivo Barceló';
+                        if (!titulo) titulo = 'Exclusivo Barceló';
+                    }
+                    if (tipoLink === 'barcelo_seccion') {
+                        var seccionSel = document.getElementById('bannerBarceloSeccion');
+                        linkDestino = (seccionSel && seccionSel.value) ? seccionSel.value : linkDestino;
+                        if (!linkDestino) { alert('Elegí a qué pertenece este banner (país o destino de la landing Barceló).'); return; }
+                        if (!titulo) {
+                            var item = BARCELO_SECCIONES.find(function(s) { return s.id === linkDestino; });
+                            titulo = item ? item.label.split(' (')[0] : linkDestino;
+                        }
                     }
                     var orden = parseInt(document.getElementById('bannerOrden').value, 10) || 0;
                     var activo = document.getElementById('bannerActivo').checked;
@@ -3236,7 +3314,7 @@
                         alert('Error subiendo imagen. ¿Creaste el bucket "' + BANNERS_BUCKET + '" en Supabase Storage (público)? ' + (e.message || e));
                         return;
                     }
-                    if (!imagenUrl && !editingBannerId) { alert('Subí al menos la imagen desktop.'); return; }
+                    if (!imagenUrl && !editingBannerId && tipoLink !== 'barcelo' && tipoLink !== 'barcelo_seccion') { alert('Subí al menos la imagen desktop.'); return; }
                     if (!imagenUrl) imagenUrl = '';
                     var row = { titulo: titulo || null, texto_boton: textoBoton || null, imagen_url: imagenUrl, imagen_url_mobile: imagenUrlMobile || null, link_destino: linkDestino || null, tipo_link: tipoLink, orden: orden, activo: activo };
                     try {

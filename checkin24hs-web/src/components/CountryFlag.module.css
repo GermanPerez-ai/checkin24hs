@@ -1,0 +1,26 @@
+/* Banderas en SVG: se ven en Windows Chrome (el emoji de bandera no). */
+.flag {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 22px;
+  height: 15px;
+  vertical-align: middle;
+  border-radius: 2px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18);
+  background: #ddd;
+}
+
+.flag svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.flagImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+}

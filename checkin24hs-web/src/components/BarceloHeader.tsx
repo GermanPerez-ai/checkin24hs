@@ -52,12 +52,9 @@ export function useBarceloBannerSrc(): string {
     };
   }, []);
 
-  return (
-    (isMobile && banner?.imagen_url_mobile) ||
-    banner?.imagen_url ||
-    banner?.imagen_url_mobile ||
-    FALLBACK_SRC
-  );
+  const desktop = (banner?.imagen_url || '').trim();
+  const mobile = (banner?.imagen_url_mobile || '').trim();
+  return (isMobile && mobile) || desktop || mobile || FALLBACK_SRC;
 }
 
 /** Banner Barceló de la Home: al hacer clic abre la landing exclusiva /barcelo. */

@@ -21,7 +21,7 @@ export function SliderOfertas() {
       .order('orden', { ascending: true })
       .then(({ data, error }) => {
         if (!error && data?.length) {
-          setSlides(data.filter((s) => s.tipo_link !== 'promos' && s.tipo_link !== 'barcelo'));
+          setSlides(data.filter((s) => s.tipo_link !== 'promos' && s.tipo_link !== 'barcelo' && s.tipo_link !== 'barcelo_seccion'));
         }
         setLoading(false);
       });

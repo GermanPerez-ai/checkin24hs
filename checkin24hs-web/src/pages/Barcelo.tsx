@@ -9,14 +9,18 @@ import { WhatsAppCta } from '../components/WhatsAppCta';
 import { useFlorContext } from '../context/FlorContext';
 import { esAlojamiento } from '../data/destinoPaises';
 import { BARCELO_PERFILES, type PerfilBarcelo } from '../data/barceloLanding';
+import { CountryFlag } from '../components/CountryFlag';
 import {
   agruparPorDestino,
+  agruparPorPais,
   destinoDeHotel,
+  etiquetaUbicacion,
   esHotelGrupoBarcelo,
   ordenarBarcelo,
   perfilesHotel,
 } from '../lib/barcelo';
 import { useBarceloBannerSrc } from '../components/BarceloHeader';
+import { srcSeccion, useBarceloSeccionBanners } from '../lib/barceloBanners';
 import styles from './Barcelo.module.css';
 
 const PERFILES_VALIDOS = new Set<string>(BARCELO_PERFILES.map((p) => p.id));
@@ -25,6 +29,7 @@ const PERFILES_VALIDOS = new Set<string>(BARCELO_PERFILES.map((p) => p.id));
 export function Barcelo() {
   const { setContext } = useFlorContext();
   const bannerSrc = useBarceloBannerSrc();
+  const { porClave: bannersSeccion, isMobile: isMobileBanner } = useBarceloSeccionBanners();
   const [searchParams, setSearchParams] = useSearchParams();
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,7 +102,7 @@ export function Barcelo() {
       if (destino && destinoDeHotel(h).id !== destino) return false;
       return true;
     });
-    return agruparPorDestino(filtrados);
+    return agruparPorPais(filtrados);
   }, [hotels, perfil, destino, perfilesPorHotel]);
 
   const setFiltro = (key: 'perfil' | 'destino', value: string) => {
@@ -212,18 +217,44 @@ export function Barcelo() {
               </button>
             </p>
           ) : (
-            grupos.map((g) => (
-              <section key={g.id} className={styles.grupo} aria-label={`Hoteles en ${g.label}`}>
-                <h2 className={styles.grupoTitulo}>Hoteles en {g.label}</h2>
-                <div className={styles.grid} role="list">
-                  {g.hotels.map((h) => (
-                    <div key={h.id} className={styles.cell} role="listitem">
-                      <HotelCard hotel={h} variant="carousel" />
+            grupos.map((pais) => {
+              const fotoPais = srcSeccion(
+                bannersSeccion,
+                [pais.id, pais.destinos.length === 1 ? pais.destinos[0].id : null],
+                isMobileBanner
+              );
+              return (
+              <section key={pais.id} className={styles.grupo} aria-label={`Hoteles en ${pais.label}`}>
+                <h2 className={fotoPais ? `${styles.grupoTitulo} ${styles.grupoTituloFoto}` : styles.grupoTitulo}>
+                  {fotoPais && <img src={fotoPais} alt="" className={styles.grupoTituloImg} />}
+                  <CountryFlag code={pais.flag} />
+                  <span>Hoteles en {pais.label}</span>
+                </h2>
+                {pais.destinos.map((d) => {
+                  const fotoDestino = pais.destinos.length > 1
+                    ? srcSeccion(bannersSeccion, [d.id], isMobileBanner)
+                    : null;
+                  return (
+                  <div key={d.id} className={styles.destinoBloque}>
+                    {pais.destinos.length > 1 && (
+                      <h3 className={fotoDestino ? `${styles.destinoTitulo} ${styles.destinoTituloFoto}` : styles.destinoTitulo}>
+                        {fotoDestino && <img src={fotoDestino} alt="" className={styles.grupoTituloImg} />}
+                        <span>{d.label}</span>
+                      </h3>
+                    )}
+                    <div className={styles.grid} role="list">
+                      {d.hotels.map((h) => (
+                        <div key={h.id} className={styles.cell} role="listitem">
+                          <HotelCard hotel={h} variant="carousel" ubicacion={etiquetaUbicacion(h)} />
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                  );
+                })}
               </section>
-            ))
+              );
+            })
           )}
         </div>
 
