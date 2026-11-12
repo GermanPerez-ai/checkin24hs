@@ -370,6 +370,128 @@ class TestAlertSending(unittest.TestCase):
         self.assertTrue(r["ok"])
         self.assertFalse(r["alert_sent"]["ok"])
 
+# ===== Respuestas reales (nov 2026) =====
+REAL_V39VSN_1 = (
+    "Hola German,\n\nBuen día, cómo estás?\n\n\nAcuso recibo de solicitud de modificación de reserva.\n\n"
+    "El monto a pagar por la cabaña, considerando alimentación de la persona adicional, corresponde a U$D 523.20\n\n\n"
+    "Saludos,\n\nIgnacio Ulzurrún | Ejecutivo de Reservas\nTel: (56 2) 642331700\nwww.puyehue.cl<http://www.puyehue.cl>\n\n"
+    "De: Reservas Checkin24hs <reservas@checkin24hs.com>\nEnviado el: miércoles, 11 de noviembre de 2026 9:39\n"
+    "Para: Reservas Termas Aguas Calientes\nAsunto: MODIFICAR RESERVA Cabañas Termas de Aguas Calientes V39VSN\n\n"
+    "Estimados,\nSolicitamos modificar la siguiente reserva.\nCheck-in: 2026-11-13\nCheck-out: 2026-11-15\nTarifa (USD): 447.2\n"
+)
+REAL_V39VSN_2 = (
+    "German,\nNo vendría ninguna cotización adjunta. Se asignó el valor de alimentación por persona a la reserva.\n\n"
+    "Quedo atento,\nSaludos,\nIgnacio Ulzurrún.  | Ejecutivo de Reservas\nTel: (56 2) 642331700\nwww.puyehue.cl<http://w\n"
+)
+REAL_VT1F09 = (
+    "Hola German,\n\n\nAcuso recibo de solicitud de modificación.\n\n"
+    "Monto a pagar correspondiente considerando solo 6 personas: 723.40 USD\n\n\n"
+    "Saludos,\n\nIgnacio Ulzurrún| Ejecutivo de Reservas\nTel : (56 2) 6002936000\nwww.puyehue.cl\n"
+)
+REAL_HUILO = (
+    "Estimados,\n\nEnvío confirmación modificada a continuación:\n\nConfirmación de reserva\n"
+    "Nombre: Miguel Angel Mendoza\nAlojamiento: Reino Fungi\nNúmero de confirmación: 598597304\n"
+    "Pasajeros: 03 adultos\nCategoría de habitación: Estándar matrimonial\nFecha de llegada: 05/12/2026\n"
+    "Fecha de salida: 08/12/2026\nPlan: Pensión completa\nTotal: $ 1.215.000 CLP\n\n"
+    "Políticas de cancelación: anulaciones con menos de 72 horas tienen penalidad del 100%. "
+    "No show se cobra la estadía completa.\n\nSaludos,\nLaura Duarte\nCentral de Reservas Huilo Huilo\n"
+)
+
+
+class TestRealRepliesEndToEnd(unittest.TestCase):
+    """Texto real → parse → _apply (sin escribir: writer de prueba)."""
+
+    def _run(self, row, subject, text, when, frm="i.ulzurrun@termasaguascalientes.cl"):
+        from parse_lifecycle import parse_lifecycle_mail
+
+        parsed = parse_lifecycle_mail({"subject": subject, "text": text, "html": "", "from": frm, "date": when.date()})
+        written = {}
+        r = _apply_lifecycle_row(row, "modify", parsed, frm, when, writer=lambda _r, b: written.update(b))
+        return r, written
+
+    def test_v39vsn(self):
+        row = _pending_row(reservation_code="V39VSN", adults=1, children=0, total_amount=447.2,
+                           notes="Pasajeros: 3 adultos | Origen: email Puyehue (IMAP)\n"
+                                 "[PEDIDO modificar 2099-11-11T12:39:40.768Z] para=reservas@termasaguascalientes.cl")
+        r, body = self._run(row, "RE: MODIFICAR RESERVA Cabañas Termas de Aguas Calientes V39VSN", REAL_V39VSN_1,
+                            dt.datetime(2099, 11, 11, 12, 0, tzinfo=ART))
+        self.assertEqual(body["status"], "Modificada")
+        self.assertEqual(body["total_amount"], 523.2)
+        self.assertEqual(body["adults"], 4)  # 3 adultos (notas) + persona adicional
+        self.assertNotIn("check_in", body)
+        self.assertIn("total_amount 447,20→523,20", body["notes"])
+        self.assertEqual(r["alert"]["type"], "aplicada")
+
+    def test_v39vsn_unknown_pax_goes_to_note(self):
+        row = _pending_row(reservation_code="V39VSN", adults=1, total_amount=447.2)  # sin 'Pasajeros:' en notas
+        r, body = self._run(row, "RE: MODIFICAR RESERVA Cabañas Termas de Aguas Calientes V39VSN", REAL_V39VSN_1,
+                            dt.datetime(2099, 11, 11, 12, 0, tzinfo=ART))
+        self.assertEqual(body["status"], "Modificada")
+        self.assertEqual(body["total_amount"], 523.2)
+        self.assertNotIn("adults", body)
+        self.assertIn("+1 persona", body["notes"])
+
+    def test_vt1f09(self):
+        row = _pending_row(reservation_code="VT1F09", adults=1, children=0, total_amount=799.4,
+                           notes="Pasajeros: 7 adultos | Canal: Agencia\n[PEDIDO modificar 2099-11-11T21:17:22.937Z] para=x")
+        r, body = self._run(row, "MODIFICAR RESERVA Cabañas Termas de Aguas Calientes VT1F09", REAL_VT1F09,
+                            dt.datetime(2099, 11, 12, 9, 0, tzinfo=ART))
+        self.assertEqual(body["status"], "Modificada")
+        self.assertEqual(body["total_amount"], 723.4)
+        self.assertEqual(body["adults"], 6)
+        self.assertIn("adults 7 (columna 1)→6", body["notes"])
+
+    def test_huilo(self):
+        row = _pending_row(reservation_code="598597304", hotel_name="Hotel Huilo-Huilo", adults=1, children=0,
+                           check_in="2099-12-05", check_out="2099-12-08", total_amount=900,
+                           notes="Pasajeros: 2 adultos | Origen: email Huilo (IMAP)\n[PEDIDO modificar 2099-11-09T19:43:20.424Z] para=x")
+        text = REAL_HUILO.replace("/2026", "/2099")
+        r, body = self._run(row, "RE: MODIFICAR RESERVA Hotel Huilo-Huilo 598597304", text,
+                            dt.datetime(2099, 11, 9, 17, 1, tzinfo=ART), frm="laura.duarte@huilohuilo.com")
+        self.assertEqual(body["status"], "Modificada")
+        self.assertEqual(body["adults"], 3)
+        self.assertNotIn("check_in", body)
+        self.assertNotIn("total_amount", body)  # CLP: se mantiene la tarifa
+        self.assertIn("no USD", body["notes"])
+
+    def test_later_vague_reply_does_not_undo(self):
+        import sync
+
+        row = _pending_row(reservation_code="V39VSN", total_amount=447.2,
+                           notes="Pasajeros: 3 adultos\n[PEDIDO modificar 2099-11-11T12:39:40.768Z] para=x")
+        sim = {"V39VSN": dict(row)}
+        with patch("sync.find_reservation_row", return_value=None):
+            out1 = sync.simulate_lifecycle("V39VSN", "modify",
+                                           __import__("parse_lifecycle").parse_lifecycle_mail({"subject": "RE: MODIFICAR RESERVA Cabañas Termas de Aguas Calientes V39VSN", "text": REAL_V39VSN_1, "html": ""}),
+                                           "i.ulzurrun@termasaguascalientes.cl", dt.datetime(2099, 11, 11, 12, 0, tzinfo=ART), sim)
+            out2 = sync.simulate_lifecycle("V39VSN", "modify",
+                                           __import__("parse_lifecycle").parse_lifecycle_mail({"subject": "RE: MODIFICAR RESERVA Cabañas Termas de Aguas Calientes V39VSN", "text": REAL_V39VSN_2, "html": ""}),
+                                           "i.ulzurrun@termasaguascalientes.cl", dt.datetime(2099, 11, 11, 12, 45, tzinfo=ART), sim)
+        self.assertIn("→ Modificada", out1)
+        self.assertIn("no cambia", out2)
+        self.assertNotIn("avisaría", out2)
+        self.assertEqual(sim["V39VSN"]["status"], "Modificada")
+        self.assertEqual(sim["V39VSN"]["total_amount"], 523.2)
+
+    def test_sort_ids_by_date(self):
+        import sync
+
+        hdr = {b"1": b"Date: Wed, 11 Nov 2099 12:45:00 -0300\r\n\r\n",
+               b"2": b"Date: Wed, 11 Nov 2099 12:00:00 -0300\r\n\r\n",
+               b"3": b"Date: Wed, 11 Nov 2099 09:39:00 -0300\r\n\r\n"}
+
+        class FakeImap:
+            def fetch(self, uid, what):
+                return "OK", [(b"x", hdr[uid])]
+
+        self.assertEqual(sync.sort_ids_by_date(FakeImap(), [b"1", b"2", b"3"]), [b"3", b"2", b"1"])
+
+        class Broken:
+            def fetch(self, uid, what):
+                raise OSError("imap caído")
+
+        self.assertEqual(sync.sort_ids_by_date(Broken(), [b"1", b"2"]), [b"1", b"2"])
+
 
 if __name__ == "__main__":
     unittest.main()

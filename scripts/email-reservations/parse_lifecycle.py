@@ -311,7 +311,9 @@ _CONFIRM_MODIFY = re.compile(
     r"|(?:la )?reserva (?:fue |ha sido |queda |qued[oó] |est[aá] )?modificad[ao]"
     r"|hemos modificado"
     r"|se (?:modific[oó]|actualiz[oó])"
-    r"|modificaci[oó]n (?:confirmada|realizada|efectuada|aceptada)"
+    r"|modificaci[oó]n (?:confirmada|realizada|efectuada|aceptada|lista|hecha)"
+    r"|confirmaci[oó]n (?:de (?:la )?reserva )?modificada"
+    r"|(?:reserva|confirmaci[oó]n) (?:ya )?(?:modificada|actualizada)"
     r"|cambios? (?:aceptados?|confirmados?|realizados?|aplicados?)"
     r"|fechas? (?:actualizadas?|modificadas?|cambiadas?|ok|correctas?)"
     r"|aceptamos (?:el cambio|la modificaci[oó]n)"
@@ -347,13 +349,14 @@ _REPLY_PENDING = re.compile(
     r"(?:"
     r"\b(?:aun|todavia) no\b"
     r"|\bno (?:hemos|se ha|se han|fue|ha sido) (?:\w+ )?(?:modificad|anulad|cancelad|procesad|realizad|confirmad|actualizad)"
-    r"|a la espera"
+    r"|a la espera de (?:su |tu |la )?(?:confirmaci|respuesta|aprobaci|disponibilidad|autorizaci)"
     r"|en (?:proceso|tramite|gestion)"
     r"|estamos (?:gestionando|revisando|verificando|consultando|chequeando)"
     r"|(?:lo|la) (?:consultamos|consulto|verifico|verificamos|chequeamos)"
     r"|te (?:confirmo|confirmamos|aviso|avisamos) (?:a la brevedad|en breve|luego|mas tarde|despues)"
     r"|les (?:confirmo|confirmamos|aviso|avisamos) (?:a la brevedad|en breve|luego|mas tarde|despues)"
-    r"|pendiente"
+    r"|(?:queda|esta|sigue|quedaria) pendiente"
+    r"|pendiente de (?:confirmaci|respuesta|aprobaci|disponibilidad|autorizaci)"
     r")",
     re.I,
 )
@@ -415,9 +418,51 @@ def own_reply_text(text: str, html: str = "") -> str:
     return "\n".join(out).strip()
 
 
-def classify_hotel_reply(kind: str, own_text: str) -> str:
-    """confirm_cancel | confirm_modify | reject | unclear"""
-    t = _fold(own_text)
+_GREETING_Q = re.compile(
+    r"\u00bf?\s*(?:hola\s*,?\s*)?(?:(?:buen dia|buenos dias|buenas tardes|buenas)\s*,?\s*)?"
+    r"(?:como (?:estas|estan|esta|va|van|andas|andan|te va|les va|le va)|que tal|todo bien|como va todo)"
+    r"[^?.\n]{0,25}\?",
+)
+# Fin del mensaje del hotel / inicio de la confirmación estructurada o políticas
+_HEAD_CUT = re.compile(
+    r"(?:\bnombre\s*:|\bpol[ií]ticas?\b|condiciones generales|t[eé]rminos y condiciones|"
+    r"pol[ií]tica de cancelaci|informaci[oó]n importante)",
+    re.I,
+)
+_SOFT_MODIFY = re.compile(
+    r"acus[oa]\w* recibo"
+    r"|se (?:asign[oó]|agreg[oó]|sum[oó]|carg[oó]|ajust[oó])"
+    r"|(?:monto|valor|total) (?:a pagar|final|actualizado|corregido)"
+    r"|corresponde a"
+    r"|(?:el|la) (?:nuevo|nueva) (?:valor|monto|total|tarifa)"
+    r"|queda(?:ria)? en"
+    r"|envio (?:la )?confirmacion"
+    r"|adjunto (?:la )?confirmacion"
+)
+_CONCRETE_KEYS = ("check_in", "check_out", "adults", "children", "total_amount", "total_pax", "pax_delta", "nights")
+
+
+def reply_head(own_text: str, limit: int = 700) -> str:
+    """Solo el mensaje del hotel, antes de la confirmación pegada / políticas (que traen 'no show', 'penalidad'…)."""
+    s = str(own_text or "")
+    m = _HEAD_CUT.search(s, 1)
+    end = m.start() if m else len(s)
+    return s[: min(end, limit)]
+
+
+def _real_question(t: str) -> bool:
+    t = _GREETING_Q.sub(" ", t)
+    return "?" in t or "\u00bf" in t
+
+
+def classify_hotel_reply(kind: str, own_text: str, changes: Optional[dict] = None) -> str:
+    """confirm_cancel | confirm_modify | reject | unclear
+
+    Se mira solo la cabecera del mensaje (antes de la confirmación/políticas pegadas).
+    Para modificar, una respuesta "suave" ("acuso recibo…", "se asignó…", "monto a pagar…")
+    cuenta como confirmación SOLO si trae un valor concreto nuevo (monto/pax/fechas) sin ambigüedad.
+    """
+    t = _fold(reply_head(own_text))
     t = re.sub(r"\s+", " ", t).strip()
     if len(t) < 8:
         return "unclear"
@@ -426,12 +471,16 @@ def classify_hotel_reply(kind: str, own_text: str) -> str:
     cm = bool(_CONFIRM_MODIFY.search(t))
     if blocked:
         return "reject"
-    if not (cc or cm):
-        return "unclear"
-    # Conservador: si todavía está en trámite o nos devuelve una pregunta, no es confirmación.
+    # Conservador: si todavía está en trámite o nos devuelve una pregunta (no saludo), no es confirmación.
     if _REPLY_PENDING.search(t):
         return "unclear"
-    if "?" in t or "\u00bf" in t:
+    if _real_question(t):
+        return "unclear"
+    if not (cc or cm):
+        ch = changes or {}
+        concrete = any(ch.get(k) not in (None, "", 0) for k in _CONCRETE_KEYS)
+        if kind == "modify" and _SOFT_MODIFY.search(t) and concrete and not ch.get("ambiguous"):
+            return "confirm_modify"
         return "unclear"
     if cc and cm:
         return "confirm_cancel" if kind == "cancel" else "confirm_modify"
@@ -475,9 +524,10 @@ _IN_LABEL = re.compile(r"(?:check[\s\-]?in|ingreso|llegada|entrada|arribo)", re.
 _OUT_LABEL = re.compile(r"(?:check[\s\-]?out|egreso|salida|partida)", re.I)
 _NIGHTS = re.compile(_NUM + r"\s+noches?\b", re.I)
 
+_USD_TOKEN = r"(?:usd\s?\$?|us\s?\$|u\$s|u\$d|u\$|d[oó]lares(?:\s+americanos|\s+estadounidenses)?|d[oó]lar)"
 _USD_AMOUNT = re.compile(
-    r"(?:\b(?:usd|us\$|u\$s|u\$d|dolares|dólares)\s*:?\s*([\d][\d.,]*))"
-    r"|(?:([\d][\d.,]*)\s*(?:usd|us\$|u\$s|dolares|dólares)\b)",
+    r"(?:\b" + _USD_TOKEN + r"\s*:?\s*([\d][\d.,]*))"
+    r"|(?:\b([\d][\d.,]*)\s*" + _USD_TOKEN + r"(?![a-z]))",
     re.I,
 )
 _OTHER_AMOUNT = re.compile(
@@ -486,9 +536,16 @@ _OTHER_AMOUNT = re.compile(
     r"|(?:(?<![a-z])\$\s*[\d][\d.,]*)",
     re.I,
 )
-_AMOUNT_TOTAL_HINT = re.compile(r"total|tarifa|nuevo valor|nuevo monto|valor final|monto final|importe|precio|queda en", re.I)
+_AMOUNT_TOTAL_HINT = re.compile(
+    r"total|tarifa|nuevo valor|nuevo monto|valor final|monto final|importe|precio|queda en|queda|"
+    r"monto a pagar|valor a pagar|total a pagar|a pagar (?:por|correspondiente)|corresponde a|correspondiente",
+    re.I,
+)
+# Montos que NO son el nuevo total de la reserva
 _AMOUNT_PARTIAL_HINT = re.compile(
-    r"diferencia|adicional|saldo|se[nñ]a|dep[oó]sito|anticipo|abon|pag(?:o|ar|ado)|por noche|p/noche|por persona|suplemento",
+    r"diferencia|saldo|se[nñ]a|dep[oó]sito|anticipo|por noche|p/noche|x noche|por persona|por pax|suplemento|"
+    r"(?:monto|cargo|pago|valor|costo|importe)\s+adicional|adicional\s+(?:a pagar|a abonar|de)\b|"
+    r"a abonar (?:en|al) (?:el )?(?:hotel|check)|ya abonad|ya pagad|reembolso|devoluci[oó]n|multa|penalidad|recargo",
     re.I,
 )
 
@@ -503,6 +560,21 @@ _CHILDREN = [
 _INFANTS = re.compile(_NUM + r"\s*(?:infantes?|beb[eé]s?)\b", re.I)
 _TOTAL_PAX = re.compile(_NUM + r"\s*(?:pax|personas|hu[eé]spedes|pasajeros)\b", re.I)
 _CAPACITY_BEFORE = re.compile(r"(?:cap\.?|capacidad|hasta|m[aá]x(?:imo)?\.?)\s*$", re.I)
+
+
+def _clause_around(text: str, start: int, end: int) -> str:
+    """Oración que contiene el monto (corta en salto de línea o en '. ' / '; ')."""
+    left = max(text.rfind("\n", 0, start), text.rfind(". ", 0, start), text.rfind("; ", 0, start))
+    rights = [i for i in (text.find("\n", end), text.find(". ", end), text.find("; ", end)) if i >= 0]
+    return text[left + 1: min(rights) if rights else len(text)]
+
+
+_PAX_DELTA = re.compile(
+    r"(?:persona|adulto|pasajero|hu[eé]sped|pax)\s+(?:adicional|extra)"
+    r"|(?:se\s+)?(?:agrega|suma|incorpora|a[nñ]ade)(?:r|mos|n)?\s+(?:un|una|1)\s+(?:adulto|persona|pasajero|hu[eé]sped|pax)"
+    r"|(?:un|una|1)\s+(?:adulto|persona|pasajero|hu[eé]sped|pax)\s+(?:m[aá]s|adicional|extra)",
+    re.I,
+)
 
 
 def _num(raw: str) -> Optional[int]:
@@ -713,6 +785,8 @@ def extract_modification_changes(own_text: str, ref_date=None) -> dict:
             res["ambiguous"].append("pasajeros")
         elif total:
             res["total_pax"] = total[0]
+        elif _PAX_DELTA.search(text):
+            res["pax_delta"] = 1
 
     # --- Tarifa (solo USD explícito) ---
     usd = []
@@ -720,9 +794,7 @@ def extract_modification_changes(own_text: str, ref_date=None) -> dict:
         v = _money(m.group(1) or m.group(2))
         if v is None:
             continue
-        line_start = text.rfind("\n", 0, m.start()) + 1
-        line_end = text.find("\n", m.end())
-        line = text[line_start: line_end if line_end >= 0 else len(text)]
+        line = _clause_around(text, m.start(), m.end())
         usd.append((v, bool(_AMOUNT_TOTAL_HINT.search(line)), bool(_AMOUNT_PARTIAL_HINT.search(line))))
     candidates = [u for u in usd if not u[2]]
     if usd and not candidates:
@@ -760,7 +832,10 @@ def parse_lifecycle_mail(mail: dict) -> Optional[dict]:
     extra = {}
     changes = None
     if intent == "modify":
-        changes = extract_modification_changes(own)
+        ref = mail.get("date")
+        if hasattr(ref, "date") and callable(getattr(ref, "date")):
+            ref = ref.date()  # datetime → date
+        changes = extract_modification_changes(own, ref if hasattr(ref, "year") else None)
     if intent == "modify" and changes is not None and not any(
         k in changes for k in ("check_in", "check_out", "adults", "children", "total_amount")
     ):
@@ -813,6 +888,6 @@ def parse_lifecycle_mail(mail: dict) -> Optional[dict]:
         "currency": extra.get("currency") or "USD",
         "notes": extra.get("notes"),
         "own_text": own,
-        "hotel_verdict": classify_hotel_reply(intent, own),
+        "hotel_verdict": classify_hotel_reply(intent, own, changes),
         "changes": changes,
     }

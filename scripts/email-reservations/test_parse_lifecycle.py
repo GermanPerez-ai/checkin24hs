@@ -294,6 +294,89 @@ class TestModificationChanges(unittest.TestCase):
         self.assertNotIn("check_in", row["changes"])
         self.assertNotIn("total_amount", row["changes"])
 
+# ===== Respuestas reales (nov 2026) =====
+REAL_V39VSN_1 = (
+    "Hola German,\n\nBuen día, cómo estás?\n\n\nAcuso recibo de solicitud de modificación de reserva.\n\n"
+    "El monto a pagar por la cabaña, considerando alimentación de la persona adicional, corresponde a U$D 523.20\n\n\n"
+    "Saludos,\n\nIgnacio Ulzurrún | Ejecutivo de Reservas\nTel: (56 2) 642331700\nwww.puyehue.cl<http://www.puyehue.cl>\n\n"
+    "De: Reservas Checkin24hs <reservas@checkin24hs.com>\nEnviado el: miércoles, 11 de noviembre de 2026 9:39\n"
+    "Para: Reservas Termas Aguas Calientes\nAsunto: MODIFICAR RESERVA Cabañas Termas de Aguas Calientes V39VSN\n\n"
+    "Estimados,\nSolicitamos modificar la siguiente reserva.\nCheck-in: 2026-11-13\nCheck-out: 2026-11-15\nTarifa (USD): 447.2\n"
+)
+REAL_V39VSN_2 = (
+    "German,\nNo vendría ninguna cotización adjunta. Se asignó el valor de alimentación por persona a la reserva.\n\n"
+    "Quedo atento,\nSaludos,\nIgnacio Ulzurrún.  | Ejecutivo de Reservas\nTel: (56 2) 642331700\nwww.puyehue.cl<http://w\n"
+)
+REAL_VT1F09 = (
+    "Hola German,\n\n\nAcuso recibo de solicitud de modificación.\n\n"
+    "Monto a pagar correspondiente considerando solo 6 personas: 723.40 USD\n\n\n"
+    "Saludos,\n\nIgnacio Ulzurrún| Ejecutivo de Reservas\nTel : (56 2) 6002936000\nwww.puyehue.cl\n"
+)
+REAL_HUILO = (
+    "Estimados,\n\nEnvío confirmación modificada a continuación:\n\nConfirmación de reserva\n"
+    "Nombre: Miguel Angel Mendoza\nAlojamiento: Reino Fungi\nNúmero de confirmación: 598597304\n"
+    "Pasajeros: 03 adultos\nCategoría de habitación: Estándar matrimonial\nFecha de llegada: 05/12/2026\n"
+    "Fecha de salida: 08/12/2026\nPlan: Pensión completa\nTotal: $ 1.215.000 CLP\n\n"
+    "Políticas de cancelación: anulaciones con menos de 72 horas tienen penalidad del 100%. "
+    "No show se cobra la estadía completa.\n\nSaludos,\nLaura Duarte\nCentral de Reservas Huilo Huilo\n"
+)
+
+
+class TestRealHotelReplies(unittest.TestCase):
+    def _p(self, subject, text):
+        return parse_lifecycle_mail({"subject": subject, "text": text, "html": "", "from": "hotel@x.cl"})
+
+    def test_v39vsn_amount_with_greeting_question(self):
+        r = self._p("RE: MODIFICAR RESERVA Cabañas Termas de Aguas Calientes V39VSN", REAL_V39VSN_1)
+        self.assertEqual(r["hotel_verdict"], "confirm_modify")
+        self.assertEqual(r["changes"]["total_amount"], 523.2)
+        self.assertEqual(r["changes"].get("pax_delta"), 1)
+        self.assertEqual(r["changes"]["ambiguous"], [])
+
+    def test_v39vsn_followup_without_values_is_unclear(self):
+        r = self._p("RE: MODIFICAR RESERVA Cabañas Termas de Aguas Calientes V39VSN", REAL_V39VSN_2)
+        self.assertEqual(r["hotel_verdict"], "unclear")
+
+    def test_vt1f09_usd_after_number(self):
+        r = self._p("MODIFICAR RESERVA Cabañas Termas de Aguas Calientes VT1F09", REAL_VT1F09)
+        self.assertEqual(r["hotel_verdict"], "confirm_modify")
+        self.assertEqual(r["changes"]["total_amount"], 723.4)
+        self.assertEqual(r["changes"]["total_pax"], 6)
+
+    def test_huilo_confirmacion_modificada_with_policies(self):
+        r = self._p("RE: MODIFICAR RESERVA Hotel Huilo-Huilo 598597304", REAL_HUILO)
+        self.assertEqual(r["hotel_verdict"], "confirm_modify")  # 'no show'/'penalidad' de políticas no cuentan
+        self.assertEqual(r["changes"]["adults"], 3)
+        self.assertEqual((r["changes"]["check_in"], r["changes"]["check_out"]), ("2026-12-05", "2026-12-08"))
+        self.assertNotIn("total_amount", r["changes"])
+
+    def test_acuso_recibo_alone_is_unclear(self):
+        from parse_lifecycle import classify_hotel_reply
+
+        self.assertEqual(classify_hotel_reply("modify", "Hola, acuso recibo de solicitud de modificación. Saludos", {"ambiguous": []}), "unclear")
+        r = self._p("RE: MODIFICAR RESERVA Hotel X ABC123", "Acuso recibo de solicitud de modificación. Saludos.")
+        self.assertEqual(r["hotel_verdict"], "unclear")
+
+    def test_greeting_vs_real_question(self):
+        from parse_lifecycle import classify_hotel_reply
+
+        self.assertEqual(classify_hotel_reply("modify", "Hola, ¿cómo están? Confirmamos la modificación."), "confirm_modify")
+        self.assertEqual(classify_hotel_reply("modify", "Qué tal? Reserva modificada, ¿confirman el pago?"), "unclear")
+
+    def test_usd_variants_and_partials(self):
+        from parse_lifecycle import extract_modification_changes as x
+        import datetime as _dt
+
+        ref = _dt.date(2026, 11, 12)
+        for t, v in (("Total U$D 523.20", 523.2), ("total 723.40 USD", 723.4), ("queda en 1.350 dólares", 1350.0),
+                     ("Monto a pagar: USD$ 610", 610.0), ("valor final US $ 980,50", 980.5)):
+            self.assertEqual(x(t, ref).get("total_amount"), v, t)
+        for t in ("Diferencia a pagar USD 76", "Seña USD 200", "Saldo pendiente U$D 300",
+                  "Adicional a pagar USD 40 por la persona extra", "USD 80 por noche"):
+            r = x(t, ref)
+            self.assertNotIn("total_amount", r, t)
+            self.assertIn("total_amount", r["ambiguous"], t)
+
 
 if __name__ == "__main__":
     unittest.main()

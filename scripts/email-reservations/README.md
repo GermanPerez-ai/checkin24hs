@@ -88,6 +88,11 @@ El mismo cron cubre Huilo, Corralco, Puyehue y Aguas Calientes.
 - Un aviso por mail (message-id), registrado en `ana_alerts_log` (`lifecycle_confusa` / `lifecycle_aplicada`).
   Si WhatsApp falla, el sync sigue.
 - La respuesta cuenta si llegó después del último `[PEDIDO …]` (fecha+hora, margen 10 min).
+- Respuestas "suaves" ("acuso recibo…", "se asignó…", "monto a pagar … corresponde a U$D X") cuentan como confirmación
+  solo si traen un valor concreto (monto USD, pasajeros, fechas). Saludos tipo "¿cómo estás?" no cuentan como pregunta.
+- Pasajeros: se toma la cantidad actual de las notas (`Pasajeros: N adultos`); si no se puede mapear, va a la nota.
+- Varias respuestas del mismo pedido se procesan en orden cronológico; una respuesta vaga posterior no deshace nada.
+- `--dry-run` muestra `simulación:` (lee la reserva, no escribe ni manda WhatsApp).
 - Config WhatsApp: `WHATSAPP_API_URL`, `WHATSAPP_API_KEY`, `WHATSAPP_GROUP_ID` del `.env` de este script o, si no
   están, del `email-monitor/.env` (mismo grupo de hoteles). Opcional: `LIFECYCLE_WHATSAPP_TO` (otro destino),
   `LIFECYCLE_WHATSAPP_ALERTS=0` (apagar avisos).

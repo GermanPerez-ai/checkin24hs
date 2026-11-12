@@ -662,22 +662,48 @@ def _same(key, old, new) -> bool:
         return str(old) == str(new)
 
 
+_NOTES_PAX = re.compile(
+    r"Pasajeros:\s*(\d{1,2})\s*adultos?(?:\s*(?:\+|y|,)\s*(\d{1,2})\s*(?:ni[nñ]os?|menores?|chd))?",
+    re.I,
+)
+
+
+def current_pax(row: dict):
+    """(adultos, niños, fuente). Las notas del import ('Pasajeros: 3 adultos') mandan: la columna adults
+    suele quedar en 1 por defecto. fuente = 'notas' | 'columna' | None."""
+    found = list(_NOTES_PAX.finditer(str(row.get("notes") or "")))
+    if found:
+        m = found[-1]
+        return int(m.group(1)), int(m.group(2) or 0), "notas"
+    if row.get("adults") not in (None, ""):
+        return int(row.get("adults") or 0), int(row.get("children") or 0), "columna"
+    return None, None, None
+
+
 def modification_diff(row: dict, parsed: dict):
-    """→ (updates, cambios[(campo, viejo, nuevo)], motivo_confuso|None). Solo campos afirmados por el hotel."""
+    """→ (updates, cambios[(campo, viejo, nuevo)], motivo_confuso|None, notas_extra[]).
+    Solo campos afirmados por el hotel. Pasajeros que no se pueden mapear van a la nota (no frenan el resto)."""
     ch = parsed.get("changes")
     if ch is None:  # compatibilidad: parser viejo
         ch = {k: parsed.get(k) for k in ("check_in", "check_out", "total_amount") if parsed.get(k)}
     ch = dict(ch or {})
+    extra = list(ch.get("ignored") or [])
     if ch.get("ambiguous"):
-        return {}, [], "no se entiende bien: " + ", ".join(ch["ambiguous"])
+        return {}, [], "no se entiende bien: " + ", ".join(ch["ambiguous"]), extra
     if ch.get("nights") and not ch.get("check_in") and not ch.get("check_out") and row.get("check_in"):
         cin = dt.date.fromisoformat(str(row["check_in"])[:10])
         ch["check_out"] = (cin + dt.timedelta(days=int(ch["nights"]))).isoformat()
+    cur_ad, cur_ch, src = current_pax(row)
     if ch.get("total_pax") and "adults" not in ch and "children" not in ch:
-        if int(row.get("children") or 0) == 0:
+        if src and cur_ch == 0:
             ch["adults"] = ch["total_pax"]
         else:
-            return {}, [], "dice cantidad total de personas sin separar adultos/niños"
+            extra.append(f"hotel indica {ch['total_pax']} personas en total (sin separar adultos/niños; no se tocó)")
+    if ch.get("pax_delta") and "adults" not in ch:
+        if src == "notas":
+            ch["adults"] = cur_ad + int(ch["pax_delta"])
+        else:
+            extra.append(f"hotel indica +{ch['pax_delta']} persona (cantidad actual no confiable; no se tocó)")
     updates, changes = {}, []
     for key in ("check_in", "check_out", "adults", "children", "total_amount"):
         if ch.get(key) in (None, ""):
@@ -688,15 +714,18 @@ def modification_diff(row: dict, parsed: dict):
         old = row.get(key)
         if _same(key, old, new):
             continue
+        shown_old = old
+        if key == "adults" and src == "notas" and cur_ad is not None and not _same(key, old, cur_ad):
+            shown_old = f"{cur_ad} (columna {old if old not in (None, '') else '—'})"
         updates[key] = new
-        changes.append((key, old, new))
+        changes.append((key, shown_old, new))
     cin = updates.get("check_in") or row.get("check_in")
     cout = updates.get("check_out") or row.get("check_out")
     if cin and cout and str(cout)[:10] <= str(cin)[:10]:
-        return {}, [], "las fechas resultantes no cierran (salida antes que entrada)"
+        return {}, [], "las fechas resultantes no cierran (salida antes que entrada)", extra
     if not changes:
-        return {}, [], "dice que la modificó pero no se ve qué cambió"
-    return updates, changes, None
+        return {}, [], "dice que la modificó pero no se ve qué cambió", extra
+    return updates, changes, None, extra
 
 
 def patch_reservation_lifecycle(reservation_code: str, kind: str, parsed: dict | None = None, from_addr: str = "",
@@ -735,7 +764,7 @@ def _alert_base(row: dict, kind: str, parsed: dict, from_addr: str, msg_date) ->
     }
 
 
-def _apply_lifecycle_row(row: dict, kind: str, parsed: dict, from_addr: str, msg_date=None):
+def _apply_lifecycle_row(row: dict, kind: str, parsed: dict, from_addr: str, msg_date=None, writer=None):
     rid = row.get("id")
     if not rid:
         return {"ok": False, "reason": "sin_id"}
@@ -792,7 +821,7 @@ def _apply_lifecycle_row(row: dict, kind: str, parsed: dict, from_addr: str, msg
     elif verdict == "confirm_modify":
         if current == "Modificada":
             return {"ok": True, "status": current, "reason": "ya_cerrada", "skip": True}
-        updates, changes, confusing = modification_diff(row, parsed)
+        updates, changes, confusing, extra_notes = modification_diff(row, parsed)
         if confusing:
             out = {"ok": True, "status": current, "reason": "modificacion_confusa", "skip": True, "detail": confusing}
             if current in _PENDING_STATUSES:
@@ -802,7 +831,7 @@ def _apply_lifecycle_row(row: dict, kind: str, parsed: dict, from_addr: str, msg
         body.update(updates)
         body["status"] = "Modificada"
         detail = "; ".join(f"{k} {_fmt_val(k, o)}→{_fmt_val(k, n)}" for k, o, n in changes)
-        ignored = (parsed.get("changes") or {}).get("ignored") or []
+        ignored = extra_notes
         if ignored:
             detail += " | ignorado: " + "; ".join(ignored)
         body["notes"] = _append_note(row.get("notes"), f"[HOTEL confirmó modificación — auto {stamp}] {detail}")
@@ -819,6 +848,12 @@ def _apply_lifecycle_row(row: dict, kind: str, parsed: dict, from_addr: str, msg
         return {"ok": True, "status": current, "reason": verdict, "skip": True}
 
     path = "reservations?id=eq." + urllib.parse.quote(str(rid), safe="")
+    if writer is not None:  # simulación (dry-run): no escribe
+        writer(row, body)
+        out = {"ok": True, "status": body.get("status"), "fields": list(body.keys()), "verdict": verdict, "body": body}
+        if alert:
+            out["alert"] = alert
+        return out
     try:
         sb("PATCH", path, body)
     except RuntimeError as e:
@@ -1070,6 +1105,55 @@ def hotel_lookup_key(hotel_key: str) -> str:
     return (hotel_key or "").replace("_web", "").strip().lower() or "unknown"
 
 
+def sort_ids_by_date(client, ids):
+    """Ordena los mensajes por su header Date (estable); si algo falla, deja el orden de IMAP."""
+    try:
+        keyed = []
+        for idx, uid in enumerate(ids):
+            typ, fetched = client.fetch(uid, "(BODY.PEEK[HEADER.FIELDS (DATE)])")
+            when = None
+            if typ == "OK" and fetched and fetched[0] and isinstance(fetched[0], tuple):
+                hdr = email.message_from_bytes(fetched[0][1])
+                when = _to_utc(msg_datetime(hdr))
+            keyed.append((when or dt.datetime.min.replace(tzinfo=dt.timezone.utc), idx, uid))
+        keyed.sort(key=lambda x: (x[0], x[1]))
+        return [uid for _, _, uid in keyed]
+    except Exception as e:
+        print(f"⚠️  No se pudo ordenar por fecha ({e}); se usa el orden de IMAP")
+        return ids
+
+
+def simulate_lifecycle(code, kind, parsed, from_addr, when, sim_rows: dict) -> str:
+    """Dry-run: lee la reserva (solo GET) y muestra qué haría, sin escribir ni mandar WhatsApp.
+    Mantiene el estado simulado entre mails del mismo código (orden cronológico)."""
+    try:
+        key = str(code)
+        if key not in sim_rows:
+            row = find_reservation_row(code)
+            if not row:
+                return "reserva no encontrada"
+            sim_rows[key] = dict(row)
+        row = sim_rows[key]
+
+        def writer(r, body):
+            r.update(body)
+
+        res = _apply_lifecycle_row(dict(row), kind, parsed, from_addr, when, writer=writer)
+        if res.get("body"):
+            row.update(res["body"])
+        alert = res.get("alert")
+        tail = f" · avisaría por WhatsApp: {alert.get('type')}" if alert else ""
+        if res.get("skip"):
+            det = f": {res.get('detail')}" if res.get("detail") else ""
+            return f"no cambia ({res.get('reason')}{det}) · estado {res.get('status')}{tail}"
+        if not res.get("ok"):
+            return f"no se aplicaría ({res.get('reason')})"
+        note = str((res.get("body") or {}).get("notes") or "").split("\n")[-1]
+        return f"→ {res.get('status')} · {note}{tail}"
+    except Exception as e:
+        return f"no se pudo simular ({str(e)[:120]})"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true")
@@ -1130,6 +1214,8 @@ def main():
         typ, data = client.search(None, "SINCE", since_imap)
         ids = (data[0] or b"").split()
         print(f"🔍 Mensajes desde {since_imap}: {len(ids)}")
+        ids = sort_ids_by_date(client, ids)  # varias respuestas del hotel: se procesan en orden cronológico
+        sim_rows: dict = {}
         for uid in ids:
             stats["scanned"] += 1
             typ, fetched = client.fetch(uid, "(RFC822)")
@@ -1191,6 +1277,9 @@ def main():
                             print(f"   · cuerpo: {own}")
                         if parsed.get("changes"):
                             print(f"   · cambios leídos: {parsed.get('changes')}")
+                        if SUPABASE_URL and SUPABASE_KEY:
+                            print("   · simulación: " + simulate_lifecycle(
+                                code, kind, parsed, from_addr, msg_datetime(msg) or msg_date(msg), sim_rows))
                         continue
                     try:
                         result = patch_reservation_lifecycle(
