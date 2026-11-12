@@ -1279,6 +1279,75 @@ async function processAutoClose(info, parsed) {
     };
 }
 
+// ===== PORTAL PUYEHUE (evitar doble WhatsApp) =====
+
+/**
+ * El portal de agencias de Hotel Termas de Puyehue / Termas Aguas Calientes manda
+ * DOS mails por reserva con el mismo asunto ("Confirmación de Reserva Hotel Puyehue XXXX"):
+ *  - copia AGENCIA: "Su código de reserva es XXXX" + "Pasajero" / "Agente" / "Agencia"
+ *  - copia HUÉSPED: "Su código de reserva temporal es XXXX" + "Contacto" (sin Agente)
+ * Solo la copia de agencia debe ir a WhatsApp.
+ */
+const PUYEHUE_SUBJECT_RE = /confirmaci[oó]n de reserva(\s+web)?\s+(?:hotel puyehue|termas aguas calientes)\s+([A-Z0-9]{4,10})\b/i;
+const PUYEHUE_FIELD_STOP = '(?=[ \\t]*(?:\\n|\\||Pasajeros?\\b|Agente\\b|Agencia\\b|Email\\b|Correo\\b|Tel[eé]fono\\b|Pa[ií]s\\b|Contacto\\b)|\\s*$)';
+
+function grabPuyehueField(text, label) {
+    // Etiquetas con mayúscula inicial (case-sensitive) para no confundir con
+    // "nombre del pasajero" o "la agencia" dentro de las políticas.
+    const re = new RegExp(`(?:^|[\\s|>])${label}\\b[ \\t]*:?[ \\t]*(?:\\n[ \\t]*)?([^\\n|]+?)${PUYEHUE_FIELD_STOP}`, 'm');
+    const m = String(text || '').match(re);
+    const value = m ? m[1].replace(/\s+/g, ' ').trim() : '';
+    if (/^(?:Pasajeros?|Agente|Agencia|Email|Correo|Tel[eé]fono|Pa[ií]s|Contacto)\b/.test(value)) return '';
+    return value.length > 0 && value.length <= 120 ? value : '';
+}
+
+/**
+ * Detecta confirmaciones del portal Puyehue y qué copia es.
+ * @returns {null | { kind: 'agency'|'guest', isWeb, code, passenger, agent, agency }}
+ */
+function parsePuyehuePortalEmail(info, parsed = null) {
+    const subject = String(info?.subject || '');
+    const from = String(info?.from || '').toLowerCase();
+    const subjectMatch = subject.match(PUYEHUE_SUBJECT_RE);
+    if (!subjectMatch && !from.endsWith('puyehue.cl')) return null;
+
+    let body = String(info?.rawText || '');
+    if (parsed?.html) body += '\n' + extractTextFromHTML(parsed.html);
+    if (!/c[oó]digo de reserva/i.test(body) && !subjectMatch) return null;
+
+    const codeMatch = body.match(/c[oó]digo de reserva(?:\s+temporal)?\s+es\s+([A-Z0-9]{4,10})\b/i);
+    const code = (subjectMatch ? subjectMatch[2] : (codeMatch ? codeMatch[1] : '')).toUpperCase();
+
+    // Priorizar el bloque "Información de contacto" si existe
+    const idx = body.search(/informaci[oó]n de contacto/i);
+    const block = idx >= 0 ? body.slice(idx) : body;
+
+    const agent = grabPuyehueField(block, 'Agente') || grabPuyehueField(body, 'Agente');
+    const agency = grabPuyehueField(block, 'Agencia') || grabPuyehueField(body, 'Agencia');
+    const passenger = grabPuyehueField(block, 'Pasajero') || grabPuyehueField(block, 'Contacto');
+    const isTemporal = /c[oó]digo de reserva temporal/i.test(body);
+
+    // Nunca marcar como copia huésped si trae "Agente": la de agencia siempre se notifica.
+    const kind = agent ? 'agency' : (isTemporal || grabPuyehueField(block, 'Contacto') ? 'guest' : 'agency');
+
+    return {
+        kind,
+        isWeb: Boolean(subjectMatch && subjectMatch[1]),
+        code,
+        passenger,
+        agent,
+        agency
+    };
+}
+
+/**
+ * true si el mail es la copia para el huésped de una reserva de agencia (no va a WhatsApp).
+ * Las "Reserva Web" no se omiten: pueden no tener copia de agencia.
+ */
+function isPuyehueGuestCopy(portal) {
+    return Boolean(portal && portal.kind === 'guest' && !portal.isWeb);
+}
+
 // ===== SUPABASE =====
 
 /**
@@ -1407,12 +1476,20 @@ ${info.text.substring(0, 800)}${info.text.length > 800 ? '...' : ''}
 
 ⏰ ${new Date().toLocaleString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' })}`;
     } else {
+        const portal = info.puyehuePortal && info.puyehuePortal.kind === 'agency' ? info.puyehuePortal : null;
+        const portalLines = portal
+            ? [
+                portal.code ? `🏨 *Código:* ${portal.code}` : null,
+                portal.passenger ? `🧳 *Pasajero:* ${portal.passenger}` : null,
+                portal.agent ? `🧑‍💼 *Agente:* ${portal.agent}${portal.agency ? ` (${portal.agency})` : ''}` : null
+            ].filter(Boolean).map(l => `\n${l}`).join('')
+            : '';
         message = `📧 *Nueva respuesta sobre reserva*
 
 📨 *De:* ${info.fromName}
 📧 *Email:* ${info.from}
 📋 *Asunto:* ${info.subject}
-👤 *Solicitado por:* ${info.requestedBy}
+👤 *Solicitado por:* ${info.requestedBy}${portalLines}
 
 💬 *Resumen:*
 ${summary}${autoCloseLines}
@@ -1526,6 +1603,15 @@ async function processEmail(uid, client) {
         // Determinar tipo de email (reservation o business)
         const emailType = classification.type;
         
+        // Portal Puyehue: detectar copia agencia/huésped y datos de Pasajero/Agente
+        const puyehuePortal = parsePuyehuePortalEmail(info, parsed);
+        if (puyehuePortal) {
+            info.puyehuePortal = puyehuePortal;
+            if (puyehuePortal.kind === 'agency' && puyehuePortal.agent) {
+                info.requestedBy = findAgentInText(puyehuePortal.agent) || puyehuePortal.agent;
+            }
+        }
+        
         console.log(`\n${emailType === 'business' ? '💼' : '📧'} Procesando: ${info.subject}`);
         console.log(`   De: ${info.fromName} <${info.from}>`);
         console.log(`   📑 Tipo: ${emailType === 'business' ? 'COMERCIAL/INFORMATIVO' : 'RESERVA'}`);
@@ -1563,6 +1649,22 @@ async function processEmail(uid, client) {
             console.log(`   📲 Destino: Grupo ${routing.destinations[0]}`);
         } else if (routing.type === 'providers') {
             console.log(`   📲 Destino: ${routing.destinations.length} número(s) proveedor: ${routing.destinations.join(', ')}`);
+        }
+        
+        // Portal Puyehue: la copia para el huésped no va a WhatsApp (ya llega la de agencia)
+        if (isPuyehueGuestCopy(puyehuePortal)) {
+            console.log(`   🔕 Copia huésped del portal Puyehue (${puyehuePortal.code || 's/código'}): no se envía a WhatsApp`);
+            if (CONFIG.dryRun) {
+                return { status: 'skipped', reason: 'puyehue_guest_copy', info, emailType };
+            }
+            try {
+                await markAsProcessed(info, summary, 'skipped', 'puyehue_guest_copy');
+            } catch (error) {
+                if (!(error.message && (error.message.includes('duplicate') || error.message.includes('unique')))) {
+                    console.warn('   ⚠️  Error registrando copia huésped:', error.message);
+                }
+            }
+            return { status: 'skipped', reason: 'puyehue_guest_copy', info, emailType };
         }
         
         // Modo mark-existing: solo registrar sin enviar
@@ -1767,6 +1869,7 @@ async function monitor() {
         
         console.log(`\n🏢 Internos (excluidos): ${stats.internal}`);
         console.log(`♻️  Duplicados: ${stats.duplicate}`);
+        if (stats.skipped) console.log(`🔕 Omitidos (copia huésped Puyehue): ${stats.skipped}`);
         console.log(`❌ Errores: ${stats.error}`);
         console.log('='.repeat(60) + '\n');
         
@@ -1797,5 +1900,7 @@ module.exports = {
     processAutoClose,
     extractDatesFromEmail,
     extractAmountFromEmail,
-    determineReservationChanges
+    determineReservationChanges,
+    parsePuyehuePortalEmail,
+    isPuyehueGuestCopy
 };
