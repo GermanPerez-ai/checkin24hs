@@ -139,6 +139,17 @@ def msg_date(msg):
         return None
 
 
+def msg_datetime(msg):
+    """Fecha+hora del mail con zona (UTC si el header no trae zona)."""
+    try:
+        d = parsedate_to_datetime(msg.get("Date"))
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=dt.timezone.utc)
+        return d
+    except Exception:
+        return None
+
+
 def connect_imap():
     if IMAP_PORT == 993:
         ctx = ssl.create_default_context()
@@ -529,7 +540,7 @@ def find_reservation_row(reservation_code: str):
     q = (
         "reservations?reservation_code=eq."
         + urllib.parse.quote(code, safe="")
-        + "&select=id,reservation_code,status,check_in,check_out,total_amount,notes,updated_at"
+        + "&select=id,reservation_code,status,check_in,check_out,total_amount,notes,updated_at,hotel_name,client_name,customer_name,adults,children"
         + "&limit=1"
     )
     existing = sb("GET", q)
@@ -542,7 +553,7 @@ def find_reservation_row(reservation_code: str):
         q_base = (
             "reservations?reservation_code=ilike."
             + urllib.parse.quote("*" + base_num + "*", safe="*")
-            + "&select=id,reservation_code,status,check_in,check_out,total_amount,notes,updated_at"
+            + "&select=id,reservation_code,status,check_in,check_out,total_amount,notes,updated_at,hotel_name,client_name,customer_name,adults,children"
             + "&limit=5"
         )
         existing = sb("GET", q_base)
@@ -557,7 +568,7 @@ def find_reservation_row(reservation_code: str):
     q2 = (
         "reservations?reservation_code=ilike."
         + urllib.parse.quote("*" + code + "*", safe="*")
-        + "&select=id,reservation_code,status,check_in,check_out,total_amount,notes,updated_at"
+        + "&select=id,reservation_code,status,check_in,check_out,total_amount,notes,updated_at,hotel_name,client_name,customer_name,adults,children"
         + "&limit=3"
     )
     existing = sb("GET", q2)
@@ -566,7 +577,130 @@ def find_reservation_row(reservation_code: str):
     return None
 
 
-def patch_reservation_lifecycle(reservation_code: str, kind: str, parsed: dict | None = None, from_addr: str = "", msg_date=None):
+_PENDING_STATUSES = ("Modificación pedida", "Anulación pedida", "En gestión")
+_UNCLEAR_VERDICTS = ("unclear", "hotel_reply_unclear")
+_REQUEST_MARGIN = dt.timedelta(minutes=10)
+_PEDIDO_RX = re.compile(r"\[PEDIDO (anular|modificar) (\d{4}-\d{2}-\d{2}T[\d:.]+Z?)\]")
+_FIELD_LABELS = {
+    "check_in": "Check-in",
+    "check_out": "Check-out",
+    "adults": "Adultos",
+    "children": "Niños",
+    "total_amount": "Tarifa USD",
+}
+
+
+def _to_utc(value):
+    """str ISO / datetime / date → datetime UTC (date = 00:00 UTC). None si no se puede."""
+    if value is None or value == "":
+        return None
+    try:
+        if isinstance(value, str):
+            value = dt.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if isinstance(value, dt.datetime):
+            if value.tzinfo is None:
+                value = value.replace(tzinfo=dt.timezone.utc)
+            return value.astimezone(dt.timezone.utc)
+        if isinstance(value, dt.date):
+            return dt.datetime.combine(value, dt.time.min, tzinfo=dt.timezone.utc)
+    except (ValueError, TypeError, AttributeError):
+        return None
+    return None
+
+
+def request_time(row: dict, kind: str):
+    """Momento del último pedido al hotel de este tipo ([PEDIDO … <iso>] en notas); si no hay, updated_at."""
+    want = "anular" if kind == "cancel" else "modificar"
+    stamps = [m.group(2) for m in _PEDIDO_RX.finditer(str(row.get("notes") or "")) if m.group(1) == want]
+    for raw in reversed(stamps):
+        t = _to_utc(raw)
+        if t:
+            return t
+    return _to_utc(row.get("updated_at"))
+
+
+def _reply_is_newer(row: dict, kind: str, msg_when) -> bool:
+    """La respuesta cuenta si llegó después del pedido (con margen). Con fecha+hora se compara
+    exacto (respuestas del mismo día sí cuentan); si solo hay fecha, se mantiene la regla vieja."""
+    if not msg_when:
+        return True
+    if isinstance(msg_when, dt.datetime):
+        req = request_time(row, kind)
+        msg_utc = _to_utc(msg_when)
+        if not req or not msg_utc:
+            return True
+        return msg_utc >= req - _REQUEST_MARGIN
+    updated = _to_utc(row.get("updated_at"))
+    msg_utc = _to_utc(msg_when)
+    if not updated or not msg_utc:
+        return True
+    return msg_utc > updated
+
+
+def _fmt_val(key, value):
+    if value in (None, ""):
+        return "—"
+    if key == "total_amount":
+        try:
+            return f"{float(value):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        except (TypeError, ValueError):
+            return str(value)
+    return str(value)[:10] if key in ("check_in", "check_out") else str(value)
+
+
+def _same(key, old, new) -> bool:
+    if key == "total_amount":
+        try:
+            return abs(float(old or 0) - float(new or 0)) < 0.01
+        except (TypeError, ValueError):
+            return False
+    if key in ("check_in", "check_out"):
+        return str(old or "")[:10] == str(new or "")[:10]
+    try:
+        return int(old or 0) == int(new or 0)
+    except (TypeError, ValueError):
+        return str(old) == str(new)
+
+
+def modification_diff(row: dict, parsed: dict):
+    """→ (updates, cambios[(campo, viejo, nuevo)], motivo_confuso|None). Solo campos afirmados por el hotel."""
+    ch = parsed.get("changes")
+    if ch is None:  # compatibilidad: parser viejo
+        ch = {k: parsed.get(k) for k in ("check_in", "check_out", "total_amount") if parsed.get(k)}
+    ch = dict(ch or {})
+    if ch.get("ambiguous"):
+        return {}, [], "no se entiende bien: " + ", ".join(ch["ambiguous"])
+    if ch.get("nights") and not ch.get("check_in") and not ch.get("check_out") and row.get("check_in"):
+        cin = dt.date.fromisoformat(str(row["check_in"])[:10])
+        ch["check_out"] = (cin + dt.timedelta(days=int(ch["nights"]))).isoformat()
+    if ch.get("total_pax") and "adults" not in ch and "children" not in ch:
+        if int(row.get("children") or 0) == 0:
+            ch["adults"] = ch["total_pax"]
+        else:
+            return {}, [], "dice cantidad total de personas sin separar adultos/niños"
+    updates, changes = {}, []
+    for key in ("check_in", "check_out", "adults", "children", "total_amount"):
+        if ch.get(key) in (None, ""):
+            continue
+        new = ch[key]
+        if key == "total_amount" and not (float(new) > 0):
+            continue
+        old = row.get(key)
+        if _same(key, old, new):
+            continue
+        updates[key] = new
+        changes.append((key, old, new))
+    cin = updates.get("check_in") or row.get("check_in")
+    cout = updates.get("check_out") or row.get("check_out")
+    if cin and cout and str(cout)[:10] <= str(cin)[:10]:
+        return {}, [], "las fechas resultantes no cierran (salida antes que entrada)"
+    if not changes:
+        return {}, [], "dice que la modificó pero no se ve qué cambió"
+    return updates, changes, None
+
+
+def patch_reservation_lifecycle(reservation_code: str, kind: str, parsed: dict | None = None, from_addr: str = "",
+                                msg_date=None, message_id: str = "", send_alerts: bool = True):
     """Ventas pide; el hotel cierra solo si el cuerpo confirma de forma inequívoca."""
     parsed = parsed or {}
     codes = [c for c in ([reservation_code] + list(parsed.get("reservation_codes") or [])) if c]
@@ -578,8 +712,27 @@ def patch_reservation_lifecycle(reservation_code: str, kind: str, parsed: dict |
         seen.append(c)
         row = find_reservation_row(c)
         if row:
-            return _apply_lifecycle_row(row, kind, parsed, from_addr, msg_date)
+            result = _apply_lifecycle_row(row, kind, parsed, from_addr, msg_date)
+            if send_alerts and result.get("alert"):
+                try:
+                    result["alert_sent"] = send_lifecycle_alert(result["alert"], message_id)
+                except Exception as e:  # nunca romper el sync por WhatsApp
+                    result["alert_sent"] = {"ok": False, "error": str(e)[:200]}
+            return result
     return {"ok": False, "reason": "no_existe"}
+
+
+def _alert_base(row: dict, kind: str, parsed: dict, from_addr: str, msg_date) -> dict:
+    return {
+        "code": row.get("reservation_code") or "",
+        "hotel": row.get("hotel_name") or parsed.get("hotel_key") or "Hotel",
+        "guest": row.get("client_name") or row.get("customer_name") or "",
+        "track": "Anulación" if kind == "cancel" else "Modificación",
+        "check_in": str(row.get("check_in") or "")[:10],
+        "from": from_addr,
+        "when": msg_date,
+        "excerpt": parsed.get("own_text") or "",
+    }
 
 
 def _apply_lifecycle_row(row: dict, kind: str, parsed: dict, from_addr: str, msg_date=None):
@@ -590,8 +743,9 @@ def _apply_lifecycle_row(row: dict, kind: str, parsed: dict, from_addr: str, msg
     current = str(row.get("status") or "")
     closed = current in _CLOSED_STATUSES
     verdict = parsed.get("hotel_verdict") or "unclear"
-    stamp = dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%MZ")
-    
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+    internal = is_internal_sender(from_addr)
+
     # Check 1: Skip reservations with check_in in the past
     check_in_str = row.get("check_in")
     if check_in_str:
@@ -604,55 +758,56 @@ def _apply_lifecycle_row(row: dict, kind: str, parsed: dict, from_addr: str, msg
                 return {"ok": True, "status": current, "reason": "check_in_pasado", "skip": True}
         except (ValueError, AttributeError):
             pass
-    
-    # Check 2: For internal senders, don't downgrade closed statuses
-    if is_internal_sender(from_addr):
-        if closed:
-            return {"ok": True, "status": current, "reason": "ya_cerrada", "skip": True}
-    
-    # Check 3: Skip if verdict is unclear/hotel_reply_unclear/ya_cerrada for any sender
-    if verdict in ("unclear", "hotel_reply_unclear", "ya_cerrada"):
-        return {"ok": True, "status": current, "reason": verdict, "skip": True}
-    
-    # Check 4: For hotel replies, validate email is newer than reservation updated_at
-    if not is_internal_sender(from_addr) and verdict in ("confirm_cancel", "confirm_modify", "reject"):
-        updated_at_str = row.get("updated_at")
-        if updated_at_str and msg_date:
-            try:
-                if isinstance(updated_at_str, str):
-                    updated_at_dt = dt.datetime.fromisoformat(updated_at_str.replace("Z", "+00:00"))
-                else:
-                    updated_at_dt = updated_at_str
-                msg_datetime = dt.datetime.combine(msg_date, dt.time.min)
-                msg_datetime = msg_datetime.replace(tzinfo=dt.timezone.utc)
-                if updated_at_dt.tzinfo is None:
-                    updated_at_dt = updated_at_dt.replace(tzinfo=dt.timezone.utc)
-                
-                if msg_datetime <= updated_at_dt:
-                    return {"ok": True, "status": current, "reason": "email_no_mas_nuevo", "skip": True}
-            except (ValueError, AttributeError, TypeError):
-                pass
-    
-    body = {}
 
-    if is_internal_sender(from_addr):
+    # Check 2: For internal senders, don't downgrade closed statuses
+    if internal and closed:
+        return {"ok": True, "status": current, "reason": "ya_cerrada", "skip": True}
+
+    # Check 3: respuestas del hotel anteriores al pedido no cuentan (fecha+hora, margen de 10 min)
+    if not internal and verdict in ("confirm_cancel", "confirm_modify", "reject") + _UNCLEAR_VERDICTS:
+        if not _reply_is_newer(row, kind, msg_date):
+            return {"ok": True, "status": current, "reason": "email_no_mas_nuevo", "skip": True}
+
+    # Check 4: respuesta confusa → no se toca la reserva; si está pendiente, avisar por WhatsApp
+    if verdict in _UNCLEAR_VERDICTS + ("ya_cerrada",):
+        out = {"ok": True, "status": current, "reason": verdict, "skip": True}
+        if not internal and verdict in _UNCLEAR_VERDICTS and current in _PENDING_STATUSES:
+            out["alert"] = {**_alert_base(row, kind, parsed, from_addr, msg_date), "type": "confusa"}
+        return out
+
+    body = {}
+    alert = None
+
+    if internal:
         body["status"] = "Anulación pedida" if kind == "cancel" else "Modificación pedida"
     elif verdict == "confirm_cancel":
         if current == "Cancelada":
             return {"ok": True, "status": current, "reason": "ya_cerrada", "skip": True}
         body["status"] = "Cancelada"
-        body["notes"] = _append_note(row.get("notes"), "[HOTEL confirmó anulación — auto " + stamp + "]")
+        body["notes"] = _append_note(
+            row.get("notes"), f"[HOTEL confirmó anulación — auto {stamp}] {current or '—'} → Cancelada"
+        )
+        alert = {**_alert_base(row, kind, parsed, from_addr, msg_date), "type": "aplicada",
+                 "old_status": current, "new_status": "Cancelada", "changes": []}
     elif verdict == "confirm_modify":
         if current == "Modificada":
             return {"ok": True, "status": current, "reason": "ya_cerrada", "skip": True}
+        updates, changes, confusing = modification_diff(row, parsed)
+        if confusing:
+            out = {"ok": True, "status": current, "reason": "modificacion_confusa", "skip": True, "detail": confusing}
+            if current in _PENDING_STATUSES:
+                out["alert"] = {**_alert_base(row, kind, parsed, from_addr, msg_date), "type": "confusa",
+                                "detail": confusing}
+            return out
+        body.update(updates)
         body["status"] = "Modificada"
-        if parsed.get("check_in"):
-            body["check_in"] = parsed["check_in"]
-        if parsed.get("check_out"):
-            body["check_out"] = parsed["check_out"]
-        if parsed.get("total_amount") not in (None, "", 0, 0.0):
-            body["total_amount"] = parsed["total_amount"]
-        body["notes"] = _append_note(row.get("notes"), "[HOTEL confirmó modificación — auto " + stamp + "]")
+        detail = "; ".join(f"{k} {_fmt_val(k, o)}→{_fmt_val(k, n)}" for k, o, n in changes)
+        ignored = (parsed.get("changes") or {}).get("ignored") or []
+        if ignored:
+            detail += " | ignorado: " + "; ".join(ignored)
+        body["notes"] = _append_note(row.get("notes"), f"[HOTEL confirmó modificación — auto {stamp}] {detail}")
+        alert = {**_alert_base(row, kind, parsed, from_addr, msg_date), "type": "aplicada",
+                 "old_status": current, "new_status": "Modificada", "changes": changes, "ignored": ignored}
     elif verdict == "reject":
         if closed:
             return {"ok": True, "status": current, "reason": "ya_cerrada", "skip": True}
@@ -675,7 +830,149 @@ def _apply_lifecycle_row(row: dict, kind: str, parsed: dict, from_addr: str, msg
             sb("PATCH", path, body)
         else:
             raise
-    return {"ok": True, "status": body.get("status"), "fields": list(body.keys()), "verdict": verdict}
+    out = {"ok": True, "status": body.get("status"), "fields": list(body.keys()), "verdict": verdict}
+    if alert:
+        out["alert"] = alert
+    return out
+
+
+# ===== Avisos WhatsApp del ciclo anular/modificar =====
+
+def _env_with_monitor_fallback(key: str) -> str:
+    """Reusa la config del email-monitor (mismo grupo de avisos de reservas) si el .env del sync no la tiene."""
+    val = env(key)
+    if val:
+        return val
+    return (_MONITOR_ENV.get(key) or "").strip()
+
+
+_MONITOR_ENV = load_env(DIR.parent.parent / "email-monitor" / ".env")
+
+
+def _art_when(value) -> str:
+    t = _to_utc(value)
+    if not t:
+        return "fecha n/d"
+    if isinstance(value, dt.date) and not isinstance(value, dt.datetime):
+        return value.strftime("%d/%m/%Y")
+    try:
+        from zoneinfo import ZoneInfo
+
+        local = t.astimezone(ZoneInfo("America/Argentina/Buenos_Aires"))
+    except Exception:
+        local = t.astimezone(dt.timezone(dt.timedelta(hours=-3)))
+    return local.strftime("%d/%m/%Y %H:%M") + " (hora ARG)"
+
+
+def _excerpt(text: str, limit: int = 300) -> str:
+    s = re.sub(r"\s+", " ", str(text or "")).strip().replace('"', "'")
+    return s if len(s) <= limit else s[: limit - 1].rstrip() + "…"
+
+
+def build_lifecycle_alert_text(alert: dict) -> str:
+    who = alert.get("code") or ""
+    if alert.get("guest"):
+        who += f" · {alert['guest']}"
+    cin = f" · Check-in {alert['check_in']}" if alert.get("check_in") else ""
+    if alert.get("type") == "confusa":
+        lines = [
+            "⚠️ *El hotel respondió pero la respuesta es confusa*",
+            f"🏨 {alert.get('hotel') or 'Hotel'}",
+            f"🔖 {who}",
+            f"📝 Pedido: {alert.get('track')}{cin}",
+            f"📨 De: {alert.get('from') or 'n/d'} · {_art_when(alert.get('when'))}",
+        ]
+        if alert.get("detail"):
+            lines.append(f"❓ {alert['detail']}")
+        lines.append(f"💬 \"{_excerpt(alert.get('excerpt')) or '(sin texto propio)'}\"")
+        lines.append("Revisá el mail y cerrá a mano desde el dashboard.")
+        return "\n".join(lines)
+    lines = [
+        f"✅ *Hotel confirmó {alert.get('track', '').lower()} — aplicado en el dashboard*",
+        f"🏨 {alert.get('hotel') or 'Hotel'}",
+        f"🔖 {who}",
+        f"📌 Estado: {alert.get('old_status') or '—'} → *{alert.get('new_status')}*",
+    ]
+    for key, old, new in alert.get("changes") or []:
+        lines.append(f"• {_FIELD_LABELS.get(key, key)}: {_fmt_val(key, old)} → *{_fmt_val(key, new)}*")
+    for item in alert.get("ignored") or []:
+        lines.append(f"• No aplicado: {item}")
+    lines.append(f"📨 De: {alert.get('from') or 'n/d'} · {_art_when(alert.get('when'))}")
+    lines.append(f"💬 \"{_excerpt(alert.get('excerpt'), 200)}\"")
+    lines.append("Revisalo; si algo no corresponde, corregilo desde el dashboard.")
+    return "\n".join(lines)
+
+
+def _alert_already_sent(kind: str, fingerprint: str) -> bool:
+    q = (
+        "ana_alerts_log?select=id&sent_ok=eq.true&kind=eq."
+        + urllib.parse.quote(kind, safe="")
+        + "&fingerprint=eq."
+        + urllib.parse.quote(fingerprint, safe="")
+        + "&limit=1"
+    )
+    data = sb("GET", q)
+    return isinstance(data, list) and len(data) > 0
+
+
+def _post_whatsapp(text: str) -> dict:
+    api = _env_with_monitor_fallback("WHATSAPP_API_URL").rstrip("/")
+    key = _env_with_monitor_fallback("WHATSAPP_API_KEY")
+    dest = _env_with_monitor_fallback("LIFECYCLE_WHATSAPP_TO") or _env_with_monitor_fallback("WHATSAPP_GROUP_ID")
+    if not api or not dest:
+        return {"ok": False, "error": "falta WHATSAPP_API_URL / WHATSAPP_GROUP_ID"}
+    req = urllib.request.Request(
+        f"{api}/api/send",
+        data=json.dumps({"number": dest, "text": text}).encode("utf-8"),
+        method="POST",
+        headers={"Content-Type": "application/json", "x-api-key": key},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            raw = resp.read().decode("utf-8", errors="ignore") or "{}"
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            data = {}
+        ok = bool(data.get("success", True)) if isinstance(data, dict) else True
+        return {"ok": ok, "error": None if ok else str(data.get("error") or "respuesta sin success")[:200]}
+    except urllib.error.HTTPError as e:
+        return {"ok": False, "error": f"WhatsApp {e.code}"}
+    except Exception as e:
+        return {"ok": False, "error": str(e)[:200]}
+
+
+def send_lifecycle_alert(alert: dict, message_id: str) -> dict:
+    """Un aviso por mail (message-id) y tipo; deja rastro en ana_alerts_log. Nunca lanza excepción."""
+    if env("LIFECYCLE_WHATSAPP_ALERTS", "1") == "0":
+        return {"ok": False, "skipped": True, "reason": "desactivado"}
+    kind = "lifecycle_confusa" if alert.get("type") == "confusa" else "lifecycle_aplicada"
+    fingerprint = f"{message_id or 'sin-id'}:{alert.get('code') or ''}"
+    try:
+        if _alert_already_sent(kind, fingerprint):
+            return {"ok": True, "skipped": True, "reason": "ya_enviada"}
+    except Exception:
+        pass  # si no se puede consultar, preferimos avisar
+    text = build_lifecycle_alert_text(alert)
+    res = _post_whatsapp(text)
+    try:
+        sb(
+            "POST",
+            "ana_alerts_log?on_conflict=kind,fingerprint",
+            [
+                {
+                    "kind": kind,
+                    "fingerprint": fingerprint,
+                    "channel": "whatsapp",
+                    "payload": {"code": alert.get("code"), "type": alert.get("type"), "text": text[:1500]},
+                    "sent_ok": bool(res.get("ok")),
+                    "error": res.get("error"),
+                }
+            ],
+        )
+    except Exception as e:
+        res["log_error"] = str(e)[:200]
+    return res
 
 
 def parse_reservation_mail(from_addr, subject, text, html, msg_dt):
@@ -892,14 +1189,22 @@ def main():
                         own = (parsed.get("own_text") or "").replace("\n", " ")[:220]
                         if own:
                             print(f"   · cuerpo: {own}")
+                        if parsed.get("changes"):
+                            print(f"   · cambios leídos: {parsed.get('changes')}")
                         continue
                     try:
-                        result = patch_reservation_lifecycle(code, kind, parsed, from_addr, msg_date(msg))
+                        result = patch_reservation_lifecycle(
+                            code, kind, parsed, from_addr, msg_datetime(msg) or msg_date(msg), message_id=message_id
+                        )
                         if result.get("ok"):
                             if result.get("skip"):
                                 stats["skipped"] += 1
                                 reason = result.get("reason") or ""
                                 print(f"   ⏭️  skip {code} ({reason})")
+                            if result.get("alert_sent") is not None:
+                                sent = result["alert_sent"]
+                                state = "ya enviado" if sent.get("skipped") else ("ok" if sent.get("ok") else f"falló: {sent.get('error')}")
+                                print(f"   📲 aviso WhatsApp ({result['alert'].get('type')}): {state}")
                             else:
                                 stats["imported"] += 1
                                 extra = result.get("reason") or result.get("verdict") or ""
@@ -914,7 +1219,12 @@ def main():
                                 "subject": subject,
                                 "from_addr": from_addr,
                                 "status": "imported" if (result.get("ok") and not result.get("skip")) else "skipped",
-                                "error_detail": None if result.get("ok") else result.get("reason"),
+                                "error_detail": (
+                                    None
+                                    if result.get("ok") and not result.get("skip")
+                                    else (str(result.get("reason") or "") + (f": {result['detail']}" if result.get("detail") else "")
+                                          + (" +aviso" if (result.get("alert_sent") or {}).get("ok") else ""))[:300]
+                                ),
                             }
                         )
                     except Exception as e:

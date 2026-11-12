@@ -77,6 +77,21 @@ python3 dump_unparsed.py --subject-contains="Corralco" --since-days=90
 
 El mismo cron cubre Huilo, Corralco, Puyehue y Aguas Calientes.
 
+## Anular / modificar: cierre automático y avisos
+
+- Respuesta del hotel que **confirma** → la reserva se cierra sola: anulación → `Cancelada`; modificación → `Modificada`
+  aplicando solo lo que el hotel escribe con claridad (check-in/check-out o noches, adultos/niños, tarifa en USD).
+  Queda nota `[HOTEL confirmó … — auto] campo viejo→nuevo` y sale un WhatsApp "Hotel confirmó … — aplicado".
+- Respuesta **confusa** (no se entiende, pregunta algo, "aún no", montos en CLP/ARS, valores contradictorios)
+  sobre una reserva en `Modificación pedida` / `Anulación pedida` / `En gestión` → no se toca la reserva y sale
+  "⚠️ El hotel respondió pero la respuesta es confusa". Negativas ("no hay disponibilidad", "no es posible") → `En gestión`.
+- Un aviso por mail (message-id), registrado en `ana_alerts_log` (`lifecycle_confusa` / `lifecycle_aplicada`).
+  Si WhatsApp falla, el sync sigue.
+- La respuesta cuenta si llegó después del último `[PEDIDO …]` (fecha+hora, margen 10 min).
+- Config WhatsApp: `WHATSAPP_API_URL`, `WHATSAPP_API_KEY`, `WHATSAPP_GROUP_ID` del `.env` de este script o, si no
+  están, del `email-monitor/.env` (mismo grupo de hoteles). Opcional: `LIFECYCLE_WHATSAPP_TO` (otro destino),
+  `LIFECYCLE_WHATSAPP_ALERTS=0` (apagar avisos).
+
 ## WhatsApp (Línea 2)
 
 El chip de Línea 2 tiene que estar en el grupo **Reservas Corralco Paz**.

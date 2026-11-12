@@ -191,5 +191,109 @@ class TestHotelReplyVerdict(unittest.TestCase):
         self.assertTrue(is_hotel_sender("reservas@puyehue.cl"))
 
 
+class TestConservativeVerdict(unittest.TestCase):
+    def test_negative_or_pending_is_never_confirm(self):
+        from parse_lifecycle import classify_hotel_reply
+
+        for text in (
+            "No hay disponibilidad para las nuevas fechas.",
+            "Lamentablemente no contamos con disponibilidad, la reserva se mantiene.",
+            "No es posible modificar la reserva, queda como estaba.",
+        ):
+            self.assertEqual(classify_hotel_reply("modify", text), "reject", text)
+        for text in (
+            "Confirmamos la modificación, ¿nos indican la cantidad de niños?",
+            "Aún no fue modificada, lo consultamos con el área comercial.",
+            "Estamos gestionando el cambio, la reserva queda modificada apenas tengamos lugar.",
+            "Recibido, quedamos atentos.",
+        ):
+            self.assertEqual(classify_hotel_reply("modify", text), "unclear", text)
+
+    def test_opposite_kind_is_unclear(self):
+        from parse_lifecycle import classify_hotel_reply
+
+        self.assertEqual(classify_hotel_reply("modify", "La reserva queda cancelada."), "unclear")
+        self.assertEqual(classify_hotel_reply("cancel", "Confirmamos la modificación."), "unclear")
+
+
+class TestModificationChanges(unittest.TestCase):
+    REF = __import__("datetime").date(2026, 11, 12)
+
+    def _x(self, text):
+        from parse_lifecycle import extract_modification_changes
+
+        return extract_modification_changes(text, self.REF)
+
+    def test_dates_only(self):
+        r = self._x("Estimado Germán, confirmamos la modificación.\nNuevas fechas: check-in 21/11/2026 y check-out 23/11/2026.\nSaludos")
+        self.assertEqual((r.get("check_in"), r.get("check_out")), ("2026-11-21", "2026-11-23"))
+        self.assertNotIn("adults", r)
+        self.assertNotIn("total_amount", r)
+        self.assertEqual(r["ambiguous"], [])
+
+    def test_dates_text_range_and_nights(self):
+        r = self._x("Hemos modificado la reserva del 21 al 24 de noviembre.")
+        self.assertEqual((r.get("check_in"), r.get("check_out")), ("2026-11-21", "2026-11-24"))
+        r = self._x("Reserva modificada: ingreso 20/11 por 3 noches.")
+        self.assertEqual((r.get("check_in"), r.get("check_out")), ("2026-11-20", "2026-11-23"))
+
+    def test_pax_only(self):
+        r = self._x("Confirmamos el cambio, la reserva queda para 3 adultos y 1 niño.")
+        self.assertEqual((r.get("adults"), r.get("children")), (3, 1))
+        self.assertNotIn("check_in", r)
+        r = self._x("Cabaña superior (cap. 10 personas) modificada para dos adultos.")
+        self.assertEqual(r.get("adults"), 2)
+        self.assertNotIn("total_pax", r)
+
+    def test_rate_only_usd(self):
+        r = self._x("Reserva modificada. Nueva tarifa total USD 850.")
+        self.assertEqual(r.get("total_amount"), 850.0)
+        r = self._x("Modificación realizada, el total queda en US$ 1.250,00")
+        self.assertEqual(r.get("total_amount"), 1250.0)
+
+    def test_non_usd_amount_is_ignored(self):
+        r = self._x("Reserva modificada, valor total CLP 650.000")
+        self.assertNotIn("total_amount", r)
+        self.assertTrue(r["ignored"])
+        r = self._x("Reserva modificada, total $ 485.000 pesos chilenos")
+        self.assertNotIn("total_amount", r)
+
+    def test_partial_amount_is_ambiguous(self):
+        r = self._x("Confirmamos la modificación. Diferencia a abonar USD 120.")
+        self.assertNotIn("total_amount", r)
+        self.assertIn("total_amount", r["ambiguous"])
+
+    def test_mixed(self):
+        r = self._x(
+            "Hola Germán, la reserva queda modificada:\n"
+            "Check-in: 05/12/2026\nCheck-out: 08/12/2026\n"
+            "4 adultos, 2 niños\nTotal: USD 1.480\nSaludos, Laura"
+        )
+        self.assertEqual(r.get("check_in"), "2026-12-05")
+        self.assertEqual(r.get("check_out"), "2026-12-08")
+        self.assertEqual((r.get("adults"), r.get("children")), (4, 2))
+        self.assertEqual(r.get("total_amount"), 1480.0)
+        self.assertEqual(r["ambiguous"], [])
+
+    def test_contradictory_dates_are_ambiguous(self):
+        r = self._x("Reserva modificada. Las fechas 21/11, 23/11 y 25/11 quedan bloqueadas.")
+        self.assertIn("fechas", r["ambiguous"])
+
+    def test_parse_mail_uses_only_hotel_text(self):
+        from parse_lifecycle import parse_lifecycle_mail
+
+        text = (
+            "Confirmamos la modificación, ahora son 3 adultos.\n\n"
+            "El mié, 11 nov 2026 Checkin24hs escribió:\n"
+            "> Solicitamos modificar la siguiente reserva.\n"
+            "> Check-in: 2026-11-13\n> Check-out: 2026-11-15\n> Tarifa (USD): 447.2\n"
+        )
+        row = parse_lifecycle_mail({"subject": "RE: MODIFICAR RESERVA Cabañas Termas de Aguas Calientes V39VSN", "text": text, "html": ""})
+        self.assertEqual(row["hotel_verdict"], "confirm_modify")
+        self.assertEqual(row["changes"].get("adults"), 3)
+        self.assertNotIn("check_in", row["changes"])
+        self.assertNotIn("total_amount", row["changes"])
+
+
 if __name__ == "__main__":
     unittest.main()

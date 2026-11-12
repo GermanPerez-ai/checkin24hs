@@ -333,6 +333,27 @@ _REPLY_BLOCK = re.compile(
     r"|sujeto a (?:confirmaci[oó]n|disponibilidad|pol[ií]tica)"
     r"|lo (?:vamos a )?(?:revisar|revisamos|evaluar|evaluamos|analizar|analizamos)"
     r"|en (?:revisi[oó]n|evaluaci[oó]n)"
+    r"|no (?:hay|tenemos|contamos con|disponemos de|queda) (?:\w+ )?disponibilidad"
+    r"|sin disponibilidad"
+    r"|no (?:hay|tenemos|quedan?) (?:lugar|cupo|habitaciones|caba[nñ]as)"
+    r"|no (?:fue|ha sido|es) (?:posible|factible)"
+    r"|(?:rechazad[ao]|denegad[ao])"
+    r")",
+    re.I,
+)
+
+# Respuestas "en trámite" o que no afirman nada todavía: nunca son confirmación.
+_REPLY_PENDING = re.compile(
+    r"(?:"
+    r"\b(?:aun|todavia) no\b"
+    r"|\bno (?:hemos|se ha|se han|fue|ha sido) (?:\w+ )?(?:modificad|anulad|cancelad|procesad|realizad|confirmad|actualizad)"
+    r"|a la espera"
+    r"|en (?:proceso|tramite|gestion)"
+    r"|estamos (?:gestionando|revisando|verificando|consultando|chequeando)"
+    r"|(?:lo|la) (?:consultamos|consulto|verifico|verificamos|chequeamos)"
+    r"|te (?:confirmo|confirmamos|aviso|avisamos) (?:a la brevedad|en breve|luego|mas tarde|despues)"
+    r"|les (?:confirmo|confirmamos|aviso|avisamos) (?:a la brevedad|en breve|luego|mas tarde|despues)"
+    r"|pendiente"
     r")",
     re.I,
 )
@@ -405,13 +426,321 @@ def classify_hotel_reply(kind: str, own_text: str) -> str:
     cm = bool(_CONFIRM_MODIFY.search(t))
     if blocked:
         return "reject"
+    if not (cc or cm):
+        return "unclear"
+    # Conservador: si todavía está en trámite o nos devuelve una pregunta, no es confirmación.
+    if _REPLY_PENDING.search(t):
+        return "unclear"
+    if "?" in t or "\u00bf" in t:
+        return "unclear"
     if cc and cm:
         return "confirm_cancel" if kind == "cancel" else "confirm_modify"
+    # Confirmación del tipo contrario al pedido (p.ej. "anulada" en un pedido de modificación):
+    # no se aplica sola, se avisa como respuesta confusa.
     if cc:
-        return "confirm_cancel"
+        return "confirm_cancel" if kind == "cancel" else "unclear"
     if cm:
-        return "confirm_modify"
+        return "confirm_modify" if kind == "modify" else "unclear"
     return "unclear"
+
+
+# ===== Cambios concretos de una modificación (fechas / pasajeros / tarifa) =====
+
+_MONTHS = {
+    "enero": 1, "ene": 1, "febrero": 2, "feb": 2, "marzo": 3, "mar": 3, "abril": 4, "abr": 4,
+    "mayo": 5, "may": 5, "junio": 6, "jun": 6, "julio": 7, "jul": 7, "agosto": 8, "ago": 8,
+    "septiembre": 9, "setiembre": 9, "sep": 9, "sept": 9, "set": 9, "octubre": 10, "oct": 10,
+    "noviembre": 11, "nov": 11, "diciembre": 12, "dic": 12,
+}
+_NUM_WORDS = {
+    "un": 1, "uno": 1, "una": 1, "dos": 2, "tres": 3, "cuatro": 4, "cinco": 5, "seis": 6,
+    "siete": 7, "ocho": 8, "nueve": 9, "diez": 10,
+}
+_NUM = r"\b(\d{1,2}|un|uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)"
+_MONTH_RX = "|".join(sorted(_MONTHS, key=len, reverse=True))
+
+_DATE_NUM = re.compile(r"\b(\d{1,2})[/\-.](\d{1,2})(?:[/\-.](\d{2,4}))?\b")
+_DATE_ISO = re.compile(r"\b(20\d{2})-(\d{1,2})-(\d{1,2})\b")
+_DATE_TXT = re.compile(
+    r"\b(\d{1,2})\s*(?:de\s+)?(" + _MONTH_RX + r")\.?(?:\s*(?:de|del)?\s*(20\d{2}))?\b",
+    re.I,
+)
+_RANGE_TXT = re.compile(
+    r"\b(?:del|desde el|desde)\s+(\d{1,2})\s*(?:de\s+(" + _MONTH_RX + r"))?\s*"
+    r"(?:al|hasta el|hasta|-)\s*(\d{1,2})\s*(?:de\s+)?(" + _MONTH_RX + r")\.?"
+    r"(?:\s*(?:de|del)?\s*(20\d{2}))?",
+    re.I,
+)
+_IN_LABEL = re.compile(r"(?:check[\s\-]?in|ingreso|llegada|entrada|arribo)", re.I)
+_OUT_LABEL = re.compile(r"(?:check[\s\-]?out|egreso|salida|partida)", re.I)
+_NIGHTS = re.compile(_NUM + r"\s+noches?\b", re.I)
+
+_USD_AMOUNT = re.compile(
+    r"(?:\b(?:usd|us\$|u\$s|u\$d|dolares|dólares)\s*:?\s*([\d][\d.,]*))"
+    r"|(?:([\d][\d.,]*)\s*(?:usd|us\$|u\$s|dolares|dólares)\b)",
+    re.I,
+)
+_OTHER_AMOUNT = re.compile(
+    r"(?:\b(?:clp|ars|pesos?)\b\s*\$?\s*[\d][\d.,]*)"
+    r"|(?:[\d][\d.,]*\s*\b(?:clp|ars|pesos?)\b)"
+    r"|(?:(?<![a-z])\$\s*[\d][\d.,]*)",
+    re.I,
+)
+_AMOUNT_TOTAL_HINT = re.compile(r"total|tarifa|nuevo valor|nuevo monto|valor final|monto final|importe|precio|queda en", re.I)
+_AMOUNT_PARTIAL_HINT = re.compile(
+    r"diferencia|adicional|saldo|se[nñ]a|dep[oó]sito|anticipo|abon|pag(?:o|ar|ado)|por noche|p/noche|por persona|suplemento",
+    re.I,
+)
+
+_ADULTS = [
+    re.compile(_NUM + r"\s*(?:adultos?|adt|pax adultos?)\b", re.I),
+    re.compile(r"\badultos?\s*[:=]?\s*(\d{1,2})\b", re.I),
+]
+_CHILDREN = [
+    re.compile(_NUM + r"\s*(?:ni[nñ][oa]s?|menores?|chicos?|chd)\b", re.I),
+    re.compile(r"\b(?:ni[nñ][oa]s?|menores?)\s*[:=]\s*(\d{1,2})\b", re.I),
+]
+_INFANTS = re.compile(_NUM + r"\s*(?:infantes?|beb[eé]s?)\b", re.I)
+_TOTAL_PAX = re.compile(_NUM + r"\s*(?:pax|personas|hu[eé]spedes|pasajeros)\b", re.I)
+_CAPACITY_BEFORE = re.compile(r"(?:cap\.?|capacidad|hasta|m[aá]x(?:imo)?\.?)\s*$", re.I)
+
+
+def _num(raw: str) -> Optional[int]:
+    raw = str(raw or "").strip().lower()
+    if raw.isdigit():
+        return int(raw)
+    return _NUM_WORDS.get(raw)
+
+
+def _money(raw: str) -> Optional[float]:
+    s = str(raw or "").strip().rstrip(".,")
+    if not s:
+        return None
+    if "," in s and "." in s:
+        if s.rfind(",") > s.rfind("."):
+            s = s.replace(".", "").replace(",", ".")
+        else:
+            s = s.replace(",", "")
+    elif "," in s:
+        parts = s.split(",")
+        s = s.replace(",", "") if len(parts[-1]) == 3 else s.replace(",", ".")
+    elif "." in s:
+        parts = s.split(".")
+        if len(parts) > 2 or len(parts[-1]) == 3:
+            s = s.replace(".", "")
+    try:
+        v = float(s)
+    except ValueError:
+        return None
+    return v if 10 <= v <= 200000 else None
+
+
+def _mkdate(y, m, d):
+    import datetime as _dt
+
+    try:
+        return _dt.date(int(y), int(m), int(d))
+    except (TypeError, ValueError):
+        return None
+
+
+def _year_for(month: int, day: int, ref_date):
+    """Año de una fecha sin año: la próxima ocurrencia desde ref_date (con 30 días de gracia)."""
+    import datetime as _dt
+
+    ref = ref_date or _dt.date.today()
+    for y in (ref.year, ref.year + 1):
+        cand = _mkdate(y, month, day)
+        if cand and cand >= ref - _dt.timedelta(days=30):
+            return cand
+    return None
+
+
+def _dates_in(text: str, ref_date) -> list[tuple[int, object]]:
+    """[(posición, date)] de todas las fechas reconocibles del texto."""
+    out = []
+    for m in _DATE_ISO.finditer(text):
+        d = _mkdate(m.group(1), m.group(2), m.group(3))
+        if d:
+            out.append((m.start(), d))
+    iso_spans = [(m.start(), m.end()) for m in _DATE_ISO.finditer(text)]
+    for m in _DATE_NUM.finditer(text):
+        if any(a <= m.start() < b for a, b in iso_spans):
+            continue
+        day, month, year = int(m.group(1)), int(m.group(2)), m.group(3)
+        if not (1 <= month <= 12 and 1 <= day <= 31):
+            continue
+        if year:
+            y = int(year)
+            y = y + 2000 if y < 100 else y
+            d = _mkdate(y, month, day)
+        else:
+            d = _year_for(month, day, ref_date)
+        if d:
+            out.append((m.start(), d))
+    for m in _DATE_TXT.finditer(text):
+        month = _MONTHS.get(m.group(2).lower())
+        day = int(m.group(1))
+        d = _mkdate(m.group(3), month, day) if m.group(3) else _year_for(month, day, ref_date)
+        if d:
+            out.append((m.start(), d))
+    out.sort(key=lambda x: x[0])
+    return out
+
+
+def _unique(values):
+    seen = []
+    for v in values:
+        if v not in seen:
+            seen.append(v)
+    return seen
+
+
+def extract_modification_changes(own_text: str, ref_date=None) -> dict:
+    """Lee SOLO lo que el hotel escribió (sin el pedido citado) y devuelve los campos
+    que afirma con claridad: check_in, check_out, adults, children, total_amount (USD).
+    Si algo es contradictorio va a "ambiguous" y no se aplica nada de ese campo.
+    """
+    import datetime as _dt
+
+    text = re.sub(r"[ \t]+", " ", str(own_text or "").replace("\r", ""))
+    ref = ref_date or _dt.date.today()
+    res = {"ambiguous": [], "ignored": []}
+
+    # --- Fechas ---
+    check_in = check_out = None
+    rng = _RANGE_TXT.search(text)
+    if rng:
+        m_out = _MONTHS.get(rng.group(4).lower())
+        m_in = _MONTHS.get((rng.group(2) or rng.group(4)).lower())
+        year = rng.group(5)
+        if year:
+            check_out = _mkdate(year, m_out, rng.group(3))
+            check_in = _mkdate(int(year) - (1 if m_in > m_out else 0), m_in, rng.group(1))
+        else:
+            check_in = _year_for(m_in, int(rng.group(1)), ref)
+            check_out = _year_for(m_out, int(rng.group(3)), check_in or ref)
+    dates = _dates_in(text, ref)
+    labeled_in, labeled_out = [], []
+    for pos, d in dates:
+        before = text[max(0, pos - 40):pos]
+        line_before = before.split("\n")[-1]
+        has_in = _IN_LABEL.search(line_before)
+        has_out = _OUT_LABEL.search(line_before)
+        if has_in and has_out:
+            # "check-in 20/11 y check-out 22/11" → la etiqueta más cercana manda
+            last_in = max(m.end() for m in _IN_LABEL.finditer(line_before))
+            last_out = max(m.end() for m in _OUT_LABEL.finditer(line_before))
+            (labeled_in if last_in > last_out else labeled_out).append(d)
+        elif has_in:
+            labeled_in.append(d)
+        elif has_out:
+            labeled_out.append(d)
+    if labeled_in or labeled_out:
+        li, lo = _unique(labeled_in), _unique(labeled_out)
+        if len(li) > 1:
+            res["ambiguous"].append("check_in")
+        elif li:
+            if check_in and check_in != li[0]:
+                res["ambiguous"].append("check_in")
+            check_in = li[0]
+        if len(lo) > 1:
+            res["ambiguous"].append("check_out")
+        elif lo:
+            if check_out and check_out != lo[0]:
+                res["ambiguous"].append("check_out")
+            check_out = lo[0]
+    elif not rng and dates:
+        uniq = _unique([d for _, d in dates])
+        if len(uniq) == 2 and uniq[0] < uniq[1]:
+            check_in, check_out = uniq
+        else:
+            res["ambiguous"].append("fechas")
+
+    nights_vals = _unique([_num(m.group(1)) for m in _NIGHTS.finditer(text)])
+    nights_vals = [n for n in nights_vals if n]
+    if len(nights_vals) > 1:
+        res["ambiguous"].append("noches")
+    elif nights_vals:
+        n = nights_vals[0]
+        if check_in and not check_out:
+            check_out = check_in + _dt.timedelta(days=n)
+        elif check_in and check_out and (check_out - check_in).days != n:
+            res["ambiguous"].append("noches")
+        elif not check_in and not check_out:
+            res["nights"] = n  # se resuelve contra la reserva (mismo check-in)
+
+    if check_in and check_out:
+        span = (check_out - check_in).days
+        if span <= 0 or span > 45:
+            res["ambiguous"].append("fechas")
+            check_in = check_out = None
+    for key, d in (("check_in", check_in), ("check_out", check_out)):
+        if d and key not in res["ambiguous"]:
+            if d < ref - _dt.timedelta(days=2) or d > ref + _dt.timedelta(days=800):
+                res["ambiguous"].append(key)
+            else:
+                res[key] = d.isoformat()
+
+    # --- Pasajeros ---
+    def _counts(patterns):
+        vals = []
+        for rx in patterns:
+            for m in rx.finditer(text):
+                if _CAPACITY_BEFORE.search(text[max(0, m.start() - 15):m.start()]):
+                    continue
+                v = _num(m.group(1))
+                if v is not None and 0 <= v <= 30:
+                    vals.append(v)
+        return _unique(vals)
+
+    adults = _counts(_ADULTS)
+    children = _counts(_CHILDREN)
+    infants = _counts([_INFANTS])
+    if len(adults) > 1:
+        res["ambiguous"].append("adults")
+    elif adults:
+        res["adults"] = adults[0]
+    if len(children) > 1:
+        res["ambiguous"].append("children")
+    elif children:
+        res["children"] = children[0]
+    if infants:
+        res["ignored"].append(f"infantes {', '.join(str(i) for i in infants)} (sin columna en reservas)")
+    if not adults and not children:
+        total = _counts([_TOTAL_PAX])
+        if len(total) > 1:
+            res["ambiguous"].append("pasajeros")
+        elif total:
+            res["total_pax"] = total[0]
+
+    # --- Tarifa (solo USD explícito) ---
+    usd = []
+    for m in _USD_AMOUNT.finditer(text):
+        v = _money(m.group(1) or m.group(2))
+        if v is None:
+            continue
+        line_start = text.rfind("\n", 0, m.start()) + 1
+        line_end = text.find("\n", m.end())
+        line = text[line_start: line_end if line_end >= 0 else len(text)]
+        usd.append((v, bool(_AMOUNT_TOTAL_HINT.search(line)), bool(_AMOUNT_PARTIAL_HINT.search(line))))
+    candidates = [u for u in usd if not u[2]]
+    if usd and not candidates:
+        res["ambiguous"].append("total_amount")  # solo montos parciales (diferencia, seña…)
+    elif candidates:
+        vals = _unique([v for v, _, _ in candidates])
+        if len(vals) > 1:
+            hinted = _unique([v for v, h, _ in candidates if h])
+            vals = hinted if len(hinted) == 1 else vals
+        if len(vals) == 1:
+            res["total_amount"] = round(vals[0], 2)
+        else:
+            res["ambiguous"].append("total_amount")
+    if _OTHER_AMOUNT.search(text) and "total_amount" not in res:
+        res["ignored"].append("monto en moneda no USD (se mantiene la tarifa actual)")
+
+    res["ambiguous"] = _unique(res["ambiguous"])
+    return res
 
 
 def parse_lifecycle_mail(mail: dict) -> Optional[dict]:
@@ -427,8 +756,15 @@ def parse_lifecycle_mail(mail: dict) -> Optional[dict]:
     if not code:
         return None
     hotel_key = hotel_key_from_lifecycle(subject, body)
+    own = own_reply_text(text, html)
     extra = {}
+    changes = None
     if intent == "modify":
+        changes = extract_modification_changes(own)
+    if intent == "modify" and changes is not None and not any(
+        k in changes for k in ("check_in", "check_out", "adults", "children", "total_amount")
+    ):
+        # Fallback: el hotel respondió con una confirmación nueva del portal (solo su texto, sin citas)
         try:
             from parse_puyehue import parse_puyehue_mail
 
@@ -441,12 +777,20 @@ def parse_lifecycle_mail(mail: dict) -> Optional[dict]:
                 {
                     "from": mail.get("from") or "reservas@puyehue.cl",
                     "subject": fake_subj,
-                    "text": text,
-                    "html": html,
+                    "text": own,
+                    "html": "",
                     "date": mail.get("date"),
                 }
             )
             if row and row.get("kind") == "client":
+                for key in ("check_in", "check_out", "adults"):
+                    if row.get(key) not in (None, "", 0):
+                        changes[key] = row.get(key)
+                if row.get("adults") and row.get("children") is not None:
+                    changes["children"] = row.get("children")
+                amt = row.get("total_amount")
+                if amt and (row.get("currency") or "USD") == "USD" and re.search(r"US\$|USD|U\$S", own, re.I):
+                    changes["total_amount"] = amt
                 extra = {
                     "client_name": row.get("client_name") or "",
                     "check_in": row.get("check_in"),
@@ -457,7 +801,6 @@ def parse_lifecycle_mail(mail: dict) -> Optional[dict]:
                 }
         except Exception:
             extra = {}
-    own = own_reply_text(text, html)
     return {
         "kind": intent,
         "hotel_key": hotel_key,
@@ -471,4 +814,5 @@ def parse_lifecycle_mail(mail: dict) -> Optional[dict]:
         "notes": extra.get("notes"),
         "own_text": own,
         "hotel_verdict": classify_hotel_reply(intent, own),
+        "changes": changes,
     }
